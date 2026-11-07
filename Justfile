@@ -510,8 +510,9 @@ runner-image tag="csis-ci:alma10-local":
 	@docker build --platform linux/amd64 -t {{tag}} ci/runner-image
 	@docker run --rm --platform linux/amd64 {{tag}} csis-ci-probe
 
-# The credential sessions the reference configuration's runtimes need, read from the caches without
-# loading the configuration (exit 0: every one present; 2: one absent or expired) -- full-test's gate
+# The credential sessions the reference configuration's runtimes need, read from the caches over the
+# loaded configuration -- a load reaches no cloud, so no session is needed to ask (exit 0: every one
+# present; 2: one absent or expired) -- full-test's gate
 preflight: config-guard
 	@{{live_cli}} preflight
 

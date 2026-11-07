@@ -154,7 +154,11 @@ def test_security_group_ids_is_refused(tmp_path: Path, monkeypatch):
 
 
 def test_a_subnet_outside_the_vpc_is_refused(tmp_path: Path, monkeypatch):
+    """The check is the runtime's ONLINE network check (stage 127: run by a
+    real run and `validate --online` through `network_facts.discover`, never
+    by a load), and the refusal keeps its words."""
     from cs_image_system.aws_runtime import aws_utils
+    from cs_image_system.base import network_facts
     stub_environment(monkeypatch)
     real = aws_utils.get_vpc_map_and_default_vpc_id
 
@@ -163,9 +167,11 @@ def test_a_subnet_outside_the_vpc_is_refused(tmp_path: Path, monkeypatch):
         return ({v: {"subnets": [{"subnet_id": "subnet-somewhere-else"}]} for v in vpcs}, default, sgs)
     monkeypatch.setattr(aws_utils, "get_vpc_map_and_default_vpc_id", with_subnets)
     try:
-        with pytest.raises(Exception) as exc:
-            load_context(copy_config(tmp_path))
+        ctx = load_context(copy_config(tmp_path))          # the load asks nothing
+        with pytest.raises(network_facts.NetworkFactsError) as exc:
+            network_facts.discover(ctx)
         assert "is not in VPC" in str(exc.value), str(exc.value)
+        assert isinstance(exc.value.__cause__, ValueError)
     finally:
         reset_singletons()
 

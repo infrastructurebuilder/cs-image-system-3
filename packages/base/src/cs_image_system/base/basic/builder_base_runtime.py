@@ -22,6 +22,7 @@ from ..models.provider_specific_image import (
 from ..models.runtime import RuntimeBuilderModel
 from cs_image_system.contract.runtime import LAUNCH_DELIVERY_BOOT
 from ..image_sources import packaged_entries_of
+from ..network_facts import coverage_problems, facts_of
 if TYPE_CHECKING:
     from .builder_base_image import ImageBuilderBase
     from .builder_base_instance import InstanceBuilderBase
@@ -221,6 +222,34 @@ class RuntimeBuilderBase(BuilderBase[R], RuntimeBuilderProtocol):
     def secret_patterns(cls) -> Mapping[str, str]:
         """Default: the runtime's secrets have no shape the scan can name."""
         return {}
+
+    # ------------------------------------------ the network facts (stage 127)
+    # Two OPTIONAL hooks the core reaches through ``getattr`` (the contract's
+    # protocol gains nothing): a loaded configuration never reaches a cloud,
+    # so what an account answers a runtime's networking declaration with is
+    # discovered ONLINE by a real run and by `validate --online` and recorded
+    # in meta-state/runtime-facts.yaml, then adopted OFFLINE by every load.
+    #: What a runtime plugin's two networking hooks are built from: the
+    #: record entry an online check answers, and the problems a recorded
+    #: entry leaves against the declaration (both in ``network_facts``; the
+    #: kit re-exports them here, the one module a plugin reaches the kit by).
+    recorded_network_facts = staticmethod(facts_of)
+    network_coverage_problems = staticmethod(coverage_problems)
+
+    def network_facts(self) -> dict[str, Any]:
+        """ONLINE: check this runtime's networking declaration against its
+        account and answer the FACTS the declaration resolved to -- the
+        network a `default` resolved to, the declared subnet and security
+        group ids that were checked, when -- small and public-safe (never the
+        account's inventory). Default: nothing to record."""
+        return {}
+
+    def adopt_network_facts(self, facts: Mapping[str, Any]) -> list[str]:
+        """OFFLINE: take the recorded facts (``{}`` when nothing was recorded
+        for this runtime) into the model -- a `default` network becomes the
+        recorded one -- and answer the problems a validator reports: a
+        declaration the record does not cover. Default: nothing to adopt."""
+        return []
 
     #: The package that ships this runtime's part of the image-source catalog
     #: (``<package>/data/image-sources.yml``, stage 125); None for a runtime

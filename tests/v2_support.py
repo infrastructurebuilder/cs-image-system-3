@@ -73,7 +73,47 @@ def copy_config(tmp_path: Path, name: str = "config") -> Path:
     rb.write_text(re.sub(r"^(\s+ephemeral:) true.*$", r"\1 false", rb.read_text(), flags=re.M))
     # The suite's instance subjects (test, test2, gce-test) are declared in
     # the fixture itself since stage 39; nothing is injected here.
+    # The one meta-state file a copy starts with (stage 127): the network
+    # facts record a real run would have written, saying exactly what the
+    # harness's cloud stubs answer, so an offline load adopts the same
+    # networks the stubs used to resolve at load and the emission stays put.
+    record_network_facts(dst)
     return dst
+
+
+# the record's fixed timestamp: a dry run never rewrites the record, so the
+# copy's file is the harness's input, not the run's output
+FIXED_CHECKED_AT = "2026-01-01T00:00:00+00:00"
+
+
+def record_network_facts(root: Path, checked_at: str = FIXED_CHECKED_AT) -> Path:
+    """Write ``<root>/meta-state/runtime-facts.yaml`` for the tree under
+    ``root``, derived from its own ``cfg/*.yml`` (the ids are the tree's
+    data, not literals restated here): every aws/gcloud runtime's declared
+    network (a `default` recorded as the literal ``default``, what the
+    harness's stubs answer as the account's default), its declared subnet
+    ids and, on aws, its declared security groups -- as if a real run had
+    checked them. The path is returned."""
+    import yaml as _yaml
+    from cs_image_system.contract.constants import OOPS_DEFAULTS
+    runtimes: dict[str, dict] = {}
+    for p in sorted((root / "cfg").glob("*.y*ml")):
+        doc = _yaml.safe_load(p.read_text()) or {}
+        for r in (doc.get("runtime_builders") or []) if isinstance(doc, dict) else []:
+            if not isinstance(r, dict) or r.get("type") not in ("aws", "gcloud") or not r.get("name"):
+                continue
+            net = r.get("networking") or {}
+            network = net.get("network")
+            facts: dict = {"network": "default" if network in OOPS_DEFAULTS else str(network),
+                           "subnets": [str(s.get("subnet_id")) for s in net.get("subnets") or []]}
+            if r.get("type") == "aws":
+                facts["security_groups"] = [str(sg) for sg in net.get("addl_security_groups") or []]
+            facts["checked_at"] = checked_at
+            runtimes[str(r["name"])] = facts
+    path = root / "meta-state" / "runtime-facts.yaml"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(_yaml.safe_dump({"runtimes": runtimes}, sort_keys=True, default_flow_style=False))
+    return path
 
 
 def module_path(name: str) -> Path:
@@ -175,8 +215,7 @@ def reset_singletons() -> None:
     from cs_image_system.base.image_sources import ImageSourceCatalog
     ImageSourceCatalog().reset()
     TemplateResolver().flattened_map = {}
-    from cs_image_system.base.orchestrator import reset_unresolved_fks
-    reset_unresolved_fks()
+    TemplateResolver().unresolved_foreign_keys = []   # the loader starts each load with a fresh list too
     Orchestrator().invalidate_converter()
     # the terraform and packer collectors are per-run instances kept beside
     # the context (plugin_state): a new context starts with none, so nothing
@@ -198,6 +237,10 @@ def stub_environment(monkeypatch) -> list[str]:
     from cs_image_system.base import config_loader
     monkeypatch.setattr(config_loader, "datetime", _FixedDT)     # the loader's clock is the run's
 
+    # The cloud discovery stubs (stage 127): a LOAD no longer calls them --
+    # the copy's meta-state/runtime-facts.yaml (record_network_facts) says
+    # what they would answer -- but a real run's `discover` and a test's
+    # `validate --online` do, and must get the same answers.
     from cs_image_system.aws_runtime import aws_utils
     monkeypatch.setattr(aws_utils, "get_vpc_map_and_default_vpc_id",
                         lambda session_config: ({v: {"subnets": []} for v in VPCS}, "default",
@@ -280,6 +323,22 @@ def stub_environment(monkeypatch) -> list[str]:
         return subprocess.CompletedProcess(cmd, 0, stdout="", stderr="")
 
     monkeypatch.setattr(ExecutableModel, "execute", _fake_execute)
+
+    # the system's own steps (materialize, gate-plan, prune-attachments,
+    # release --declared, ...) no longer go through `execute`: the executor
+    # runs them IN PROCESS over the loaded context through the seam the
+    # system's CLI registers at import. The harness journals them the same
+    # way (the same line a spawned step would have produced), so a test
+    # reads one journal; a test of the in-process path itself registers
+    # its own runner after constructing its V2Run.
+    from cs_image_system.base import in_process as _in_process
+    from cs_image_system.contract.constants import SYSTEM_CLI
+
+    def _fake_runner(ctx, args, working_directory):
+        journal.append(f"{working_directory}: {SYSTEM_CLI} {' '.join(str(a) for a in args)}")
+        return 0
+
+    monkeypatch.setattr(_in_process, "_RUNNER", _fake_runner)
 
     from cs_image_system.base.commands import validate as _validate
     monkeypatch.setattr(_validate, "check_executables_exist_and_versions", lambda ctx: [])

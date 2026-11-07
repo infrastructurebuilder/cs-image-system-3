@@ -42,8 +42,9 @@ build:
 	@{{cli}} run --all
 
 # The fast checks: every rule of the configuration, and nothing here that must never be public.
-# `validate` loads the tree, and a load reads the clouds (the runtimes' networks), so it needs the sessions
-# `just preflight` reports; the public-safe scan needs nothing.
+# `validate` loads the tree without reaching a cloud: the runtimes' networks come from the recorded
+# meta-state/runtime-facts.yaml, which `cs-image-system validate --online` (with the sessions `just preflight`
+# reports) and every real run write; the public-safe scan needs nothing.
 
 # The fast checks: validate (needs the sessions) and public-safe
 test:
@@ -207,7 +208,7 @@ run +LIFECYCLES:
 record:
 	@{{cli}} run --all --commit
 
-# The credential sessions the runtimes need, read from the caches without loading anything
+# The credential sessions the runtimes need, read from the caches over the loaded tree (no cloud call)
 preflight:
 	@{{cli}} preflight
 

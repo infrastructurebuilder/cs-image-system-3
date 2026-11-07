@@ -9,11 +9,14 @@
 Prints the whole minutes the soonest-expiring session the configuration's
 runtimes and state backends declare has left (negative once it lapsed) and
 exits 0; prints nothing and exits 1 when no declared session has a readable
-expiry. Each plugin reads its own session (the preflight's hook); a token
-the provider's tooling renews still reports the token's own expiry here,
-because a renewal can fail once the token has lapsed. The release recipe
-says the number on the line that reports the sessions present: a release
-takes about an hour, and a login may last one.
+expiry, or when the configuration does not load (the reason goes to
+stderr). The configuration is LOADED to read its sessions -- a load
+reaches no provider, so it needs the age identity (`CSIS_CONFIG_IDENTITY`,
+the tree's `.envrc`) and no session. Each plugin reads its own session
+(the preflight's hook); a token the provider's tooling renews still reports
+the token's own expiry here, because a renewal can fail once the token has
+lapsed. The release recipe says the number on the line that reports the
+sessions present: a release takes about an hour, and a login may last one.
 """
 from __future__ import annotations
 
@@ -24,11 +27,24 @@ from pathlib import Path
 from cs_image_system.base.commands.preflight import session_minutes_left
 
 
+def _load(root: Path):
+    """The tree, loaded dry with no overlays: what the session reading needs."""
+    import types
+    from typing import Any, cast
+    from cs_image_system.base.config_loader import read_config_and_transform
+    return read_config_and_transform(cast(Any, types.SimpleNamespace(obj={})), root, False, dry_run=True)
+
+
 def main(argv: list[str]) -> int:
     if len(argv) != 2:
-        print(__doc__.strip().splitlines()[2].strip(), file=sys.stderr)
+        print((__doc__ or "").strip().splitlines()[2].strip(), file=sys.stderr)
         return 2
-    left = session_minutes_left(Path(argv[1]))
+    try:
+        ctx = _load(Path(argv[1]))
+    except Exception as e:  # a tree that does not load: no session is readable
+        print(f"session-minutes-left: the configuration at {argv[1]} did not load: {e}", file=sys.stderr)
+        return 1
+    left = session_minutes_left(ctx)
     if left is None:
         return 1
     print(math.floor(left))

@@ -12,7 +12,7 @@ commit on the bundle's branch.
    a temporary file and `os.replace`; a test for each (REEXAMINE3
    §1.4).
 2. Dead material: `helpers/async_utils.py` and
-   `helpers/yaml_process.py` if still unreferenced after [§127](STAGE-127.md);
+   `helpers/yaml_process.py` if still unreferenced after §127;
    `bin/manage_ec2.sh`.
 3. The devcontainer installs `just` (the single entry point is not
    the entry point there).
@@ -20,7 +20,7 @@ commit on the bundle's branch.
    tests behind a three-line recipe; the sibling repository's working
    tree is read through one documented function; the release appends
    `docs/CHANGES.md` (§119's owed item).
-5. The lint bar, once §124 and [§127](STAGE-127.md) have lowered the `Any` count:
+5. The lint bar, once §124 and §127 have lowered the `Any` count:
    ruff gains `B`, `I`, `C90` (a complexity ceiling measured first)
    and stops ignoring `F841`; pyright `standard` for contract,
    hashicorp-utils and the plugins, `basic` for base and system until
@@ -128,6 +128,30 @@ commit on the bundle's branch.
     `bootstrap_github` is honoured by every generated root through
     `utils.module_source` and not by the bootstrap's, which should
     resolve each section's module the same way (found by §126).
+25. The module stamps never reach a commit: the skeleton's
+    `.gitignore` ignores every dotfile (`.*`) and names no exception for
+    `.csis-module`, so a tree's fourteen stamps stay untracked and a
+    fresh checkout (CI, another machine) holds unstamped copies. Today
+    they are adopted as identical; the release after a module changes
+    would REFUSE every one of them, and the edited-copy protection the
+    docs promise (DAILY_DRIVER, CONFIGURATION 2.x, OPERATIONS) does not
+    hold across clones. Add `!**/.csis-module` to the skeleton's
+    `.gitignore`; the reference takes it at the next refresh, which
+    then commits the stamps (found 2026-11-06, the 0.1.7.dev2 take:
+    "5 files in the index").
+26. The loader sorts every free-form mapping's keys
+    (`template_utils.sort_mappings`, one call in `read_config_and_transform`)
+    only to keep the emission where the old dump-and-reparse left it (the
+    YAML dumper sorted keys, so an image's `tags` block came out sorted).
+    Dropping the call moves the golden by one key-order hunk and lets a
+    file's own order win; a deliberate emission change, with a golden
+    regeneration (found by §127).
+27. The transient-storage teardown (`retention.
+    transient_storage_teardown_command`: `run storage --only none` under
+    a different overlay set) is the one deferred system step still run
+    as a child process, because it needs a context loaded under other
+    overlays; loading that second context in-process (the loader is
+    offline now) would retire the last spawn (found by §127).
 
 **Acceptance**: each item its own commit; `just test` green after
 each; one squash, branch kept. Records: the squash; this section goes

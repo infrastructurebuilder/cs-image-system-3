@@ -19,7 +19,6 @@ from ..basic.abstract_version_checker import AbstractVersionChecker
 from ..basic.builder_base import BuilderBase
 from ..models.executable import ExecutableModel
 from ..posix_ids import FIRST_REGULAR_ID, NAME_RE, Claim, resolve_posix_ids, supplied_id
-from ..orchestrator import UNRESOLVED_FKS
 from ..encryption import decrypted_plaintexts
 from ..public_safe import scan_for_plaintexts
 from ..launch_params import HOSTNAME_LABEL_MAX, canonical_hostname, hostname_problems
@@ -269,10 +268,12 @@ def check_foreign_keys(ctx: GlobalTypeContext) -> list[Exception]:
     error, with the object, the field, the value and the target named -- the
     fallback to the raw id let the fixture and the live tree name a
     non-existent image builder for months. A `default` that has no default is
-    not one (the consumer decides), and is never recorded."""
+    not one (the consumer decides), and is never recorded. The entries are
+    the load's, as the object stage returned them to the loader
+    (``ctx.unresolved_foreign_keys``)."""
     reg = ctx.reg
     errors: list[Exception] = []
-    for cls_name, obj_name, field_name, value, target in UNRESOLVED_FKS:
+    for cls_name, obj_name, field_name, value, target in ctx.unresolved_foreign_keys:
         try:
             declared = sorted(reg.get_all_instances_by_classification(VCT(target)))
         except Exception:

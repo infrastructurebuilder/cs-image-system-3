@@ -402,8 +402,24 @@ the contract's [`fields.py`](../contract/src/cs_image_system/contract/fields.py)
 
 ### The string stage
 
-Before anything is structured, the merged `cfg/` document is rendered as
-text by the ordered resolution passes:
+Before anything is structured, the merged `cfg/` document -- the one tree
+the loader parsed, each `cfg/*.yml` file read exactly once -- is walked by
+the ordered resolution passes, each rendering the string leaves it is
+responsible for and handing the tree to the next. The document is never
+dumped back to YAML text and never parsed again: a pass is a function over
+the parsed tree (`fn(tree, *, addl, cycles) -> tree`, the registry in
+[`helpers/resolution_stages.py`](src/cs_image_system/base/helpers/resolution_stages.py)).
+A template renders to text, and that text stays a string: `port: "{{
+config.port }}"` over `port: 22` is the string `'22'` until the field it
+lands in is structured (a declared integer field coerces it; a free-form
+mapping keeps the text). A leaf without a tag keeps the type the file gave
+it, and a document with no tag at all passes through untouched. The
+document's mappings are presented with their keys in sorted order
+(`sort_mappings`): that is the order the emission has always seen, because
+the stage used to begin by dumping the document to YAML text and the dumper
+sorts a mapping's keys, so a free-form mapping an emission writes as it is
+(an image's `tags`) comes out sorted whatever order the file gave it. The
+passes:
 
 1. `interpolate` renders Jinja tags against `ENV` (the process
    environment), `execution` and the document's own `config:` map.
@@ -2004,7 +2020,9 @@ is written.
   every group member is a declared user (`_validate_groups`); every item's
   `type` resolves to a configured builder, or to the registered default
   when the field allows it; every foreign key that resolved to nothing is
-  remembered for `validate` (`UNRESOLVED_FKS`).
+  returned by the object stage's resolution pass and carried on the run
+  context (`ctx.unresolved_foreign_keys`, the object, field, value and
+  target of each) for `validate` to refuse.
 - **Every builder model's `finalize()`** and the builder's own
   `finalize()` run at load, which is where the plugins validate against
   their providers.

@@ -154,7 +154,9 @@ def test_static_keys_are_present_and_not_judged(tmp_path):
 def test_preflight_never_closes_green_over_keys_it_cannot_judge(monkeypatch, tmp_path):
     import json
     from cs_image_system.system.cli import app
-    from v2_support import FIXTURE_CONFIG
+    from v2_support import FIXTURE_CONFIG, reset_singletons, stub_environment
+    stub_environment(monkeypatch)                  # stage 127: `preflight` loads the tree (no cloud); the harness opens it
+    reset_singletons()                             # the command's own load, fresh (as load_context does)
     adc = tmp_path / "adc.json"
     adc.write_text(json.dumps({"type": "authorized_user"}))
     monkeypatch.delenv("AWS_PROFILE", raising=False)

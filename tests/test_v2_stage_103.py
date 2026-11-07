@@ -223,17 +223,18 @@ def test_preflight_reads_the_daemon_in_one_line(prepared, monkeypatch):
         seen.append((binary, dict(env)))
         return True, "answers: engine 29.8.2 (api 1.56)"
     monkeypatch.setattr(drb, "probe_daemon", probe)
-    infos = preflight.raw_session_infos(prepared)
+    ctx = load_context(prepared)                       # stage 127: the sessions are read over the loaded tree
+    infos = preflight.session_infos(ctx)
     docker = [i for i in infos if i.provider == "docker"]
     assert len(docker) == 1 and docker[0].present and docker[0].source == "context orbstack"
     assert docker[0].note.startswith("answers: engine 29.8.2") and docker[0].judged
-    assert seen == [("/usr/local/bin/docker", {"DOCKER_CONTEXT": "orbstack"})]
+    assert seen[-1] == ("/usr/local/bin/docker", {"DOCKER_CONTEXT": "orbstack"})
     # the state backends' sessions are read too, each by its own plugin's hook: the fixture's s3 backends
     # share the runtimes' profile, so they ride in the one line per credential SOURCE, with their type word
     assert any("state s3-" in i.runtime and "s3" in i.provider.split(", ") for i in infos), [i.runtime for i in infos]
     # a daemon that does not answer is absent, not an exception
     monkeypatch.setattr(drb, "probe_daemon", lambda b, e, timeout=20: (False, "does not answer: no such context"))
-    docker = [i for i in preflight.raw_session_infos(prepared) if i.provider == "docker"]
+    docker = [i for i in preflight.session_infos(ctx) if i.provider == "docker"]
     assert docker and not docker[0].present and "does not answer" in docker[0].note
 
 

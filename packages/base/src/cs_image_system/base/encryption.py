@@ -324,7 +324,7 @@ def rotate_text(text: str, identities: Iterable, recipients: Iterable[str]) -> t
 EXEMPT_PATHS: tuple[str, ...] = (
     "encryption.recipients[]",          # recipients_from_config: encrypting must need no identity
     "public_safe.allow[]",              # allow_from_config: the gate must not depend on a load
-    "runtime_builders[].name",          # preflight.raw_session_infos: sessions are checked before the load
+    "runtime_builders[].name",          # bootstrap/facts.py reads the raw tree's runtime names: the interview runs before a load can
     "runtime_builders[].type",
     "runtime_builders[].profile",
     "runtime_builders[].credentials.profile_name",

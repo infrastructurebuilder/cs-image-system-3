@@ -30,9 +30,12 @@ def _stub_classes():
     expiry = preflight.soon(12)                 # ONE instant: two entries on one ticket are one session
 
     class StubModel:
-        pass
+        type: str = "stub"
+        ticket: str = ""
 
     class StubRuntime:
+        model: Any = None
+
         @classmethod
         def csis_name(cls) -> str:
             return "stub"
@@ -65,22 +68,31 @@ def test_preflight_prints_the_session_a_stub_runtime_class_answers(tmp_path):
     reg.models[registry.RegistrationKey(VCT.RUNTIME_BUILDER, "test", "stub")] = StubRuntime
     reg.builders[StubModel] = StubRuntime
     try:
-        root = tmp_path / "tree"
-        (root / "cfg").mkdir(parents=True)
-        (root / "cfg" / "runtime-builders.yml").write_text(
-            "runtime_builders:\n"
-            "  - name: one\n    type: stub\n    ticket: t1\n"
-            "  - name: two\n    type: stub\n    ticket: t1\n"
-            "  - name: odd\n    type: nobody-answers-to-this\n")
-        lines, blocking, expired = preflight.raw_session_lines(root)
-        assert len(lines) == 1, lines                                       # one line per SOURCE; the unknown type is skipped
+        # the sessions are read over the LOADED configuration (stage 127: nothing
+        # reads the raw tree before a load any more): a context whose runtime
+        # builders are two stub instances on one ticket, each over its model
+        from types import SimpleNamespace
+
+        def entry(ticket: str):
+            model = StubModel()
+            model.type = "stub"
+            model.ticket = ticket
+            builder = StubRuntime()
+            builder.model = model
+            return builder
+        ctx = SimpleNamespace(runtime_builders={"one": entry("t1"), "two": entry("t1")}, state_backends={},
+                              executables={}, config={}, reg=reg)
+        lines, blocking = preflight.session_lines(ctx)
+        assert len(lines) == 1, lines                                       # one line per SOURCE
         assert lines[0].startswith("session: one, two (stub, ticket t1): expires in 12 min -- SHORTER than the expected run (30 min) at ")
-        assert blocking == lines and not expired
-        infos = preflight.raw_session_infos(root)
+        assert blocking == lines
+        _, absent, expired, _, unjudged = preflight.session_readiness(ctx)
+        assert not absent and not expired and not unjudged
+        infos = preflight.session_infos(ctx)
         assert infos[0].renew == "stub login" and infos[0].judged and infos[0].provider == "stub"
-        # the credential prefixes are the core's own plus every runtime's
-        assert "STUB_" in preflight.credential_environment_prefixes()
-        assert preflight.empty_environment_credentials({"STUB_TOKEN": "", "TF_VAR_X": "", "HOME": "", "STUB_OK": "1"}) == \
+        # the credential prefixes are the core's own plus every runtime's registered in the run's registry
+        assert "STUB_" in preflight.credential_environment_prefixes(reg)
+        assert preflight.empty_environment_credentials(reg, {"STUB_TOKEN": "", "TF_VAR_X": "", "HOME": "", "STUB_OK": "1"}) == \
             ["STUB_TOKEN", "TF_VAR_X"]
         # the load-failure classifier asks the stub, down the cause chain
         wrapped = RuntimeError("loading")

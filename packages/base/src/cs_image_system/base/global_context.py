@@ -48,7 +48,6 @@ from .config_loader import read_config_and_transform as _read_config_and_transfo
 from .finalizer import (  # noqa: F401 - re-exported
     ROOT_VARIABLE,
     Finalizer,
-    materialized_for,
     render_executable_line,
     script_lines,
     write_script,

@@ -10,7 +10,7 @@ from typing import Any
 from cs_image_system.base.basic.abstract_version_checker import AbstractVersionChecker
 from cs_image_system.contract.assets import AssetSet
 from cs_image_system.base.basic.builder_base_cloud import CloudBuilderBase
-from cs_image_system.contract.constants import VCT
+from cs_image_system.contract.constants import OOPS_DEFAULTS, VCT
 from cs_image_system.contract.lifecycle import ExecutionLifecyclePhase
 from cs_image_system.base.models.os_builder_runtime_config import OSBuilderBaseImageBuilderSubconfig
 from cs_image_system.base.models.provider_specific_image import ProviderSpecificImage
@@ -63,6 +63,35 @@ class AwsCloudBuilder(CloudBuilderBase[AwsCloudBuilderModel], PluginArtifactProt
     @classmethod
     def classify_failure(cls, exc: BaseException) -> LoadFailureReport | None:
         return session.classify_failure(exc)
+
+    # --- the network facts (stage 127): online by a real run and `validate
+    # --online`, adopted offline by every load from meta-state/runtime-facts.yaml
+    def network_facts(self) -> dict[str, Any]:
+        """ONLINE: the model's networking check against the account (a
+        `default` network becomes the account's default VPC; every declared
+        subnet must be in the VPC, every declared security group must
+        exist), then the facts it resolved to -- the ids the tree declares,
+        never the account's VPC map or its security groups."""
+        self.model.update_networking()
+        networking = self.model.networking
+        if networking is None:
+            return {}
+        return self.recorded_network_facts(networking.network, [s.get_subnet_id() for s in networking.subnets],
+                        list(networking.addl_security_groups))
+
+    def adopt_network_facts(self, facts: Mapping[str, Any]) -> list[str]:
+        """OFFLINE: a `default` network takes the recorded VPC id; the
+        problems are the declared subnets and security groups the record
+        never checked (or nothing recorded at all)."""
+        networking = self.model.networking
+        if networking is None:
+            return []
+        declared = networking.network
+        if declared in OOPS_DEFAULTS and facts.get("network"):
+            networking.network = str(facts["network"])
+        return self.network_coverage_problems(self.get_name(), facts, declared_network=declared,
+                                 subnets=[s.get_subnet_id() for s in networking.subnets],
+                                 security_groups=list(networking.addl_security_groups))
 
     # --- the image query (stage 106)
     def supported_query_keys(self) -> frozenset[str]:

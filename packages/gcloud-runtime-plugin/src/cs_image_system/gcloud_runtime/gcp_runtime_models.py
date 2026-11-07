@@ -86,10 +86,13 @@ class GCPCloudBuilderModel(CloudBuilderModel):
         super().__post_init__()
 
     def finalize(self):
+        # stage 127: pure -- the project is asked nothing at load. The
+        # networking check (`update_networking`) is the builder's ONLINE
+        # `network_facts` hook, run by a real run and `validate --online`;
+        # every load adopts its record instead.
         if self._finalized:
             return
         super().finalize()
-        self.update_networking()
 
     @classmethod
     def csis_name(cls) -> str:

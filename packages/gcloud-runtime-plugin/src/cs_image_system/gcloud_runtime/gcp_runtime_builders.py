@@ -10,7 +10,7 @@ from typing import Any
 from cs_image_system.base.basic.abstract_version_checker import AbstractVersionChecker
 from cs_image_system.contract.assets import AssetSet
 from cs_image_system.base.basic.builder_base_cloud import CloudBuilderBase
-from cs_image_system.contract.constants import VCT
+from cs_image_system.contract.constants import OOPS_DEFAULTS, VCT
 from cs_image_system.contract.lifecycle import ExecutionLifecyclePhase
 from cs_image_system.base.models.os_builder_runtime_config import OSBuilderBaseImageBuilderSubconfig
 from cs_image_system.base.models.provider_specific_image import ProviderSpecificImage
@@ -58,6 +58,32 @@ class GCPCloudBuilder(CloudBuilderBase[GCPCloudBuilderModel], PluginArtifactProt
     @classmethod
     def credential_environment_prefixes(cls) -> tuple[str, ...]:
         return session.CREDENTIAL_ENVIRONMENT_PREFIXES
+
+    # --- the network facts (stage 127): online by a real run and `validate
+    # --online`, adopted offline by every load from meta-state/runtime-facts.yaml
+    def network_facts(self) -> dict[str, Any]:
+        """ONLINE: the model's networking check against the project (a
+        `default` network becomes the project's default network; every
+        declared subnetwork must be in it), then the facts it resolved to --
+        the ids the tree declares, never the project's network map."""
+        self.model.update_networking()
+        networking = self.model.networking
+        if networking is None:
+            return {}
+        return self.recorded_network_facts(networking.network, [s.get_subnet_id() for s in networking.subnets])
+
+    def adopt_network_facts(self, facts: Mapping[str, Any]) -> list[str]:
+        """OFFLINE: a `default` network takes the recorded network name; the
+        problems are the declared subnetworks the record never checked (or
+        nothing recorded at all)."""
+        networking = self.model.networking
+        if networking is None:
+            return []
+        declared = networking.network
+        if declared in OOPS_DEFAULTS and facts.get("network"):
+            networking.network = str(facts["network"])
+        return self.network_coverage_problems(self.get_name(), facts, declared_network=declared,
+                                 subnets=[s.get_subnet_id() for s in networking.subnets])
 
     # --- the image query (stage 106)
     def supported_query_keys(self) -> frozenset[str]:

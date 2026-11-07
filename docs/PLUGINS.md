@@ -128,6 +128,30 @@ runtime declares only what it has.
 - `credential_environment_prefixes()`: the prefixes of the environment
   variables its tools read credentials from; `preflight` adds them to its
   check for a variable that is set and empty, reported by name.
+- `network_facts()` and `adopt_network_facts(facts)` (both optional; the
+  core reaches them through `getattr`, so a runtime that has neither is
+  neither asked nor judged): a loaded configuration never reaches a
+  cloud, so the check of a runtime's networking declaration against its
+  account is split in two. `network_facts()` is the ONLINE half, called
+  by every real run and by `validate --online` on the builder instance:
+  it checks the declaration (a `default` network resolves to the
+  account's default; every declared subnet must be in it; on AWS every
+  declared security group must exist) and answers the facts the
+  declaration resolved to -- `network`, the declared `subnets` (and
+  `security_groups`) it checked, `checked_at` -- which the core records
+  under the runtime's name in `meta-state/runtime-facts.yaml`. Small and
+  public-safe: the ids the tree already declares, never the account's
+  inventory. A failure (lapsed credentials) propagates and is classified
+  through `classify_failure` into the same one line a load-time failure
+  gets. `adopt_network_facts(facts)` is the OFFLINE half, called by every
+  load with the runtime's recorded entry (`{}` when none): it takes the
+  recorded network into the model when the declaration says `default`
+  and answers the problems the record leaves -- nothing recorded, a
+  declared id the record never checked, a concrete network that differs
+  from the recorded one -- which a validator reports, each naming
+  `validate --online`. The helpers `facts_of` and `coverage_problems` in
+  `cs_image_system.base.network_facts` build both answers; the cloud
+  runtime plugins use them.
 - `classify_failure(exc)`: the one-line form of a load-time failure that
   is this plugin's to explain (lapsed credentials, an unreachable daemon,
   a missing key pair), as a `LoadFailureReport` with its exit code. This

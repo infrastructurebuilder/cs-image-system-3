@@ -7,6 +7,7 @@ import logging
 log = logging.getLogger(__name__)
 from cs_image_system.contract.lifecycle import ExecutionLifecyclePhase
 from ..global_context import GlobalTypeContext
+from ..in_process import run_executable
 
 
 def predefined_image_generation(
@@ -53,7 +54,7 @@ def predefined_image_generation(
                     f"for runtime provider {rtp.get_name()}: {cmd.binary} "
                     f"{' '.join(cmd.args)}"
                 )
-            result = cmd.execute()
+            result = run_executable(ctx, cmd)
             if result.returncode != 0:
                 log.error(
                     f"Command failed with return code {result.returncode} "

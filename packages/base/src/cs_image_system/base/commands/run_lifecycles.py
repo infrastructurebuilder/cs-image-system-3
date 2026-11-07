@@ -51,6 +51,8 @@ from .validate import collect_validation_errors
 from ..lineage import validate_policies, bake_plan
 from ..state_query import query_state, write_state_report
 from .preflight import session_lines
+from .. import network_facts
+from ..in_process import run_executable
 from .run_scope import check_bake_scope
 from ..bootstrap.generate import regenerate_in_run
 from ..alias_pool import release_unlaunched
@@ -312,7 +314,7 @@ def execute_before_or_after_phase(
                     f"Running command {bef_aft} phase {phase.value}: "
                     f"{cmd.name} {cmd.args}* in {starting_wd}"
                 )
-            res = cmd.execute(skips=False)
+            res = run_executable(ctx, cmd)
             if not res or res.returncode != 0:
                 rc = str(res.returncode) if res else "None"
                 log.error(
@@ -394,43 +396,20 @@ def _script_header(ctx: GlobalTypeContext, lifecycle: LifecycleLike) -> list[str
 
 def _execute_in_process(ctx: GlobalTypeContext, lifecycle: LifecycleLike) -> bool:
     """Run a lifecycle generated THIS run: its deferred executables, phase by
-    phase, with every builder's pre/post finalize hooks around each phase."""
+    phase, with every builder's pre/post finalize hooks around each phase.
+    The loop itself is the finalizer's one executor
+    (:meth:`~cs_image_system.base.finalizer.Finalizer.execute_phase`): a
+    system-CLI step runs in this process over the loaded context, a failure
+    ends the lifecycle with ``False`` after the builders' failure hooks."""
     ctx.current_lifecycle = lifecycle
     _LAST_LIFECYCLE["name"] = f"the apply of {lifecycle.value}"
-    pwd = Path(os.getcwd()).absolute()
     try:
         for phase in ctx.finalization_phases_for(lifecycle):
             executables = ctx.get_finalization_executables_for_phase(phase, lifecycle)
-            if ctx.dry_run:
-                for executable in executables:
-                    log.info(f"[DRY RUN] {lifecycle.value}/{phase.value}: would execute "
-                             f"{ctx.render_executable_line(executable)}")
-                continue
-            for builder in ctx.all_sorted_builders:
-                builder.pre_finalize_phase(phase)
-            for executable in executables:
-                log.info(f"[{lifecycle.value}/{phase.value}] executing "
-                         f"{ctx.render_executable_line(executable)}")
-                os.chdir(ctx.generation_path)
-                try:
-                    res = executable.execute(skips=False)
-                except Exception as e:
-                    log.error(f"[{lifecycle.value}/{phase.value}] command failed: {e}")
-                    os.chdir(pwd)
-                    ctx.after_failed_phase(phase)     # hygiene X item 2: keep what completed
-                    return False
-                finally:
-                    os.chdir(pwd)
-                if not res or res.returncode != 0:
-                    log.error(f"[{lifecycle.value}/{phase.value}] command returned "
-                              f"{res.returncode if res else 'None'}")
-                    ctx.after_failed_phase(phase)
-                    return False
-            for builder in ctx.all_sorted_builders:
-                builder.post_finalize_phase(phase)
+            if not ctx.finalizer.execute_phase(phase, executables, label=f"{lifecycle.value}/{phase.value}"):
+                return False
         return True
     finally:
-        os.chdir(pwd)
         ctx.current_lifecycle = None
 
 
@@ -547,6 +526,13 @@ def run_lifecycles(ctx: GlobalTypeContext, requested: list[LifecycleLike], *, ap
             lines, blocking = session_lines(ctx)              # stage 12.3: warn, never refuse, in a run
             for line in lines:
                 (log.warning if line in blocking else log.info)(f"preflight {line}")
+        if not ctx.dry_run:
+            # stage 127: a REAL run checks every runtime's networking against
+            # its account and records what it resolved to; the record is
+            # adopted again so the resolved network reaches THIS run's
+            # emission. A dry run adopts what the last one recorded.
+            network_facts.discover(ctx)
+            network_facts.adopt(ctx)
         summary.validation_errors = validate(ctx, ordered)
         if summary.validation_errors:
             for err in summary.validation_errors:
@@ -632,8 +618,15 @@ def _record(ctx: GlobalTypeContext, summary: RunSummary, root: Path) -> None:
         log.error(f"Could not write run summary: {e}")
 
 
-def validate_only(ctx: GlobalTypeContext) -> list[str]:
+def validate_only(ctx: GlobalTypeContext, *, online: bool = False) -> list[str]:
+    """Every rule over the loaded configuration. ``online`` (`validate
+    --online`, stage 127) first checks every runtime's networking against
+    its account, records the facts and adopts them; offline, the rules read
+    what the record says."""
     load_hook_plugins()
+    if online:
+        network_facts.discover(ctx)
+        network_facts.adopt(ctx)
     return validate(ctx, all_lifecycles())
 
 

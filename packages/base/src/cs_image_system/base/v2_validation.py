@@ -243,7 +243,18 @@ def validate_module_sources(ctx: "GlobalTypeContext", requested: list[Lifecycle]
     return []
 
 
+def validate_network_facts(ctx: "GlobalTypeContext", requested: list[Lifecycle]) -> list[str]:
+    """What the adoption of ``meta-state/runtime-facts.yaml`` left unanswered
+    at load (a `default` network nothing recorded, a declared subnet or
+    security group the record never checked): each one names `validate
+    --online`, the command that checks the declaration against the account
+    and records the facts. A real run has discovered them by the time this
+    runs; a dry run and `validate` read the record alone."""
+    return list(getattr(ctx, "network_facts_problems", None) or [])
+
+
 def register(runner) -> None:
+    runner.register_validator(validate_network_facts)
     runner.register_validator(validate_module_sources)
     runner.register_validator(validate_test_specs)
     runner.register_validator(validate_update_policies)

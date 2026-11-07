@@ -16,11 +16,12 @@ judges what they answer. It reads no credential cache and runs no
 provider command itself; whatever a plugin reads, it reads without ever
 reading a credential value.
 
-The sessions are read twice: from the LOADED configuration (``session_infos``)
-and from the RAW ``cfg/`` files before anything loads (``raw_session_infos``),
-because loading validates every runtime against its provider and dies on an
-expired session before any preflight could say so. The raw reading finds
-each entry's class through the registry by its ``type:`` word.
+The sessions are read from the LOADED configuration (``session_infos``):
+loading reaches no provider (the runtimes' networking is checked online by
+a real run and by ``validate --online`` and adopted from its record
+otherwise), so a session that is absent or expired never stops the load,
+and the ``preflight`` command, a run and ``state query`` all read the same
+loaded tree. The plugins read their caches; nothing here asks a provider.
 
 A session with a fixed expiry is judged against the window; one that renews
 itself is present and cannot block; one with no readable expiry at all
@@ -34,7 +35,6 @@ import os
 from cs_image_system.contract.model_config import CSIS_MODEL_CONFIG
 from pydantic.dataclasses import dataclass  # stage 23: validation at construction
 from datetime import datetime, timedelta, timezone
-from pathlib import Path
 from typing import Any, Callable, Mapping, cast
 
 from cs_image_system.contract.constants import VCT
@@ -110,20 +110,11 @@ def _from_status(runtime: str, provider: str, status: SessionStatus) -> SessionI
                        renews=status.renews, renew=status.renew)
 
 
-def _registry():
-    from ..loader import load_plugins
-    from ..registry import current_registry
-    load_plugins()
-    # pre-load (sessions BEFORE the configuration loads): no run's registry yet
-    return current_registry()
-
-
-def credential_environment_prefixes() -> tuple[str, ...]:
-    """The system's own credential prefixes plus every registered runtime's
-    and every registered group builder's (each class's
-    ``credential_environment_prefixes()``), sorted."""
+def credential_environment_prefixes(reg: Any) -> tuple[str, ...]:
+    """The system's own credential prefixes plus every runtime's and every
+    group builder's registered in ``reg`` -- the loaded run's registry,
+    ``ctx.reg`` (each class's ``credential_environment_prefixes()``), sorted."""
     prefixes = set(CORE_CREDENTIAL_ENV_PREFIXES)
-    reg = _registry()
     classes = list(reg.runtime_builder_classes().values()) + list(reg.vct_type_registry.get(VCT.GROUP_BUILDER, []))
     for cls in classes:
         hook = cast(Callable[[], tuple[str, ...]] | None, getattr(cls, "credential_environment_prefixes", None))
@@ -132,11 +123,12 @@ def credential_environment_prefixes() -> tuple[str, ...]:
     return tuple(sorted(prefixes))
 
 
-def empty_environment_credentials(environ: Mapping[str, str] | None = None) -> list[str]:
+def empty_environment_credentials(reg: Any, environ: Mapping[str, str] | None = None) -> list[str]:
     """The NAMES of credential-shaped environment variables (the prefixes
-    above) whose value is the empty string -- set, and empty. Never a value."""
+    above, for the registry ``reg``) whose value is the empty string -- set,
+    and empty. Never a value."""
     env = os.environ if environ is None else environ
-    prefixes = credential_environment_prefixes()
+    prefixes = credential_environment_prefixes(reg)
     return sorted(k for k, v in env.items() if k.startswith(prefixes) and v == "")
 
 
@@ -148,15 +140,16 @@ def expected_run_minutes(ctx: Any) -> int:
         return DEFAULT_EXPECTED_RUN_MINUTES
 
 
-def session_minutes_left(root_dir: Path, now: datetime | None = None) -> float | None:
-    """The fewest minutes any session the tree at ``root_dir`` declares has
-    left to the expiry its plugin read -- renewing or not, because a token
-    the provider's tooling renews can still fail to renew once it has
-    lapsed, and a run of an hour wants to know about the token it starts
-    on -- negative once it lapsed; None when no session has a readable
-    expiry."""
+def session_minutes_left(ctx: Any, now: datetime | None = None) -> float | None:
+    """The fewest minutes any session the LOADED configuration ``ctx``
+    declares has left to the expiry its plugin read -- renewing or not,
+    because a token the provider's tooling renews can still fail to renew
+    once it has lapsed, and a run of an hour wants to know about the token
+    it starts on -- negative once it lapsed; None when no session has a
+    readable expiry. The caller loads the tree (a load reaches no
+    provider): ``scripts/session-minutes-left`` does."""
     now = now or datetime.now(timezone.utc)
-    left = [m for m in (i.advisory_minutes_left(now) for i in raw_session_infos(root_dir)) if m is not None]
+    left = [m for m in (i.advisory_minutes_left(now) for i in session_infos(ctx)) if m is not None]
     return min(left) if left else None
 
 
@@ -230,98 +223,17 @@ def session_infos(ctx: Any) -> list[SessionInfo]:
     return _merge(out)
 
 
-def raw_session_infos(root_dir: Path) -> list[SessionInfo]:
-    """The same sessions read from the RAW ``cfg/`` files -- before the
-    configuration loads, because loading it validates every runtime's
-    networking against its provider and dies on an expired session before
-    any preflight could say so. Every ``cfg/*.yml`` and ``*.yaml`` directly
-    under ``cfg/`` is read, as the loader reads them (a runtime declared in
-    any of them is preflighted). Each entry's class is found through the
-    registry by its ``type:`` word and asked over the raw entry mapping and
-    the raw executables; a type no installed plugin answers to is skipped
-    (``validate`` refuses it)."""
-    import yaml
-    cfg = Path(root_dir) / "cfg"
-    if not cfg.is_dir():
-        return []
-    entries: list[Any] = []
-    backends: list[Any] = []
-    executables: dict[str, dict[str, Any]] = {}
-    for path in sorted(p for p in cfg.iterdir() if p.is_file() and p.suffix in (".yml", ".yaml")):
-        try:
-            doc = yaml.safe_load(path.read_text()) or {}
-        except (yaml.YAMLError, OSError):
-            continue
-        if isinstance(doc, dict):
-            entries.extend(doc.get("runtime_builders") or [])
-            backends.extend(doc.get("state_backends") or [])
-            for exe in doc.get("executables") or []:
-                if isinstance(exe, dict) and exe.get("name"):
-                    executables[str(exe["name"])] = exe
-    reg = _registry()
-    runtime_classes = reg.runtime_builder_classes()
-    state_classes = reg.state_builder_classes()
-    out: list[SessionInfo] = []
-    for entry in entries:
-        if not isinstance(entry, dict) or not entry.get("name"):
-            continue
-        cls = runtime_classes.get(str(entry.get("type") or ""))
-        status = _status(cls, entry, executables) if cls is not None else None
-        if status is not None:
-            out.append(_from_status(str(entry["name"]), str(entry.get("type") or ""), status))
-    for entry in backends:
-        if not isinstance(entry, dict) or not entry.get("name"):
-            continue
-        cls = state_classes.get(str(entry.get("type") or ""))
-        status = _status(cls, entry, executables) if cls is not None else None
-        if status is not None:
-            out.append(_from_status(f"state {entry['name']}", str(entry.get("type") or ""), status))
-    return _merge(sorted(out, key=lambda i: i.runtime))
-
-
-def raw_expected_run_minutes(root_dir: Path, overlays: list[Path] | None = None) -> int:
-    import yaml
-    minutes = DEFAULT_EXPECTED_RUN_MINUTES
-    for path in [Path(root_dir) / "cfg" / "_config.yml", *(overlays or [])]:
-        try:
-            cfg = (yaml.safe_load(Path(path).read_text()) or {}).get("config") or {}
-        except (yaml.YAMLError, OSError):
-            continue
-        pre = cfg.get("preflight") or {}
-        if isinstance(pre, dict) and "expected_run_minutes" in pre:
-            try:
-                minutes = int(pre["expected_run_minutes"])
-            except (TypeError, ValueError):
-                pass
-    return minutes
-
-
-def raw_session_lines(root_dir: Path, overlays: list[Path] | None = None,
-                      now: datetime | None = None) -> tuple[list[str], list[str], list[str]]:
-    """``(lines, blocking, expired)`` from the raw tree: ``blocking`` are the
-    sessions a strict preflight refuses on, ``expired`` the subset that
-    cannot even load the configuration."""
+def session_readiness(ctx: Any, now: datetime | None = None) -> tuple[list[str], list[str], list[str], list[str], list[str]]:
+    """``(lines, absent, expired, blocking, unjudged)`` over the loaded
+    configuration -- the `preflight` command's reading: ``absent`` are the
+    sessions with nothing to read at all, ``expired`` those whose token has
+    lapsed -- either way a run, `validate --online` and the deferred steps
+    would refuse; ``blocking`` the strict preflight's subset; ``unjudged``
+    the present sessions whose lifetime preflight cannot read at all
+    (static keys), which never make the closing line green."""
     now = now or datetime.now(timezone.utc)
-    expected = raw_expected_run_minutes(root_dir, overlays)
-    infos = raw_session_infos(root_dir)
-    lines = [i.line(now, expected) for i in infos]
-    blocking = [i.line(now, expected) for i in infos if i.blocking(now, expected)]
-    expired = [i.line(now, expected) for i in infos if _expired(i.minutes_left(now))]
-    return lines, blocking, expired
-
-
-def raw_session_readiness(root_dir: Path, overlays: list[Path] | None = None,
-                          now: datetime | None = None) -> tuple[list[str], list[str], list[str], list[str], list[str]]:
-    """``(lines, absent, expired, blocking, unjudged)`` from the raw tree --
-    the `preflight` command's reading: ``absent`` are the sessions with
-    nothing to read at all, ``expired`` those whose token has lapsed --
-    either way the configuration cannot load; ``blocking`` the strict
-    preflight's subset; ``unjudged`` the present sessions whose lifetime
-    preflight cannot read at all (static keys), which never make the
-    closing line green."""
-    now = now or datetime.now(timezone.utc)
-    expected = raw_expected_run_minutes(root_dir, overlays)
-    infos = raw_session_infos(root_dir)
+    expected = expected_run_minutes(ctx)
+    infos = session_infos(ctx)
     lines = [i.line(now, expected) for i in infos]
     absent = [i.line(now, expected) for i in infos if not i.present]
     expired = [i.line(now, expected) for i in infos if _expired(i.minutes_left(now))]

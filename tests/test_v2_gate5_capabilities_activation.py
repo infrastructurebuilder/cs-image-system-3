@@ -236,7 +236,7 @@ def test_capabilities_resolve_through_pins_to_the_stamped_build(tmp_path, monkey
     without it: the recorded artifact is the truth (N11)."""
     def mutate(root: Path):
         ms = root / "meta-state"
-        ms.mkdir()
+        ms.mkdir(exist_ok=True)
         _write_yaml(ms / "lineage.yaml", {"builds": [{
             "build_id": "ami-0base0001", "series": "basic-rh-10", "name": "basic-rh-10-x",
             "capabilities": {"identity_types": ["okta"], "storage_types": ["efs", "s3"]}}]})
@@ -341,7 +341,7 @@ def test_launch_parameters_are_immutable_after_launch(tmp_path, monkeypatch):
 def test_decommissioned_instance_is_whitelisted_and_forgotten(tmp_path, monkeypatch):
     def mutate(root: Path):
         ms = root / "meta-state"
-        ms.mkdir()
+        ms.mkdir(exist_ok=True)
         _write_yaml(ms / "launch-params.yaml", {"instances": {"old_node": {"launched": True, "image": "x"}}})
         _write_yaml(ms / "pins.yaml", {"instances": {"old_node": "ami-0old"}, "images": {}})
     run = _prepared(tmp_path, monkeypatch, mutate)

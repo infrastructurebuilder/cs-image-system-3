@@ -7,6 +7,7 @@
 Stage 124: ``final_execute`` is the :class:`Finalizer`'s, bound to a run
 context; these drive one over a stand-in context carrying what it reads.
 """
+import os
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any, cast
@@ -57,6 +58,11 @@ def _finalizer(finalization, journal, tmp_path, dry_run=False) -> Finalizer:
     for phase, executables in finalization.items():
         fin.extend_finalization_phase(phase, executables)
     return fin
+
+
+def _steps(*items) -> list[Any]:
+    """Stand-in executables, typed as the executor's list."""
+    return list(items)
 
 
 def _run(finalization, journal, tmp_path, dry_run=False):
@@ -144,3 +150,62 @@ def test_final_execution_script_is_written(tmp_path):
     assert "# --- phase: image-generation ---" in content
     assert '( cd "pckr-ebs-ans/image-generation/block-000" && packer build . )' in content
     assert script.stat().st_mode & 0o111  # executable
+
+
+# --- the one executor: execute_phase is what final_execute and the lifecycle runner share
+
+def test_execute_phase_is_the_loop_final_execute_runs(tmp_path):
+    journal = []
+    fin = _finalizer({}, journal, tmp_path)
+    phase = ExecutionLifecyclePhase.IMAGE_GENERATION
+    assert fin.execute_phase(phase, _steps(StubExecutable("packer-000", journal)), label="base-image/image-generation")
+    assert journal == ["pre:image-generation", "packer-000", "post:image-generation"]
+    journal.clear()
+    assert fin.execute_phase(phase, _steps(), label="x") is True and journal == []     # nothing: no hooks either
+    assert fin.execute_phase(phase, _steps(StubExecutable("packer-001", journal, returncode=2)), label="x") is False
+    assert journal == ["pre:image-generation", "packer-001", "failed:image-generation"]
+
+
+def test_execute_phase_restores_the_working_directory_however_it_ends(tmp_path, monkeypatch):
+    journal = []
+    monkeypatch.chdir(tmp_path.parent)
+    cwd = os.getcwd()
+    fin = _finalizer({}, journal, tmp_path)
+    phase = ExecutionLifecyclePhase.IMAGE_GENERATION
+    assert fin.execute_phase(phase, _steps(StubExecutable("ok", journal)), label="x") is True
+    assert os.getcwd() == cwd
+    assert fin.execute_phase(phase, _steps(StubExecutable("boom", journal, raises=True)), label="x") is False
+    assert os.getcwd() == cwd
+
+
+def test_a_system_cli_step_goes_through_the_in_process_seam(tmp_path, monkeypatch):
+    """A step whose binary is the system's own CLI is handed to the runner
+    the system registered (stage 127: one load per run), with the loaded
+    context, the step's arguments and its working directory; the runner's
+    integer is the step's return code and ``execute()`` is never called. With
+    no runner registered the step executes as any other."""
+    from cs_image_system.base import in_process
+    from cs_image_system.contract.constants import SYSTEM_CLI
+    journal = []
+    fin = _finalizer({}, journal, tmp_path)
+    step = StubExecutable(SYSTEM_CLI, journal)
+    step.args = ["--root-dir", str(tmp_path), "--no-dry-run", "release", "--declared"]
+    step.working_directory = "release"
+    phase = ExecutionLifecyclePhase.INSTANCE_GENERATION
+    received = []
+    monkeypatch.setattr(in_process, "_RUNNER", lambda ctx, args, wd: received.append((ctx, args, wd)) or 0)
+    assert fin.execute_phase(phase, _steps(step), label="x") is True
+    assert received == [(fin.ctx, step.args, Path("release"))]
+    assert journal == ["pre:instance-generation", "post:instance-generation"]    # execute() not called
+    journal.clear()
+    monkeypatch.setattr(in_process, "_RUNNER", lambda ctx, args, wd: 1)
+    assert fin.execute_phase(phase, _steps(step), label="x") is False
+    assert journal == ["pre:instance-generation", "failed:instance-generation"]
+    journal.clear()
+    monkeypatch.setattr(in_process, "_RUNNER", lambda ctx, args, wd: None)       # declined: the step executes
+    assert fin.execute_phase(phase, _steps(step), label="x") is True
+    assert journal == ["pre:instance-generation", SYSTEM_CLI, "post:instance-generation"]
+    journal.clear()
+    monkeypatch.setattr(in_process, "_RUNNER", None)                              # no runner: as any other
+    assert fin.execute_phase(phase, _steps(step), label="x") is True
+    assert journal == ["pre:instance-generation", SYSTEM_CLI, "post:instance-generation"]

@@ -461,10 +461,10 @@ and warns about a network tag no firewall rule targets.
 | Field | Type | Default | Meaning and allowed values |
 | --- | --- | --- | --- |
 | `name` | str | the network | a label; not a reserved word (1.2); must not be empty after templating |
-| `network` | str | `default` | the VPC id (AWS) or network name (GCP); `default` resolves to the account's default VPC / the project's `default` network |
+| `network` | str | `default` | the VPC id (AWS) or network name (GCP); `default` resolves to the account's default VPC / the project's `default` network. The resolution is an online check: `validate --online` and every real run ask the account, record what the declaration resolved to in `meta-state/runtime-facts.yaml`, and every load (`validate`, a dry run, `config-drift`, `state query`, `preflight`) adopts that record offline without reaching a cloud. A `default` network that nothing has recorded yet is a validation error naming `validate --online` |
 | `subnets` | list | required, at least one | exactly one entry must have `is_default: true` |
 | `subnets[].name` | str | the subnet id | label |
-| `subnets[].subnet_id` | str | required | the subnet id (AWS) or `projects/…/subnetworks/…` path (GCP); on AWS every declared subnet must be in the declared VPC, checked at load against the account |
+| `subnets[].subnet_id` | str | required | the subnet id (AWS) or `projects/…/subnetworks/…` path (GCP); every declared subnet must be in the declared network, checked online by `validate --online` and every real run, recorded in `meta-state/runtime-facts.yaml` (the declared ids that were checked, never the account's inventory), adopted offline by every load. A declared subnet (or, on AWS, a security group) the record never checked is a validation error naming `validate --online`: the facts are stale |
 | `subnets[].is_default` | bool | `false` | the subnet bakes and instances use |
 | `subnets[].public` | bool | `false` | informational |
 | `subnets[].cidr` | str or null | null | informational |
@@ -2261,7 +2261,7 @@ Three places a marker may NOT stand, each refused at load by name:
 | --- | --- |
 | a mapping **key** | keys dedupe list entries, dispatch the concrete class and name generated directories, so they must be readable with no identity |
 | a marker **embedded** in a longer string | only a whole value decrypts: a composite carries no single ciphertext, so the emission could only write it in clear |
-| `encryption.recipients`, `public_safe.allow`, a runtime builder's `name`/`type`/`profile`/`credentials.profile_name`, `config.preflight.*`, `config.apply_*`, and any declaration's `name`/`type` | these are read by the raw readers that run *before* the configuration loads, several of which must work with no identity at all (encrypting must not need one) |
+| `encryption.recipients`, `public_safe.allow`, a runtime builder's `name`/`type`/`profile`/`credentials.profile_name`, `config.preflight.*`, `config.apply_*`, and any declaration's `name`/`type` | these are read by the raw readers that run *without* a load (the value tools, the public-safe gate, `apply-check`, the bootstrap interview), several of which must work with no identity at all (encrypting must not need one) |
 
 `EncryptedStr` remains on the roster fields: it is the one annotation under
 which pydantic keeps the decrypted value's identity without help.
@@ -2326,8 +2326,8 @@ it is the join key between a roster and an access grant.
 | `OPA_WORKLOAD_CONNECTION`, `OPA_WORKLOAD_ROLE`, `SFT_TEAM`, `OPA_ADDR` | `workload token` | the workload connection, role, team and API address to present the run's OIDC token to; any that is missing comes from the configuration's first group builder that names a workload connection |
 | `TF_PLUGIN_CACHE_DIR` | `--locked`; every `tofu init` | OpenTofu's provider cache; the Justfile exports `.tofu-plugin-cache/`; the lock `--locked` holds is `.lock` under it |
 | `USER` / `USERNAME` | `unmount --confirm` | who is recorded on an unmount receipt |
-| `AWS_ACCESS_KEY_ID` (with its secret and token) | `preflight`, the load, every AWS call | the static-key path when no profile is named; `preflight` reports it as a session with no readable expiry |
-| AWS profile | the AWS runtime, the S3 backend, preflight | `credentials.profile_name` on the runtime (else `AWS_PROFILE`; static `AWS_ACCESS_KEY_ID`/`AWS_SECRET_ACCESS_KEY` are honoured when no profile is named); `profile` on the state backend. An SSO profile needs a live session: the load validates the account's network and refuses on an expired one. |
+| `AWS_ACCESS_KEY_ID` (with its secret and token) | `preflight`, every AWS call (a real run, `validate --online`, the state query, the deferred steps) | the static-key path when no profile is named; `preflight` reports it as a session with no readable expiry. The load itself makes no AWS call |
+| AWS profile | the AWS runtime, the S3 backend, preflight | `credentials.profile_name` on the runtime (else `AWS_PROFILE`; static `AWS_ACCESS_KEY_ID`/`AWS_SECRET_ACCESS_KEY` are honoured when no profile is named); `profile` on the state backend. An SSO profile needs a live session for a real run, `validate --online` and the state query: the load itself asks the account nothing (the networking facts come from `meta-state/runtime-facts.yaml`), so `validate`, a dry run and `preflight` work on an expired one. |
 | `GOOGLE_APPLICATION_CREDENTIALS` | the GCE runtime, preflight | Application Default Credentials; default `~/.config/gcloud/application_default_credentials.json` |
 | `TF_VAR_<team>_key`, `TF_VAR_<team>_secret` | an `okta-tf` builder with the `oktapam` provider; the gid shim; the state query | the OPA API key pair for the builder's `team` (non-alphanumerics of the team → `_`). Required when the configuration LOADS (the workspace's finalize runs during the load, so `validate` and dry runs need them too) whenever the builder's `key`/`secret` are left at default and `oktapam` is among its `required_providers`. The gid shim also accepts `OKTAPAM_KEY`/`OKTAPAM_SECRET`. |
 | `OKTA_API_CLIENT_ID`, `OKTA_API_SCOPES`, `OKTA_API_PRIVATE_KEY`, `OKTA_API_PRIVATE_KEY_ID` (or `OKTA_API_TOKEN`) | the `okta/okta` provider at plan/apply | user (and read-only group) lookups. The load only checks that one of `OKTA_API_PRIVATE_KEY`, `OKTA_API_TOKEN`, `OKTA_ACCESS_TOKEN` is set and warns otherwise, skipping `plan` for that root. |
@@ -2335,6 +2335,10 @@ it is the join key between a roster and an access grant.
 | `CSIS_AWS_DIR` | preflight | the `~/.aws` directory to read session caches from |
 | `{{ ENV.<name> }}` | the templating pass | any variable, in any string of `cfg/` (`systemuser: "{{ ENV.USER }}"`, `'{{ ENV["USER"] }}''s node'`) |
 
-`cs-image-system preflight [--strict]` reports the AWS SSO and GCP ADC
-sessions the runtimes need without loading the tree; `run` and `state`
-perform the same check before loading.
+`cs-image-system preflight [--strict]` loads the tree (a load reaches no
+cloud: it needs the age identity, not a session) and reports the AWS SSO
+and GCP ADC sessions the runtimes need, each read by its plugin from the
+caches; `run` and `state query` print the same lines after their load.
+The one thing that asks a cloud about the configuration itself is the
+networking check -- `validate --online` and every real run -- whose
+answer `meta-state/runtime-facts.yaml` keeps for every offline load.
