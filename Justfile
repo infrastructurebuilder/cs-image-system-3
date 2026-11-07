@@ -556,9 +556,10 @@ publish-tree root dest:
 # commit `cs-image-system <version>` on main and the tag `v<version>`, after the public-safe gate with
 # the starter's own allow list. A final version only (a template names a version teams install from
 # PyPI), from a clean checkout of its tag, never twice. `yes` is the dry form: it builds every tree
-# and shows what would change, and pushes nothing. The push needs STARTER_PUSH_TOKEN (Contents and
-# Workflows read/write on the four repositories); CI's publish job runs it after PyPI.
-[doc("Publish the four template repositories from docs/examples at a final release's tag; `yes` = dry")]
+# and shows what would change, and pushes nothing. The starters are every tree of docs/examples/
+# with a cfg/ (the one list, read by `scripts/starter-tree --list`); the push needs STARTER_PUSH_TOKEN
+# (Contents and Workflows read/write on every template repository); CI's publish job runs it after PyPI.
+[doc("Publish every starter tree of docs/examples as its template repository at a final release's tag; `yes` = dry")]
 publish-starters dry="no":
 	#!/usr/bin/env bash
 	set -euo pipefail
