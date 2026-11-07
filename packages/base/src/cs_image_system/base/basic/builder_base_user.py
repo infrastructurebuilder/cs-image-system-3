@@ -4,14 +4,13 @@
 
 from typing import Any, TypeVar
 
-from ..models.user import User
-
-from ..models.user_builder import UserBuilderModel
-
 from cs_image_system.contract.constants import VCT
-
-from .builder_base import BuilderBase
 from cs_image_system.contract.user import UserBuilderProtocol
+
+from ..models.user import User
+from ..models.user_builder import UserBuilderModel
+from .builder_base import BuilderBase
+
 TUSER = TypeVar("TUSER", bound=UserBuilderModel)
 
 class UserBuilderBase(BuilderBase[TUSER], UserBuilderProtocol):

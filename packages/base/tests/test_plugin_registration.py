@@ -10,7 +10,6 @@ models and builders. If a future phase touches the extension surface, this test
 must be updated deliberately, not by accident.
 """
 import types
-
 from typing import Any, cast
 
 from cs_image_system.base import registry as _registry
@@ -82,8 +81,9 @@ def test_a_plugin_that_does_not_conform_is_refused_at_load():
     -- not later, with an ``AttributeError`` from whatever first calls the
     hook."""
     import pytest
-    from cs_image_system.base.loader import PluginConformanceError, check_conformance
+
     from cs_image_system.base.basic.builder_base_storage import StorageBuilderBase
+    from cs_image_system.base.loader import PluginConformanceError, check_conformance
     from cs_image_system.base.models.storage_builder import StorageBuilderModel
 
     class HalfModel(StorageBuilderModel):

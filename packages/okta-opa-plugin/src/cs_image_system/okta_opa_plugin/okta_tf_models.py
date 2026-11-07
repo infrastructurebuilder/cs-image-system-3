@@ -2,16 +2,18 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from cs_image_system.contract.model_config import CSIS_MODEL_CONFIG
-from pydantic.dataclasses import dataclass  # validation at construction
 from enum import StrEnum
 from typing import Any, Callable
+
+from pydantic.dataclasses import dataclass  # validation at construction
 
 from cs_image_system.base.models.group import Group
 from cs_image_system.base.models.group_builder import GroupBuilderModel
 from cs_image_system.base.models.user import User
 from cs_image_system.base.models.user_builder import UserBuilderModel
-from .okta_user import OKTA_PROFILE_FIELDS
+from cs_image_system.base.run_context import current_context  # a model holds no context; it fetches the current one
+from cs_image_system.contract.context import RunContextProtocol
+from cs_image_system.contract.model_config import CSIS_MODEL_CONFIG
 from cs_image_system.contract.names import super_safe_name as ssn
 from cs_image_system.hashicorp_utils.blocks import (
     DataSpec,
@@ -20,8 +22,8 @@ from cs_image_system.hashicorp_utils.blocks import (
     render_blocks,
 )
 from cs_image_system.hashicorp_utils.hashicorp import TerraformGenerator
-from cs_image_system.contract.context import RunContextProtocol
-from cs_image_system.base.run_context import current_context   # a model holds no context; it fetches the current one
+
+from .okta_user import OKTA_PROFILE_FIELDS
 
 OKTATF: str = "okta-tf"
 OKTATF_RO: str = "okta-tf-ro"
@@ -111,7 +113,7 @@ class OktaTFUser(TerraformGenerator):
     def get_resource_name(self) -> str:
         return f"okta_user.{self.resource_name_from_this_type()}"
 
-    def generate_terraform(self, setup: dict[str, Any] = {}) -> list[str]:
+    def generate_terraform(self, setup: dict[str, Any] | None = None) -> list[str]:
         user = self._user
         args: dict[str, Any] = {}
         if self.provider:
@@ -132,7 +134,7 @@ class OktaTFUser(TerraformGenerator):
             comment=f"Okta user {self.name}",
         )])
 
-    def generate_terraform_data(self, setup: dict[str, Any] = {}) -> list[str]:
+    def generate_terraform_data(self, setup: dict[str, Any] | None = None) -> list[str]:
         args: dict[str, Any] = {}
         if self.provider:
             args["provider"] = Raw(self.provider)
@@ -174,11 +176,11 @@ class OktaTFGroup(TerraformGenerator):
     def get_resource_name(self) -> str:
         return f"oktapam_group.{self.resource_name_from_this_type()}"
 
-    def generate_terraform(self, setup: dict[str, Any] = {}) -> list[str]:
+    def generate_terraform(self, setup: dict[str, Any] | None = None) -> list[str]:
         rn = self.resource_name_from_this_type()
         return render_blocks([ResourceSpec("oktapam_group", rn, {"name": rn})])
 
-    def generate_terraform_data(self, setup: dict[str, Any] = {}) -> list[str]:
+    def generate_terraform_data(self, setup: dict[str, Any] | None = None) -> list[str]:
         return render_blocks([DataSpec(
             "oktapam_group", self.resource_name_from_this_type(),
             {"name": self.name},
@@ -221,10 +223,10 @@ class OktaTFGroupLookup(TerraformGenerator):
     def get_resource_name(self) -> str:
         return f"data.okta_group.{self.label}"
 
-    def generate_terraform(self, setup: dict[str, Any] = {}) -> list[str]:
+    def generate_terraform(self, setup: dict[str, Any] | None = None) -> list[str]:
         return []
 
-    def generate_terraform_data(self, setup: dict[str, Any] = {}) -> list[str]:
+    def generate_terraform_data(self, setup: dict[str, Any] | None = None) -> list[str]:
         args: dict[str, Any] = {}
         if self.provider:
             args["provider"] = Raw(self.provider)
@@ -252,7 +254,7 @@ class OktaTFUserToGroup(TerraformGenerator):
         self.group = group
         self.user = user
 
-    def generate_terraform(self, setup: dict[str, Any] = {}) -> list[str]:
+    def generate_terraform(self, setup: dict[str, Any] | None = None) -> list[str]:
         return render_blocks([ResourceSpec(
             "oktapam_user_group_attachment",
             f"{self.group.name}_{self.user.name}",
@@ -274,7 +276,7 @@ class OktaTFResourceGroup(TerraformGenerator):
         admin_groups: list[OktaTFGroup] | None = None,
         gateway_selector: str | None = None,
         account_discovery: bool = False,
-        addl_setup: dict[str, Any] = {},
+        addl_setup: dict[str, Any] | None = None,
     ) -> None:
         self.group = group
         self.name = group.name
@@ -285,7 +287,7 @@ class OktaTFResourceGroup(TerraformGenerator):
         self.admin_groups = admin_groups or []
         self.gateway_selector = gateway_selector
         self.account_discovery = account_discovery
-        self.addl_setup = addl_setup
+        self.addl_setup = addl_setup if addl_setup is not None else {}
         self.delegated_resource_admin_groups = [
             f"{g.get_resource_name()}.id"
             for g in self.admin_groups
@@ -298,7 +300,7 @@ class OktaTFResourceGroup(TerraformGenerator):
     def get_resource_name(self) -> str:
         return f"oktapam_resource_group.{self.resource_name_from_this_type()}"
 
-    def generate_terraform(self, setup: dict[str, Any] = {}) -> list[str]:
+    def generate_terraform(self, setup: dict[str, Any] | None = None) -> list[str]:
         this_name: str = self.resource_name_from_this_type()
         items = render_blocks([ResourceSpec(
             "oktapam_resource_group", this_name,
@@ -337,7 +339,7 @@ class OktaTFSecurityPolicyV1(TerraformGenerator):
     active: bool = True
 
     def __init__(self, resource_group: OktaTFResourceGroup, group: OktaTFGroup,
-                 labels = {}) -> None:
+                 labels: dict[str, str] | None = None) -> None:
         """Create an OktaTFSecurityPolicyV1 from a Group object.
 
         Parameters
@@ -369,7 +371,7 @@ class OktaTFSecurityPolicyV1(TerraformGenerator):
     def resource_name_from_this_type(self) -> str:
         return ssn(self.name) + "_admin" if self.group.admin else ssn(self.name) + "_user"
 
-    def generate_terraform(self, setup: dict[str, Any] = {}) -> list[str]:
+    def generate_terraform(self, setup: dict[str, Any] | None = None) -> list[str]:
         # principals = ScopedDict(
         #     scope="principals", content={"groups": f"[{self.group.get_resource_name()}.id]"}
         # )

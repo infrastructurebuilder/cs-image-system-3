@@ -5,14 +5,13 @@
 from __future__ import annotations
 
 import logging
+
 log = logging.getLogger(__name__)
-
-from ..basic.builder_base_instance import InstanceBuilderBase
-from ..basic.builder_base_runtime import RuntimeBuilderBase
-
 
 from cs_image_system.contract.lifecycle import ExecutionLifecyclePhase
 
+from ..basic.builder_base_instance import InstanceBuilderBase
+from ..basic.builder_base_runtime import RuntimeBuilderBase
 from ..global_context import GlobalTypeContext
 from ..in_process import run_executable
 

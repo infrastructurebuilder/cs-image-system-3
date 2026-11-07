@@ -14,9 +14,7 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
-
 import yaml
-
 from harness import V2Run, copy_config, load_context, stub_environment
 
 
@@ -28,8 +26,9 @@ def _rebind_storage(root: Path, backend: str) -> None:
 @pytest.fixture
 def no_hook_plugins(monkeypatch):
     """The entry-point group empty: no hook plugin at all is installed."""
-    from cs_image_system.base.commands import run_lifecycles as rl
     import importlib.metadata as md
+
+    from cs_image_system.base.commands import run_lifecycles as rl
     real = md.entry_points
     monkeypatch.setattr(md, "entry_points",
                         lambda **kw: [] if kw.get("group") == rl.HOOK_ENTRY_POINT_GROUP else real(**kw))

@@ -30,18 +30,22 @@ import shlex
 import shutil
 import subprocess
 import tempfile
-from dataclasses import asdict, field
-from cs_image_system.contract.model_config import CSIS_MODEL_CONFIG
-from pydantic.dataclasses import dataclass  # validation at construction
-from pathlib import Path
 from collections.abc import Callable
+from dataclasses import asdict, field
+from pathlib import Path
 from typing import TYPE_CHECKING, Any, Protocol
 
+from pydantic.dataclasses import dataclass  # validation at construction
 
-from cs_image_system.contract.errors import ContainerStartError  # noqa: F401 - the error is the contract's; this path keeps it
-from .lineage import mod_records
-from .image_sources import _runtime_classes, stand_in_runtime_type, ImageSourceCatalog, container_reference
+from cs_image_system.contract.errors import (
+    ContainerStartError,  # noqa: F401 - the error is the contract's; this path keeps it
+)
+from cs_image_system.contract.model_config import CSIS_MODEL_CONFIG
+
 from .capabilities import image_chain
+from .image_sources import _runtime_classes, container_reference, stand_in_runtime_type
+from .lineage import mod_records
+from .meta_state import MOD_TESTS
 from .os_types import os_type_for_family
 
 if TYPE_CHECKING:
@@ -49,7 +53,7 @@ if TYPE_CHECKING:
 
 log = logging.getLogger(__name__)
 
-MOD_TESTS_FILE = "mod-tests.yaml"
+MOD_TESTS_FILE = MOD_TESTS
 
 # The container standing in for an OS is the image-source catalog's
 # stand-in block for its family (overridable per OS builder through
@@ -148,7 +152,7 @@ def test_image_for(ctx: "GlobalTypeContext", image: Any) -> str | None:
     override = getattr(osb.model, "local_test_image", None)
     if override:
         return str(override)
-    block = ImageSourceCatalog().stand_in_block(osb.model.get_vendor_family(), osb.get_family_version())
+    block = ctx.image_sources.stand_in_block(osb.model.get_vendor_family(), osb.get_family_version())
     return container_reference(block) if block is not None else None
 
 
@@ -283,7 +287,7 @@ def run_mod_tests(ctx: "GlobalTypeContext", images: list[str] | None = None,
         records = mod_records(ctx, image)
         container_image = test_image_for(ctx, image)
         if container_image is None:
-            for mod, rec in zip(mods, records):
+            for mod, rec in zip(mods, records, strict=False):
                 results.append(ModTestResult(image=image.get_name(), mod=mod.get_name(), type=mod.get_type(),
                                              content_hash=rec["content_hash"], target="", status="unsupported",
                                              detail="no local test image for the root OS family", run=ctx.run_id))
@@ -295,7 +299,7 @@ def run_mod_tests(ctx: "GlobalTypeContext", images: list[str] | None = None,
             if offered is None:
                 offered = stand_in_target_factory()
             if offered is None:
-                for mod, rec in zip(mods, records):
+                for mod, rec in zip(mods, records, strict=False):
                     results.append(ModTestResult(image=image.get_name(), mod=mod.get_name(), type=mod.get_type(),
                                                  content_hash=rec["content_hash"], target=container_image,
                                                  status="skipped", detail="no installed runtime offers a local test target",
@@ -303,9 +307,9 @@ def run_mod_tests(ctx: "GlobalTypeContext", images: list[str] | None = None,
                 continue
             runtime_type, factory = offered
             make_target = functools.partial(factory, executables=ctx.executables)
-        pending = [(m, r) for m, r in zip(mods, records)
+        pending = [(m, r) for m, r in zip(mods, records, strict=False)
                    if force or previous.get(r["content_hash"], {}).get("status") != "pass"]
-        for mod, rec in zip(mods, records):
+        for mod, rec in zip(mods, records, strict=False):
             if (mod, rec) not in pending:
                 cached = dict(previous[rec["content_hash"]])
                 cached["detail"] = "cached: unchanged since last pass"

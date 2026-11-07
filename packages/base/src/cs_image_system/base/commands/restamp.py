@@ -18,12 +18,14 @@ those builds, recorded as such; `--force-bake` remains the way to re-bake.
 from __future__ import annotations
 
 import logging
-from cs_image_system.contract.model_config import CSIS_MODEL_CONFIG
-from pydantic.dataclasses import dataclass  # validation at construction
 from typing import Any
 
+from pydantic.dataclasses import dataclass  # validation at construction
+
+from cs_image_system.contract.model_config import CSIS_MODEL_CONFIG
+
 from ..global_context import GlobalTypeContext
-from ..lineage import TAG_PREFIX, find_image, input_fingerprint, FINGERPRINT_TAG_LENGTH
+from ..lineage import FINGERPRINT_TAG_LENGTH, TAG_PREFIX, find_image, input_fingerprint
 
 log = logging.getLogger(__name__)
 

@@ -110,7 +110,7 @@ def test_user_data_ends_with_the_completion_marker(aws):
 
 def test_instance_userdata_runs_before_the_marker_and_is_a_launch_parameter(aws):
     """The declared `userdata` lines are the last act before the completion
-    marker, under `set -e` (a failing line = a failed startup, ledger 68), and
+    marker, under `set -e` (a failing line = a failed startup), and
     they are part of the immutable launch parameters."""
     from cs_image_system.base.launch_params import compute_launch_params, user_data_template
     run, _ = aws
@@ -200,7 +200,7 @@ def test_restamp_dry_run_changes_nothing(tmp_path, monkeypatch):
         run.restore_cwd()
 
 
-# ------------------------------------------------------ relabel (ledger 66)
+# ------------------------------------------------------------------ relabel
 
 def _seed_follow_pair(ms) -> None:
     common = {"parent": "vendor", "chain": [], "mods": [], "local_mods": False, "update": None,

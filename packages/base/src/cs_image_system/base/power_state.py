@@ -35,8 +35,21 @@ log = logging.getLogger(__name__)
 # The vocabulary (the states, the groupings, ``is_off``/``is_on``/``exists``/
 # ``describe``) is the contract's (`contract.power_state`); this path keeps it.
 from cs_image_system.contract.power_state import (  # noqa: F401
-    ABSENT, OFF_STATES, POWER_STATES, RUNNING, STARTING, STOPPED, STOPPING, SUSPENDED, TRANSITIONAL, UNKNOWN,
-    describe, exists, is_off, is_on)
+    ABSENT,
+    OFF_STATES,
+    POWER_STATES,
+    RUNNING,
+    STARTING,
+    STOPPED,
+    STOPPING,
+    SUSPENDED,
+    TRANSITIONAL,
+    UNKNOWN,
+    describe,
+    exists,
+    is_off,
+    is_on,
+)
 
 
 # ------------------------------------------------- the bounded exception

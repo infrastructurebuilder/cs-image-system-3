@@ -13,8 +13,8 @@ from __future__ import annotations
 from pydantic.dataclasses import dataclass  # validation at construction
 
 from cs_image_system.base.models.group_builder import GroupBuilderModel
-from cs_image_system.contract.model_config import CSIS_MODEL_CONFIG
 from cs_image_system.base.models.user_builder import UserBuilderModel
+from cs_image_system.contract.model_config import CSIS_MODEL_CONFIG
 
 POSIX: str = "posix"
 

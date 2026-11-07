@@ -23,9 +23,8 @@ from pathlib import Path
 
 import pytest
 import yaml
-
-from test_release_whole import _copy_of_committed, _generated_tree
 from harness import copy_config, load_context, reset_singletons, stub_environment
+from test_release_whole import _copy_of_committed, _generated_tree
 
 
 def _gce_source(root: Path) -> Path:
@@ -131,6 +130,7 @@ def test_a_change_past_the_cut_is_not_excused(tmp_path):
 
 def test_a_pinned_gce_image_that_is_not_ready_is_refused(tmp_path: Path, monkeypatch):
     from typing import Any, cast
+
     from cs_image_system.gcloud_runtime import gcp_runtime_builders as g
     stub_environment(monkeypatch)
     ctx = load_context(copy_config(tmp_path))

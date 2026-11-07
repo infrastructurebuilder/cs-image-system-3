@@ -26,13 +26,13 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+from harness import REPO, copy_config, reset_singletons, stub_environment
 from typer.testing import CliRunner
 
 from cs_image_system import extras
 from cs_image_system.base import loader
 from cs_image_system.base.registry import UnknownTypeError, current_registry
 from cs_image_system.contract.constants import VCT
-from harness import REPO, copy_config, reset_singletons, stub_environment
 
 SKELETON_JUSTFILE = REPO / "docs/examples/_skeleton/Justfile"
 GCLOUD_DISTRIBUTIONS = {"cs-image-system-gcloud-runtime-plugin", "cs-image-system-tf-gcp-plugin",

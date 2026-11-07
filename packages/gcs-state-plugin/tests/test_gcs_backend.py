@@ -6,8 +6,8 @@
 and its place beside S3 and local in the collision rule."""
 from __future__ import annotations
 
-from cs_image_system.hashicorp_utils.collector import BackendRegistration, StateLocation, TerraformCollector
 from cs_image_system.gcs_state_plugin.gcs_state_models import GCS_KIND, GcsStateBuilderModel
+from cs_image_system.hashicorp_utils.collector import BackendRegistration, StateLocation, TerraformCollector
 
 
 def test_the_kind_gives_every_root_its_own_prefix_under_the_declared_one():

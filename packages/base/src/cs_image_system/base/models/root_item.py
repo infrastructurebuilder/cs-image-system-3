@@ -3,14 +3,14 @@
 # SPDX-License-Identifier: Apache-2.0
 
 from dataclasses import field
-from cs_image_system.contract.model_config import CSIS_MODEL_CONFIG
-from pydantic.dataclasses import dataclass  # validation at construction
 from typing import Any
+
+from pydantic.dataclasses import dataclass  # validation at construction
 
 from cs_image_system.base.models.builder_model import NameTyped
 from cs_image_system.base.models.mixins import ParentPropertyHolding
-
 from cs_image_system.contract.constants import DEFAULT, OOPS_DEFAULTS
+from cs_image_system.contract.model_config import CSIS_MODEL_CONFIG
 from cs_image_system.contract.names import safe_name
 
 

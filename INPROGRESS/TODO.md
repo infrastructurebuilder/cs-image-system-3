@@ -12,7 +12,7 @@ Stages from the re-examination of 2026-11-03.
 [REEXAMINE4.md](REEXAMINE4.md) digests the three reviews
 ([REEXAMINE1.md](REEXAMINE1.md), [REEXAMINE2.md](REEXAMINE2.md),
 [REEXAMINE3.md](REEXAMINE3.md)); each stage file
-([§130](STAGE-130.md); §118 to §129 and §131
+([§132](STAGE-132.md); §118 to §131
 landed) cites the review section
 it answers. The conventions are the ones above: one file per stage; a
 stage is a plan until the operator says "do N"; **YOUR DECISION** marks
@@ -67,10 +67,17 @@ order (the default), or [§113](STAGE-113.md) first as its file plans it.
 - §129, the sources stop narrating: landed 2026-11-07. No comment or
   docstring names a stage, a bundle, a finding or a date; a rule test
   holds zero.
-- [§130](STAGE-130.md), hygiene bundle XXIV: the open bundle for the small findings.
+- §130, hygiene bundle XXIV: landed 2026-11-07. The lint bar (ruff's
+  bugbear, import sorting, a complexity ceiling and unused locals;
+  pyright standard over the whole tree), the release family as
+  `scripts/release.py`, and twenty other small findings; the contract
+  is 0.4.0. Its items 19 and 27 moved to [§132](STAGE-132.md).
 - §131, registrations carry their plugin's namespace: landed
   2026-11-06; the contract is 0.2.0 (a minor bump for the new
   `PluginMetadata.namespace` field).
+- [§132](STAGE-132.md), hygiene bundle XXV: the open bundle for the
+  small findings; opened 2026-11-07 with §130's items 19 and 27 and
+  three of its findings. Waits for "do 132".
 - [§112](STAGE-112.md), a release in two boxes: planned 2026-11-03; waits for
   "do 112".
 - [§113](STAGE-113.md) and [§116](STAGE-116.md), the decomposition that
@@ -80,10 +87,8 @@ order (the default), or [§113](STAGE-113.md) first as its file plans it.
 - §110 and §111 are landed and released in 0.1.7.dev1 (TestPyPI,
   2026-11-03); the reference's `develop` and `main` run it. The final
   0.1.7 is not cut.
-- Standing: the core's re-export shims of the contract (§30) stay until
-  the operator commits to it (Standing decisions, below).
-- Interval checks (the F44 review, the §30 shims reminder, the
-  `STARTER_PUSH_TOKEN` renewal) live in [REMINDERS.md](../REMINDERS.md).
+- Interval checks (the F44 review, the `STARTER_PUSH_TOKEN` renewal)
+  live in [REMINDERS.md](../REMINDERS.md).
 
 **Stage files** (one per stage, in this directory; the plan is read
 and validated by the operator before its "do N")
@@ -91,7 +96,7 @@ and validated by the operator before its "do N")
 - [§112, A release in two boxes](STAGE-112.md)
 - [§113, The kit and the engine: `base` splits where the plugins stop](STAGE-113.md)
 - [§116, A runtime installed from outside](STAGE-116.md)
-- [§130, Hygiene bundle XXIV](STAGE-130.md)
+- [§132, Hygiene bundle XXV](STAGE-132.md)
 
 **Release**
 
@@ -136,6 +141,24 @@ and validated by the operator before its "do N")
 
 **Landed since 2026-10-05** (newest first)
 
+- §130, hygiene bundle XXIV: 2026-11-07, its squash commit
+  (feature/hygiene-xxiv kept). Twenty-two items landed, each its own
+  commit on the branch: the lint bar (ruff gains bugbear, import
+  sorting, unused locals and a complexity ceiling of 49, the measured
+  maximum; pyright standard over the whole tree, which found one real
+  unbound-variable crash); the release family as `scripts/release.py`
+  behind one-line recipes, appending its `docs/CHANGES.md` row; the
+  meta-state file list whole and its writes atomic; one context
+  manager for the working directory; a plugin that fails to import is
+  skipped; the entry-point groups name the kind they register; the
+  image-source catalog per run; the launch credential's variable is
+  `enrollment_token`; the instance roots' storage map from the hooks;
+  the narration rule over the workflows and scripts. The contract is
+  0.4.0 (two members left `LaunchServiceProtocol`). Three emission
+  moves regenerated the golden. Items 9, 11, 18 and 23 closed with no
+  commit; items 19 and 27 moved to [§132](STAGE-132.md). The
+  reference's item 14 commit (a9d8414, the one `packer` key) waits on
+  its develop for the operator's record and push.
 - §129, the sources stop narrating: 2026-11-07, its squash commit
   (feature/sources-stop-narrating kept). The comments and docstrings of
   the sources and the tests, the comments of the terraform modules, the
@@ -472,10 +495,10 @@ and validated by the operator before its "do N")
   alone; a maintenance branch `release/<major.minor>` serves an old
   version's fix. (`develop` alone from stage 83 to 0.1.5.)
 - The plugin contract (§30) is provisional until the operator commits
-  to it: the core's re-export shims stay, Tier C declares the context
-  protocol without injecting it, and the stage may be undone by the
-  soft route (DESIGN §3P). Removing the shims is the commitment, done
-  together with moving the contract to its own repository.
+  to it: Tier C declares the context protocol without injecting it, and
+  the contract stays 0.x until the operator says. The core's re-export
+  shims were removed in §125 (the operator, 2026-11-05); moving the
+  contract to its own repository is §117, reserved by §116.
 - The bootstrap is ongoing work: a new release-owned part, runtime or
   secret owes it a section, module or question in the same stage.
   Keeping its state in GitHub is not built. The operator's words (§70):

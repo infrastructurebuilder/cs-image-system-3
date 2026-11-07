@@ -19,7 +19,11 @@ it), so a plugin registers a kind without importing the core.
 from __future__ import annotations
 
 from .constants import (
-    FIELD_KIND, IS_FK, IS_REPLACE, IS_DEFERRED_LIST_GENERATED, IS_DEFERRED_LIST_FK,
+    FIELD_KIND,
+    IS_DEFERRED_LIST_FK,
+    IS_DEFERRED_LIST_GENERATED,
+    IS_FK,
+    IS_REPLACE,
 )
 
 # Canonical built-in kind names.

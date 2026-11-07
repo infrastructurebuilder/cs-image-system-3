@@ -10,7 +10,6 @@ collection names and the file names a run writes."""
 
 from enum import Enum, StrEnum
 
-
 NAME = "name"
 TYPE = "type"
 VERBOSE: str = "verbose"

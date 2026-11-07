@@ -2,7 +2,7 @@
 # SPDX-FileCopyrightText: 2026 Mykel Alvis <mykelalvis@infrastructurebuilder.org>
 #
 # SPDX-License-Identifier: Apache-2.0
-"""Can a publish target take an upload now? (stage 83)
+"""Can a publish target take an upload now?
 
     uv run python scripts/publish-target-ready <target> [--version V] [--refuse-held | --all-held] [--wait [LIMIT]] [--every S] [--quiet] [--root DIR]
 
@@ -10,7 +10,7 @@
 upload, 75 when it cannot (the code `--locked` uses for "try again later";
 with --wait, still not ready when LIMIT seconds ran out), 1 when
 --refuse-held and a project already holds --version, or when --all-held
-(`release-finish`, hygiene XIV) and some project does not, 2 for a target
+(`release-finish`) and some project does not, 2 for a target
 this probe has no checker for, or a usage error. The pages are cached, so a
 count taken minutes after an upload can lag it.
 
@@ -26,7 +26,7 @@ that the token will be accepted: the index has no call that says so
 without an upload, and the probe says so; `just publish` proves it
 (scripts/publish-dist).
 
-Born from 2026-10-05, when TestPyPI's upload endpoint and most project
+Born from a release day when TestPyPI's upload endpoint and most project
 pages answered 503 for nine hours while the one page the release asked
 answered 200, and a release ran its whole bar before the upload failed.
 """
@@ -88,7 +88,7 @@ PRIVATE = "Private :: Do Not Upload"
 def is_published(project: dict) -> bool:
     """Whether a project is one the release uploads: every workspace member
     except one classified ``Private :: Do Not Upload`` (the extension
-    template and the contract's proof, stage 126), which an index refuses."""
+    template and the contract's proof), which an index refuses."""
     return PRIVATE not in project.get("classifiers", [])
 
 
@@ -221,7 +221,7 @@ def main(argv: list[str], sleep=time.sleep) -> int:
         own_held = [p for p in held if p in own]
         held = [p for p in held if p not in own]
         n -= len(own)
-        # hygiene XIV item 5: the pages are cached, so a count taken just after an upload lags it
+        # the pages are cached, so a count taken just after an upload lags it
         lag = " (the index's pages are cached: minutes after an upload this count can lag it)"
         if not held:
             print(f"publish-target-ready: {index} holds {version} for none of the {n} projects: a fresh release{lag}")

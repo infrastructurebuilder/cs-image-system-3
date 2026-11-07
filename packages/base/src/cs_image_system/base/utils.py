@@ -11,11 +11,12 @@ if TYPE_CHECKING:
 
 
 import json
+import logging
+import os
 import re
 from pathlib import Path
-from typing import Any, Iterable, Mapping
+from typing import Any, Iterable, Mapping, Protocol
 
-import logging
 import typer
 
 # from cs_image_system.builder_base import BuilderBase
@@ -25,6 +26,8 @@ import typer
 log = logging.getLogger(__name__)
 
 from cs_image_system.contract import constants
+
+from .directory import in_directory  # noqa: F401 - re-exported: the name the commands import from here
 
 
 def is_base(typer_context: typer.Context) -> bool:
@@ -67,14 +70,14 @@ class SetEncoder(json.JSONEncoder):
         return super().default(o)
 
 
-from cs_image_system.contract.constants import SYSTEM_CLI  # noqa: E402 - re-exported: the name every caller imports from here
+from cs_image_system.contract.constants import SYSTEM_CLI  # noqa: E402 - re-exported for every caller
+
+from .models.executable import ExecutableModel  # noqa: E402
 
 
 def system_cli_executable(args: list[str], working_directory: Path | None = None):
     """An ExecutableModel invoking this system's own CLI (e.g. the apply gate
     or the identity gid shim) from inside a runner script."""
-    # lazy: models.builder_model imports this module (via models.executable)
-    from .models.executable import ExecutableModel
     e = ExecutableModel(name=SYSTEM_CLI, type_="executable", binary=SYSTEM_CLI)
     e.args = list(args)
     e.working_directory = working_directory
@@ -153,7 +156,20 @@ def _is_remote_module_source(base: str) -> bool:
     return "://" in base or base.startswith(("git@", "github.com/")) or bool(_FORCED_GETTER.match(base))
 
 
-def module_source_overrides(ctx: "RunContext") -> dict[str, str]:
+class ModuleSourceScope(Protocol):
+    """What :func:`module_source` reads from a run context -- the global
+    ``config:`` map, the configuration root and where generated files land
+    -- so a root generated outside a run (the bootstrap's) resolves its
+    module sources the same way with those three alone."""
+    @property
+    def config(self) -> Mapping[str, Any]: ...
+    @property
+    def working_path(self) -> Path: ...
+    @property
+    def generation_path(self) -> Path: ...
+
+
+def module_source_overrides(ctx: ModuleSourceScope) -> dict[str, str]:
     """The per-module sources ``config: module_sources`` declares: a mapping
     from a module's directory name to the path or URL that IS that module.
     Empty when the key is absent; a value that is not a mapping, or an
@@ -175,7 +191,7 @@ def module_source_overrides(ctx: "RunContext") -> dict[str, str]:
     return out
 
 
-def module_source(ctx: "RunContext", module_dirname: str, workspace_dir: Path | None = None) -> str:
+def module_source(ctx: ModuleSourceScope, module_dirname: str, workspace_dir: Path | None = None) -> str:
     """Terraform module source for a generated ``module`` call.
 
     The base comes from the global ``config: module_source_base`` setting:
@@ -200,7 +216,6 @@ def module_source(ctx: "RunContext", module_dirname: str, workspace_dir: Path | 
     workspace's depth exactly as the base is. Every other module keeps the
     base.
     """
-    import os
     override = module_source_overrides(ctx).get(module_dirname)
     if override is not None:
         source, tail = override, ""
@@ -214,8 +229,8 @@ def module_source(ctx: "RunContext", module_dirname: str, workspace_dir: Path | 
 
 
 def root_in_runtime_scope(ctx: "RunContext", runtime: str | None) -> bool:
-    """Whether a terraform root bound to ``runtime`` takes part in THIS run
-    (ledger 70): under ``--only-runtime <rt>`` (explicit, or implied by
+    """Whether a terraform root bound to ``runtime`` takes part in THIS run:
+    under ``--only-runtime <rt>`` (explicit, or implied by
     ``--apply-runtime``) only that runtime's roots are generated and
     planned; without it every root does, as before. List-valued
     ``apply_*`` flags are NOT a scope here -- by the per-root scoping

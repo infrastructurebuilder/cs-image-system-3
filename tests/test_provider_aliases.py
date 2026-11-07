@@ -19,12 +19,11 @@ from typing import Any
 
 import pytest
 
-from tests.harness import V2Run
-
 from cs_image_system.base import power_state as ps
 from cs_image_system.base import provider_aliases as pa
 from cs_image_system.base import state_query as sq
 from cs_image_system.contract.lifecycles import Lifecycle
+from tests.harness import V2Run
 
 EC2 = {"instance_id": "i-0169f82844f4cc08d",
        "provider_hostname": "ip-10-26-34-156.us-east-2.compute.internal"}
@@ -74,8 +73,8 @@ def test_own_record_is_found_by_the_provider_id_not_the_name():
 def test_the_script_rewrites_the_last_block_and_restarts_only_on_change():
     """The script is the identity plugin's (its agent, its file); the core
     asks the group builder for it and reads only the two closing words."""
-    from cs_image_system.okta_opa_plugin.server_aliases import alt_names_script
     from cs_image_system.okta_opa_plugin.okta_opa_tf_group_builder import OktaTfGroupBuilder
+    from cs_image_system.okta_opa_plugin.server_aliases import alt_names_script
     assert OktaTfGroupBuilder.alias_registration_script(None, ["a-b"]) == alt_names_script(["a-b"])  # type: ignore[arg-type]
     s = alt_names_script(["ip-10-26-34-156"])
     assert "AltNames:" in s and "  - ip-10-26-34-156" in s

@@ -22,7 +22,6 @@ from cs_image_system.base.models.storage_builder import StorageBuilderModel
 from cs_image_system.contract.constants import DEFAULT, VCT
 from cs_image_system.contract.fields import fk_field
 from cs_image_system.contract.model_config import CSIS_MODEL_CONFIG
-
 from cs_image_system.hashicorp_utils.hashicorp_models import TFTofuPluginModel
 
 TOFU_EXECUTABLE = "tofu"

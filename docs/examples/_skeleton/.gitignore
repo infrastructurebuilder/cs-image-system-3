@@ -9,6 +9,10 @@
 !.githooks
 !.csis-version
 !**/.terraform.lock.hcl
+# the module stamps (tfmodules/*/.csis-module) are committed: a fresh checkout
+# holds stamped copies, so a refresh after an upgrade still tells an edited copy
+# from one the release wrote
+!**/.csis-module
 # the TEST identity the starter ships, committed on purpose (README); delete
 # these two lines with it
 !.age-identity

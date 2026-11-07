@@ -31,19 +31,19 @@ import yaml
 
 from cs_image_system.contract.lifecycle import ExecutionLifecyclePhase
 from cs_image_system.contract.lifecycles import LifecycleLike, LifecycleSpec
-from .meta_state import MetaState
-from .utils import apply_enabled
+
 from .image_tests import post_bake_spec
-from .utils import system_cli_executable_with_config
 from .lifecycles import register_lifecycle
+from .meta_state import MOD_TESTS, RELEASES, MetaState
+from .utils import apply_enabled, system_cli_executable_with_config
 
 if TYPE_CHECKING:
     from .global_context import GlobalTypeContext
 
 log = logging.getLogger(__name__)
 
-RELEASES_FILE = "releases.yaml"
-MOD_TESTS_FILE = "mod-tests.yaml"
+RELEASES_FILE = RELEASES
+MOD_TESTS_FILE = MOD_TESTS
 RELEASE_LIFECYCLE = LifecycleSpec(name="release", after="instance-image", phases=(),
                                   description="mark tested builds as released for a model")
 DEFAULT_MODEL = "default"

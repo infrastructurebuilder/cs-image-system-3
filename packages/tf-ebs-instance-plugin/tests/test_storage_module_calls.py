@@ -221,6 +221,23 @@ def test_the_ebs_builder_owns_the_device_table_and_the_nvme_fallback():
                                   "group": "{{ group_gid }}", "mode": "2770"}},
     ]
     assert len(b.launch_tasks(m, None)) == 3
+    # what the instance root binds under "ebs": the volume id by reference, the device attached
+    assert b.launch_bindings(m, "coops", "data.terraform_remote_state.aws_ebs.outputs.storage_mnt_data") == {
+        "ebs": {"volume_id": "data.terraform_remote_state.aws_ebs.outputs.storage_mnt_data.volume_id",
+                "device_name": "/dev/xvdf"}}
+
+
+def test_the_efs_builder_binds_the_filesystem_and_the_access_point_the_mount_goes_through():
+    b = _hooks(TofuEfsStorageBuilder)
+    outputs = "data.terraform_remote_state.aws_efs.outputs.storage_share"
+    bound = b.launch_bindings(_mount("share", "/mnt/share", "efs"), "coops", outputs)
+    assert bound == {"efs": {"file_system_id": f"{outputs}.file_system_id",
+                             "access_point_id": f'{outputs}.access_point_ids["coops"]'}}
+    # no group, or a public-read mount: the public-read access point
+    assert b.launch_bindings(_mount("share", "/mnt/share", "efs"), None, outputs)["efs"]["access_point_id"] == \
+        f"{outputs}.public_read_access_point_id"
+    assert b.launch_bindings(_mount("share", "/mnt/share", "efs", public_read=True), "coops", outputs)["efs"][
+        "access_point_id"] == f"{outputs}.public_read_access_point_id"
 
 
 def test_the_efs_builder_mounts_through_the_access_point_and_makes_no_subtree():
@@ -250,6 +267,7 @@ def test_the_s3_builder_mounts_nothing_and_says_so():
     b = _hooks(TofuS3StorageBuilder)
     m = _mount("bucket", "/mnt/bucket", "s3")
     assert b.launch_mount(_storage("bucket"), None, 0) == {} and b.launch_variables() == ()
+    assert b.launch_bindings(m, "coops", "data.terraform_remote_state.aws_s3.outputs.storage_bucket") == {}
     assert b.launch_script_lines(m, "coops") == [
         "# mount storage bucket (s3) at /mnt/bucket",
         "mkdir -p '/mnt/bucket'",

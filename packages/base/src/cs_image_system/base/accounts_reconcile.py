@@ -29,10 +29,10 @@ import logging
 from typing import TYPE_CHECKING, Any
 
 from cs_image_system.contract.group import ACCOUNTS_IN_PLACE, ACCOUNTS_REPORT_PREFIX
+from cs_image_system.contract.lifecycles import Lifecycle
 
 from . import power_state
 from .capabilities import group_builder_of
-from cs_image_system.contract.lifecycles import Lifecycle
 from .utils import apply_enabled
 
 if TYPE_CHECKING:

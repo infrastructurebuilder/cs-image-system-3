@@ -21,56 +21,63 @@ from __future__ import annotations
 
 import json
 import logging
-import os
 import shutil
 import traceback
 from dataclasses import asdict, field
-from cs_image_system.contract.model_config import CSIS_MODEL_CONFIG
-from pydantic.dataclasses import dataclass  # validation at construction
 from pathlib import Path
 from typing import Callable
 
+from pydantic.dataclasses import dataclass  # validation at construction
+
 from cs_image_system.contract.assets import AssetSet
-from ..basic.builder_base import BuilderBase
-from ..global_context import GlobalTypeContext
+from cs_image_system.contract.constants import RUN_LOCAL_FILENAMES, RUN_SUMMARY_FILENAME
+from cs_image_system.contract.hooks import (  # noqa: F401 - re-exported
+    HOOK_ENTRY_POINT_GROUP,
+    HookSet,
+    LifecycleHook,
+    StateBindingsHook,
+    SummaryHook,
+    ValidatorHook,
+)
 from cs_image_system.contract.lifecycle import ExecutionLifecyclePhase
 from cs_image_system.contract.lifecycles import Lifecycle, LifecycleLike
-from cs_image_system.contract.hooks import (  # noqa: F401 - re-exported
-    HOOK_ENTRY_POINT_GROUP, HookSet, LifecycleHook, StateBindingsHook, SummaryHook, ValidatorHook)
-from ..lifecycles import all_lifecycles, phases_of
-from cs_image_system.contract.constants import RUN_LOCAL_FILENAMES, RUN_SUMMARY_FILENAME
+from cs_image_system.contract.model_config import CSIS_MODEL_CONFIG
+
+from .. import (
+    accounts_reconcile,
+    generations,
+    identity_attributes,
+    launch_delivery,
+    launch_params,
+    network_facts,
+    provider_aliases,
+    read_models,
+    release,
+    retention,
+    state_query,
+    v2_validation,
+    workload_access,
+)
+from ..alias_pool import release_unlaunched
+from ..basic.builder_base import BuilderBase
+from ..bootstrap.generate import regenerate_in_run
+from ..global_context import GlobalTypeContext
+from ..in_process import run_executable
+from ..lifecycles import all_lifecycles, phases_of, register_lifecycle
+from ..lineage import bake_plan, validate_policies
 from ..meta_state import commit_meta_state
 from ..orchestrator import TemplateResolver
+from ..state_query import query_state, write_state_report
+from ..utils import in_directory
 from .gen_groups import predefined_group_generation
 from .gen_images import predefined_image_generation
 from .gen_instances import predefined_instance_generation
 from .gen_storages import predefined_storage_generation
 from .gen_users import predefined_user_generation
-from .resolve import predefined_resolve
-from .validate import collect_validation_errors
-from ..lineage import validate_policies, bake_plan
-from ..state_query import query_state, write_state_report
 from .preflight import session_lines
-from .. import network_facts
-from ..in_process import run_executable
+from .resolve import predefined_resolve
 from .run_scope import check_bake_scope
-from ..bootstrap.generate import regenerate_in_run
-from ..alias_pool import release_unlaunched
-from ..lifecycles import register_lifecycle
-from .. import (
-    identity_attributes,
-    launch_params,
-    read_models,
-    release,
-    state_query,
-    v2_validation,
-    provider_aliases,
-    launch_delivery,
-    accounts_reconcile,
-    generations,
-    workload_access,
-    retention,
-)
+from .validate import collect_validation_errors
 
 log = logging.getLogger(__name__)
 
@@ -305,25 +312,20 @@ def execute_before_or_after_phase(
         )
         ctx.extend_finalization_phase(phase, cfe.finalize_executables)
 
-        pwd = Path(os.getcwd()).absolute()
-        os.chdir(gen_path)
-        starting_wd = Path(os.getcwd()).absolute()
         for cmd in cfe.build_executables:
-            os.chdir(starting_wd)
-            log.debug(
+            with in_directory(gen_path) as starting_wd:
+                log.debug(
                     f"Running command {bef_aft} phase {phase.value}: "
                     f"{cmd.name} {cmd.args}* in {starting_wd}"
                 )
-            res = run_executable(ctx, cmd)
+                res = run_executable(ctx, cmd)
             if not res or res.returncode != 0:
                 rc = str(res.returncode) if res else "None"
                 log.error(
                     f"Command failed {bef_aft} phase {phase.value}: "
                     f"{cmd.name} (Return code: {rc})"
                 )
-                os.chdir(pwd)
                 return False
-        os.chdir(pwd)
     return True
 
 

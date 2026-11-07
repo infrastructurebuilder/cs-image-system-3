@@ -5,7 +5,7 @@
 # docs/CONFIGURATION.md) section 6.
 image_builders:
   - name: packer-docker
-    type: packer-docker
+    type: packer
     is_default: true
     runtime: default             # DECISION: the default runtime (docker-main); name another runtime to bake there
     executable: packer

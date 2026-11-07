@@ -3,13 +3,32 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import logging
+
 log = logging.getLogger(__name__)
 
 
-from . import template_utils
-from .encryption import Decrypted, mark_plaintexts
-from cs_image_system.contract.fields import lookup_dataclass_field
+from dataclasses import MISSING, fields, is_dataclass
+from typing import Any, cast
+
+import jinja2
+
 from cs_image_system.contract import field_kinds
+from cs_image_system.contract.constants import (
+    DEFAULT,
+    DEFERRED_BUILDER_VCT,
+    DEFERRED_ITEM_VCT,
+    FK_ALSO_SET_ON_UPDATE,
+    FK_TARGET,
+    IS_DEFERRED_LIST_FK,
+    IS_DEFERRED_LIST_GENERATED,
+    IS_FK,
+    IS_REPLACE,
+    NONE,
+    OOPS_DEFAULTS,
+    REPLACE_VALUE,
+    STATE_BACKEND_FIELD,
+    VCT,
+)
 from cs_image_system.contract.core import (
     NameTypedProtocol,
     ParentPropertyHoldingProtocol,
@@ -17,19 +36,12 @@ from cs_image_system.contract.core import (
     SelfInjectedNameProtocol,
     SubItemOverrideProtocol,
 )
+from cs_image_system.contract.fields import lookup_dataclass_field
 
-
-from dataclasses import MISSING, fields, is_dataclass
-from typing import Any
-import jinja2
-from cs_image_system.contract.constants import DEFAULT, DEFERRED_BUILDER_VCT, DEFERRED_ITEM_VCT, FK_ALSO_SET_ON_UPDATE, FK_TARGET, IS_DEFERRED_LIST_FK, IS_DEFERRED_LIST_GENERATED, IS_FK, IS_REPLACE, NONE, OOPS_DEFAULTS, STATE_BACKEND_FIELD, VCT, REPLACE_VALUE
-
-from .singleton import singleton
-
-from . import registry
+from . import registry, template_utils
+from .encryption import Decrypted, mark_plaintexts
 from .registry import NAMESPACE_SEPARATOR, UnknownTypeError, split_qualified
-
-
+from .singleton import singleton
 
 # a foreign key that named nothing during resolution -- (object class,
 # object name, field, value, target). The object stage collects them
@@ -366,10 +378,7 @@ class TemplateResolver:
             setattr(obj, data_field, resolved_fks)
         return obj
     def upgrade_deferred_fill_defaults(self, obj, dfield):        
-        reg = registry.current_registry()   # the resolver holds no context; the registry is the run's
         data_field = dfield.name
-        field_metadata: dict[str, Any] = dfield.metadata if hasattr(dfield, "metadata") else {} # type: ignore                
-        target_fk: VCT | None = field_metadata.get(FK_TARGET, None)
         val = getattr(obj, data_field)
         newval = val
         if field_is_required(dfield):            
@@ -386,14 +395,8 @@ class TemplateResolver:
         now that all builders are safely loaded into the Registry.
         """
         reg = registry.current_registry()   # the resolver holds no context; the registry is the run's
-        # Grab the orchestrator locally. We use ignore_collections to prevent infinite loops 
-        # or overwriting things we are manually managing here.
-        conv = Orchestrator().get_converter() 
-        
         # We need to iterate over a static list of the map's values because 
         # we will be adding new items to self.flattened_map during the loop.
-        old_count = len(self.flattened_map.keys())
-        new_count = -100
         cnt = 0
         MAX_ITER = 2
         while cnt < MAX_ITER:
@@ -435,8 +438,7 @@ class TemplateResolver:
         reg = registry.current_registry()   # the resolver holds no context; the registry is the run's
         for _ in range(5):  # Max depth to prevent infinite loops
             any_changed = False
-            for obj_id, obj in self.flattened_map.items():
-                t = str(type(obj))
+            for _obj_id, obj in self.flattened_map.items():
                 if hasattr(obj, "_already_resolved"):
                     if obj._already_resolved:
                         continue
@@ -516,9 +518,9 @@ class TemplateResolver:
                                 any_changed = True
             if not any_changed:
                 break
-        for obj_id, obj in self.flattened_map.items():
+        for _obj_id, obj in self.flattened_map.items():
             if is_dataclass(obj):
-                setattr(obj, "_already_resolved", True)
+                cast(Any, obj)._already_resolved = True
         return list(self.unresolved_foreign_keys)
 
     def flatten_dataclass(self, obj):
@@ -536,7 +538,6 @@ class TemplateResolver:
           return
       obj_id = obj.global_id
       if not obj_id :
-        tehkey = obj.global_id
         raise ValueError(f"Object {obj} has no 'id' or 'name' field for registry key.")
       if obj_id in self.flattened_map:
         log.debug(f"Object {obj} with id {obj_id} is already registered.")

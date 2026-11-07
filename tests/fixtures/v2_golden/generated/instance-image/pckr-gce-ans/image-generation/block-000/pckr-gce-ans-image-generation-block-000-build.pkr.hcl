@@ -40,7 +40,7 @@ provisioner "shell" {
   only = ["googlecompute.imgfile-basic-dask"]
   execute_command = "chmod +x {{ .Path }}; if [ -r /run/csis-step ]; then {{ .Vars }} sh /run/csis-step {{ .Path }}; else {{ .Vars }} {{ .Path }}; fi"
   inline = [
-    "test -x /usr/local/bin/csis-ansible-python || { for v in 3.12 3.11 3.9; do command -v python$v >/dev/null 2>&1 && break; sudo dnf -y install python$v >/dev/null 2>&1 && break; done; P=$(ls /usr/bin/python3.[0-9]* 2>/dev/null | grep -v config | sort -V | tail -1); [ -n \"$P\" ] || P=$(command -v python3); sudo ln -sf \"$P\" /usr/local/bin/csis-ansible-python; }",
+    "test -x /usr/local/bin/csis-ansible-python || { sudo sh -c 'for v in 3.12 3.11 3.9; do command -v python$v >/dev/null 2>&1 && exit 0; dnf -y install python$v >/dev/null 2>&1 && exit 0; done; command -v python3 >/dev/null 2>&1 || dnf -y install python3 || yum -y install python3'; P=$(ls /usr/bin/python3.[0-9]* 2>/dev/null | grep -v config | sort -V | tail -1); [ -n \"$P\" ] || P=$(command -v python3); sudo ln -sf \"$P\" /usr/local/bin/csis-ansible-python; }",
   ]
 }
 provisioner "ansible" {

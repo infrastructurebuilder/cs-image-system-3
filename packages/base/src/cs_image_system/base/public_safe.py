@@ -39,6 +39,9 @@ from typing import Any, Callable, Iterable, Sequence
 
 import yaml
 
+from .loader import load_plugins
+from .registry import current_registry
+
 # ----------------------------------------------------------------- by path
 # Never committed, by name at any depth: plans and state hold the decrypted
 # values the emission refers to; tfvars carry values; key material and the
@@ -108,8 +111,6 @@ def _runtime_rules() -> dict[str, Rule]:
     """The secret shapes every installed runtime plugin declares, by rule
     name; the plugins are loaded here so the scan sees them whether or not
     a configuration was loaded first."""
-    from .loader import load_plugins
-    from .registry import current_registry
     load_plugins()
     out: dict[str, Rule] = {}
     for cls in current_registry().runtime_builder_classes().values():

@@ -3,16 +3,20 @@
 # SPDX-License-Identifier: Apache-2.0
 
 from __future__ import annotations
+
 import logging
 
 from cs_image_system.contract.constants import VCT
+
 from .basic.abstract_plugin_metadata import AbstractPluginMetadata
 
 log = logging.getLogger(__name__)
 
 # if TYPE_CHECKING:
-from .models.instance import  StorageMapping
 from .basic.abstract_version_checker import GenericVersionChecker
+from .models.instance import StorageMapping
+
+
 class BaseInitTypes(AbstractPluginMetadata):
   def __init__(self) -> None:
     super().__init__( "1", "3.13",

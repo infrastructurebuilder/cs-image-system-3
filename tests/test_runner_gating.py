@@ -26,7 +26,6 @@ import os
 import stat
 
 import pytest
-
 from harness import V2Run, command_lines
 
 
@@ -132,7 +131,7 @@ def test_lifecycle_state_bindings_are_disjoint(v2):
     assert bindings["base-image"] == {}
     seen: dict[str, str] = {}
     for lc, workspaces in bindings.items():
-        for ws, key in workspaces.items():
+        for _ws, key in workspaces.items():
             assert key not in seen, f"state file {key} shared by {seen[key]} and {lc}"
             seen[key] = lc
 

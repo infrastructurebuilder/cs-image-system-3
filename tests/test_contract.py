@@ -19,14 +19,24 @@ from importlib.metadata import version as dist_version
 from pathlib import Path
 
 import pytest
+from harness import FIXTURE_CONFIG, REPO, load_context, reset_singletons
 
-from cs_image_system.contract import (context, core, group, image, instance, modification, operating_system, runtime, state,
-                                      storage, user)
+from cs_image_system.contract import (
+    context,
+    core,
+    group,
+    image,
+    instance,
+    modification,
+    operating_system,
+    runtime,
+    state,
+    storage,
+    user,
+)
 from cs_image_system.contract.constants import VCT
 from cs_image_system.contract.metadata import PluginMetadata
 from cs_image_system.contract.testing import assert_conforms, conformance_problems
-
-from harness import FIXTURE_CONFIG, REPO, load_context, reset_singletons
 
 CONTRACT = REPO / "packages/contract/src/cs_image_system/contract"
 LEAVES = {"constants", "model_config", "fields", "field_kinds", "lifecycle", "lifecycles", "assets", "executables",
@@ -437,8 +447,9 @@ def test_the_collector_pulls_the_declared_backends_from_the_context(tmp_path, mo
     the context, so the three state plugins and the core import nothing
     from hashicorp-utils for it, and a collector reset after the load
     leaves nothing behind."""
-    from cs_image_system.hashicorp_utils.collector import terraform_collector
     from harness import copy_config, stub_environment
+
+    from cs_image_system.hashicorp_utils.collector import terraform_collector
     monkeypatch.setenv("CSIS_CONFIG_IDENTITY", str(FIXTURE_CONFIG / ".age-identity"))
     stub_environment(monkeypatch)
     root = copy_config(tmp_path)

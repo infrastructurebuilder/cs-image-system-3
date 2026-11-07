@@ -3,6 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 from cs_image_system.base.basic.builder_base_os import OsBuilderBase
+
 from .rhel_type import RHEL_TYPE
 
 

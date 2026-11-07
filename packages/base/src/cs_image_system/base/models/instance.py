@@ -3,21 +3,24 @@
 # SPDX-License-Identifier: Apache-2.0
 
 from __future__ import annotations
-import logging
-from typing import Annotated, TYPE_CHECKING, Any, cast
 
+import logging
+from typing import TYPE_CHECKING, Annotated, Any, cast
 
 log = logging.getLogger(__name__)
-from cs_image_system.contract.model_config import CSIS_MODEL_CONFIG
 from pydantic import Field, model_validator
 from pydantic.dataclasses import dataclass  # validation at construction
 
 from cs_image_system.contract.fields import deferred_list_field, fk_field, parent_field
+from cs_image_system.contract.model_config import CSIS_MODEL_CONFIG
+
 from .mixins import SelfInjectedName, SubItemOverride
 
 STORAGE_MAPPING = "storage_mapping"
 from cs_image_system.contract.constants import DEFAULT, VCT
+
 from .root_item import RootItem, SubRootItem
+
 if TYPE_CHECKING:
     from ..models.storage import Storage
 

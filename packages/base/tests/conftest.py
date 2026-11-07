@@ -14,7 +14,8 @@ into the end-to-end pipeline test).
 import pytest
 
 from cs_image_system.base import registry as _registry
-from cs_image_system.base.orchestrator import TemplateResolver, Orchestrator
+from cs_image_system.base.orchestrator import Orchestrator, TemplateResolver
+
 
 @pytest.fixture
 def clean_registry():

@@ -20,8 +20,8 @@ module "instance_test2" {
       }
     }
     "efs" = {}
+    "enrollment_token" = (var.enrollment_token != "" ? var.enrollment_token : data.terraform_remote_state.oktagroups.outputs.group_enrollment_tokens["coops"])
     "group_gid" = data.terraform_remote_state.oktagroups.outputs.group_gids["coops"]
-    "sft_enrollment_token" = (var.sft_enrollment_token != "" ? var.sft_enrollment_token : data.terraform_remote_state.oktagroups.outputs.group_enrollment_tokens["coops"])
   })
   ebs_volumes = {
     "mnt_data" = {

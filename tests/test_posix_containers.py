@@ -19,7 +19,6 @@ import shutil
 import subprocess
 
 import pytest
-
 from harness import docker_binary
 
 from cs_image_system.posix_identity_plugin import accounts

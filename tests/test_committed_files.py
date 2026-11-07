@@ -24,10 +24,10 @@ from pathlib import Path
 
 import pytest
 import yaml
-
-from cs_image_system.contract.constants import RUN_LOCAL_FILENAMES
-from cs_image_system.base.meta_state import commit_meta_state
 from harness import REPO, V2Run
+
+from cs_image_system.base.meta_state import commit_meta_state
+from cs_image_system.contract.constants import RUN_LOCAL_FILENAMES
 
 GOLDEN = REPO / "tests" / "fixtures" / "v2_golden"
 EXAMPLES = REPO / "docs" / "examples"
@@ -39,7 +39,8 @@ IGNORED = [".gh_token", ".envrc", ".private_key.pem", ".private_key.json", ".age
            ".tofu-plugin-cache/x", "generated/x/.terraform/y", "key.pem", "_private/x", "a.tfstate", "x.tfvars"]
 TRACKED = [".gitignore", ".csis-version", ".githooks/pre-commit", ".github/workflows/ci.yml", ".age-identity",
            ".age-recipient", "generated/.gitignore", "generated/x/.terraform.lock.hcl",
-           "generated/bootstrap/bootstrap.auto.tfvars", "cfg/_config.yml"]
+           "generated/bootstrap/bootstrap.auto.tfvars", "cfg/_config.yml",
+           "tfmodules/aws_instance/.csis-module"]      # the module stamps reach a commit
 
 
 def _git(repo: Path, *args: str) -> str:

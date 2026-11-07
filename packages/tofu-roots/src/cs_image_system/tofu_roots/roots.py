@@ -16,10 +16,10 @@ import logging
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Sequence
 
-from cs_image_system.hashicorp_utils.collector import TerraformCollector, terraform_collector
+from cs_image_system.base.models.executable import ExecutableModel
 from cs_image_system.contract.constants import STATE_BACKEND_FIELD
 from cs_image_system.contract.executables import ExecutableProtocol
-from cs_image_system.base.models.executable import ExecutableModel
+from cs_image_system.hashicorp_utils.collector import TerraformCollector, terraform_collector
 
 if TYPE_CHECKING:
     from cs_image_system.base.basic.builder_base import BuilderBase

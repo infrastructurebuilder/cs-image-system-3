@@ -8,14 +8,12 @@ and a value, gathered in an :class:`AssetSet`. In the contract since stage
 set takes the generation path as an argument, so nothing here reaches the
 run context."""
 
+import logging
 import os
+import tempfile
 from collections.abc import Iterable
 from pathlib import Path
-import tempfile
 from typing import Any, overload
-import logging
-
-
 
 log = logging.getLogger(__name__)
 

@@ -20,9 +20,9 @@ from typing import Any, Mapping
 
 from pydantic.dataclasses import dataclass  # validation at construction
 
+from cs_image_system.base.models.state_builder import StateBuilderModel
 from cs_image_system.contract.constants import VCT
 from cs_image_system.contract.model_config import CSIS_MODEL_CONFIG
-from cs_image_system.base.models.state_builder import StateBuilderModel
 from cs_image_system.contract.names import super_safe_name
 from cs_image_system.contract.state import BackendRegistration, StateLocation
 

@@ -96,6 +96,7 @@ def record_network_facts(root: Path, checked_at: str = FIXED_CHECKED_AT) -> Path
     ids and, on aws, its declared security groups -- as if a real run had
     checked them. The path is returned."""
     import yaml as _yaml
+
     from cs_image_system.contract.constants import OOPS_DEFAULTS
     runtimes: dict[str, dict] = {}
     for p in sorted((root / "cfg").glob("*.y*ml")):
@@ -207,14 +208,14 @@ def reset_singletons() -> None:
     singleton (a new context per load; the loader binds the
     one it makes as the process's current); only the process binding is
     dropped here so a test that forgets to load cannot see an earlier test's."""
+    from cs_image_system.base.orchestrator import Orchestrator, TemplateResolver
     from cs_image_system.base.registry import bind_current_registry
     from cs_image_system.base.run_context import bind_current
-    from cs_image_system.base.orchestrator import Orchestrator, TemplateResolver
     # the registry is per run too: the loader makes the next one;
     # the process binding is dropped so `load_plugins()` below fills a fresh one
     bind_current_registry(None)
-    from cs_image_system.base.image_sources import ImageSourceCatalog
-    ImageSourceCatalog().reset()
+    from cs_image_system.base.image_sources import bind_current_catalog
+    bind_current_catalog(None)   # per run too: the loader makes the next one beside the registry
     TemplateResolver().flattened_map = {}
     TemplateResolver().unresolved_foreign_keys = []   # the loader starts each load with a fresh list too
     Orchestrator().invalidate_converter()
@@ -295,11 +296,12 @@ def stub_environment(monkeypatch) -> list[str]:
     retags: list[tuple[str, dict[str, str]]] = []
     monkeypatch.setattr(AwsCloudBuilder, "retag_image",
                         lambda self, image_id, tags: retags.append((image_id, dict(tags))) or True)
-    from cs_image_system.gcloud_runtime.gcp_runtime_builders import GCPCloudBuilder
     # the post-bake suite runs over the session command; the stub
     # answers PASS for every assertion the script carries (tests that need a
     # failing or dead session override this per test)
     import re as _re
+
+    from cs_image_system.gcloud_runtime.gcp_runtime_builders import GCPCloudBuilder
     _real_aws_session = AwsCloudBuilder.run_session_command
     _real_gcp_session = GCPCloudBuilder.run_session_command
 
@@ -312,7 +314,7 @@ def stub_environment(monkeypatch) -> list[str]:
         return _run
     monkeypatch.setattr(AwsCloudBuilder, "run_session_command", _session_stub(_real_aws_session))
     monkeypatch.setattr(GCPCloudBuilder, "run_session_command", _session_stub(_real_gcp_session))
-    monkeypatch.setattr(GCPCloudBuilder, "retag_image",                    # ledger 66: GCE relabels too
+    monkeypatch.setattr(GCPCloudBuilder, "retag_image",                    # GCE relabels too
                         lambda self, image_id, tags: retags.append((image_id, dict(tags))) or True)
     _real_docker_session = DockerContainerBuilder.run_session_command
     monkeypatch.setattr(DockerContainerBuilder, "run_session_command", _session_stub(_real_docker_session))
@@ -352,9 +354,9 @@ def stub_environment(monkeypatch) -> list[str]:
     # way (the same line a spawned step would have produced), so a test
     # reads one journal; a test of the in-process path itself registers
     # its own runner after constructing its V2Run.
+    import cs_image_system.system.cli  # noqa: F401 - registers the real runner BEFORE the patch window, so the
     from cs_image_system.base import in_process as _in_process
     from cs_image_system.contract.constants import SYSTEM_CLI
-    import cs_image_system.system.cli  # noqa: F401 - registers the real runner BEFORE the patch window, so the
     #                                      teardown restores it instead of None (a first import inside the window
     #                                      would be undone with the patch)
 

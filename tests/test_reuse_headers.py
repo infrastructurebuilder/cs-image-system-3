@@ -17,7 +17,6 @@ import sys
 from pathlib import Path
 
 import pytest
-
 from harness import FIXTURE_CONFIG, REPO
 
 HEADER = "SPDX-License-" + "Identifier: Apache-2.0"   # concatenated: a literal tag would be parsed by reuse

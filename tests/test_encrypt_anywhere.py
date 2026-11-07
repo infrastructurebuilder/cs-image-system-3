@@ -17,16 +17,24 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
+from harness import FIXTURE_CONFIG
 
 from cs_image_system.base.encryption import (
-    Decrypted, EncryptedKeyError, InlineMarkerError, MissingIdentityError,
-    decrypt_tree, decrypted_plaintexts, emit, encrypt_value, like,
-    refuse_markers_at, reset_decrypted_plaintexts, substitute_markers,
+    Decrypted,
+    EncryptedKeyError,
+    InlineMarkerError,
+    MissingIdentityError,
+    decrypt_tree,
+    decrypted_plaintexts,
+    emit,
+    encrypt_value,
+    like,
+    refuse_markers_at,
+    reset_decrypted_plaintexts,
+    substitute_markers,
 )
 from cs_image_system.base.materialize import PRIVATE_DIRNAME, materialize, mirror_path
 from cs_image_system.base.public_safe import refused_path, scan_for_plaintexts
-
-from harness import FIXTURE_CONFIG
 
 IDENTITY = FIXTURE_CONFIG / ".age-identity"
 RECIPIENT = (FIXTURE_CONFIG / ".age-recipient").read_text().strip()
@@ -319,6 +327,7 @@ def test_a_derived_value_inherits_its_inputs_encryption():
     """The stage-51 rule: a value computed from a decrypted one is declared
     nowhere, so its ciphertext is built from the pieces."""
     from types import SimpleNamespace
+
     from cs_image_system.base.orchestrator import TemplateResolver
     domain = enc("noaa.example")
     decrypt_tree({"email_domain": domain})          # so the map knows it
@@ -438,6 +447,7 @@ def test_the_run_can_still_commit_once_the_mirror_is_ignored(tmp_path):
     `git add -A` then exits 1 because it is ignored. Found when a live
     launch succeeded and its commit did not."""
     import subprocess
+
     from cs_image_system.base.materialize import ensure_ignored
     from cs_image_system.base.meta_state import _never_staged_pathspecs
 

@@ -17,10 +17,10 @@ as the resource argument of the same name.
 """
 from __future__ import annotations
 
-from cs_image_system.contract.model_config import CSIS_MODEL_CONFIG
 from pydantic.dataclasses import dataclass
 
 from cs_image_system.base.models.user import User
+from cs_image_system.contract.model_config import CSIS_MODEL_CONFIG
 
 #: The optional ``okta_user`` arguments this model carries beside the core's
 #: fields, in the resource's own names. ``middle_name`` is the core's.

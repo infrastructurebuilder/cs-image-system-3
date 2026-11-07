@@ -3,31 +3,33 @@
 # SPDX-License-Identifier: Apache-2.0
 
 from __future__ import annotations
+
+import logging
+import shutil
+from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from packaging.specifiers import SpecifierSet
 from packaging.version import parse
 
-import logging
-import shutil
-from pathlib import Path
 log = logging.getLogger(__name__)
 
+from cs_image_system.base.models.container_builder import ContainerBuilderModel
 from cs_image_system.contract.constants import NONE, VCT, ComplianceState
+
 from .. import registry
+from ..alias_pool import free_names, pool_path, pool_problems
+from ..bake_user import entry_for_runtime, resolve_bake_user, resolve_for_entry, root_os_builder
 from ..basic.abstract_version_checker import AbstractVersionChecker
 from ..basic.builder_base import BuilderBase
+from ..capabilities import group_builder_of
+from ..encryption import decrypted_plaintexts
+from ..image_names import output_names_by_runtime
+from ..image_sources import container_reference, stand_in_runtime_type
+from ..launch_params import HOSTNAME_LABEL_MAX, canonical_hostname, hostname_problems
 from ..models.executable import ExecutableModel
 from ..posix_ids import FIRST_REGULAR_ID, NAME_RE, Claim, resolve_posix_ids, supplied_id
-from ..encryption import decrypted_plaintexts
 from ..public_safe import scan_for_plaintexts
-from ..launch_params import HOSTNAME_LABEL_MAX, canonical_hostname, hostname_problems
-from ..alias_pool import free_names, pool_path, pool_problems
-from ..capabilities import group_builder_of
-from ..bake_user import entry_for_runtime, resolve_bake_user, resolve_for_entry, root_os_builder
-from ..image_sources import ImageSourceCatalog, container_reference, stand_in_runtime_type
-from ..image_names import output_names_by_runtime
-from cs_image_system.base.models.container_builder import ContainerBuilderModel
 
 if TYPE_CHECKING:          # annotations only
     from ..global_context import GlobalTypeContext
@@ -163,7 +165,7 @@ def check_name_uniquness(ctx: GlobalTypeContext) -> list[Exception]:
             )
         else:
             seen_names.add(name)
-        for osrc_name, osrc in osbuilder.get_configs_for_image_builders().items():
+        for _osrc_name, osrc in osbuilder.get_configs_for_image_builders().items():
             name= osrc.global_id
             if name in seen_names:
                 log.warning(f"Duplicate OS runtime configuration name found: {name} in OS builder {osb_name}")
@@ -222,6 +224,7 @@ def check_executables_exist_and_versions(ctx: GlobalTypeContext) -> list[Excepti
 # ------------------------------------------------------------ state locations
 
 from ..standing import deployed_in_workspace, terraform_workspaces  # noqa: E402, F401 - re-exported
+
 
 def check_posix_ids(ctx: GlobalTypeContext) -> list[Exception]:
     """Every POSIX id the configuration's builders claim, resolved
@@ -596,7 +599,7 @@ def check_image_sources(ctx: GlobalTypeContext) -> list[Exception]:
     per entry prints the query in both vocabularies, so a review sees what
     will be asked without opening the catalog."""
     exs: list[Exception] = []
-    catalog = ImageSourceCatalog()
+    catalog = ctx.image_sources
     stand_in_type = stand_in_runtime_type() or "no installed runtime offers a local test target"
     for osb_name, osb in sorted((ctx.os_builders or {}).items()):
         model = osb.model

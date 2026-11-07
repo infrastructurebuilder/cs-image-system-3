@@ -10,12 +10,11 @@ command could request it); these tests load the whole tree.
 """
 import os
 import types
-import yaml
 from pathlib import Path
 from typing import Any, cast
 
 import pytest
-
+import yaml
 from harness import FIXTURE_CONFIG, copy_config
 
 REPO = Path(__file__).resolve().parents[1]
@@ -68,6 +67,7 @@ def no_cloud(monkeypatch):
     # The gcloud runtime carries a real project now: stub its network
     # discovery too, config-derived (subnet ids are data, not test literals).
     import yaml as _yaml
+
     from cs_image_system.gcloud_runtime import gcp_utils
 
     def _gcp_network_map(session_config, clients=None):
@@ -113,7 +113,9 @@ def test_string_stage_resolves_config_document(monkeypatch):
     never dumped or parsed again."""
     monkeypatch.setenv("USER", "testuser")
     import glob
+
     import yaml
+
     from cs_image_system.base.template_utils import string_stage
 
     def _extend(old, new):
@@ -168,8 +170,8 @@ def test_image_to_source_emits_psi_backed_data_block(monkeypatch, cwd_guard, tmp
     the data "amazon-ami" block carries the PSI's resolved image-id filter.
     """
     monkeypatch.setenv("USER", "testuser")
-    from cs_image_system.base.registry import bind_current_registry
     from cs_image_system.base.orchestrator import Orchestrator, TemplateResolver
+    from cs_image_system.base.registry import bind_current_registry
 
     bind_current_registry(None)          # the loader makes the run's registry
     TemplateResolver().flattened_map = {}
@@ -243,8 +245,8 @@ def test_execution_run_defers_base_images_no_query_no_build(monkeypatch, cwd_gua
     consume as an owners=self / most_recent data lookup.
     """
     monkeypatch.setenv("USER", "testuser")
-    from cs_image_system.base.registry import bind_current_registry
     from cs_image_system.base.orchestrator import Orchestrator, TemplateResolver
+    from cs_image_system.base.registry import bind_current_registry
 
     bind_current_registry(None)          # the loader makes the run's registry
     TemplateResolver().flattened_map = {}

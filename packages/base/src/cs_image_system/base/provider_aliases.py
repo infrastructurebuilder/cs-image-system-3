@@ -49,11 +49,11 @@ import logging
 from typing import TYPE_CHECKING, Any
 
 from cs_image_system.contract.group import ALIASES_CHANGED
+from cs_image_system.contract.lifecycles import Lifecycle
 
 from . import power_state
 from .capabilities import group_builder_of
 from .launch_params import canonical_hostname, hostname_problems
-from cs_image_system.contract.lifecycles import Lifecycle
 from .utils import apply_enabled
 
 if TYPE_CHECKING:

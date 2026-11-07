@@ -17,7 +17,6 @@ from pathlib import Path
 
 import pytest
 import yaml
-
 from harness import V2Run, copy_config
 
 BASE_BUILD = Path("base-image/pckr-ebs-ans/image-generation/block-000/pckr-ebs-ans-image-generation-block-000-build.pkr.hcl")

@@ -32,10 +32,10 @@ needs_just = pytest.mark.skipif(JUST is None, reason="`just` is not on PATH")
 
 
 def test_the_system_cli_runs_as_the_running_interpreters_module(monkeypatch, tmp_path):
-    from cs_image_system.contract.constants import SYSTEM_CLI
+    import cs_image_system.base.models.executable as ex
     from cs_image_system.base.models.executable import ExecutableModel
     from cs_image_system.base.utils import system_cli_executable
-    import cs_image_system.base.models.executable as ex
+    from cs_image_system.contract.constants import SYSTEM_CLI
     seen: list[list[str]] = []
 
     class _Proc:

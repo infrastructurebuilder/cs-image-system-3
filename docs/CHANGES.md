@@ -25,6 +25,7 @@ the entry without naming the number in its text.
 
 | Stage | Landed | Released in | Squash subject |
 | --- | --- | --- | --- |
+| <a id="hxxiv"></a><a id="s130"></a>§130 | 2026-11-07 | not yet | Stage 130: hygiene bundle XXIV, the lint bar and the small findings |
 | <a id="s129"></a>§129 | 2026-11-07 | not yet | Stage 129: the sources stop narrating |
 | <a id="s128"></a>§128 | 2026-11-07 | not yet | Stage 128: tests named for behaviour |
 | <a id="s127"></a>§127 | 2026-11-06 | not yet | Stage 127: loading once, without the cloud |

@@ -26,10 +26,9 @@ from pathlib import Path
 
 import pytest
 import yaml
+from harness import FIXTURE_CONFIG, copy_config, load_context, reset_singletons, stub_environment
 
 from cs_image_system.contract.image import QUERY_KEYS, ImageQuery
-
-from harness import FIXTURE_CONFIG, copy_config, load_context, reset_singletons, stub_environment
 
 AWS_RUNTIME, GCE_RUNTIME = "aws-east2-runtime", "gcloud-east1"
 ALMA_AWS_ACCOUNT = "764336703387"
@@ -154,6 +153,7 @@ def test_the_split_catalog_merges_back_to_exactly_what_the_one_file_held():
 ])
 def test_each_runtime_ships_only_its_own_blocks(package: str, runtime_type: str):
     import importlib
+
     from cs_image_system.base.image_sources import structure_entries
     module = importlib.import_module(package)
     cls = next(c for c in vars(module).values()
@@ -200,8 +200,8 @@ def test_a_conflict_between_two_runtimes_parts_keeps_the_first_and_says_so(caplo
 
 
 def test_the_tree_layer_lands_on_the_releases_and_a_version_on_the_generic(ctx):
-    from cs_image_system.base.image_sources import ImageSourceCatalog, container_reference
-    cat = ImageSourceCatalog()
+    from cs_image_system.base.image_sources import container_reference
+    cat = ctx.image_sources   # the run's: the tree's layer over the release's
     debian = cat.block("debian", "12", "aws")
     assert debian is not None and debian.publisher == ("self", "amazon", "136693071363")   # the fixture's layer
     assert debian.name == "debian-12-amd64-*" and debian.root_device == "ebs"
@@ -214,13 +214,13 @@ def test_the_tree_layer_lands_on_the_releases_and_a_version_on_the_generic(ctx):
 
 
 def test_a_family_is_what_the_catalog_says_it_is(ctx):
-    from cs_image_system.base.image_sources import ImageSourceCatalog, container_reference
+    from cs_image_system.base.image_sources import container_reference
     from cs_image_system.base.mod_tests import test_image_for
     model = ctx.os_builders["basic-rh-10"].model
     assert model.get_vendor_family() == "alma-linux" and model.get_family() == "rhel"
     assert type(model).families() == ("rhel", "alma-linux", "rocky-linux", "centos", "centos-stream")
     assert test_image_for(ctx, ctx.images_map["imgfile-basic-dask"]) == "almalinux:10"
-    cat = ImageSourceCatalog()
+    cat = ctx.image_sources
     # the fixture's custom family: treated as rhel, queried its own way, tested as what it is
     assert cat.effective_family("rhel-from-fixture", "10") == "rhel"
     assert _block(cat, "rhel-from-fixture", "10", "aws").name == "fixture-rhel10-golden-*"

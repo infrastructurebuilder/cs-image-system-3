@@ -2,22 +2,22 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+import logging
 from dataclasses import field
-from cs_image_system.base.models.credentials import CredentialsBase
-from cs_image_system.contract.model_config import CSIS_MODEL_CONFIG
-from pydantic.dataclasses import dataclass  # validation at construction
 from typing import Any
 
-import logging
+from pydantic.dataclasses import dataclass  # validation at construction
 
 from cs_image_system.aws_runtime import aws_utils
+from cs_image_system.base.models.credentials import CredentialsBase
 from cs_image_system.contract.fields import fk_field, parent_field
+from cs_image_system.contract.model_config import CSIS_MODEL_CONFIG
+
 log = logging.getLogger(__name__)
 
 
-from cs_image_system.contract.constants import DEFAULT, OOPS_DEFAULTS, VCT
 from cs_image_system.base.models.cloud_builder import CloudBuilderModel, CloudNetworkingConfig
-
+from cs_image_system.contract.constants import DEFAULT, OOPS_DEFAULTS, VCT
 
 AWS: str = "aws"
 AWS_CLI: str = "aws-cli"
@@ -115,7 +115,11 @@ class AwsCloudBuilderModel(CloudBuilderModel):
     def csis_name(cls) -> str:
         return AWS
 
-    credentials: AwsCredentials = field(default_factory=AwsCredentials)
+    # narrowed on purpose: pydantic validates the declared `credentials:` against this
+    # provider's class, so an unknown key is refused; the invariance rule
+    # cannot express a field that is only ever narrowed, never reassigned
+    credentials: AwsCredentials = field(  # pyright: ignore[reportIncompatibleVariableOverride]
+        default_factory=AwsCredentials)
 
     def self_to_aws_client_config(self) -> dict[str, Any]:
         config: dict[str, Any] = {}

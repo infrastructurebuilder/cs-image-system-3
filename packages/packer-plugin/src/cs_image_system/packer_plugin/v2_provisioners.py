@@ -16,12 +16,12 @@ scoped to one source; nothing runs at generation time.
 from __future__ import annotations
 
 import logging
-from typing import Any, TYPE_CHECKING, Iterable
+from typing import TYPE_CHECKING, Any, Iterable
 
 if TYPE_CHECKING:
-    from cs_image_system.contract.context import RunContextProtocol
     from cs_image_system.base.models.base_image import BaseImage
     from cs_image_system.base.models.image import Image
+    from cs_image_system.contract.context import RunContextProtocol
 
 from cs_image_system.contract.hcl import emitted as emit
 

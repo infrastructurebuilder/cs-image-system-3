@@ -27,9 +27,11 @@ build is known. ``auto_update: true`` remains an alias for
 """
 from __future__ import annotations
 
-from cs_image_system.contract.model_config import CSIS_MODEL_CONFIG
-from pydantic.dataclasses import dataclass  # validation at construction
 from typing import Any
+
+from pydantic.dataclasses import dataclass  # validation at construction
+
+from cs_image_system.contract.model_config import CSIS_MODEL_CONFIG
 
 POLICY_NONE = "none"
 POLICY_SECURITY = "security"

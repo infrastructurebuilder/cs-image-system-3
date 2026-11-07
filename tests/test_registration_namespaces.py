@@ -155,9 +155,10 @@ def test_the_same_class_under_three_namespaces_is_one_registration():
 
 
 def test_the_installed_roots_resolve_the_checker_by_the_bare_word():
+    from harness import reset_singletons
+
     from cs_image_system.base.registry import current_registry
     from cs_image_system.tofu_roots.tofu_instance_builder import TofuVersionChecker
-    from harness import reset_singletons
     reset_singletons()
     reg = current_registry()
     assert reg.get_model(VCT.VERSION_CHECKER, WORD) is TofuVersionChecker
@@ -224,8 +225,10 @@ class _FakeEntryPoints:
 
 
 def _with_entry_points(monkeypatch, *points: Any) -> None:
+    # under ``other``: a synthetic plugin that registers nothing is of no
+    # named kind, and the loader holds a named group to what is registered
     def fake_entry_points(group: str) -> _FakeEntryPoints:
-        return _FakeEntryPoints(*points) if group.endswith(".runtime") else _FakeEntryPoints()
+        return _FakeEntryPoints(*points) if group.endswith(".other") else _FakeEntryPoints()
     monkeypatch.setattr(loader, "entry_points", fake_entry_points)
 
 
@@ -241,7 +244,7 @@ def test_a_plugin_without_a_distribution_loads_when_its_metadata_names_the_names
     named = types.SimpleNamespace(name="named", dist=None, load=lambda: (lambda: PluginMetadata(namespace="mine")))
     _with_entry_points(monkeypatch, named)
     found = loader._discovered_plugins.__wrapped__()
-    assert [(d.plugin_type, d.name, d.derived_namespace) for d in found] == [("runtime", "named", None)]
+    assert [(d.plugin_type, d.name, d.derived_namespace) for d in found] == [("other", "named", None)]
     assert loader.namespace_for("named", found[0].initializer(), found[0].derived_namespace) == "mine"
 
 

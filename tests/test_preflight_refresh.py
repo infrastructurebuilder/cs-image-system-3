@@ -20,10 +20,11 @@ import json
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
+from harness import copy_config, load_context, reset_singletons, stub_environment
+
 from cs_image_system.aws_runtime import session as aws_session
 from cs_image_system.base.commands import preflight
 from cs_image_system.base.commands.preflight import SessionInfo
-from harness import load_context, copy_config, reset_singletons, stub_environment
 
 
 def _aws_dir(tmp_path: Path, *, session: bool, refresh: bool, minutes: int = 40, profile: str = "p") -> Path:
@@ -141,7 +142,8 @@ def test_the_minutes_script_prints_whole_minutes_or_nothing(tmp_path, monkeypatc
     spec.loader.exec_module(m)
     _use(monkeypatch, _aws_dir(tmp_path, session=True, refresh=True, minutes=40, profile="noaa"))
     tree = _tree_with_profile(tmp_path, monkeypatch)
-    import io, contextlib
+    import contextlib
+    import io
     out = io.StringIO()
     reset_singletons()
     with contextlib.redirect_stdout(out):

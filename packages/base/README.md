@@ -94,10 +94,27 @@ this order:
 | `instance`     | instance builders |
 | `other`        | anything else  |
 
+The group names the kind the plugin is, and `_discovered_plugins` holds it
+to that (`check_group`, `GROUP_CLASSIFICATIONS`): a plugin found under a
+group other than `base` or `other` must register at least one class of
+that group's classification (`runtime`: a cloud or container builder
+model or a runtime builder; `state`: a state backend; `storage`, `group`,
+`user`, `image`, `os`, `instance`, `modification`: the builder or its
+model), else it is refused with a `PluginGroupError` naming the group it
+chose, what it registers and the group that fits. A plugin may register
+more than its group's kind (the terraform root plugins declare `instance`
+and register their storage roots; the identity plugins declare `group` and
+register their user builders); `other` is for a plugin that registers none
+of the named kinds (a checker, an injected model).
+
 Each entry point loads to a callable. `load_plugins()` calls it and expects
 one object satisfying the contract's `PluginMetadataProtocol`, or a list of
 them (the check is `isinstance`, name-only; anything else is logged as an
-error and skipped). The entry point's distribution gives the plugin its
+error and skipped). An entry point whose module fails to import, or whose
+callable raises, is skipped the same way: one error line names the plugin
+and the error, the other plugins load, and every command keeps working
+without it (a tree whose `type:` names that plugin's model fails at load
+as any missing plugin does). The entry point's distribution gives the plugin its
 namespace (`namespace_of_distribution`: `cs-image-system-aws-runtime-plugin`
 is `aws-runtime`), unless the metadata names one. The load log gives one
 info line with how many classes registered under how many namespaces, and
@@ -381,8 +398,12 @@ registered runtime builder class and merges the parts by family
 WARNING). The catalog therefore depends on which runtime plugins are
 installed, never on which a tree declares, and this module names no
 runtime. The tree's `image_sources:` entries land on the merged result
-by family and version (`ImageSourceCatalog`, a singleton the tests reset
-with the others). An OS builder's runtime entry resolves its effective
+by family and version (`ImageSourceCatalog`, one per run like the
+registry: the loader makes it beside the run's registry, binds it as the
+process's current one and carries it as `ctx.image_sources`; a model,
+which holds no context, reads the current one through
+`current_catalog()` as it reads the registry). An OS builder's runtime
+entry resolves its effective
 query through it (`image_query()`), `get_family()` reads what a family
 IS through it (`is:`), a missing OS builder `type` is defaulted from it
 (`default_os_type`), the modification tests take their stand-in
@@ -413,13 +434,11 @@ A template renders to text, and that text stays a string: `port: "{{
 config.port }}"` over `port: 22` is the string `'22'` until the field it
 lands in is structured (a declared integer field coerces it; a free-form
 mapping keeps the text). A leaf without a tag keeps the type the file gave
-it, and a document with no tag at all passes through untouched. The
-document's mappings are presented with their keys in sorted order
-(`sort_mappings`): that is the order the emission has always seen, because
-the stage used to begin by dumping the document to YAML text and the dumper
-sorts a mapping's keys, so a free-form mapping an emission writes as it is
-(an image's `tags`) comes out sorted whatever order the file gave it. The
-passes:
+it, and a document with no tag at all passes through untouched. A mapping
+keeps the key order its file gave it, so a free-form mapping an emission
+writes as it is (an image's `tags`) comes out in the file's order (an older
+loader began by dumping the document to YAML text, whose dumper sorted
+every mapping's keys). The passes:
 
 1. `interpolate` renders Jinja tags against `ENV` (the process
    environment), `execution` and the document's own `config:` map.
@@ -1319,7 +1338,7 @@ machine by a run that can launch it, or was recorded earlier), `ephemeral`,
 and `userdata` when declared. `user_data_template`
 renders these as a bash script for terraform's `templatefile`: hostname,
 group gid by reference (`${group_gid}`), then one block per mount, then
-the enrollment trigger (`${sft_enrollment_token}`, never recorded), the
+the enrollment trigger (`${enrollment_token}`, never recorded), the
 instance's own `userdata` lines, and finally the marker
 `/var/lib/csis/launch-applied`. The core knows no storage kind: each
 mount's block, from its `# mount storage <name> (<type>) at <mount point>`

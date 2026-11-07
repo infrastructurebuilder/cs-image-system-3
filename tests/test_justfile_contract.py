@@ -25,12 +25,12 @@ import subprocess
 from pathlib import Path
 
 import pytest
-
 from harness import FIXTURE_CONFIG
 
 REPO = Path(__file__).resolve().parents[1]
 STARTER = REPO / "docs" / "examples" / "_skeleton" / "Justfile"      # the starter Justfile the release ships
 CONTRACT = ["init", "build", "test", "full-test", "release"]
+RELEASE_SCRIPT = REPO / "scripts" / "release.py"       # the release family; the recipes wrap it
 
 pytestmark = pytest.mark.skipif(not shutil.which("just"), reason="the recipes are judged through `just` itself")
 
@@ -96,53 +96,37 @@ def test_build_wraps_uv_build_and_the_gates_hold():
     # TestPyPI, full-test (with the mod-test evidence and a clean live checkout) for
     # PyPI -- so it is chosen in the body, never a static dependency
     release = _plan("release", "patch", "test", "yes")
-    assert not release.startswith(bar) and "just full-test" in release and "just test" in release and "mod-tests.yaml" in release
-    for needle in ("git status --porcelain", "bump-my-version", "uv lock", "just publish test", "git tag -a"):
-        assert needle in release, needle
-    assert "uv version" not in release and "UV_PUBLISH_URL" not in release and "SKIPPED" not in release   # the tag is no longer the release
-    pushes = "\n".join(l for l in release.splitlines() if "after=" not in l and "push with:" not in l)
-    assert "git push" not in pushes   # nothing is pushed by the recipe; the closing line only names the operator's pushes
+    assert not release.startswith(bar) and "scripts/release.py" in release        # the script chooses: a wrapper, no dependency
+    script = RELEASE_SCRIPT.read_text()
+    for needle in ('["just", "full-test"]', '["just", "test"]', "mod-tests.yaml", '"status", "--porcelain"', "bump-my-version",
+                   '["uv", "lock"]', "publish-dist", '"tag", "-a"'):
+        assert needle in script, needle
+    assert "uv version" not in script and "UV_PUBLISH_URL" not in script and "SKIPPED" not in script   # the tag is no longer the release
+    assert '"push"' not in script and "git push" in script   # nothing is pushed by the family; the closing line names the operator's pushes
 
 
 def test_release_cannot_half_release_and_publish_is_its_own_recipe():
-    """Every probe -- the token, the index's knowledge of the version,
-    the local tag -- runs before the bump; the upload runs before the commit and
-    the tag, so a failed upload leaves an uncommitted bump and never a tagged,
-    unpublished version; `publish` cleans, builds and uploads with the check
-    URL, and the token is never in the Justfile."""
+    """The order -- every probe before the bump, the upload before the commit
+    and the tag, the index asked again after the bar -- is scripts/release.py's and
+    tests/test_release_script.py holds it against a stubbed shell; here, the recipes are
+    wrappers over the script, `publish` is its own recipe, the upload is scripts/publish-dist's,
+    one project at a time, and the token is never in the Justfile."""
     body = _plan("release", "patch", "test", "yes")
-    order = [body.rindex(s) for s in ("scripts/publish-target-ready", "UV_PUBLISH_TOKEN", "git tag -l", "bump-my-version \"${bump[@]}\"",
-                                      "just publish test", "git commit", "git tag -a")]      # the last mention: the dry echo names them first
-    assert order == sorted(order), "probe, bump, publish, commit, tag -- in that order"
-    # the branch first, then the index -- once before the bar and AGAIN after it, before the bump
-    assert body.index('case "$branch" in') < body.index("\nready\n")   # the branch guard (main) before the index
-    calls = [i for i in range(len(body)) if body.startswith("\nready\n", i)]
-    assert len(calls) == 2, "the index is asked twice"
-    assert calls[0] < body.index("just full-test") and calls[1] > body.rindex("just test") and calls[1] < body.rindex("bump-my-version \"${bump[@]}\"")
-    assert "--refuse-held" in body and "exit 75" in body and "scripts/index-knows" not in body
-    assert body.rindex("just test") < body.rindex("bump-my-version \"${bump[@]}\"")         # the bar before the bump
-    assert "git checkout -- pyproject.toml" in body                                      # the recovery when nothing went up
-    # when some project holds the version, keep the bump and finish with release-finish
-    assert "CSIS_PUBLISH_SUMMARY" in body and "KEEP" in body and "just release-finish test" in body
-    assert body.index("KEEP the uncommitted") < body.index("discard it with")
-    assert "name=testpypi" in body and "name=pypi" in body
     publish = _plan("publish", "test")
-    for needle in ("rm -rf dist", "just build", 'scripts/publish-dist "test" --version "$version" --token-var "$token_var"',
-                   "UV_PUBLISH_TOKEN"):
-        assert needle in publish, needle
-    assert "uv publish" not in publish, "hygiene XIV: the upload is scripts/publish-dist's, one project at a time"
-    # publish begins with the index, and never prints the index's error page
-    assert publish.index("scripts/publish-target-ready") < publish.index("just build")
-    assert "--refuse-held" not in publish, "a partial upload is what a re-run of publish completes"
-    assert "sixteen" not in publish and "$packages" in publish
+    for plan, command in ((body, 'release "patch" "test" "yes"'), (publish, 'publish "test"')):
+        assert "scripts/release.py" in plan and command in plan and len(plan.strip().splitlines()) == 1, plan
+    assert "--release-branch" in body and "--config-root" in body
+    script = RELEASE_SCRIPT.read_text()
+    assert "index-knows" not in script and "--refuse-held" in script and "NOT_NOW = 75" in script
+    assert "git checkout -- pyproject.toml" in script                                   # the recovery when nothing went up
+    assert "KEEP the uncommitted" in script and "`just release-finish {index}`" in script   # when some project holds the version
+    assert "uv publish" not in script and "uv publish" not in publish, "the upload is scripts/publish-dist's, one project at a time"
+    assert "--check-url" not in script, "uv refuses --check-url beside --index; the index's url is the check url"
     assert "index-ready" in _summary() and "--wait 7200" in _plan("index-ready", "test", "wait")
-    assert "--check-url" not in publish, "uv refuses --check-url beside --index; the index's url is the check url"
     # the token is UV_PUBLISH_TOKEN, else the index's own name -- the repository secrets'
     # names, so the operator's one .envrc line serves the shell and CI alike
-    for recipe in (body, publish):
-        assert "token_var=TEST_PYPI_TOKEN" in recipe and "token_var=PYPI_TOKEN" in recipe
-        assert "${!token_var:-}" in recipe
-    assert "pypi-" not in publish and "pypi-" not in body                                 # no token shape anywhere
+    assert '"testpypi": "TEST_PYPI_TOKEN"' in script and '"pypi": "PYPI_TOKEN"' in script
+    assert "pypi-" not in script and "pypi-" not in publish and "pypi-" not in body             # no token shape anywhere
     probe = REPO / "scripts" / "index-knows"
     assert os.access(probe, os.X_OK) and "PEP 700" in probe.read_text()
 
@@ -151,15 +135,11 @@ def test_release_finish_commits_and_tags_only_a_completed_upload():
     """release-finish is on the release branch (main), with the bump uncommitted
     and nothing else, asks the index that every project holds the version, and
     only then makes the evidence commit (PyPI), the commit and the tag; it pushes
-    nothing."""
+    nothing. The order is held in tests/test_release_script.py; here the recipe is a wrapper."""
     assert "release-finish" in _summary()
     body = _plan("release-finish", "test")
-    order = [body.index(s) for s in ('case "$branch" in', 'git show HEAD:pyproject.toml', 'git tag -l "v$new"',
-                                     "git status --porcelain", "--all-held", "modification-test evidence",
-                                     'git commit -q -m "release $new"', 'git tag -a "v$new"')]
-    assert order == sorted(order), "every check before the commit, the commit before the tag"
-    pushes = "\n".join(l for l in body.splitlines() if "after=" not in l and "push with:" not in l)
-    assert "git push" not in pushes
+    assert "scripts/release.py" in body and 'release-finish "test"' in body and len(body.strip().splitlines()) == 1
+    assert "git push" not in body and "--all-held" in RELEASE_SCRIPT.read_text()
 
 
 def test_publish_starters_checks_every_repository_before_it_pushes_any():
@@ -195,6 +175,9 @@ def test_the_live_configuration_never_reaches_the_fast_suite_and_is_guarded_else
     for n in drivers:
         plan = _closure(n, None, *(("x",) if n == "cli" else ("patch", "test", "yes") if n == "release" else ()))
         assert live in plan, n
+        if n == "release":                                            # the guard is the script's (read_sibling)
+            assert "cfg/_config.yml" in RELEASE_SCRIPT.read_text() and "nothing was changed" in RELEASE_SCRIPT.read_text()
+            continue
         assert "exit 2" in plan and ("cfg/_config.yml" in plan or "just config-guard" in plan), n   # guarded
     # the cycle recipes live in a configuration repository's Justfile (the release ships it)
     assert not {"cloud-cycle", "cloud-perform", "cloud-launch", "ci-login-proof", "sft-install", "v2-dry-run",
@@ -221,10 +204,11 @@ def _preflight(monkeypatch, daemon: bool = False, **env: str):
     identity and dummies open the tree) and reads the sessions from it.
     ``daemon`` makes the fixture's synthetic docker daemon (docker-fixture,
     a context that exists nowhere) answer its probe."""
-    from typer.testing import CliRunner
-    from cs_image_system.system.cli import app
-    from cs_image_system.docker_runtime import docker_runtime_builders
     from harness import reset_singletons, stub_environment
+    from typer.testing import CliRunner
+
+    from cs_image_system.docker_runtime import docker_runtime_builders
+    from cs_image_system.system.cli import app
     stub_environment(monkeypatch)
     if daemon:
         monkeypatch.setattr(docker_runtime_builders, "probe_daemon", lambda binary, env, timeout=20: (True, "answers: engine stub"))

@@ -108,7 +108,7 @@ def test_dropping_a_mount_is_allowed_and_planned_as_a_detach_after_an_unmount(pr
 def test_any_other_launch_parameter_change_is_still_refused(prepared):
     root, make = prepared
     probe = make()
-    mounts = _record_current_mounts(probe, root, "gce-test", "dask-gce-1")
+    _record_current_mounts(probe, root, "gce-test", "dask-gce-1")
     _drop_mount(root, "gce-test", "gce_data")
     p = root / "instances" / "instances.yaml"
     d = yaml.safe_load(p.read_text())
@@ -139,6 +139,7 @@ def test_aws_detach_whitelists_the_attachment_resource(prepared):
 
 def test_gate_plan_requires_the_unmount_receipt(tmp_path, monkeypatch):
     import typer
+
     from cs_image_system.base.commands.unmount import write_receipt
     from cs_image_system.system.cli import gate_plan_command
     plan = tmp_path / "plan.json"
@@ -170,6 +171,7 @@ def test_operator_confirmation_is_a_receipt_with_their_name(prepared, tmp_path, 
 def test_gce_unmount_runs_over_the_iap_tunnel_and_writes_the_receipt(prepared, monkeypatch):
     import subprocess
     from types import SimpleNamespace
+
     from cs_image_system.base.commands.unmount import read_receipt, unmount_script, unmount_storage
     root, make = prepared
     run = make()

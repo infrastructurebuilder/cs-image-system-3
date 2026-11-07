@@ -4,13 +4,15 @@
 
 import re
 from dataclasses import field
-from cs_image_system.contract.model_config import CSIS_MODEL_CONFIG
-from pydantic.dataclasses import dataclass  # validation at construction
 from pathlib import Path
 from typing import Any
 
+from pydantic.dataclasses import dataclass  # validation at construction
+
 from cs_image_system.base.models.mod_builder import ModBuilderModel
 from cs_image_system.base.models.moditem_type import ModItemModel
+from cs_image_system.contract.model_config import CSIS_MODEL_CONFIG
+
 BASH_EXECUTABLE: str = "bash"
 
 BASH_BUILDER: str = "bash-remote"

@@ -48,33 +48,41 @@ human step (DESIGN §3H).
 """
 from __future__ import annotations
 
+import functools
 import json
 import logging
 from dataclasses import field
-from cs_image_system.contract.model_config import CSIS_MODEL_CONFIG
-from pydantic.dataclasses import dataclass  # validation at construction
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast
 
-from cs_image_system.contract.group import (WORKLOAD_CONNECTION_ABSENT, WORKLOAD_CONNECTION_INACTIVE,
-                                            WORKLOAD_CONNECTION_UNREAD, WORKLOAD_POLICY_ABSENT,
-                                            WORKLOAD_POLICY_DIVERGED, WORKLOAD_ROLE_ABSENT)
+from pydantic.dataclasses import dataclass  # validation at construction
 
+from cs_image_system.contract.constants import STATE_REPORT_FILENAME
+from cs_image_system.contract.group import (
+    WORKLOAD_CONNECTION_ABSENT,
+    WORKLOAD_CONNECTION_INACTIVE,
+    WORKLOAD_CONNECTION_UNREAD,
+    WORKLOAD_POLICY_ABSENT,
+    WORKLOAD_POLICY_DIVERGED,
+    WORKLOAD_ROLE_ABSENT,
+)
+from cs_image_system.contract.model_config import CSIS_MODEL_CONFIG
+
+from . import power_state
 from .basic.builder_base_group import GroupBuilderBase
-from .capabilities import group_builder_of
 from .basic.builder_base_runtime import RuntimeBuilderBase
 from .basic.builder_base_storage import StorageBuilderBase
-from cs_image_system.contract.constants import STATE_REPORT_FILENAME
+from .capabilities import group_builder_of
+from .commands.verify_instance import failure_policy, last_verification, teardown_due
 from .lineage import CONFIG_TAG, TAG_PREFIX, belongs_to_another_configuration
 from .meta_state import assert_public_safe
-from . import power_state
 from .models.storage import STORAGE_STATE_ACTIVE, STORAGE_STATE_DESTROYED
-from .commands.verify_instance import failure_policy, last_verification, teardown_due
 from .provider_aliases import instance_identity_notes
 
 if TYPE_CHECKING:
-    from .global_context import GlobalTypeContext
     from cs_image_system.contract.lifecycles import Lifecycle
+
+    from .global_context import GlobalTypeContext
 
 log = logging.getLogger(__name__)
 
@@ -198,7 +206,7 @@ def query_images(ctx: "GlobalTypeContext", report: StateReport) -> dict[str, lis
     for name, rtb in sorted(ctx.runtime_builders.items()):
         if not isinstance(rtb, RuntimeBuilderBase):
             continue
-        images = _query(report, f"images/{name}", lambda: rtb.query_images(series))
+        images = _query(report, f"images/{name}", functools.partial(rtb.query_images, series))
         if images is not None:
             out[name] = sorted(images, key=lambda i: str(i.get("image_id")))
     return out
@@ -601,12 +609,12 @@ def standing_ephemeral_drift(ctx: "GlobalTypeContext", report: StateReport) -> l
         if rtb is None or not rtb.can_query_instance_boot_image():
             continue
         probe = rtb
-        booted = _query(report, f"instances/{name}", lambda: probe.query_instance_boot_image(name))
+        booted = _query(report, f"instances/{name}", functools.partial(probe.query_instance_boot_image, name))
         # a STOPPED ephemeral is still standing -- it exists and its disks
         # still cost -- but the boot-image probe filters on `running`, so
         # the one kind of leftover nobody could otherwise see is the kind
         # that has been switched off.
-        state = (_query(report, f"instances/{name}", lambda: probe.query_instance_power_state(name))
+        state = (_query(report, f"instances/{name}", functools.partial(probe.query_instance_power_state, name))
                  if probe.can_query_instance_power_state() else None)
         if booted or power_state.is_off(state):
             policy, after = failure_policy(ctx, inst) if inst is not None else ("keep", None)

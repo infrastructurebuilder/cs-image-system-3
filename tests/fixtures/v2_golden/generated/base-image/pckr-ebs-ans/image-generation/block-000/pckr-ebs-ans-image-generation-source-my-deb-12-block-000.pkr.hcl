@@ -16,9 +16,9 @@ source "amazon-ebs" "my-deb-12" {
     vpc_id = "vpc-0c78d0d63b7a100df"
     subnet_id = "subnet-09f79018af845358a"
     tags = {
+        Project             = "MyDebianProject",
         Environment         = "Development",
         OS                  = "debian",
-        Project             = "MyDebianProject",
         Version             = "12",
         csis_config         = "cs-image-action-test",
         csis_series         = "my-deb-12",

@@ -35,11 +35,10 @@ import re
 from decimal import Decimal, InvalidOperation
 from typing import Any, TypeVar, cast
 
-from cs_image_system.contract.names import super_safe_name
-from cs_image_system.contract.launch_vocabulary import ENROLLMENT_TOKEN_VARIABLE
 from cs_image_system.base.models.executable import ExecutableModel
 from cs_image_system.base.models.instance import Instance
 from cs_image_system.contract.hcl import HclRaw, hcl_expr
+from cs_image_system.contract.names import super_safe_name
 from cs_image_system.tofu_roots.tofu_instance_builder import TofuInstanceBuilderBase
 
 from .tf_docker_models import TOFU_DOCKER, TofuDockerInstanceBuilderModel
@@ -189,32 +188,23 @@ class TofuDockerInstanceBuilder(TofuInstanceBuilderBase[Q]):
 
     def _launch_args(self, ctx, label: str, params: dict[str, Any]) -> dict[str, Any]:
         """The launch script (templatefile over the recorded launch parameters,
-        the gid by the group builder's expression) and the volume mounts, each
-        by remote-state reference to the storage root's outputs."""
+        its map from the storage builders' hooks) and the volume mounts, each
+        by remote-state reference to the storage root's outputs. An OPA group
+        on a container runtime is refused at validation, so no enrollment
+        reaches here: the token variable is empty and keeps the template
+        whole."""
         out: dict[str, Any] = {}
-        group = params.get("group")
-        gid = self._gid_expression_for(group)          # the group builder writes it
-        template_vars: dict[str, Any] = {}
-        if gid is not None:
-            template_vars["group_gid"] = HclRaw(gid)
+        template_vars = self._launch_template_variables(ctx, params, "")
+        tpl = self._launch_script_template_name(label)
+        out["launch_script"] = HclRaw(f'templatefile("${{path.module}}/{tpl}", {hcl_expr(template_vars, 2)})')
         volumes: dict[str, Any] = {}
         for m in params.get("mounts", []):
             sb = m.get("builder") or self._storage_builder_name(m["storage"])
-            if not sb:
+            if not sb or not m.get("platform_mounted"):
                 continue
-            ref = (f"data.terraform_remote_state.{super_safe_name(sb)}"
-                   f".outputs.storage_{super_safe_name(m['storage'])}")
-            if m.get("platform_mounted"):
-                volumes[m["storage"]] = {"volume_name": HclRaw(f"{ref}.volume_name"),
-                                         "container_path": str(m["mount_point"])}
-        template_vars["efs"] = {}
-        template_vars["filestore"] = {}
-        template_vars["ebs"] = {}
-        # an OPA group on a container runtime is refused at validation (decision
-        # 3), so no enrollment reaches here; the variable keeps the template whole
-        template_vars[ENROLLMENT_TOKEN_VARIABLE] = ""
-        tpl = self._launch_script_template_name(label)
-        out["launch_script"] = HclRaw(f'templatefile("${{path.module}}/{tpl}", {hcl_expr(template_vars, 2)})')
+            ref = self._storage_outputs_reference(sb, m["storage"])
+            volumes[m["storage"]] = {"volume_name": HclRaw(f"{ref}.volume_name"),
+                                     "container_path": str(m["mount_point"])}
         if volumes:
             out["volumes"] = volumes
         return out

@@ -16,7 +16,11 @@ from cs_image_system.base.models.container_builder import ContainerMachineType
 from cs_image_system.contract.image import PSISourceKind
 from cs_image_system.docker_runtime.docker_provider_specific_image import DockerProviderSpecificImage
 from cs_image_system.tf_docker_plugin.tf_docker_instance_builder import (
-    TofuDockerInstanceBuilder, cpus_as_read_back, generation_of, memory_mb)
+    TofuDockerInstanceBuilder,
+    cpus_as_read_back,
+    generation_of,
+    memory_mb,
+)
 from cs_image_system.tf_docker_plugin.tf_docker_storage_builder import TofuDockerVolumeStorageBuilder, volume_name
 
 ID = "sha256:" + "a" * 64
@@ -133,6 +137,7 @@ def test_the_volume_builder_answers_the_launch_hooks_as_platform_mounted():
     storage = SimpleNamespace(get_name=lambda: "docker_data")
     assert b.launch_mount(storage, None, 0) == {"platform_mounted": True}
     assert b.launch_variables() == ()
+    assert b.launch_bindings({"storage": "docker_data"}, None, "data.terraform_remote_state.v.outputs.storage_docker_data") == {}
     m = {"storage": "docker_data", "type": "volume", "builder": "docker-volumes", "mount_point": "/mnt/data",
          "group": "pxgroup", "share_mode": "2770", "public_read": False, "platform_mounted": True}
     assert b.launch_script_lines(m, "pxgroup") == [

@@ -31,8 +31,19 @@ from __future__ import annotations
 import json
 from typing import Any
 
-from cs_image_system.contract.bootstrap import (BY_HAND, MADE, READ, Answers, FactsProtocol as Facts, Question, Raw,
-                                                Rendered, Secret, Section, real)
+from cs_image_system.contract.bootstrap import (
+    BY_HAND,
+    MADE,
+    READ,
+    Answers,
+    Question,
+    Raw,
+    Rendered,
+    Secret,
+    Section,
+    real,
+)
+from cs_image_system.contract.bootstrap import FactsProtocol as Facts
 
 MODULE = "bootstrap_gcp"
 ISSUER = "https://token.actions.githubusercontent.com"

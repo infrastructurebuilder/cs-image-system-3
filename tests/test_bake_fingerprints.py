@@ -22,9 +22,9 @@ from pathlib import Path
 import pytest
 import yaml
 
+from tests.harness import V2Run, copy_config, load_context
 from tests.test_convergent_bakes import BASE, DASK, GCE_RT, _pkr_sources
 from tests.test_convergent_bakes import _seed_converged as _seed_convergent
-from tests.harness import V2Run, copy_config, load_context
 
 GCE = "gcloud-east1"
 

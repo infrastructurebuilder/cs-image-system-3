@@ -23,11 +23,10 @@ import subprocess
 
 import pytest
 import yaml
-
+from harness import docker_binary, load_context, reset_singletons
 from test_docker_bake_live import _docker_answers, require_engine_for_leg
 from test_docker_cycle_live import _cli, _exec, _inspect, _standing, _tail
 from test_docs_examples import copy_example
-from harness import docker_binary, load_context, reset_singletons
 
 DOCKER = docker_binary()
 PACKER = shutil.which("packer")
@@ -74,7 +73,6 @@ def test_the_docker_starter_goes_from_nothing_to_nothing_as_it_stands(tmp_path, 
         env.pop("DOCKER_HOST", None)                  # the runtime names no address: the environment's daemon
     monkeypatch.setenv("CSIS_CONFIG_IDENTITY", env["CSIS_CONFIG_IDENTITY"])
     leg = ("--overlay", "overlays/leg.yaml")
-    built: list[str] = []
     try:
         # 1. a dry run first, as always
         dry = _cli(root, *leg, "--dry-run", "run", "storage", "base-image", "instance-image", env=env, timeout=1800)
@@ -86,7 +84,6 @@ def test_the_docker_starter_goes_from_nothing_to_nothing_as_it_stands(tmp_path, 
         ctx = load_context(root, dry_run=True, overlays=[root / "overlays" / "leg.yaml"])
         builds = {str(b["series"]): b for b in ctx.meta_state.builds() if b.get("runtime") == RUNTIME}
         assert set(builds) == {"el10", "team-node"}, builds
-        built = [str(b["build_id"]) for b in builds.values()]
         info = _standing(INSTANCE)
         assert info["State"]["Status"] == "running" and info["Image"] == str(builds["team-node"]["build_id"])
         assert info["Config"]["Hostname"] == f"{INSTANCE}-001"

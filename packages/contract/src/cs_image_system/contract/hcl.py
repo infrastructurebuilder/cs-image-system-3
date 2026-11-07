@@ -10,7 +10,6 @@ from __future__ import annotations
 
 from typing import Any, Mapping
 
-
 _HCL_RAW_PREFIXES = ("module.", "var.", "data.", "local.", "each.", "count.")
 
 

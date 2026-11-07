@@ -8,7 +8,12 @@ from cs_image_system.base.basic.abstract_plugin_metadata import AbstractPluginMe
 from cs_image_system.tofu_roots.tofu_instance_builder import TofuVersionChecker
 
 from .tf_docker_instance_builder import TofuDockerInstanceBuilder
-from .tf_docker_models import TF_DOCKER_VOLUME, TOFU_DOCKER, TofuDockerInstanceBuilderModel, TofuDockerVolumeStorageBuilderModel
+from .tf_docker_models import (
+    TF_DOCKER_VOLUME,
+    TOFU_DOCKER,
+    TofuDockerInstanceBuilderModel,
+    TofuDockerVolumeStorageBuilderModel,
+)
 from .tf_docker_storage_builder import TofuDockerVolumeStorageBuilder
 
 log = logging.getLogger(__name__)

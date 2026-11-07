@@ -74,6 +74,7 @@ def test_only_runtime_is_the_bake_filter_for_everything_baked_there(run):
 
 def test_apply_runtime_lets_that_runtimes_roots_apply_and_the_check_carries_it(run, capsys):
     import typer
+
     from cs_image_system.system.cli import apply_check_command
     run.ctx.apply_runtime = GCE
     for key in ("apply_storage", "apply_instances"):
@@ -147,6 +148,7 @@ def test_every_justfile_recipe_calls_the_cli_with_options_it_actually_has():
     subcommand (or be global)."""
     import typer.main
     from typer.core import TyperGroup, TyperOption
+
     from cs_image_system.system.cli import app
     root = typer.main.get_command(app)
     assert isinstance(root, TyperGroup)

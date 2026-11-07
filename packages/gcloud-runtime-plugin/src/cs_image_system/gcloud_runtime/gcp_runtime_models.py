@@ -2,21 +2,21 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+import logging
 from dataclasses import field
-from cs_image_system.contract.model_config import CSIS_MODEL_CONFIG
-from pydantic.dataclasses import dataclass  # validation at construction
 from typing import Any
 
-import logging
+from pydantic.dataclasses import dataclass  # validation at construction
 
-from cs_image_system.gcloud_runtime import gcp_utils
 from cs_image_system.contract.fields import fk_field, parent_field
+from cs_image_system.contract.model_config import CSIS_MODEL_CONFIG
+from cs_image_system.gcloud_runtime import gcp_utils
+
 log = logging.getLogger(__name__)
 
 
-from cs_image_system.contract.constants import DEFAULT, OOPS_DEFAULTS, VCT
 from cs_image_system.base.models.cloud_builder import CloudBuilderModel, CloudNetworkingConfig
-
+from cs_image_system.contract.constants import DEFAULT, OOPS_DEFAULTS, VCT
 
 GCP: str = "gcloud"
 

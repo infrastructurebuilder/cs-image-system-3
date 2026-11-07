@@ -29,9 +29,8 @@ from types import SimpleNamespace
 
 import pytest
 import yaml
-from typer.testing import CliRunner
-
 from harness import FIXTURE_CONFIG, copy_config, reset_singletons, stub_environment
+from typer.testing import CliRunner
 
 runner = CliRunner()
 
@@ -135,6 +134,7 @@ def test_export_gids_stdout_is_pure_json(monkeypatch):
 
 def test_finalization_never_waits_on_a_terminal(monkeypatch):
     import time
+
     from cs_image_system.base.commands.finalization import predefined_finalization
     from cs_image_system.contract.lifecycle import ExecutionLifecyclePhase
 
@@ -152,6 +152,7 @@ def test_finalization_never_waits_on_a_terminal(monkeypatch):
 
 def _mask(monkeypatch, identity: str | None):
     from typer.testing import CliRunner
+
     from cs_image_system.system import cli as climod
     if identity is None:
         monkeypatch.delenv("CSIS_CONFIG_IDENTITY", raising=False)
@@ -183,6 +184,7 @@ def test_a_session_with_exactly_no_time_left_is_expired():
 
 def test_encrypt_without_recipients_says_so_instead_of_a_traceback(tmp_path: Path, monkeypatch):
     from typer.testing import CliRunner
+
     from cs_image_system.system import cli as climod
     root = copy_config(tmp_path)
     _edit(root / "cfg" / "_config.yml", lambda d: d.pop("encryption", None))
@@ -195,6 +197,7 @@ def test_encrypt_without_recipients_says_so_instead_of_a_traceback(tmp_path: Pat
 
 def test_the_global_force_flag_is_gone(tmp_path: Path):
     from typer.testing import CliRunner
+
     from cs_image_system.system import cli as climod
     result = CliRunner().invoke(climod.app, ["--root-dir", str(tmp_path), "--force", "validate"])
     assert result.exit_code != 0 and "No such option" in result.output, result.output

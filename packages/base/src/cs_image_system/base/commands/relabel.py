@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""Re-label cloud images from their lineage records (ledger 66).
+"""Re-label cloud images from their lineage records.
 
 The state query's ``changed`` drift means a cloud image's lineage tags
 disagree with its record. The record is the truth (it was written after
@@ -27,14 +27,16 @@ from __future__ import annotations
 
 import logging
 from dataclasses import field
-from cs_image_system.contract.model_config import CSIS_MODEL_CONFIG
-from pydantic.dataclasses import dataclass  # validation at construction
 from typing import Any
 
-from ..global_context import GlobalTypeContext
-from ..lineage import FINGERPRINT_TAG_LENGTH, TAG_PREFIX, CONFIG_TAG, configuration_tag, owner_of
-from ..state_query import _TAGGED_FACTS
+from pydantic.dataclasses import dataclass  # validation at construction
+
+from cs_image_system.contract.model_config import CSIS_MODEL_CONFIG
+
 from ..basic.builder_base_storage import StorageBuilderBase
+from ..global_context import GlobalTypeContext
+from ..lineage import CONFIG_TAG, FINGERPRINT_TAG_LENGTH, TAG_PREFIX, configuration_tag, owner_of
+from ..state_query import _TAGGED_FACTS
 
 log = logging.getLogger(__name__)
 
@@ -114,7 +116,7 @@ def resource_relabel_plan(ctx: GlobalTypeContext, runtime: str) -> list[Relabel]
     if not owner:
         return []
     out: list[Relabel] = []
-    for name, sb in sorted(ctx.storage_builders.items()):
+    for _name, sb in sorted(ctx.storage_builders.items()):
         if not isinstance(sb, StorageBuilderBase):
             continue
         model = getattr(sb, "model", None)

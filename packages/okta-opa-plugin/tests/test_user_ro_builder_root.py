@@ -10,16 +10,16 @@ from typing import Any, cast
 from unittest import mock
 
 import pytest
+from harness import bare_run
 
-from cs_image_system.contract.lifecycle import ExecutionLifecyclePhase
 from cs_image_system.base.models.user import User
+from cs_image_system.contract.lifecycle import ExecutionLifecyclePhase
 from cs_image_system.hashicorp_utils.collector import (
     ConfiguredTerraformProvider,
     terraform_collector,
 )
-from harness import bare_run
-from cs_image_system.okta_opa_plugin.okta_opa_tf_user_ro_builder import OktaTfUserRoBuilder
 from cs_image_system.okta_opa_plugin.okta_opa_tf_user_models import OktaTfUserRoBuilderModel
+from cs_image_system.okta_opa_plugin.okta_opa_tf_user_ro_builder import OktaTfUserRoBuilder
 
 PHASE = ExecutionLifecyclePhase.USER_GENERATION
 ROOT = Path("okta-ro-users/user-generation")

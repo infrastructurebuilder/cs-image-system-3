@@ -9,16 +9,15 @@ import shutil
 from pathlib import Path
 from typing import TypeVar, cast
 
-from cs_image_system.contract.assets import AssetSet
-
-from .bash_models import BASH_BUILDER, BASH_EXECUTABLE, BashBuilderModel, BashModItemModel, BashModBuilderModel
 from cs_image_system.base.basic.abstract_version_checker import AbstractVersionChecker
+from cs_image_system.base.basic.builder_base_image import ImageBuilderBase, build_target_label_of
 from cs_image_system.base.basic.builder_base_mod import ModBuilderBase
-from cs_image_system.contract.lifecycle import ExecutionLifecyclePhase
 from cs_image_system.base.models.image import Image
-from cs_image_system.base.basic.builder_base_image import ImageBuilderBase
 from cs_image_system.base.models.moditem_type import ModItemModel
-from cs_image_system.base.basic.builder_base_image import build_target_label_of
+from cs_image_system.contract.assets import AssetSet
+from cs_image_system.contract.lifecycle import ExecutionLifecyclePhase
+
+from .bash_models import BASH_BUILDER, BASH_EXECUTABLE, BashBuilderModel, BashModBuilderModel, BashModItemModel
 
 log = logging.getLogger(__name__)
 

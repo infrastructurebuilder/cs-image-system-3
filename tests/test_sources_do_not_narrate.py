@@ -24,13 +24,17 @@ What is read, and where:
   ``Version`` literal is a dated value AWS requires);
 - the ``Justfile`` and ``pyproject.toml``: whole;
 - the frozen fixture ``tests/fixtures/config``: the YAML comments and the
-  README (the golden does not read comments), except the modification
-  content the emission copies verbatim and hashes (``HASHED_CONTENT``):
-  its comments are the emission's, held byte for byte by the golden;
+  README (the golden does not read comments). The modification content
+  the emission copies verbatim and hashes (``HASHED_CONTENT``) is read
+  like the rest: its comments reach the emitted tree, so cleaning one
+  is a golden regeneration, never an exemption;
 - the tests, ``tests/`` and ``packages/*/tests``: comments and
   docstrings, except one closing ``history:`` line per module, which
   names the bundle items a test came from and is how a reader follows a
-  frozen ledger entry to the test that holds it today.
+  frozen ledger entry to the test that holds it today;
+- the workflows, ``.github/workflows/*.yml``: the ``#`` comments;
+- the scripts under ``scripts/``: comments and docstrings of a Python
+  file, the ``#`` comment lines of a shell script.
 
 Each area holds zero.
 
@@ -57,11 +61,12 @@ NARRATION = re.compile(
     r"|\bF\d{1,2}\b"                                # a finding number (ruff's codes have three digits)
     r"|\b20\d\d-\d\d-\d\d\b"                        # a date
     r"|(?<!DESIGN )§\d+"                            # a section sign and a number (DESIGN §3A is a page reference)
+    r"|\b[Ll]edger\s+\d+"                           # a numbered ledger entry (a frozen worksheet's numbering)
 )
 HISTORY_LINE = re.compile(r"^\s*[Hh]istory:")
 COMMENT = re.compile(r"(?:^|\s)(?:#|//)(.*)$")
 
-#: fixture files the emission copies verbatim and hashes: their text is the golden's
+#: fixture files the emission copies verbatim and hashes: a comment cleaned here moves the golden
 HASHED_CONTENT = {f"tests/fixtures/config/{name}" for name in
                   ("mod_image.sh", "modify_image.yml", "setup_dask.yml", "setup_data_science.yml")}
 
@@ -71,8 +76,10 @@ AREAS: dict[str, str] = {
     "modules": "the comments of every non-Python file under packages/*/src, and tfmodules/",
     "justfile": "the Justfile, whole",
     "pyproject": "pyproject.toml, whole",
-    "fixture": "the YAML comments and the README of tests/fixtures/config, hashed content excepted",
+    "fixture": "the YAML comments and the README of tests/fixtures/config, the hashed content included",
     "tests": "comments and docstrings of tests/ and packages/*/tests, history: lines excepted",
+    "workflows": "the # comments of .github/workflows/*.yml",
+    "scripts": "comments and docstrings of every file under scripts/ (Python, or a shell script's # lines)",
 }
 
 
@@ -140,12 +147,22 @@ def hits(area: str) -> list[str]:
         return _whole_file_hits(REPO / "pyproject.toml")
     if area == "fixture":
         root = REPO / "tests/fixtures/config"
-        out = [h for p in sorted(root.rglob("*.y*ml")) if str(p.relative_to(REPO)) not in HASHED_CONTENT
-               for h in _comment_hits(p)]
+        hashed = sorted(REPO / name for name in HASHED_CONTENT)
+        out = [h for p in sorted(root.rglob("*.y*ml")) for h in _comment_hits(p)]
+        out += [h for p in hashed if p.suffix != ".yml" for h in _comment_hits(p)]
         return out + [h for p in sorted(root.rglob("*.md")) for h in _whole_file_hits(p)]
     if area == "tests":
         files = sorted((REPO / "tests").glob("*.py")) + sorted(REPO.glob("packages/*/tests/*.py"))
         return [h for p in files for h in _python_hits(p, except_history=True)]
+    if area == "workflows":
+        return [h for p in sorted((REPO / ".github/workflows").glob("*.yml")) for h in _comment_hits(p)]
+    if area == "scripts":
+        out: list[str] = []
+        for p in sorted(x for x in (REPO / "scripts").rglob("*") if x.is_file() and "__pycache__" not in x.parts):
+            shebang = p.read_text(errors="replace").split("\n", 1)[0]
+            python = p.suffix == ".py" or (shebang.startswith("#!") and "python" in shebang)
+            out += _python_hits(p, except_history=False) if python else _comment_hits(p)
+        return out
     raise KeyError(area)
 
 
@@ -159,9 +176,9 @@ def test_the_area_holds_no_narration(area: str):
 
 def test_the_pattern_reads_what_it_claims():
     bad = ["stage 75 step 2", "Stage 103 branch 2", "(stage1)", "hygiene XIV item 1", "hygiene 5", "bundle VIII item 5",
-           "the walk's F31", "found live 2026-09-22", "§127", "TODO §40.4"]
+           "the walk's F31", "found live 2026-09-22", "§127", "TODO §40.4", "ledger 12 item 3", "the Ledger 7 entry"]
     good = ["DESIGN §3A", "DESIGN N26", "noqa: F401", "F841", "the string stage", "docs/CHANGES.md#s75", "20261016.4",
-            "2026-11", "staged", "stages"]
+            "2026-11", "staged", "stages", "the ledger", "a ledger of generations", "ledgers"]
     assert all(NARRATION.search(s) for s in bad), [s for s in bad if not NARRATION.search(s)]
     assert not any(NARRATION.search(s) for s in good), [s for s in good if NARRATION.search(s)]
     assert HISTORY_LINE.match("  history: bundle VIII item 5.") and not HISTORY_LINE.match("the history: of it")

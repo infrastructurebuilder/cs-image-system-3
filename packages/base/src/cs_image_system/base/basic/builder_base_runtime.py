@@ -5,14 +5,15 @@
 from __future__ import annotations
 
 import logging
-from cs_image_system.contract.image import ImageQuery
 from collections.abc import Callable, Mapping
 from typing import TYPE_CHECKING, Any, TypeVar
 
-from .builder_base import BuilderBase
-from cs_image_system.contract.runtime import RuntimeBuilderProtocol
-from cs_image_system.contract.session import LoadFailureReport, SessionStatus
 from cs_image_system.contract.constants import VCT
+from cs_image_system.contract.image import ImageQuery
+from cs_image_system.contract.runtime import LAUNCH_DELIVERY_BOOT, RuntimeBuilderProtocol
+from cs_image_system.contract.session import LoadFailureReport, SessionStatus
+
+from ..image_sources import packaged_entries_of
 from ..models.image import Image, ImageImageBuilderSubconfig
 from ..models.provider_specific_image import (
     GenericProviderSpecificImage,
@@ -20,13 +21,13 @@ from ..models.provider_specific_image import (
     PSISourceKind,
 )
 from ..models.runtime import RuntimeBuilderModel
-from cs_image_system.contract.runtime import LAUNCH_DELIVERY_BOOT
-from ..image_sources import packaged_entries_of
 from ..network_facts import coverage_problems, facts_of
+from .builder_base import BuilderBase
+
 if TYPE_CHECKING:
+    from ..models.base_image import BaseImage, BaseImageImageBuilderSubconfig
     from .builder_base_image import ImageBuilderBase
     from .builder_base_instance import InstanceBuilderBase
-    from ..models.base_image import BaseImage, BaseImageImageBuilderSubconfig
 
 log = logging.getLogger(__name__)
 

@@ -11,16 +11,22 @@ from typing import Any, cast
 
 import pytest
 
-from cs_image_system.contract.image import ImageQuery
-from cs_image_system.docker_runtime import docker_names as names
-from cs_image_system.docker_runtime.docker_packer_source import (bake_container_name, docker_source,
-                                                                 docker_tag_post_processor)
-from cs_image_system.docker_runtime.docker_provider_specific_image import DockerProviderSpecificImage
-from cs_image_system.docker_runtime.docker_runtime_builders import (DOCKER_QUERY_KEYS, DockerCLIVersionChecker,
-                                                                    DockerContainerBuilder, translate_image_query)
-from cs_image_system.docker_runtime.docker_runtime_models import DockerContainerBuilderModel
 from cs_image_system.base.models.container_builder import ContainerMachineType, ContainerNetworkingModel
-from cs_image_system.contract.image import PSISourceKind
+from cs_image_system.contract.image import ImageQuery, PSISourceKind
+from cs_image_system.docker_runtime import docker_names as names
+from cs_image_system.docker_runtime.docker_packer_source import (
+    bake_container_name,
+    docker_source,
+    docker_tag_post_processor,
+)
+from cs_image_system.docker_runtime.docker_provider_specific_image import DockerProviderSpecificImage
+from cs_image_system.docker_runtime.docker_runtime_builders import (
+    DOCKER_QUERY_KEYS,
+    DockerCLIVersionChecker,
+    DockerContainerBuilder,
+    translate_image_query,
+)
+from cs_image_system.docker_runtime.docker_runtime_models import DockerContainerBuilderModel
 
 ID_A = "sha256:" + "a" * 64
 ID_B = "sha256:" + "b" * 64
@@ -98,7 +104,7 @@ def test_the_model_declares_one_address_and_names_its_default_machine_type():
         _model(host="unix:///x", context="y")
     with pytest.raises(Exception, match="not one of its machine_types"):
         _model(default_machine_type="large", machine_types={"small": {}})
-    with pytest.raises(Exception):
+    with pytest.raises(ValueError):
         _model(machine_types={"small": {"cpu": 1}})          # an unknown key
     assert _model(machine_types={"small": {"cpus": 2, "memory": "4g"}}).get_machine_types()["small"] == \
         ContainerMachineType(cpus=2, memory="4g")

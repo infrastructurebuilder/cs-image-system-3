@@ -32,7 +32,6 @@ from typing import Any
 
 import pytest
 import yaml
-
 from harness import V2Run, copy_config, load_context, module_path, stub_environment
 
 RUNTIME = "docker-local"
@@ -293,18 +292,19 @@ def test_the_mod_tests_run_the_declared_docker_binary(prepared, monkeypatch):
 
 
 def test_the_contract_declares_the_new_hooks_and_the_core_answers_them():
-    from cs_image_system.contract import runtime as rt
+    from typing import Any, cast
+
     from cs_image_system.base.basic.builder_base_runtime import RuntimeBuilderBase
     from cs_image_system.base.models.container_builder import ContainerBuilderModel
-    from typing import Any, cast
-    declared = getattr(cast(Any, rt.RuntimeBuilderProtocol), "__protocol_attrs__")
+    from cs_image_system.contract import runtime as rt
+    declared = cast(Any, rt.RuntimeBuilderProtocol).__protocol_attrs__
     for hook in ("packer_post_processor_blocks", "bake_ansible_vars", "tool_environment"):
         assert hook in declared and hasattr(RuntimeBuilderBase, hook)
     # the container model's fields are the kit's (ContainerBuilderModel);
     # the protocol keeps only what a plugin reads or overrides
     assert {"host", "context", "networking", "machine_types"} <= set(ContainerBuilderModel.__dataclass_fields__)
-    assert not getattr(cast(Any, rt.ContainerBuilderModelProtocol), "__protocol_attrs__") - \
-        getattr(cast(Any, rt.RuntimeBuilderModelProtocol), "__protocol_attrs__")
+    assert not cast(Any, rt.ContainerBuilderModelProtocol).__protocol_attrs__ - \
+        cast(Any, rt.RuntimeBuilderModelProtocol).__protocol_attrs__
     from cs_image_system.contract.constants import VCT
     assert ContainerBuilderModel.csis_classifier() == VCT.CONTAINER_BUILDER_MODEL
     from cs_image_system.base.models import container
@@ -329,6 +329,7 @@ def test_the_orphan_source_classes_are_gone():
 
 def _just(*args: str) -> tuple[int, str]:
     import subprocess
+
     from harness import REPO
     p = subprocess.run(["just", "--justfile", str(REPO / "Justfile"), "--working-directory", str(REPO), *args],
                        capture_output=True, text=True)
@@ -627,6 +628,7 @@ def _fake_runtime(delivery="session", state="running", answers=None):
 
 def test_the_launch_script_is_delivered_once_through_the_session(prepared_instances, monkeypatch, caplog):
     import logging
+
     from cs_image_system.base import launch_delivery, power_state
     from cs_image_system.contract.lifecycles import Lifecycle
     ctx = load_context(prepared_instances)
@@ -662,6 +664,7 @@ def test_the_launch_script_is_delivered_once_through_the_session(prepared_instan
 
 def test_the_hook_is_registered_between_the_launch_records_and_the_accounts():
     import inspect
+
     from cs_image_system.base.commands import run_lifecycles
     src = inspect.getsource(run_lifecycles._register_builtin_hooks)
     order = [src.index("launch_params.register"), src.index("launch_delivery.register"), src.index("accounts_reconcile.register")]
@@ -670,19 +673,22 @@ def test_the_hook_is_registered_between_the_launch_records_and_the_accounts():
 
 def test_the_contract_declares_the_delivery_and_the_platform_mount():
     from typing import cast
-    from cs_image_system.contract import runtime as rt, storage as st
+
     from cs_image_system.base.basic.builder_base_runtime import RuntimeBuilderBase
     from cs_image_system.base.basic.builder_base_storage import StorageBuilderBase
-    assert "launch_delivery" in getattr(cast(Any, rt.RuntimeBuilderProtocol), "__protocol_attrs__")
-    assert "platform_mounts" in getattr(cast(Any, st.StorageBuilderProtocol), "__protocol_attrs__")
+    from cs_image_system.contract import runtime as rt
+    from cs_image_system.contract import storage as st
+    assert "launch_delivery" in cast(Any, rt.RuntimeBuilderProtocol).__protocol_attrs__
+    assert "platform_mounts" in cast(Any, st.StorageBuilderProtocol).__protocol_attrs__
     assert RuntimeBuilderBase.launch_delivery(cast(Any, object())) == rt.LAUNCH_DELIVERY_BOOT == "boot"
     assert StorageBuilderBase.platform_mounts(cast(Any, object())) is False
     assert rt.LAUNCH_DELIVERY_SESSION == "session"
 
 
 def test_the_plugin_is_a_member_of_the_workspace():
-    from harness import REPO
     import tomllib
+
+    from harness import REPO
     root = tomllib.loads((REPO / "pyproject.toml").read_text())
     docker_extra = root["project"]["optional-dependencies"]["docker"]
     assert any(d.startswith("cs-image-system-tf-docker-plugin==") for d in docker_extra)   # the docker extra carries it

@@ -5,6 +5,7 @@
 import logging
 
 from cs_image_system.base.basic.abstract_plugin_metadata import AbstractPluginMetadata
+
 from .aws_runtime_builders import AWS_RUNTIME, AwsCLIVersionChecker, AwsCloudBuilder
 from .aws_runtime_models import AwsCloudBuilderModel
 

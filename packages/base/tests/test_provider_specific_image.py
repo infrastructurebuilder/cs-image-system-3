@@ -3,14 +3,12 @@
 # SPDX-License-Identifier: Apache-2.0
 
 """Tests for the ProviderSpecificImage model and its registry/runtime wiring."""
-from typing import Any
-
 import types
+from typing import Any
 
 import pytest
 
 from cs_image_system.base import registry as _registry
-from cs_image_system.contract.constants import VCT
 from cs_image_system.base.models.provider_specific_image import (
     GenericProviderSpecificImage,
     ProviderSpecificImage,
@@ -18,6 +16,7 @@ from cs_image_system.base.models.provider_specific_image import (
     PSIState,
     psi_key,
 )
+from cs_image_system.contract.constants import VCT
 from cs_image_system.contract.core import NameTypedProtocol
 
 

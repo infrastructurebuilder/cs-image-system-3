@@ -10,17 +10,17 @@ isolation with a synthetic item kind + builder, exercising the whole flow:
 structure -> flatten -> resolve templates -> register -> resolve builder -> attach
 -> validate.
 """
-from typing import Any, cast
 import types
 from dataclasses import dataclass
+from typing import Any, cast
 
 import pytest
 
 from cs_image_system.base import config_loader
 from cs_image_system.base import global_context as gc
 from cs_image_system.base import registry as _registry
-from cs_image_system.contract.constants import VCT, NO_MODEL_ID
 from cs_image_system.base.models.builder_model import NameTyped
+from cs_image_system.contract.constants import NO_MODEL_ID, VCT
 
 
 def _read(stub, spec):

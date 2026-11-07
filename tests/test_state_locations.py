@@ -23,7 +23,6 @@ from types import SimpleNamespace
 
 import pytest
 import yaml
-
 from harness import V2Run, command_lines, copy_config
 
 EAST1 = "s3://my-east1-tfstate-bucket/statefiles/csia"

@@ -8,8 +8,6 @@ from __future__ import annotations
 
 import json
 import logging
-
-from cs_image_system.contract.image import ImageQuery
 import re
 from collections.abc import Mapping
 from typing import Any, Sequence, cast
@@ -18,6 +16,7 @@ from google.api_core import exceptions as gcp_exceptions
 from google.cloud import compute_v1
 
 from cs_image_system.contract.constants import SELF
+from cs_image_system.contract.image import ImageQuery
 
 log = logging.getLogger(__name__)
 

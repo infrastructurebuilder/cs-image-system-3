@@ -8,11 +8,11 @@ from functools import cache
 from importlib.metadata import entry_points
 from typing import Any, NamedTuple
 
-from cs_image_system.contract.constants import VCT, PLUGIN_TYPES
+from cs_image_system.base import registry
+from cs_image_system.base.orchestrator import Orchestrator
+from cs_image_system.contract.constants import PLUGIN_TYPES, VCT
 from cs_image_system.contract.core import PluginArtifactProtocol, PluginMetadataProtocol
 from cs_image_system.contract.testing import conformance_problems, protocol_for
-from cs_image_system.base import registry
-
 
 log = logging.getLogger(__name__)
 
@@ -103,6 +103,69 @@ def check_conformance(pname: str, md: PluginMetadataProtocol) -> None:
         raise PluginConformanceError(f"Plugin {pname} is refused:\n  " + "\n  ".join(problems))
 
 
+#: What a plugin discovered under an entry-point group registers: at least
+#: one class of the group's classifications, or the group it chose is not
+#: the one it is. ``base`` (the core's own) and ``other`` (anything the
+#: named groups do not cover: a checker, an injected model) name no kind
+#: and are not held to one.
+GROUP_CLASSIFICATIONS: dict[str, frozenset[VCT]] = {
+    "runtime": frozenset({VCT.RUNTIME_BUILDER_MODEL, VCT.RUNTIME_BUILDER, VCT.CLOUD_BUILDER_MODEL, VCT.CLOUD_BUILDER,
+                          VCT.CONTAINER_BUILDER_MODEL, VCT.CONTAINER_BUILDER}),
+    "state": frozenset({VCT.STATE_BACKEND_MODEL, VCT.STATE_BACKEND}),
+    "modification": frozenset({VCT.MOD_BUILDER_MODEL, VCT.MOD_BUILDER}),
+    "storage": frozenset({VCT.STORAGE_BUILDER_MODEL, VCT.STORAGE_BUILDER}),
+    "group": frozenset({VCT.GROUP_BUILDER_MODEL, VCT.GROUP_BUILDER}),
+    "user": frozenset({VCT.USER_BUILDER_MODEL, VCT.USER_BUILDER}),
+    "image": frozenset({VCT.IMAGE_BUILDER_MODEL, VCT.IMAGE_BUILDER}),
+    "os": frozenset({VCT.OS_BUILDER_MODEL, VCT.OS_BUILDER}),
+    "instance": frozenset({VCT.INSTANCE_BUILDER_MODEL, VCT.INSTANCE_BUILDER}),
+}
+
+
+class PluginGroupError(ValueError):
+    """A plugin declared under an entry-point group whose kind it does not
+    register (a group builder under ``cs_image_system.plugins.runtime``):
+    refused when the plugin is discovered, with the group it chose, what it
+    registers and the groups that fit named."""
+
+
+def registered_classifications(metadata: list[Any]) -> set[VCT]:
+    """Every classification the classes of ``metadata`` (one plugin's
+    records) register under: the services', the builders' and their
+    models', the injected models' keys."""
+    out: set[VCT] = set()
+    for md in metadata:
+        if not isinstance(md, PluginMetadataProtocol):
+            continue
+        for services in md.services.values():
+            out.update(s.csis_classifier() for s in services if isinstance(s, PluginArtifactProtocol))
+        for model_cls, builder_cls in md.builders_for_models.items():
+            out.update(c.csis_classifier() for c in (model_cls, builder_cls) if isinstance(c, PluginArtifactProtocol))
+        out.update(md.injected_models.keys())
+    return out
+
+
+def check_group(pname: str, plugin_type: str, metadata: list[Any]) -> None:
+    """Hold the entry-point group ``plugin_type`` the plugin was found under
+    to what its classes register: a group in :data:`GROUP_CLASSIFICATIONS`
+    needs at least one class of its kind, else :class:`PluginGroupError`.
+    A plugin may register more than its group's kind (an instance plugin's
+    storage roots, an identity plugin's users beside its groups); the group
+    names the kind it is, not every kind it has."""
+    expected = GROUP_CLASSIFICATIONS.get(plugin_type)
+    if expected is None:
+        return
+    registered = registered_classifications(metadata)
+    if registered & expected:
+        return
+    fitting = sorted(g for g, kinds in GROUP_CLASSIFICATIONS.items() if kinds & registered)
+    raise PluginGroupError(
+        f"Plugin {pname} is refused: declared under cs_image_system.plugins.{plugin_type}, it registers no "
+        f"{plugin_type} class, only {', '.join(sorted(c.value for c in registered)) or 'nothing'}; "
+        + (f"the group that fits what it registers: {', '.join(fitting)}" if fitting else
+           "a plugin of no named kind declares cs_image_system.plugins.other"))
+
+
 class DiscoveredPlugin(NamedTuple):
     """One installed plugin as discovery leaves it: its type and entry-point
     name, the namespace derived from its distribution (``None`` when the
@@ -124,11 +187,15 @@ def _discovered_plugins() -> tuple[DiscoveredPlugin, ...]:
     contract: every class its metadata registers is checked
     against the protocol of its classification, once, as shipped -- a
     shortfall is a :class:`PluginConformanceError` here, with the member
-    named, and nothing of that plugin loads. The plugin's namespace is
+    named, and nothing of that plugin loads -- and the entry-point group
+    it was found under is held to what it registers (:func:`check_group`). The plugin's namespace is
     settled here too (:func:`namespace_of_distribution`,
-    :func:`namespace_for`): a plugin with none is refused the same way."""
+    :func:`namespace_for`): a plugin with none is refused the same way. A
+    plugin whose entry point fails to import (or whose ``initialize``
+    raises) is not a refusal but an absence: one ERROR line names the
+    plugin and the error, and the rest load."""
     found: list[DiscoveredPlugin] = []
-    for plugin_type, plugin_key in PLUGIN_TYPES:
+    for plugin_type, _plugin_key in PLUGIN_TYPES:
         log.debug(f"Loading plugins of type: {plugin_type}")
         plugins = entry_points(group=f'cs_image_system.plugins.{plugin_type}')
         if not plugins:
@@ -139,11 +206,21 @@ def _discovered_plugins() -> tuple[DiscoveredPlugin, ...]:
             entry = plugins[pname]
             dist = getattr(entry, "dist", None)
             derived = namespace_of_distribution(dist.name) if dist is not None else None
-            initializer = entry.load()
-            for md in _metadata_of(initializer):
+            # an entry point whose module does not import, or whose
+            # ``initialize`` raises, is reported once and skipped, as a hook
+            # plugin is: the other plugins load and every command keeps
+            # working without it (a traceback here would end them all)
+            try:
+                initializer = entry.load()
+                metadata = _metadata_of(initializer)
+            except Exception as e:
+                log.error(f"Plugin {pname} ({plugin_type}) failed to import and is skipped: {type(e).__name__}: {e}")
+                continue
+            for md in metadata:
                 if isinstance(md, PluginMetadataProtocol):
                     namespace_for(pname, md, derived)
                     check_conformance(pname, md)
+            check_group(pname, plugin_type, metadata)
             found.append(DiscoveredPlugin(plugin_type, pname, derived, initializer))
     return tuple(found)
 
@@ -180,7 +257,7 @@ def load_plugins(reg: "registry.Registry | None" = None) -> None:
         log.debug("Plugins already loaded; skipping discovery")
         return
     registered_by_namespace: dict[str, list[str]] = {}
-    for plugin_type, pname, derived, initialized in _discovered_plugins():
+    for _plugin_type, pname, derived, initialized in _discovered_plugins():
         log.debug(f"Loading plugin: {pname}")
         # In our case, this can return a single PluginMetadataProtocol instance or a list of them
         for md in _metadata_of(initialized):
@@ -190,7 +267,7 @@ def load_plugins(reg: "registry.Registry | None" = None) -> None:
             namespace = namespace_for(pname, md, derived)
             reg.register_plugin_metadata(md, namespace=namespace)
             words = registered_by_namespace.setdefault(namespace, [])
-            for service_name, services in md.services.items():
+            for _service_name, services in md.services.items():
                 for service in services:
                     reg.register_service(service, namespace=namespace)
                     words.append(f"{service.csis_classifier().value}:{service.csis_name()}")
@@ -212,5 +289,4 @@ def load_plugins(reg: "registry.Registry | None" = None) -> None:
 
     # All plugin model/builder classes are now registered; drop any cached cattrs
     # Converter so it rebuilds against the full plugin set on next use.
-    from cs_image_system.base.orchestrator import Orchestrator
     Orchestrator().invalidate_converter()

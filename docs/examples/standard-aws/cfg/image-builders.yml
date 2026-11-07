@@ -4,7 +4,7 @@
 # CONFIGURATION.md (the system repository's docs/CONFIGURATION.md) section 6.
 image_builders:
   - name: packer-ebs
-    type: packer-ebs
+    type: packer
     is_default: true
     runtime: default             # DECISION: the default runtime (aws-main); name another runtime to bake there
     executable: packer

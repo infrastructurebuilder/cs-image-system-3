@@ -13,10 +13,10 @@ from __future__ import annotations
 
 from dataclasses import field
 
-from cs_image_system.contract.model_config import CSIS_MODEL_CONFIG
 from pydantic.dataclasses import dataclass  # validation at construction
 
 from cs_image_system.base.models.module_variables import ModuleVariables
+from cs_image_system.contract.model_config import CSIS_MODEL_CONFIG
 from cs_image_system.tofu_roots.tofu_models import TofuInstanceBuilderModelBase, TofuStorageBuilderModelBase
 
 TOFU_DOCKER: str = "tofu-docker"
@@ -49,7 +49,11 @@ class TofuDockerVolumeStorageBuilderModel(TofuStorageBuilderModelBase):
     containers may mount one, it is POSIX, it lives in no zone, and the
     daemon mounts it at the declared path before the first command."""
     type = TF_DOCKER_VOLUME
-    variables: DockerVolumeVariables = field(default_factory=DockerVolumeVariables)
+    # narrowed on purpose: pydantic validates the declared `variables:` against this
+    # provider's class, so an unknown key is refused; the invariance rule
+    # cannot express a field that is only ever narrowed, never reassigned
+    variables: DockerVolumeVariables = field(  # pyright: ignore[reportIncompatibleVariableOverride]
+        default_factory=DockerVolumeVariables)
 
     @classmethod
     def csis_name(cls) -> str:

@@ -16,7 +16,7 @@ import re
 #: The terraform variable that carries an identity plugin's enrollment
 #: credential into the instance root. Its name is pinned by every tree's
 #: committed emission (the launch scripts and the roots carry it).
-ENROLLMENT_TOKEN_VARIABLE = "sft_enrollment_token"
+ENROLLMENT_TOKEN_VARIABLE = "enrollment_token"
 
 #: The startup script says, per declared mount point, whether it is
 #: mounted: one line a verification can read off a serial console by name.

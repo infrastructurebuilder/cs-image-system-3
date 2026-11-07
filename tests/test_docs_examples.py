@@ -35,10 +35,10 @@ from pathlib import Path
 
 import pytest
 import yaml
+from harness import load_context, record_network_facts, stub_environment
+from starter_support import RENDERED
 
 from cs_image_system.system.starters import STARTERS
-from starter_support import RENDERED
-from harness import load_context, record_network_facts, stub_environment
 
 REPO = Path(__file__).resolve().parents[1]
 EXAMPLES = REPO / "docs" / "examples"
@@ -64,7 +64,7 @@ PLUGIN_TYPES: dict[str, set[str]] = {
     "local-state-plugin": {"local"},
     "okta-opa-plugin": {"okta-tf", "okta-tf-ro"},
     "posix-identity-plugin": {"posix"},
-    "packer-plugin": {"packer-ebs", "packer-gce", "packer-docker"},
+    "packer-plugin": {"packer"},
     "tf-ebs-instance-plugin": {"tofu", "tf-aws-ebs", "tf-aws-efs", "tf-aws-s3"},
     "tf-gcp-plugin": {"tofu-gce", "tf-gcp-pd", "tf-gcp-filestore", "tf-gcp-gcs"},
     "tf-docker-plugin": {"tofu-docker", "tf-docker-volume"},
@@ -311,6 +311,7 @@ def test_every_example_is_a_whole_repository_a_team_can_copy(rendered_starters):
     resolves as its starters must be the source under docs/examples (stage
     64: the source the release is built from)."""
     import stat
+
     from cs_image_system.base.modules import STAMP_FILE, installed_modules
     from cs_image_system.system.starters import starters_root
     # the constant is the directory: every tree under docs/examples but the skeleton
@@ -342,7 +343,8 @@ def test_every_example_is_a_whole_repository_a_team_can_copy(rendered_starters):
 
 
 def test_the_starter_justfile_parses_and_leads_with_the_contract(rendered_starters):
-    import shutil, subprocess
+    import shutil
+    import subprocess
     just = shutil.which("just")
     if not just:
         pytest.skip("just is not on PATH")
@@ -522,7 +524,9 @@ def test_the_built_release_carries_the_starters_byte_for_byte(tmp_path):
     but the release can write one out. The wheel is built here and read;
     every file is in it, unchanged, and nothing else is (the terraform
     modules are the plugins' package data, not the starters')."""
-    import shutil, subprocess, zipfile
+    import shutil
+    import subprocess
+    import zipfile
     uv = shutil.which("uv")
     if not uv:
         pytest.skip("uv is not on PATH")
@@ -664,7 +668,7 @@ def test_the_docker_starters_reach_step_writes_what_ssh_needs_and_refuses_half_a
         base = {"PATH": f"{tmp_path / 'bin'}:{os.environ['PATH']}", "HOME": str(home), "GITHUB_ENV": str(ghenv),
                 "DOCKER_HOST_ADDRESS": "docker-host.example", "DOCKER_HOST_USER": "csis"}
 
-        def run(key: str, known: str):
+        def run(key: str, known: str, step=step, base=base):
             return subprocess.run(["bash", "-e", "-c", step["run"]], capture_output=True, text=True,
                                   env={**base, "DOCKER_HOST_SSH_KEY": key, "DOCKER_HOST_KNOWN_HOSTS": known})
         res = run("", "")

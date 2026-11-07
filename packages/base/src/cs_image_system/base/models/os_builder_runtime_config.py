@@ -3,28 +3,29 @@
 # SPDX-License-Identifier: Apache-2.0
 
 from __future__ import annotations
+
 import logging
 from dataclasses import field
-from cs_image_system.contract.model_config import CSIS_MODEL_CONFIG
+from typing import TYPE_CHECKING, Annotated, Any, Mapping, Sequence
+
 from pydantic import Field
 from pydantic.dataclasses import dataclass  # validation at construction
-from typing import Annotated, TYPE_CHECKING, Any, Mapping, Sequence
 
+from cs_image_system.contract.constants import DEFAULT, OOPS_DEFAULTS, VCT
 
 # from cs_image_system.base.models.base_image import BaseImage
-
-
 from cs_image_system.contract.fields import fk_field, parent_field, templated_field
-from .root_item import SubRootItem
-
-from cs_image_system.contract.constants import  DEFAULT, OOPS_DEFAULTS, VCT
 from cs_image_system.contract.image import ImageQuery
+from cs_image_system.contract.model_config import CSIS_MODEL_CONFIG
+
+from .root_item import SubRootItem
 
 if TYPE_CHECKING:
     from .os_builder_model import OsBuilderModel
     from .runtime import RuntimeBuilderModel
+from ..image_sources import current_catalog
 from .base_image import BaseImage
-from ..image_sources import ImageSourceCatalog
+
 log = logging.getLogger(__name__)
 
 
@@ -43,7 +44,11 @@ class OSBuilderBaseImageBuilderSubconfig(SubRootItem):
                                 "description": "parent model",
                                 "required": True,
                                 })
-    description: str = " {{ image_builder.name }} runtime configuration for {{ this.name }}"
+    # narrowed on purpose: an entry always has a description (the template
+    # below); the base allows none, and the invariance rule cannot express
+    # a field that is only ever narrowed, never reassigned
+    description: str = (  # pyright: ignore[reportIncompatibleVariableOverride]
+        " {{ image_builder.name }} runtime configuration for {{ this.name }}")
     # the declared PREFIX of the base image's build names on this
     # runtime, over the OS builder's (a template: `this` is this entry,
     # `this.parent` the OS builder at the string stage). A computed property
@@ -60,7 +65,7 @@ class OSBuilderBaseImageBuilderSubconfig(SubRootItem):
     # unset, the OS builder's default_primary_disk_size (a runtime's own
     # default_disk_size still wins, finding 51)
     default_primary_disk_size: int | None = None
-    tags: Mapping[str, str] = field(default_factory=dict)
+    tags: dict[str, str] = field(default_factory=dict)
     owners: list[str] = field(default_factory=list) # Added to parent owners
     query: Mapping[str, Any] = field(default_factory=dict)
     ssh_username: str  = DEFAULT
@@ -219,7 +224,8 @@ class OSBuilderBaseImageBuilderSubconfig(SubRootItem):
         family = parent.get_vendor_family() if parent is not None else ""
         version = parent.get_family_version() if parent is not None else None
         runtime_type = self.runtime_type()
-        q = (ImageSourceCatalog().block(family, version, runtime_type) if runtime_type and family else None) or ImageQuery()
+        # a model holds no context: the current catalog is the run's, as the registry is
+        q = (current_catalog().block(family, version, runtime_type) if runtime_type and family else None) or ImageQuery()
         who = f"OS builder {parent.get_name() if parent is not None else '?'}"
         if parent is not None and parent.get_query():
             q = q.merged(ImageQuery.from_mapping(parent.get_query(), where=f"{who}: query"))

@@ -9,36 +9,49 @@ import urllib.error
 from pathlib import Path
 from typing import Any
 
-from cs_image_system.contract.constants import SYSTEM_CLI
-from cs_image_system.contract.names import safe_name, super_safe_name
-from cs_image_system.contract.assets import AssetSet
 from cs_image_system.base.basic.builder_base_group import GID_POLICY_CREATION_ONLY, GroupBuilderBase
-from cs_image_system.contract.lifecycle import ExecutionLifecyclePhase
-from cs_image_system.contract.executables import CFExecutables, ExecutableProtocol
-from cs_image_system.contract.session import LoadFailureReport
-from cs_image_system.contract.group import LOGIN_HOOK
-from cs_image_system.contract.operating_system import PACKAGE_LOCK_TIMEOUT
 from cs_image_system.base.models.group import Group
+from cs_image_system.contract.assets import AssetSet
+from cs_image_system.contract.constants import NONE, SYSTEM_CLI
+from cs_image_system.contract.executables import CFExecutables, ExecutableProtocol
+from cs_image_system.contract.group import LOGIN_HOOK
+from cs_image_system.contract.lifecycle import ExecutionLifecyclePhase
+from cs_image_system.contract.names import safe_name, super_safe_name
+from cs_image_system.contract.operating_system import PACKAGE_LOCK_TIMEOUT
+from cs_image_system.contract.session import LoadFailureReport
 from cs_image_system.hashicorp_utils.blocks import BlockSpec, DataSpec, OutputSpec, Raw, render_blocks
 from cs_image_system.hashicorp_utils.collector import terraform_collector
 from cs_image_system.tofu_roots.roots import TerraformRootMixin
 
+from . import sft_login
 from .okta_opa_tf_group_models import OktaTfGroupBuilderModel
 from .okta_tf_models import OKTATF
 from .opa_attributes import OPA_GROUP_ATTRIBUTES, validate_opa_attributes
-from . import sft_login
-from .sftd_launch import SFTD_TOKEN   # importing it registers the kind's launch steps
-from cs_image_system.contract.constants import NONE
+from .sftd_launch import SFTD_TOKEN  # importing it registers the kind's launch steps
 
 #: the identity type a `posix:` delegate must be (the posix identity plugin's;
 #: named, never imported -- no plugin imports another)
 POSIX_IDENTITY_TYPE = "posix"
-from .opa_gids import (ADMIN_GROUP_SUFFIX, GROUP_NAME_ATTRIBUTE, USER_GROUP_SUFFIX, OpaGidResolver,
-                       credentials_from_env, resolve_waiting)
 from .module_objects import module_objects_state
-from .workload_policy import (WorkloadSnapshot, by_name, ci_policy_from, ci_policy_name, describe_condition,
-                              policies_equal, user_policy_name, workload_state)
+from .opa_gids import (
+    ADMIN_GROUP_SUFFIX,
+    GROUP_NAME_ATTRIBUTE,
+    USER_GROUP_SUFFIX,
+    OpaGidResolver,
+    credentials_from_env,
+    resolve_waiting,
+)
 from .server_aliases import alt_names_script
+from .workload_policy import (
+    WorkloadSnapshot,
+    by_name,
+    ci_policy_from,
+    ci_policy_name,
+    describe_condition,
+    policies_equal,
+    user_policy_name,
+    workload_state,
+)
 
 """
 Group provider implementation via Terraform/Tofu for Okta groups using okta/oktapam

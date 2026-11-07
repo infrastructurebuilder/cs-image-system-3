@@ -5,9 +5,8 @@
 from typing import TypeVar
 
 from cs_image_system.base.basic.builder_base_os import OsBuilderBase
-from .ubuntu_os_type import UbuntuOsBuilderModel, UBUNTU_TYPE
 
-
+from .ubuntu_os_type import UBUNTU_TYPE, UbuntuOsBuilderModel
 
 UBUOS = TypeVar('UBUOS', bound=UbuntuOsBuilderModel)
 # @registry.register_class_to_type_and_key(type_=OS_BUILDER, key=UBUNTU_TYPE)

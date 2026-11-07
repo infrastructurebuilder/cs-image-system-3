@@ -6,28 +6,33 @@ import logging
 from collections.abc import Mapping
 from typing import Any
 
-
 from cs_image_system.base.basic.abstract_version_checker import AbstractVersionChecker
-from cs_image_system.contract.assets import AssetSet
 from cs_image_system.base.basic.builder_base_cloud import CloudBuilderBase
-from cs_image_system.contract.constants import OOPS_DEFAULTS, VCT
-from cs_image_system.contract.lifecycle import ExecutionLifecyclePhase
 from cs_image_system.base.models.os_builder_runtime_config import OSBuilderBaseImageBuilderSubconfig
 from cs_image_system.base.models.provider_specific_image import ProviderSpecificImage
 from cs_image_system.contract import power_state
+from cs_image_system.contract.assets import AssetSet
+from cs_image_system.contract.constants import OOPS_DEFAULTS, VCT
 from cs_image_system.contract.core import PluginArtifactProtocol
+from cs_image_system.contract.image import ImageQuery
+from cs_image_system.contract.launch_vocabulary import MOUNT_MARK
+from cs_image_system.contract.lifecycle import ExecutionLifecyclePhase
+from cs_image_system.contract.lineage_vocabulary import CONFIG_TAG, TAG_PREFIX
+from cs_image_system.contract.operating_system import PACKAGE_LOCK_TIMEOUT
+from cs_image_system.contract.session import SessionStatus
+from cs_image_system.gcloud_runtime import gcp_utils, session
 
+from .gcp_packer_source import GOOGLECOMPUTE, gce_label, gce_name, googlecompute_source
 from .gcp_provider_specific_image import GcpProviderSpecificImage
 from .gcp_runtime_models import GCPCloudBuilderModel
-from cs_image_system.gcloud_runtime import gcp_utils, session
-from .gcp_utils import GCP_QUERY_KEYS, query_image, translate_image_query
-from cs_image_system.contract.image import ImageQuery
-from cs_image_system.contract.session import SessionStatus
-from cs_image_system.contract.operating_system import PACKAGE_LOCK_TIMEOUT
-from .gcp_packer_source import gce_label, gce_name, GOOGLECOMPUTE, googlecompute_source
-from cs_image_system.contract.lineage_vocabulary import TAG_PREFIX, CONFIG_TAG
-from .gcp_utils import _make_images_client, resolve_project, make_credentials
-from cs_image_system.contract.launch_vocabulary import MOUNT_MARK
+from .gcp_utils import (
+    GCP_QUERY_KEYS,
+    _make_images_client,
+    make_credentials,
+    query_image,
+    resolve_project,
+    translate_image_query,
+)
 
 GCP_RUNTIME: str = "gcloud"
 
@@ -419,6 +424,7 @@ class GCPCloudBuilder(CloudBuilderBase[GCPCloudBuilderModel], PluginArtifactProt
         and, under ``owners``, the ``csis_config`` label each carries (stage
         93), so the emptiness check counts this configuration's alone."""
         import subprocess  # noqa: PLC0415
+
         from google.cloud import compute_v1  # noqa: PLC0415
         cfg = self.model.self_to_gcp_client_config()
         project, zone = resolve_project(cfg), getattr(self.model, "zone", None)
@@ -471,8 +477,8 @@ class GCPCloudBuilder(CloudBuilderBase[GCPCloudBuilderModel], PluginArtifactProt
         return True
 
     def retag_image(self, image_id: str, tags: dict[str, str]) -> bool:
-        """``setLabels`` on one of our own GCE images (zero-drift-report,
-        ledger 66): the labels packer wrote at generation time are merged
+        """``setLabels`` on one of our own GCE images (zero drift
+        report): the labels packer wrote at generation time are merged
         with the lineage truth, through the same ``gce_label`` sanitizer the
         packer source used, so the state query compares like with like."""
         from google.cloud import compute_v1  # noqa: PLC0415

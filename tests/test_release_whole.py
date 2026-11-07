@@ -19,11 +19,11 @@ import stat
 from pathlib import Path
 
 import pytest
+from harness import reset_singletons
 from typer.testing import CliRunner
 
 from cs_image_system.system import starter_links, starters
 from cs_image_system.system.cli import app
-from harness import reset_singletons
 
 REPO = Path(__file__).resolve().parents[1]
 EXAMPLES = REPO / "docs" / "examples"
@@ -548,6 +548,7 @@ def test_the_dry_run_is_logged_as_it_goes_and_says_where_it_is(tmp_path):
     and each lifecycle and each root's init is said as it happens -- read from
     the run's own INFO records, never from a captured step's indented output."""
     import sys
+
     from cs_image_system.base.commands.emission import _took, subprocess_dry_run
     record = [
         "[13:52:29] INFO     Found 1 base plugins.                           loader.py:32",
@@ -644,7 +645,7 @@ def test_workload_token_prints_the_token_alone_and_masks_both_on_stderr(monkeypa
     _job_env(monkeypatch, OPA_WORKLOAD_CONNECTION="conn", OPA_WORKLOAD_ROLE="role", SFT_TEAM="team",
              OPA_ADDR="https://x.pam.okta.com")
     monkeypatch.delenv("CSIS_CONFIG_IDENTITY", raising=False)
-    from cs_image_system.okta_opa_plugin.workload_token import mint_token, WorkloadNames
+    from cs_image_system.okta_opa_plugin.workload_token import WorkloadNames, mint_token
     said: list[str] = []
     token = mint_token(WorkloadNames("conn", "role", "team", "https://x.pam.okta.com"), dict(os.environ),
                        say=said.append, fetch=lambda u, b: jwt,

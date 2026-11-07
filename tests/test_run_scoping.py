@@ -66,7 +66,7 @@ def _cli_scope(run: V2Run, runtime: str) -> list[str]:
 
 
 def test_apply_runtime_implies_the_bake_filter_and_the_plan_says_so(fresh):
-    run = make = fresh()
+    run = fresh()
     only = _cli_scope(run, GCE)
     summary = run.run(["base-image", "instance-image"], apply=False, only=only)
     assert summary.ok, summary.error
@@ -135,7 +135,7 @@ def _aws_dir(tmp_path: Path, profile: str, start_url: str, expires: datetime | N
 
 
 def test_sso_expiry_is_read_from_the_cache_without_touching_the_token(tmp_path):
-    from cs_image_system.aws_runtime.session import sso_expiry as aws_sso_expiry   # the plugin's reader, not the core's
+    from cs_image_system.aws_runtime.session import sso_expiry as aws_sso_expiry  # the plugin's reader, not the core's
     now = datetime.now(timezone.utc).replace(microsecond=0)
     d = _aws_dir(tmp_path, "noaa", "https://x.awsapps.com/start", now + timedelta(hours=8))
     exp, note = aws_sso_expiry("noaa", d)
@@ -200,7 +200,7 @@ def test_an_expired_session_does_not_stop_the_load_and_the_loaded_tree_reports_i
     assert not expired and blocking and "SHORTER" in blocking[0] and "100000 min" in blocking[0]
 
 
-# ------------------------------------------------ ledger 70: roots and follow
+# ------------------------------------------------------- roots and follow
 
 def test_only_runtime_scopes_the_terraform_roots_too(tmp_path, monkeypatch):
     """A run scoped to one runtime's images generates and plans no OTHER

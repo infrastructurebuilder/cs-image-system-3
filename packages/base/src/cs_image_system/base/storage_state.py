@@ -29,8 +29,9 @@ if TYPE_CHECKING:
     from .run_context import RunContext
 
 
-from cs_image_system.contract.model_config import CSIS_MODEL_CONFIG
 from pydantic.dataclasses import dataclass  # validation at construction
+
+from cs_image_system.contract.model_config import CSIS_MODEL_CONFIG
 
 from .models.storage import (
     STORAGE_STATE_ACTIVE,
@@ -38,7 +39,6 @@ from .models.storage import (
     STORAGE_STATE_DESTROYED,
     Storage,
 )
-
 
 # (current, requested) pairs that are legal transitions. ``None`` = never
 # applied (a new storage). Same-state pairs are no-ops, handled separately.

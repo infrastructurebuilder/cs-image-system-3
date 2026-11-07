@@ -2,8 +2,8 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from abc import ABC, abstractmethod
 import logging
+from abc import ABC, abstractmethod
 from typing import Any
 
 from cs_image_system.contract.constants import NO_MODEL_ID, VCT

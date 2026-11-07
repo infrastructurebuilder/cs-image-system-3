@@ -124,9 +124,12 @@ class LineageServiceProtocol(Protocol):
 
 class LaunchServiceProtocol(Protocol):
     """What an instance is launched with: its launch parameters, the launch
-    script template, the mounts to detach, the hostname rules, the group
-    builder that owns a group, and the enrollment kinds a launch script
-    knows how to render."""
+    script template, the mounts to detach, the group builder that owns a
+    group, and the ephemeral failure policy. The hostname rule and the
+    enrollment kinds are the contract's own, reached without a run
+    (:func:`~cs_image_system.contract.launch_vocabulary.hostname_problems`,
+    :func:`~cs_image_system.contract.enrollment.register_enrollment_kind`),
+    so the service does not carry them."""
 
     def compute_launch_params(self, instance: Any) -> dict[str, Any]: ...
 
@@ -134,11 +137,7 @@ class LaunchServiceProtocol(Protocol):
 
     def detachments(self, instance: Any) -> list[dict[str, Any]]: ...
 
-    def hostname_problems(self, name: str) -> list[str]: ...
-
     def group_builder_of(self, group: str) -> GroupBuilderProtocol | None: ...
-
-    def register_enrollment_kind(self, kind: str, *, script_lines: ScriptLines, ansible_tasks: AnsibleTasks) -> None: ...
 
     def failure_policy(self, instance: Any) -> tuple[str, int | None]:
         """``(on_failure, teardown_after seconds)`` for an ephemeral instance:

@@ -10,10 +10,9 @@ from __future__ import annotations
 
 import yaml
 
-from tests.harness import V2Run
-
 from cs_image_system.base import lineage
 from cs_image_system.base.commands.upgrade import upgrade
+from tests.harness import V2Run
 
 AWS = "aws-east2-runtime"
 GCE = "gcloud-east1"
@@ -101,7 +100,7 @@ def test_upgrade_image_moves_one_runtime_pin(tmp_path, monkeypatch):
         # a build from another runtime is refused
         try:
             upgrade(run.ctx, "image", "imgfile-basic-dask", to="rhel8-gce-1", runtime=AWS)
-            assert False, "expected refusal"
+            raise AssertionError("expected refusal")
         except ValueError as e:
             assert "baked on runtime" in str(e)
         # dask bakes on GCE too since GCP readiness, so a GCE upgrade of it
@@ -109,7 +108,7 @@ def test_upgrade_image_moves_one_runtime_pin(tmp_path, monkeypatch):
         # stays AWS-only
         try:
             upgrade(run.ctx, "image", "imgfile-data-science", runtime=GCE)
-            assert False, "expected refusal"
+            raise AssertionError("expected refusal")
         except ValueError as e:
             assert "not baked on runtime" in str(e)
         assert ms.image_pin("imgfile-basic-dask", AWS) == "ami-2"

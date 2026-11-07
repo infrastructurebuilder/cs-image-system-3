@@ -30,21 +30,20 @@ import logging
 import subprocess
 from typing import Any, TypeVar
 
-from cs_image_system.contract.names import super_safe_name
 from cs_image_system.base.basic.abstract_version_checker import AbstractVersionChecker
 from cs_image_system.base.basic.builder_base_instance import InstanceBuilderBase
-from cs_image_system.contract.launch_vocabulary import ENROLLMENT_TOKEN_VARIABLE
 from cs_image_system.base.models.instance import Instance
 from cs_image_system.contract.assets import AssetSet
 from cs_image_system.contract.executables import CFExecutables, ExecutableProtocol
 from cs_image_system.contract.hcl import HclRaw, render_module_call
+from cs_image_system.contract.launch_vocabulary import ENROLLMENT_TOKEN_VARIABLE, ON_FAILURE_TEARDOWN
 from cs_image_system.contract.lifecycle import ExecutionLifecyclePhase
-
+from cs_image_system.contract.lifecycles import Lifecycle
+from cs_image_system.contract.names import super_safe_name
 from cs_image_system.hashicorp_utils.collector import TerraformCollector, TerraformVariable, terraform_collector
+
 from .roots import TerraformRootMixin
 from .tofu_models import TOFU_EXECUTABLE, TofuInstanceBuilderModelBase
-from cs_image_system.contract.launch_vocabulary import ON_FAILURE_TEARDOWN
-from cs_image_system.contract.lifecycles import Lifecycle
 
 log = logging.getLogger(__name__)
 
@@ -164,6 +163,41 @@ class TofuInstanceBuilderBase(InstanceBuilderBase[Q], TerraformRootMixin):
             if s.get_name() == storage_name:
                 return s.type_
         return None
+
+    @staticmethod
+    def _storage_outputs_reference(builder_name: str, storage_name: str) -> str:
+        """The storage root's output object for one storage, by remote state."""
+        return (f"data.terraform_remote_state.{super_safe_name(builder_name)}"
+                f".outputs.storage_{super_safe_name(storage_name)}")
+
+    def _launch_template_variables(self, ctx: Any, params: dict[str, Any], enrollment_token: Any) -> dict[str, Any]:
+        """The ``templatefile`` map over the recorded launch parameters,
+        built from the storage builders' hooks: ``group_gid`` by the group
+        builder's expression (when the instance has a group); one map per
+        launch variable the configured storage builders name
+        (``launch_variables``, empty until a mount binds into it) -- the same
+        names the launch playbook takes as extra-vars; each mount's values
+        under its storage's name, bound by its own storage builder
+        (``launch_bindings``) from the storage root's outputs; and the
+        enrollment token expression the root supplies."""
+        out: dict[str, Any] = {}
+        group = params.get("group")
+        gid = self._gid_expression_for(group)
+        if gid is not None:
+            out["group_gid"] = HclRaw(gid)
+        for storage_builder in ctx.storage_builders.values():
+            for name in storage_builder.launch_variables():
+                out.setdefault(str(name), {})
+        for m in params.get("mounts", []):
+            sb = m.get("builder") or self._storage_builder_name(m["storage"])
+            storage_builder = ctx.storage_builders.get(str(sb)) if sb else None
+            if storage_builder is None:
+                continue
+            outputs = self._storage_outputs_reference(str(sb), m["storage"])
+            for name, values in storage_builder.launch_bindings(m, group, outputs).items():
+                out.setdefault(str(name), {})[m["storage"]] = values
+        out[ENROLLMENT_TOKEN_VARIABLE] = enrollment_token
+        return out
 
     def _require_provider(self, col: TerraformCollector, ws: str, rtb: Any) -> None:
         """Provider requirements come from configuration (required_plugins);

@@ -9,12 +9,22 @@ from cs_image_system.tofu_roots.tofu_instance_builder import TofuVersionChecker
 
 from .tf_gce_instance_builder import TofuGceInstanceBuilder
 from .tf_gcp_models import (
-    TF_GCP, TF_GCP_FILESTORE, TF_GCP_GCS, TF_GCP_PD, TOFU_GCE,
-    TofuFilestoreStorageBuilderModel, TofuGceInstanceBuilderModel, TofuGcpStorageBuilderModel,
-    TofuGcsStorageBuilderModel, TofuPdStorageBuilderModel,
+    TF_GCP,
+    TF_GCP_FILESTORE,
+    TF_GCP_GCS,
+    TF_GCP_PD,
+    TOFU_GCE,
+    TofuFilestoreStorageBuilderModel,
+    TofuGceInstanceBuilderModel,
+    TofuGcpStorageBuilderModel,
+    TofuGcsStorageBuilderModel,
+    TofuPdStorageBuilderModel,
 )
 from .tf_gcp_storage_builder import (
-    TofuFilestoreStorageBuilder, TofuGcpStorageBuilder, TofuGcsStorageBuilder, TofuPdStorageBuilder,
+    TofuFilestoreStorageBuilder,
+    TofuGcpStorageBuilder,
+    TofuGcsStorageBuilder,
+    TofuPdStorageBuilder,
 )
 
 log = logging.getLogger(__name__)

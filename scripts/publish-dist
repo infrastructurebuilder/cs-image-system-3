@@ -2,7 +2,7 @@
 # SPDX-FileCopyrightText: 2026 Mykel Alvis <mykelalvis@infrastructurebuilder.org>
 #
 # SPDX-License-Identifier: Apache-2.0
-"""Upload the built release to a publish target, one project at a time (hygiene XIV)
+"""Upload the built release to a publish target, one project at a time
 
     uv run python scripts/publish-dist <target> --version V [--token-var NAME] [--summary PATH] [--dist DIR] [--root DIR]
 
@@ -26,7 +26,7 @@ error. A failure prints the `error:` and `cause:` lines the upload printed,
 never only its first lines, and the path of the whole output.
 
 When every file was already there, nothing proved the token: a skip needs
-no credentials (until 2026-10-23 a stale repository secret went unseen for
+no credentials (a stale repository secret once went unseen for
 five weeks that way). Then one file is sent again WITHOUT the check: the
 index checks the credentials before it looks for a duplicate (Warehouse's
 upload view: the permission check, then the duplicate check), and answers an
@@ -79,7 +79,7 @@ PRIVATE = "Private :: Do Not Upload"
 def is_published(project: dict) -> bool:
     """Whether a project is one the release uploads: every workspace member
     except one classified ``Private :: Do Not Upload`` (the extension
-    template and the contract's proof, stage 126), which an index refuses
+    template and the contract's proof), which an index refuses
     and which the workspace installs through the root's dev group."""
     return PRIVATE not in project.get("classifiers", [])
 

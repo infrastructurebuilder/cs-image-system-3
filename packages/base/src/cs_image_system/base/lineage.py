@@ -33,18 +33,22 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from .capabilities import declared_capabilities, effective_capabilities, image_chain
 from cs_image_system.contract.constants import SELF
-from .encryption import MARKER_PREFIX, substitute_markers
-from .image_tests import base_image_verify_commands, instance_image_verify_commands, assertion_count
 from cs_image_system.contract.lifecycles import Lifecycle
 
+from .capabilities import declared_capabilities, effective_capabilities, image_chain
+from .encryption import MARKER_PREFIX, substitute_markers
+from .image_tests import assertion_count, base_image_verify_commands, instance_image_verify_commands
 
 log = logging.getLogger(__name__)
 
 # The tag names and the fingerprint's length are the contract's vocabulary
 # (`contract.lineage_vocabulary`); every reader in the core keeps this path.
-from cs_image_system.contract.lineage_vocabulary import CONFIG_TAG, FINGERPRINT_TAG_LENGTH, TAG_PREFIX  # noqa: F401, E402
+from cs_image_system.contract.lineage_vocabulary import (  # noqa: F401, E402
+    CONFIG_TAG,
+    FINGERPRINT_TAG_LENGTH,
+    TAG_PREFIX,
+)
 
 # Convergent bakes
 POLICY_PINNED = "pinned"
@@ -659,7 +663,7 @@ def _bake_reason(ctx: "RunContext", image: Any, runtime: str | None) -> str | No
     build, superseded = effective_parent_build(ctx, image, runtime)
     if superseded:
         return f"parent moved {superseded} -> {build} (parent_policy: follow)"
-    # ledger 70: under `follow` a parent that BAKES IN THIS RUN is a move too
+    # under `follow` a parent that BAKES IN THIS RUN is a move too
     # (its new head is not recorded yet at plan time, so the pin/head
     # comparison above sees nothing): the child bakes from the series and
     # its pin follows when the bake is recorded. Kept out of

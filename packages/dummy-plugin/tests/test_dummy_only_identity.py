@@ -14,7 +14,6 @@ import shutil
 from pathlib import Path
 
 import yaml
-
 from harness import V2Run, copy_config
 
 GROUPS = "dummy-groups"

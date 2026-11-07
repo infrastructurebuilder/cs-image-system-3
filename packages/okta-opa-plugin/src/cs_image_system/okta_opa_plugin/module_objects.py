@@ -106,7 +106,7 @@ def _diff(have: Any, want: Any, path: str = "") -> list[str]:
     if isinstance(want, list) and want and isinstance(want[0], dict):
         have = have if isinstance(have, list) else []
         out = [] if len(have) == len(want) else [f"{path}: {len(have)} rule(s) != {len(want)}"]
-        return out + [d for i, (h, w) in enumerate(zip(have, want)) for d in _diff(h, w, f"{path}[{i}]")]
+        return out + [d for i, (h, w) in enumerate(zip(have, want, strict=False)) for d in _diff(h, w, f"{path}[{i}]")]
     if have is None:
         return []
     return [] if have == want else [f"{path}: {have!r} != {want!r}"]

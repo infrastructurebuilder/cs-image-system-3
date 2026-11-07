@@ -8,13 +8,13 @@ from types import SimpleNamespace
 from typing import Any, cast
 
 import pytest
+from harness import bare_run
 
 from cs_image_system.hashicorp_utils.collector import (
     BackendRegistration,
     terraform_collector,
 )
 from cs_image_system.tofu_roots.roots import TerraformRootMixin
-from harness import bare_run
 
 
 def _s3(name="s3-east2", bucket="b", key_prefix="statefiles/", is_default=True):

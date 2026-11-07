@@ -16,50 +16,32 @@ everything and loads nothing; the loading lives here.
 from __future__ import annotations
 
 import copy
-from collections.abc import Callable, Iterable, Mapping, Sequence
-from dataclasses import is_dataclass
-from cs_image_system.contract.model_config import CSIS_MODEL_CONFIG
-from pydantic.dataclasses import dataclass  # validation at construction
 import logging
 import os
-from pathlib import Path
+from collections.abc import Callable, Iterable, Mapping, Sequence
+from dataclasses import is_dataclass
 from datetime import datetime
+from pathlib import Path
 from pprint import pformat
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
 import typer
 import yaml
+from pydantic.dataclasses import dataclass  # validation at construction
 
 from cs_image_system.base.models.base_image import BaseImage
+from cs_image_system.contract.model_config import CSIS_MODEL_CONFIG
 
+from .models.ia_config import IAConfig
+from .models.user import User
 from .orchestrator import Orchestrator, TemplateResolver
 
-from .models.user import User
-from .models.ia_config import IAConfig
-from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from .basic.builder_base_image import ImageBuilderBase
     from .basic.builder_base_instance import InstanceBuilderBase
     from .basic.builder_base_mod import ModBuilderBase
     from .basic.builder_base_runtime import RuntimeBuilderBase
-from . import registry
-from .loader import load_plugins
-from .template_utils import read_and_preprocess_yaml_files, sort_mappings, string_stage
-from .encryption import decrypt_tree, decrypted_plaintexts, refuse_markers_at
-from .reserved_names import refuse_invalid_config_keys, refuse_reserved_names
-from .run_context import RunContext, bind_current
-from .finalizer import Finalizer
-# the services behind the context: the modules the adapters at
-# the end of this file delegate to, imported here because the loader is
-# where the run is assembled and the one place already inside the import
-# web every one of them belongs to
-from . import bake_steps, bake_user, capabilities, identity_attributes, image_tests, launch_enrollment
-from . import launch_params, lifecycles as _lifecycles, lineage, materialize, os_types, standing, storage_state, utils
-from . import encryption as _encryption
-from .network_facts import adopt as adopt_network_facts
-from . import image_sources as _image_sources
-from . import ephemeral_policy, state_backup
 from cs_image_system.contract.context import (
-    AnsibleTasks,
     CliServiceProtocol,
     CommandsServiceProtocol,
     FilesServiceProtocol,
@@ -70,19 +52,50 @@ from cs_image_system.contract.context import (
     LineageServiceProtocol,
     MetaStateProtocol,
     ScopeServiceProtocol,
-    ScriptLines,
     SecretsServiceProtocol,
     ServicesProtocol,
     StorageServiceProtocol,
     WorkspacesServiceProtocol,
 )
 from cs_image_system.contract.executables import ExecutableProtocol
-from cs_image_system.contract.lifecycles import LifecycleLike
 from cs_image_system.contract.group import GroupBuilderProtocol
 from cs_image_system.contract.image import ImageQuery
+from cs_image_system.contract.lifecycles import LifecycleLike
 from cs_image_system.contract.storage import StorageBuilderProtocol
+
+# the registry and the services behind the context: the modules the
+# adapters at the end of this file delegate to, imported here because the loader is
+# where the run is assembled and the one place already inside the import
+# web every one of them belongs to
+from . import (
+    bake_steps,
+    bake_user,
+    capabilities,
+    ephemeral_policy,
+    identity_attributes,
+    image_tests,
+    launch_params,
+    lineage,
+    materialize,
+    os_types,
+    registry,
+    standing,
+    state_backup,
+    storage_state,
+    utils,
+)
+from . import encryption as _encryption
+from . import image_sources as _image_sources
+from . import lifecycles as _lifecycles
+from .encryption import decrypt_tree, decrypted_plaintexts, refuse_markers_at
+from .finalizer import Finalizer
+from .image_sources import ImageSourceCatalog, bind_current_catalog, default_os_type
+from .loader import load_plugins
 from .models.ia_config import DEFAULT_DATEFORMAT
-from .image_sources import ImageSourceCatalog, default_os_type
+from .network_facts import adopt as adopt_network_facts
+from .reserved_names import refuse_invalid_config_keys, refuse_reserved_names
+from .run_context import RunContext, bind_current
+from .template_utils import read_and_preprocess_yaml_files, string_stage
 
 log = logging.getLogger(__name__)
 
@@ -96,26 +109,28 @@ from cs_image_system.contract.constants import (
     STORAGES,
     VCT,
 )
+from cs_image_system.contract.core import (
+    BuilderModelProtocol,
+    PluginArtifactProtocol,
+    RuntimeEnabledBuilderModelProtocol,
+)
 
+from .basic.builder_base import BuilderBase
+from .models.builder_model import BuilderModel, NameTyped
+from .models.executable import ExecutableModel
 from .models.group import Group
-from .models.image import Image
-from .models.instance import Instance
-from .models.storage import Storage
 from .models.group_builder import GroupBuilderModel
+from .models.image import Image
 from .models.image_builder_model import ImageBuilderModel
+from .models.instance import Instance
 from .models.instance_builder import InstanceBuilderModel
 from .models.mod_builder import ModBuilderModel
 from .models.os_builder_model import OsBuilderModel
 from .models.runtime import RuntimeBuilderModel
 from .models.state_builder import StateBuilderModel
+from .models.storage import Storage
 from .models.storage_builder import StorageBuilderModel
 from .models.user_builder import UserBuilderModel
-
-from .models.executable import ExecutableModel
-
-from .basic.builder_base import BuilderBase
-from .models.builder_model import BuilderModel, NameTyped
-from cs_image_system.contract.core import BuilderModelProtocol, PluginArtifactProtocol, RuntimeEnabledBuilderModelProtocol
 
 PLUGIN_TYPEMAP: dict[str, type] = {
     "base" : dict,
@@ -306,11 +321,11 @@ def apply_overlays(ctx: Any, spec: ItemKind, read_dict: dict[str, Any]) -> None:
     overlays = getattr(ctx, "overlays", None) or []
     data_list = getattr(ctx, "_overlay_data", None) or []
     key = spec.model_cls.klazz_yaml_key() if hasattr(spec.model_cls, "klazz_yaml_key") else spec.name
-    for path, data in zip(overlays, data_list):
+    for path, data in zip(overlays, data_list, strict=False):
         for item in data.get(key) or []:
             name = item.get("name")
             if item.get("undeclare"):
-                # ledger 68: an overlay can also UNDECLARE a tree entry for one
+                # an overlay can also UNDECLARE a tree entry for one
                 # invocation -- the instance decommissions / the storage is
                 # destroyed exactly as if its entry had left the YAML
                 if read_dict.pop(name, None) is not None:
@@ -419,6 +434,11 @@ def read_config_and_transform(
         reg = registry.Registry()
     load_plugins(reg)
     registry.bind_current_registry(reg)
+    # the run's image-source catalog beside its registry: the release layer
+    # read from this registry's runtimes, the tree's layer set below once
+    # the configuration is parsed; current for the models that read it
+    catalog = ImageSourceCatalog(reg)
+    bind_current_catalog(catalog)
     if not root_dir:
         raise ValueError("Root directory must be provided")
     _config_dir = root_dir / "cfg"
@@ -442,10 +462,10 @@ def read_config_and_transform(
 
     # The string stage walks the ONE parsed tree (read_and_process parsed each
     # cfg/*.yml exactly once): the registered passes render its string leaves
-    # in place and nothing is dumped back to text or parsed again. The
-    # document's mappings are presented with their keys sorted, the order the
-    # emission has always seen (sort_mappings says why).
-    generic_yaml: Any = string_stage(sort_mappings(orig), addl=addl)
+    # in place and nothing is dumped back to text or parsed again. A mapping
+    # keeps the key order its file gave it, so a free-form mapping an emission
+    # writes as it is (an image's tags) comes out in the file's order.
+    generic_yaml: Any = string_stage(orig, addl=addl)
     log.debug("string stage result:\n%s", pformat(generic_yaml, indent=2, width=163))
 
     template_resolver = TemplateResolver(addl=addl)
@@ -479,7 +499,7 @@ def read_config_and_transform(
         )
 
     original_yaml_dictionary_lists: dict[str, list[dict[str, Any]]] = {}
-    for plugin_name, plugin_key in PLUGIN_TYPES:
+    for _plugin_name, plugin_key in PLUGIN_TYPES:
         if plugin_key in generic_yaml:
             items = generic_yaml.pop(plugin_key)
             if not isinstance(items, list):
@@ -517,7 +537,7 @@ def read_config_and_transform(
     # the tree's image sources land on the release's before any OS
     # builder structures, so a missing `type` can be defaulted from what the
     # family IS and every family reader sees the catalog
-    ImageSourceCatalog().set_tree(list(config_data.image_sources or []))
+    catalog.set_tree(list(config_data.image_sources or []))
 
     cvt = Orchestrator().get_converter()
 
@@ -534,7 +554,7 @@ def read_config_and_transform(
                 if name and not _type and plugin_key == "os_builders":
                     # an OS builder may leave `type` out when exactly
                     # one registered type serves what its family IS
-                    _type = default_os_type(str(item.get("family", "")), item.get("family_version"),
+                    _type = default_os_type(catalog, str(item.get("family", "")), item.get("family_version"),
                                             reg.models_under(VCT.OS_BUILDER_MODEL))
                     if _type:
                         item["type"] = _type
@@ -583,7 +603,7 @@ def read_config_and_transform(
     if not config_data.runtime_builders:
         raise ValueError("No runtime providers configured.")
 
-    default_runtime_builder = reg.get_default_for(VCT.RUNTIME_BUILDER_MODEL)
+    _ = reg.get_default_for(VCT.RUNTIME_BUILDER_MODEL)   # the first ask fills the registry's defaults
 
     # TODO:
     #  1. cycle_yaml using the local value of "runtime" including a timestamp and
@@ -699,6 +719,10 @@ def read_config_and_transform(
     wpath = Path(working_dir).resolve()
     if not wpath.exists():
         raise FileNotFoundError(f"Working directory {wpath} does not exist.")
+    # Deliberately NOT a scoped change: the loaded configuration is used from
+    # its root for the rest of the command (relative paths in it resolve
+    # against the root), so the process stays there. The CLI's main callback
+    # restores the invoking directory when its context closes.
     os.chdir(wpath)
     gen_path = (
         wpath / config_data.generation_directory
@@ -729,6 +753,7 @@ def read_config_and_transform(
         undeclared=parse_undeclare(undeclare),
         run_start_time=run_start_time,
         reg=reg,
+        image_sources=catalog,
     )
     ctx.bind_finalizer(Finalizer(ctx))
     ctx.bind_services(RunServices(ctx))
@@ -836,7 +861,7 @@ def process_and_register_builders(
             # the system does that for us when we instantiate them,
             # but for non-dataclass builders we need to call it manually
             if hasattr(prov, "__post_init__"):
-                if callable(getattr(prov, "__post_init__")):
+                if callable(prov.__post_init__):
                     prov.__post_init__()  # type: ignore
         prov.finalize()
         # the registry gates on the instance (NameTypedProtocol) and
@@ -1071,14 +1096,8 @@ class LaunchService(_Service, LaunchServiceProtocol):
     def detachments(self, instance: Any) -> list[dict[str, Any]]:
         return launch_params.detachments(self._ctx, instance)
 
-    def hostname_problems(self, name: str) -> list[str]:
-        return launch_params.hostname_problems(name)
-
     def group_builder_of(self, group: str) -> GroupBuilderProtocol | None:
         return capabilities.group_builder_of(self._ctx, group)
-
-    def register_enrollment_kind(self, kind: str, *, script_lines: ScriptLines, ansible_tasks: AnsibleTasks) -> None:
-        launch_enrollment.register_enrollment_kind(kind, script_lines=script_lines, ansible_tasks=ansible_tasks)
 
     def failure_policy(self, instance: Any) -> tuple[str, int | None]:
         return ephemeral_policy.failure_policy(self._ctx, instance)

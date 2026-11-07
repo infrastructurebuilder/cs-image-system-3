@@ -40,9 +40,11 @@ from typing import TYPE_CHECKING, Any
 
 from cs_image_system.contract.lifecycle import ExecutionLifecyclePhase
 from cs_image_system.contract.lifecycles import LifecycleLike
+
+from .encryption import is_marker
 from .in_process import run_executable
 from .lifecycles import all_lifecycles
-from .encryption import is_marker
+from .utils import in_directory
 
 if TYPE_CHECKING:
     from .models.executable import ExecutableModel
@@ -225,31 +227,24 @@ class Finalizer:
             for executable in executables:
                 log.info(f"[DRY RUN] {label}: would execute {render_executable_line(executable)}")
             return True
-        pwd = Path(os.getcwd()).absolute()
-        try:
-            for builder in ctx.all_sorted_builders:
-                builder.pre_finalize_phase(phase)
-            for executable in executables:
-                log.info(f"[{label}] executing {render_executable_line(executable)}")
-                os.chdir(ctx.generation_path)
-                try:
+        for builder in ctx.all_sorted_builders:
+            builder.pre_finalize_phase(phase)
+        for executable in executables:
+            log.info(f"[{label}] executing {render_executable_line(executable)}")
+            try:
+                with in_directory(ctx.generation_path):
                     res = self._run_executable(executable)
-                except Exception as e:
-                    log.error(f"[{label}] command failed: {e}")
-                    os.chdir(pwd)
-                    self.after_failed_phase(phase)     # keep what completed
-                    return False
-                finally:
-                    os.chdir(pwd)
-                if not res or res.returncode != 0:
-                    log.error(f"[{label}] command returned {res.returncode if res else 'None'}")
-                    self.after_failed_phase(phase)
-                    return False
-            for builder in ctx.all_sorted_builders:
-                builder.post_finalize_phase(phase)
-            return True
-        finally:
-            os.chdir(pwd)
+            except Exception as e:
+                log.error(f"[{label}] command failed: {e}")
+                self.after_failed_phase(phase)     # keep what completed
+                return False
+            if not res or res.returncode != 0:
+                log.error(f"[{label}] command returned {res.returncode if res else 'None'}")
+                self.after_failed_phase(phase)
+                return False
+        for builder in ctx.all_sorted_builders:
+            builder.post_finalize_phase(phase)
+        return True
 
     def _run_executable(self, executable: Any) -> Any:
         """Run one deferred executable from the current directory (the
@@ -268,7 +263,7 @@ def render_executable_line(executable: Any, base: Path | None = None, root: Path
     directory under ``base`` (the lifecycle's directory) is rendered
     RELATIVE to it -- the runner header promises "paths are relative to
     this lifecycle's directory", and an absolute workspace path would tie
-    the script (and the golden) to one checkout (ledger 71). An argument
+    the script (and the golden) to one checkout. An argument
     that is ``root`` (the configuration root: ``--root-dir``) or a path under
     it (``--overlay``) is rendered as ``"$CSIS_ROOT"`` / ``"$CSIS_ROOT/<rel>"``
     -- the header defines the variable relative to the script, so

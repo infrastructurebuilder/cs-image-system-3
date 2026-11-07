@@ -19,8 +19,9 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING, Any
 
-from .basic.builder_base_group import GroupBuilderBase
 from cs_image_system.contract.lifecycles import Lifecycle
+
+from .basic.builder_base_group import GroupBuilderBase
 from .utils import apply_enabled
 
 if TYPE_CHECKING:

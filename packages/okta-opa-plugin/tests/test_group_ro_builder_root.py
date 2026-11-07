@@ -11,16 +11,16 @@ from typing import Any, cast
 from unittest import mock
 
 import pytest
+from harness import bare_run
 
-from cs_image_system.contract.lifecycle import ExecutionLifecyclePhase
 from cs_image_system.base.models.group import Group
+from cs_image_system.contract.lifecycle import ExecutionLifecyclePhase
 from cs_image_system.hashicorp_utils.collector import (
     ConfiguredTerraformProvider,
     terraform_collector,
 )
-from harness import bare_run
-from cs_image_system.okta_opa_plugin.okta_opa_tf_group_ro_builder import OktaTfGroupRoBuilder
 from cs_image_system.okta_opa_plugin.okta_opa_tf_group_models import OktaTfGroupRoBuilderModel
+from cs_image_system.okta_opa_plugin.okta_opa_tf_group_ro_builder import OktaTfGroupRoBuilder
 
 PHASE = ExecutionLifecyclePhase.GROUP_GENERATION
 ROOT = Path("okta-ro-groups/group-generation")

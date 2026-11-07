@@ -2,11 +2,12 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from cs_image_system.contract.model_config import CSIS_MODEL_CONFIG
-from cs_image_system.contract.storage import StorageBuilderModelProtocol
 from pydantic.dataclasses import dataclass  # validation at construction
 
 from cs_image_system.contract.constants import VCT
+from cs_image_system.contract.model_config import CSIS_MODEL_CONFIG
+from cs_image_system.contract.storage import StorageBuilderModelProtocol
+
 from .builder_model import RuntimeEnabledBuilderModel
 from .storage import Storage
 

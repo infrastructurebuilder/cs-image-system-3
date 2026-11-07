@@ -91,7 +91,7 @@ def stage_local_mods(ctx: "RunContextProtocol", image: Any, block_dir: Path,
     (bundle / RUNNER_NAME).chmod(0o755)
     records = ctx.services.lineage.mod_records(image)
     index: list[dict[str, Any]] = []
-    for n, (mod, rec) in enumerate(zip(mods, records), start=1):
+    for n, (mod, rec) in enumerate(zip(mods, records, strict=True), start=1):
         if isinstance(mod, dict):
             continue
         d = bundle / f"{n:02d}-{mod.get_name()}"

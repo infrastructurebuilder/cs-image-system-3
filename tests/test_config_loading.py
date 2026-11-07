@@ -20,7 +20,6 @@ from pathlib import Path
 
 import pytest
 import yaml
-
 from harness import copy_config, load_context, reset_singletons, stub_environment
 
 
@@ -50,7 +49,7 @@ def test_a_python_tag_in_the_configuration_is_refused_not_constructed(tmp_path: 
         load_context(root)
     assert "python/object" in str(exc.value) or "could not determine a constructor" in str(exc.value), str(exc.value)
     reset_singletons()
-    from cs_image_system.base import config_loader       # the reader lives in the loader
+    from cs_image_system.base import config_loader  # the reader lives in the loader
     src = Path(config_loader.__file__).read_text()
     assert "yaml.unsafe_load(stream)" not in src and "yaml.safe_load(stream)" in src
 
@@ -81,6 +80,7 @@ def test_dateformat_has_one_default_and_it_is_the_one_the_run_uses():
 
 def test_an_executable_builds_its_command_once(monkeypatch, tmp_path: Path):
     import subprocess
+
     from cs_image_system.base.models.executable import ExecutableModel
     seen: list[list[str]] = []
     monkeypatch.setattr(subprocess, "run", lambda cmd, **kw: seen.append(list(cmd)) or subprocess.CompletedProcess(cmd, 0, "", ""))

@@ -18,12 +18,11 @@ from pathlib import Path
 import pytest
 from cryptography.hazmat.primitives.asymmetric import rsa
 
-from tests.test_bootstrap import _starter_copy
-
 from cs_image_system.base import bootstrap as bs
 from cs_image_system.base.bootstrap.questions import Refused
 from cs_image_system.okta_opa_plugin import bootstrap as okta
 from cs_image_system.okta_opa_plugin import okta_app_check as oac
+from tests.test_bootstrap import _starter_copy
 
 REPO = "acme/widgets"
 

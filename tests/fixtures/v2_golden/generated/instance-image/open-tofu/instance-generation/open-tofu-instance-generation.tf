@@ -23,7 +23,7 @@ variable "test2_ami_id" {
     type = string
     default = ""
 }
-variable "sft_enrollment_token" {
+variable "enrollment_token" {
     type = string
     default = ""
     description = "Identity enrollment token handed to instances at launch (TF_VAR_...); empty = no enrollment"

@@ -8,8 +8,9 @@ import logging
 
 log = logging.getLogger(__name__)
 
-from ..basic.builder_base_storage import StorageBuilderBase
 from cs_image_system.contract.lifecycle import ExecutionLifecyclePhase
+
+from ..basic.builder_base_storage import StorageBuilderBase
 from ..global_context import GlobalTypeContext
 from ..in_process import run_executable
 

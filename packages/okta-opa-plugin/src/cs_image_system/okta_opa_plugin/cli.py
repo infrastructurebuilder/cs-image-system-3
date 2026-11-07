@@ -28,8 +28,9 @@ from typing import Annotated
 import typer
 
 from cs_image_system.contract.commands import VERIFY_LOGIN, CommandMount
-from .workload_token import workload_facts, WorkloadTokenError, mint_token, NAME_VARS, WorkloadNames
+
 from . import workload_token as wt
+from .workload_token import NAME_VARS, WorkloadNames, WorkloadTokenError, mint_token, workload_facts
 
 workload_app = typer.Typer(help="Stage 56: what CI's workload login needs from the configuration.")
 
@@ -80,7 +81,7 @@ def workload_token_command(typer_cntx: typer.Context) -> None:
         token = mint_token(names, env, say=lambda line: typer.echo(line, err=True))
     except WorkloadTokenError as e:
         typer.secho(f"workload token: {e}", fg=typer.colors.RED, err=True)
-        raise typer.Exit(code=e.exit_code)
+        raise typer.Exit(code=e.exit_code) from None
     typer.echo(token, nl=False)
 
 
@@ -131,7 +132,7 @@ def workload_probe_command(typer_cntx: typer.Context) -> None:
         token = wt.mint_token(names, env, say=lambda line: typer.echo(line, err=True))
     except wt.WorkloadTokenError as e:
         typer.secho(f"workload probe: {e}", fg=typer.colors.RED, err=True)
-        raise typer.Exit(code=e.exit_code)
+        raise typer.Exit(code=e.exit_code) from None
     typer.secho(f"workload probe: connection {names.connection}: accepted this run's token and issued one (masked)",
                 fg=typer.colors.GREEN)
     target = wt.probe_target(_loaded(typer_cntx))

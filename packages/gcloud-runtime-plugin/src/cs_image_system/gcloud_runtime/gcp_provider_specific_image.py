@@ -7,6 +7,7 @@ from typing import Any
 
 from cs_image_system.base.models.provider_specific_image import ProviderSpecificImage
 from cs_image_system.contract.image import ImageQuery
+
 from .gcp_utils import translate_image_query
 
 log = logging.getLogger(__name__)

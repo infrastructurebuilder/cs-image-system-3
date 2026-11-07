@@ -103,7 +103,9 @@ def test_both_recipes_push_the_tags_and_hand_back_to_develop():
     for recipe in ("release", "release-finish"):
         rc, body = _just(REPO, "--show", recipe)
         assert rc == 0
-        assert "--follow-tags" in body and "release_branch" in body and "develop" in body, recipe
+        assert "release_branch" in body and "scripts/release.py" in body, recipe      # the recipe hands the branch to the script
+    script = (REPO / "scripts" / "release.py").read_text()
+    assert "git push --follow-tags origin" in script and "git merge --ff-only" in script and "develop takes it back" in script
 
 
 def test_the_docs_say_main():

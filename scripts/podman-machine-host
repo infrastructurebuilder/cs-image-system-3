@@ -2,7 +2,7 @@
 # SPDX-FileCopyrightText: 2026 Mykel Alvis <mykelalvis@infrastructurebuilder.org>
 #
 # SPDX-License-Identifier: Apache-2.0
-"""The DOCKER_HOST URL of the running Podman Desktop machine (stage 109).
+"""The DOCKER_HOST URL of the running Podman Desktop machine.
 
     uv run python scripts/podman-machine-host [--podman BINARY] [--machine NAME]
 

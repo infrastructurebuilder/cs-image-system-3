@@ -20,7 +20,6 @@ import pytest
 import yaml
 
 from cs_image_system.gcloud_runtime.gcp_runtime_builders import GCPCloudBuilder
-
 from tests.harness import V2Run, command_lines, copy_config
 
 _REAL_GCE_RETAG = GCPCloudBuilder.retag_image     # captured before any harness stub replaces it
@@ -205,6 +204,7 @@ def test_apply_check_rereads_the_overlay_config(prepared, capsys):
     """The runner script generated under an overlay re-checks under that
     overlay: the file says false, the overlay lists the GCE runtime."""
     import typer
+
     from cs_image_system.system.cli import apply_check_command
     root, _ = prepared
     launch = root / "overlays" / "gce-cycle-launch.yaml"
@@ -383,11 +383,13 @@ def test_gcs_state_lookup_goes_through_gcloud(tmp_path, monkeypatch):
         bucket = next(s for s in run.ctx.storages if s.get_name() == "gce_bucket")
         calls: list[list[str]] = []
 
+        answer = SimpleNamespace(result=None)
+
         def fake_run(cmd, **kw):
             calls.append(cmd)
-            return fake_run.result
+            return answer.result
         monkeypatch.setattr(subprocess, "run", fake_run)
-        fake_run.result = SimpleNamespace(returncode=0, stderr="", stdout=(
+        answer.result = SimpleNamespace(returncode=0, stderr="", stdout=(
             '{"name": "csis-sandbox-86233086783-default-bucket", "location": "US-EAST1", '
             '"storageClass": "STANDARD", "labels": {"csis_storage": "gce-bucket"}}'))
         rec = builder._lookup(bucket)
@@ -397,23 +399,23 @@ def test_gcs_state_lookup_goes_through_gcloud(tmp_path, monkeypatch):
         # the declared binary, not a bare name from PATH
         assert calls[-1][:4] == ["/usr/local/bin/gcloud", "storage", "buckets", "describe"]
         assert calls[-1][4] == "gs://csis-sandbox-86233086783-default-bucket"
-        fake_run.result = SimpleNamespace(returncode=1, stdout="", stderr="ERROR: ... 404 ... not found")
+        answer.result = SimpleNamespace(returncode=1, stdout="", stderr="ERROR: ... 404 ... not found")
         assert builder._lookup(bucket) is None
-        fake_run.result = SimpleNamespace(returncode=1, stdout="", stderr="ERROR: reauthentication required")
+        answer.result = SimpleNamespace(returncode=1, stdout="", stderr="ERROR: reauthentication required")
         with pytest.raises(RuntimeError, match="buckets describe"):
             builder._lookup(bucket)
     finally:
         run.restore_cwd()
 
 
-# ---------------------------------------------------- relabel (ledger 66)
+# ---------------------------------------------------------------- relabel
 
 def test_gce_retag_merges_lineage_truth_into_the_image_labels(tmp_path, monkeypatch):
     """A follow image baked in the same run as its parent carries
     generation-time labels (`csis_parent: series-…`, a placeholder
     fingerprint); after the bake the runtime relabels it from the record,
     keeping every other label and the label fingerprint GCE requires."""
-    from cs_image_system.gcloud_runtime import gcp_runtime_builders   # patched where it is read (a top-level import)
+    from cs_image_system.gcloud_runtime import gcp_runtime_builders  # patched where it is read (a top-level import)
 
     class Image:
         labels = {"csis_parent": "series-basic-rh-10", "csis_fingerprint": "293d6de5ab5f3b4f",
@@ -457,7 +459,7 @@ def test_gce_retag_merges_lineage_truth_into_the_image_labels(tmp_path, monkeypa
         run.restore_cwd()
 
 
-# ------------------------------------------------ overlay undeclare (ledger 68)
+# ------------------------------------------------------ overlay undeclare
 
 def test_an_overlay_can_undeclare_a_tree_entry_for_one_invocation(prepared, tmp_path):
     """`{name: X, undeclare: true}` removes the tree's entry for this run only:

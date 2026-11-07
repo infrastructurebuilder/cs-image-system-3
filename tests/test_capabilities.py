@@ -28,7 +28,6 @@ from pathlib import Path
 
 import pytest
 import yaml
-
 from harness import V2Run, copy_config, module_path, tree
 
 
@@ -281,7 +280,7 @@ def test_launch_parameters_are_generated_by_reference_and_recorded(v2):
     assert 'data.terraform_remote_state.oktagroups.outputs.group_gids["coops"]' in module
     assert 'data.terraform_remote_state.aws_ebs.outputs.storage_mnt_data.volume_id' in module
     assert '"device_name" = "/dev/xvdf"' in module
-    assert "var.sft_enrollment_token" in module
+    assert "var.enrollment_token" in module
     tpl = inst["user-data-test2.sh.tftpl"]
     # device resolution: legacy name first, Nitro by-id fallback from the
     # volume id (found live: /dev/xvdf never appears on t3/Nitro)
@@ -292,7 +291,7 @@ def test_launch_parameters_are_generated_by_reference_and_recorded(v2):
     assert "chgrp \"$GID\" '/mnt/data/coops'" in tpl and "chmod 2770 '/mnt/data/coops'" in tpl
     assert "/var/lib/sftd/enrollment.token" in tpl
     root = inst["open-tofu-instance-generation.tf"]
-    assert 'variable "sft_enrollment_token"' in root and "sensitive = true" in root
+    assert 'variable "enrollment_token"' in root and "sensitive = true" in root
     assert 'data "terraform_remote_state" "oktagroups"' in root
     lp = yaml.safe_load((v2.meta_state / "launch-params.yaml").read_text())
     rec = lp["instances"]["test2"]

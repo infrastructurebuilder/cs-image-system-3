@@ -19,9 +19,7 @@ import logging
 
 import pytest
 import yaml
-
 from harness import FIXTURE_CONFIG, V2Run, copy_config
-
 
 # ------------------------------------------- a modification with nothing to modify with
 
@@ -95,8 +93,10 @@ def test_the_fixture_resolves_every_foreign_key_and_an_unknown_one_is_refused(tm
 def test_the_builders_bucket_is_the_default_for_storages_naming_none(tmp_path, monkeypatch):
     from types import SimpleNamespace
     from typing import Any, cast
-    from cs_image_system.tf_ebs_instance_plugin.tf_storage_builder import TofuS3StorageBuilder
+
     from harness import load_context, reset_singletons, stub_environment
+
+    from cs_image_system.tf_ebs_instance_plugin.tf_storage_builder import TofuS3StorageBuilder
     stub_environment(monkeypatch)
     ctx = load_context(copy_config(tmp_path))
     try:

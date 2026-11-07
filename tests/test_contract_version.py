@@ -18,11 +18,10 @@ import re
 import tomllib
 from pathlib import Path
 
+from harness import REPO
 from packaging.requirements import Requirement
 from packaging.utils import canonicalize_name
-
 from test_package_metadata import PACKAGES, ROOT, _bump, _project, _requirements, contract_range, tree  # noqa: F401
-from harness import REPO
 
 CONTRACT = "cs-image-system-contract"
 CONTRACT_PYPROJECT = REPO / "packages/contract/pyproject.toml"

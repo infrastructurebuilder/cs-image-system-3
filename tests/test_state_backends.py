@@ -22,7 +22,6 @@ from typing import Any, cast
 
 import pytest
 import yaml
-
 from harness import copy_config, load_context, reset_singletons, stub_environment
 
 

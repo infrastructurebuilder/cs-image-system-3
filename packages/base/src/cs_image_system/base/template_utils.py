@@ -8,16 +8,18 @@ import os
 from importlib.resources import as_file, files
 from pathlib import Path
 from typing import Any
+
 import yaml
 
 log = logging.getLogger(__name__)
 # from Cheetah.Template import Template as CheetahTemplate
-from jinja2 import Environment, Undefined, nodes, Template
+from jinja2 import Environment, Template, Undefined, nodes
 
 from cs_image_system.contract.constants import NAME, PLUGIN_TYPES
+
 from .encryption import decrypt_tree, decrypted_plaintexts
-from .reserved_names import refuse_reserved_names
 from .helpers import resolution_stages
+from .reserved_names import refuse_reserved_names
 
 
 def fetch_template_file(template: Path) -> str:
@@ -343,28 +345,6 @@ def extend_with_envdata(data: dict[str, Any], include_ENV: bool = False, addl: d
     extended_data.update(env_data) # ENV overrides
     extended_data.update(addl) # addl overrides other local data
     return extended_data
-
-
-def sort_mappings(node: Any) -> Any:
-    """A copy of a parsed document with every mapping's keys in sorted order,
-    lists in their order, leaves untouched.
-
-    The loader presents the merged ``cfg/`` document to the string stage this
-    way. It is the order the emission has always seen: the stage used to
-    begin by dumping the document to YAML text, and the dumper sorts a
-    mapping's keys, so a free-form mapping that reaches an emission as it is
-    (an image's ``tags``, a root's ``labels``) was written sorted whatever
-    order the file gave it. Keys that do not compare (a mapping keyed by
-    both numbers and strings) keep their order, as the dumper left them."""
-    if isinstance(node, dict):
-        try:
-            keys = sorted(node)
-        except TypeError:
-            keys = list(node)
-        return {k: sort_mappings(node[k]) for k in keys}
-    if isinstance(node, list):
-        return [sort_mappings(item) for item in node]
-    return node
 
 
 def _is_tagged(leaf: Any) -> bool:

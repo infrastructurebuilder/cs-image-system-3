@@ -27,7 +27,7 @@ CORE = [REPO / "packages" / p / "src" for p in ("contract", "base", "system")]
 #: identity plugins' words (okta, sft, sftd, oktapam), the package
 #: managers (yum, dnf, apt, apk) and the storage kinds (ebs, efs, pd,
 #: filestore, s3, gcs). A word counts however it is cased and whatever
-#: ``_`` or ``-`` joins it to, so ``aws_region`` and ``sft_enrollment_token``
+#: ``_`` or ``-`` joins it to, so ``aws_region`` and ``sftd_config``
 #: count. ``posix`` counts only as the quoted type word (``"posix"``): the
 #: POSIX standard (ids, filesystems, ``as_posix()``, ``ansible.posix``) is
 #: not a plugin's.
@@ -40,12 +40,7 @@ PROVIDER_WORDS = re.compile(
 #: to the repo, a substring of the line that identifies it), so an edit
 #: elsewhere in the file does not move the entry. Each entry says why it
 #: is here; an entry whose reason has gone goes with it.
-EXCEPTIONS: tuple[tuple[str, str], ...] = (
-    # the enrollment credential's terraform variable: its name is pinned by
-    # every tree's committed emission (the launch scripts and the roots carry
-    # it), so it stays until a hygiene item renames it with a re-record
-    ("packages/contract/src/cs_image_system/contract/launch_vocabulary.py", 'ENROLLMENT_TOKEN_VARIABLE = "sft_enrollment_token"'),
-)
+EXCEPTIONS: tuple[tuple[str, str], ...] = ()
 
 
 def _excused(hit: str) -> bool:

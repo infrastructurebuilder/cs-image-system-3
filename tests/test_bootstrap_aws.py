@@ -17,17 +17,17 @@ import re
 import shutil
 import subprocess
 from pathlib import Path
+from typing import Protocol, cast
 
 import pytest
-
-from tests.starter_support import RENDERED
-from tests.test_bootstrap import EXAMPLES, _assigned, _starter_copy
 from harness import module_path, modules_inside
 
 from cs_image_system.aws_runtime import bootstrap as aws
 from cs_image_system.base import bootstrap as bs
 from cs_image_system.base.bootstrap.facts import default_state_backend, is_placeholder, real, runtime_of_type
 from cs_image_system.base.bootstrap.questions import Refused
+from tests.starter_support import RENDERED
+from tests.test_bootstrap import EXAMPLES, _assigned, _starter_copy
 
 ACCOUNT = "111122223333"
 
@@ -48,6 +48,13 @@ def _trust(*subjects: str) -> str:
         "Effect": "Allow", "Action": "sts:AssumeRoleWithWebIdentity",
         "Condition": {"StringEquals": {"token.actions.githubusercontent.com:aud": "sts.amazonaws.com"},
                       "StringLike": {"token.actions.githubusercontent.com:sub": list(subjects)}}}]})
+
+
+class _Probe(Protocol):
+    """The fake probe: answers like the CLI and keeps every command it was asked."""
+    calls: list[list[str]]
+
+    def __call__(self, args: list[str], timeout: int = 60) -> tuple[int, str]: ...
 
 
 def _account(trust: dict[str, str] | None = None, **present: bool):
@@ -76,8 +83,9 @@ def _account(trust: dict[str, str] | None = None, **present: bool):
         if present[key] and "--query" in args and key in trust:
             return (255, "AccessDenied") if trust[key] == "unreadable" else (0, trust[key])
         return (0, "{}") if present[key] else (254, absent)
-    probe.calls = calls                                        # type: ignore[attr-defined]
-    return probe
+    typed = cast(_Probe, probe)
+    typed.calls = calls
+    return typed
 
 
 def _facts(root: Path, probe=None, ids: bool = True):

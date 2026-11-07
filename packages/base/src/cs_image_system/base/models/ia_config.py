@@ -2,12 +2,11 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+import logging
 from dataclasses import field
-from cs_image_system.contract.model_config import CSIS_MODEL_CONFIG
-from pydantic.dataclasses import dataclass  # validation at construction
 from typing import Any
 
-import logging
+from pydantic.dataclasses import dataclass  # validation at construction
 
 from cs_image_system.base.models.group_builder import GroupBuilderModel
 from cs_image_system.base.models.image_builder_model import ImageBuilderModel
@@ -18,15 +17,16 @@ from cs_image_system.base.models.runtime import RuntimeBuilderModel
 from cs_image_system.base.models.state_builder import StateBuilderModel
 from cs_image_system.base.models.storage_builder import StorageBuilderModel
 from cs_image_system.base.models.user_builder import UserBuilderModel
+from cs_image_system.contract.model_config import CSIS_MODEL_CONFIG
+
 log = logging.getLogger(__name__)
 
-from .encryption_config import EncryptionConfig
-from .public_safe_config import PublicSafeConfig
-from .executable import ExecutableModel
+from cs_image_system.contract.constants import OOPS_DEFAULTS
+
 from ..image_sources import ImageSource
-
-from cs_image_system.contract.constants import  OOPS_DEFAULTS
-
+from .encryption_config import EncryptionConfig
+from .executable import ExecutableModel
+from .public_safe_config import PublicSafeConfig
 
 # the run timestamp's format when the configuration names none
 DEFAULT_DATEFORMAT: str = "%Y%m%d_%H%M%S"

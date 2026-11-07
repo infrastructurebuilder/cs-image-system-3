@@ -10,25 +10,28 @@ import logging
 import pprint
 
 from .. import utils
-
 from ..orchestrator import Orchestrator, TemplateResolver
+
 log = logging.getLogger(__name__)
-from typing import Any, Sequence, TypeVar,Mapping
+from typing import TYPE_CHECKING, Any, Mapping, Sequence, TypeVar
+
 from cs_image_system.contract.lifecycle import ExecutionLifecyclePhase
-from ..models.os_builder_runtime_config import OSBuilderBaseImageBuilderSubconfig
+
 from ..models.base_image import BaseImage
 from ..models.os_builder_model import OsBuilderModel
-from typing import TYPE_CHECKING
+from ..models.os_builder_runtime_config import OSBuilderBaseImageBuilderSubconfig
+
 if TYPE_CHECKING:
     from .builder_base_image import ImageBuilderBase
-from cs_image_system.contract.constants import DEFAULT, OOPS_DEFAULTS, SELF, VCT
 from cs_image_system.contract.assets import AssetSet
-from .builder_base import BuilderBase
+from cs_image_system.contract.constants import DEFAULT, OOPS_DEFAULTS, SELF, VCT
 from cs_image_system.contract.operating_system import OsBuilderProtocol
-from .builder_base_image import build_target_label_of
-from ..bake_user import resolve_for_entry
+
 from ..bake_steps import execute_command_line
+from ..bake_user import resolve_for_entry
 from ..models.update_policy import POLICY_FULL, UpdatePolicy, manifest_commands
+from .builder_base import BuilderBase
+from .builder_base_image import build_target_label_of
 
 OSRTC = TypeVar("OSRTC", bound=OSBuilderBaseImageBuilderSubconfig)
 # Deliberate bound exception: this pseudo-builder wraps an os-image-builder
@@ -96,12 +99,13 @@ class OsBuilderBase(BuilderBase[TOS], OsBuilderProtocol):
         reg = ctx.reg
         template_resolver = TemplateResolver() # Already has 'addl' fields registered
         rt_list = []
+        img_bldr: ImageBuilderBase | None = None
         for os_imgbld_name, os_img_subconfig in self.get_configs_for_image_builders().items():
             log.debug(
                     f"Ensuring Image  OS: {self.get_name()} "
                     f"for Image Builder: {os_imgbld_name}"
                 )
-            img_bldr: ImageBuilderBase|None = ctx.image_builders.get(os_img_subconfig.get_image_builder(), None)
+            img_bldr = ctx.image_builders.get(os_img_subconfig.get_image_builder(), None)
             if not img_bldr:
                 errstr = (f"Image Builder {os_img_subconfig.get_image_builder()} for "
                           f"OS {self.get_name()} and runtime {os_imgbld_name} not found in predefined_resolve: "
@@ -196,6 +200,8 @@ class OsBuilderBase(BuilderBase[TOS], OsBuilderProtocol):
             # )
             rt_list.append(rtcm_map)
 
+        if img_bldr is None:
+            raise ValueError(f"OS builder {self.get_display_name()} declares no image builder to resolve its image with")
         log.debug(f"Generating resolved image for {self.__class__.__name__} in phase "
                   f"{phase} with runtime builder {img_bldr.get_name()}.")
         i: BaseImage = None # type: ignore

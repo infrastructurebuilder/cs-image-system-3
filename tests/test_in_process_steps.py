@@ -31,7 +31,6 @@ from types import SimpleNamespace
 from typing import Any, cast
 
 import pytest
-
 from harness import V2Run
 
 from cs_image_system.base import in_process
@@ -173,6 +172,7 @@ def test_the_subcommand_is_read_past_the_head_options():
 
 def test_the_system_cli_registers_its_runner_at_import():
     import ast
+
     from cs_image_system.system import cli
     # the harness swaps the runner per test (and restores it), so what the
     # seam holds here depends on the order the suite imported the CLI in; the
@@ -226,8 +226,8 @@ def test_materialize_runs_in_process_from_the_steps_directory_and_nothing_reload
     first step); through the runner it writes the same mirror the spawned
     step wrote, from the step's directory, and the configuration is NOT
     read again: the loader is refused for the duration."""
-    from cs_image_system.system import cli
     from cs_image_system.base import config_loader
+    from cs_image_system.system import cli
     root = tmp_path / "cfg-root"
     src = root / "generated" / "storage" / "aws-ebs" / "storage-generation"
     src.mkdir(parents=True)

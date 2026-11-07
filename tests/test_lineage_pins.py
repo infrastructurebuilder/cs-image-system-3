@@ -25,7 +25,6 @@ from pathlib import Path
 
 import pytest
 import yaml
-
 from harness import FIXED_TIMESTAMP, V2Run, copy_config, tree
 
 

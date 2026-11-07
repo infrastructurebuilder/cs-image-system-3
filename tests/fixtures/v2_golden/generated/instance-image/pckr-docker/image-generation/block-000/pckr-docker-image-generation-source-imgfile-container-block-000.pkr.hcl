@@ -27,7 +27,7 @@ source "docker" "imgfile-container" {
     changes = [
         "LABEL container=\"true\"",
         "LABEL csis_config=\"cs-image-action-test\"",
-        "LABEL csis_fingerprint=\"a7ae89d25a66b0ab\"",
+        "LABEL csis_fingerprint=\"f3683376dabd1ce9\"",
         "LABEL csis_identity_types=\"posix\"",
         "LABEL csis_parent=\"series:rh10-container\"",
         "LABEL csis_run=\"2026_08_26t12_00_00\"",

@@ -3,19 +3,18 @@
 # SPDX-License-Identifier: Apache-2.0
 
 """Pins the run-scoped TerraformCollector: registration, conflicts, generation."""
-import pytest
-
 from types import SimpleNamespace
 
+import pytest
 from harness import bare_run
 
+from cs_image_system.contract.state import BackendWithoutKind
 from cs_image_system.hashicorp_utils.collector import (
     BackendRegistration,
     TerraformCollector,
     TerraformVariable,
     terraform_collector,
 )
-from cs_image_system.contract.state import BackendWithoutKind
 from cs_image_system.hashicorp_utils.versions import HclConfigConflictError
 
 

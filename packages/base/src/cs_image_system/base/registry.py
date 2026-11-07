@@ -3,18 +3,21 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import logging
-from importlib.metadata import entry_points
-from typing import Any, NamedTuple
 import operator
 from functools import reduce
+from importlib.metadata import entry_points
+from typing import Any, NamedTuple
 
-
-from cs_image_system.contract.core import BuilderProtocol, NameTypedProtocol, PluginArtifactProtocol, PluginMetadataProtocol
+from cs_image_system.contract.core import (
+    BuilderProtocol,
+    NameTypedProtocol,
+    PluginArtifactProtocol,
+    PluginMetadataProtocol,
+)
 
 log = logging.getLogger(__name__)
 
 from cs_image_system.contract.constants import DEFAULT, OOPS_DEFAULTS, VCT
-
 
 #: What joins a namespace to a name in the qualified form of a registration
 #: (``<namespace>/<name>``). No canonical name and no alias carries it: the
@@ -269,7 +272,7 @@ class Registry:
         plugin's distribution; a caller with no distribution behind the
         metadata -- a test -- passes one, or the metadata names it)."""
         ns = self.namespace_of(metadata, namespace)
-        for service_group, artifacts in metadata.services.items():
+        for _service_group, artifacts in metadata.services.items():
             for artifact in artifacts:
                 classifier = artifact.csis_classifier()
                 
@@ -393,7 +396,7 @@ class Registry:
     def get_all_instances_by_classification(self, classifier: VCT) -> dict[str, Any]:
         """Get all registered instances under a specific classification."""
         res: dict[str, Any] = {}
-        for k,v  in self.instances.get(classifier, {}).items():
+        for _k, v in self.instances.get(classifier, {}).items():
             res[v.get_name()] = v           
         return res
     def get_instance_by_name_or_alias(self, classifier: VCT, name_or_alias: str) -> Any | None:
@@ -500,7 +503,6 @@ class Registry:
 
     def get_registered_name_by_name_or_alias(self,classification:VCT, name_or_alias:str) -> str | None:
         """Get the builder name registered for a given alias or name under a specific classification."""
-        rr = self.registry
         if DEFAULT == name_or_alias:
             return self.get_default_for(classification) # type: ignore
         if name_or_alias is None:

@@ -19,7 +19,6 @@ import subprocess
 from pathlib import Path
 
 import pytest
-
 from harness import FIXTURE_CONFIG, REPO
 
 IGNORE = (".envrc\n.private_key.pem\n.private_key.json\n.public_key.json\n*.pem\n"

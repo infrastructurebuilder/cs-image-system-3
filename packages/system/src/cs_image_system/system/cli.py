@@ -20,40 +20,7 @@ from typing import TYPE_CHECKING, Annotated
 import typer
 from rich.logging import RichHandler
 
-from cs_image_system.contract.commands import COMMANDS_ENTRY_POINT_GROUP, VERIFY_LOGIN, CommandMount
-from cs_image_system.base.commands.login_proof import verify_login_command
-from cs_image_system.contract.lifecycles import Lifecycle
-from cs_image_system.base.lifecycles import all_lifecycles, parse_lifecycles
-from cs_image_system.base.loader import load_plugins
-from cs_image_system.base.utils import is_base
-from cs_image_system.base.commands.run_lifecycles import run_lifecycles, load_hook_plugins, validate_only
-from cs_image_system.base.commands.runtime_facts import runtime_bake_selection, describe_runtime, emptiness
-from cs_image_system.base.commands.upgrade import upgrade
-from cs_image_system.base.commands.preflight import (
-    session_readiness,
-    empty_environment_credentials,
-    NOT_JUDGED,
-    NOT_JUDGED_WHY,
-    session_lines,
-)
-from cs_image_system.base.network_facts import NetworkFactsError
-from cs_image_system.base.encryption import (
-    encrypt_fields_in_text,
-    encrypt_value,
-    recipients_from_config,
-    decrypt_fields_in_text,
-    decrypt_marker,
-    is_marker,
-    decrypt_tree,
-    decrypted_plaintexts,
-    reset_decrypted_plaintexts,
-    INLINE_MARKER_RE,
-    identities_from_env,
-    rotate_text,
-)
-from cs_image_system.base.materialize import PRIVATE_DIRNAME, ensure_ignored, materialize, mirror_path, sync_back
-from cs_image_system.base.modules import installed_modules, materialise_modules
-from cs_image_system.system.starters import changes_since as _changes_since, init_config
+from cs_image_system.base import tofu_lock
 from cs_image_system.base.bootstrap import (
     ANSWERS_FILE,
     Refused,
@@ -65,7 +32,65 @@ from cs_image_system.base.bootstrap import (
     write_answers,
 )
 from cs_image_system.base.bootstrap.hcl import apply_env
+from cs_image_system.base.commands.dispose import dispose_images
 from cs_image_system.base.commands.emission import config_drift, runtime_unchanged
+from cs_image_system.base.commands.gate import (
+    gate_plan,
+    plan_json_from_planfile,
+    planfile_is_stale,
+    planned_destroys,
+    sanctioned_addresses,
+)
+from cs_image_system.base.commands.identity_gids import export_gids
+from cs_image_system.base.commands.load_failures import classify_load_failure
+from cs_image_system.base.commands.login_proof import verify_login_command
+from cs_image_system.base.commands.preflight import (
+    NOT_JUDGED,
+    NOT_JUDGED_WHY,
+    empty_environment_credentials,
+    session_lines,
+    session_readiness,
+)
+from cs_image_system.base.commands.relabel import relabel
+from cs_image_system.base.commands.restamp import restamp
+from cs_image_system.base.commands.run_lifecycles import load_hook_plugins, run_lifecycles, validate_only
+from cs_image_system.base.commands.runtime_facts import describe_runtime, emptiness, runtime_bake_selection
+from cs_image_system.base.commands.state_migration import backup, begin, finish
+from cs_image_system.base.commands.unmount import read_receipt, unmount_storage
+from cs_image_system.base.commands.upgrade import upgrade
+from cs_image_system.base.commands.verify_instance import VerificationFailed, assert_last_verification, verify_instance
+from cs_image_system.base.encryption import (
+    INLINE_MARKER_RE,
+    decrypt_fields_in_text,
+    decrypt_marker,
+    decrypt_tree,
+    decrypted_plaintexts,
+    encrypt_fields_in_text,
+    encrypt_value,
+    identities_from_env,
+    is_marker,
+    recipients_from_config,
+    reset_decrypted_plaintexts,
+    rotate_text,
+)
+from cs_image_system.base.global_context import read_config_and_transform
+from cs_image_system.base.identity_attributes import (
+    AttributeApplyDisabled,
+    apply,
+    attributes_plan,
+    read_attributes_plan,
+)
+from cs_image_system.base.identity_attributes import (
+    probe as probe_fn,
+)
+from cs_image_system.base.in_process import names_subcommand, register_system_cli_runner
+from cs_image_system.base.lifecycles import all_lifecycles, parse_lifecycles
+from cs_image_system.base.loader import load_plugins
+from cs_image_system.base.materialize import PRIVATE_DIRNAME, ensure_ignored, materialize, mirror_path, sync_back
+from cs_image_system.base.meta_state import commit_meta_state
+from cs_image_system.base.mod_tests import run_mod_tests
+from cs_image_system.base.modules import installed_modules, materialise_modules
+from cs_image_system.base.network_facts import NetworkFactsError
 from cs_image_system.base.public_safe import (
     allow_from_config,
     candidate_files,
@@ -76,37 +101,14 @@ from cs_image_system.base.public_safe import (
     scan_tree,
     staged_paths,
 )
-from cs_image_system.base.mod_tests import run_mod_tests
 from cs_image_system.base.release import ReleaseError, declared_release_targets, release
-from cs_image_system.base.commands.state_migration import backup, begin, finish
-from cs_image_system.base.commands.gate import (
-    gate_plan,
-    plan_json_from_planfile,
-    planfile_is_stale,
-    planned_destroys,
-    sanctioned_addresses,
-)
-from cs_image_system.base.commands.unmount import read_receipt, unmount_storage
-from cs_image_system.base.utils import apply_flag_allows
-from cs_image_system.base.commands.identity_gids import export_gids
-from cs_image_system.base.state_query import DRIFT_STALE, query_state, write_state_report, import_foreign
-from cs_image_system.base.commands.restamp import restamp
-from cs_image_system.base.meta_state import commit_meta_state
-from cs_image_system.base.commands.relabel import relabel
-from cs_image_system.base.commands.verify_instance import VerificationFailed, verify_instance, assert_last_verification
-from cs_image_system.base.commands.dispose import dispose_images
-from cs_image_system.base.identity_attributes import (
-    AttributeApplyDisabled,
-    apply,
-    attributes_plan,
-    probe as probe_fn,
-    read_attributes_plan,
-)
-from cs_image_system.base import tofu_lock
-from cs_image_system.base.global_context import read_config_and_transform
-from cs_image_system.base.commands.load_failures import classify_load_failure
-from cs_image_system.base.in_process import names_subcommand, register_system_cli_runner
+from cs_image_system.base.state_query import DRIFT_STALE, import_foreign, query_state, write_state_report
+from cs_image_system.base.utils import apply_flag_allows, in_directory, is_base
+from cs_image_system.contract.commands import COMMANDS_ENTRY_POINT_GROUP, VERIFY_LOGIN, CommandMount
 from cs_image_system.contract.constants import SYSTEM_CLI
+from cs_image_system.contract.lifecycles import Lifecycle
+from cs_image_system.system.starters import changes_since as _changes_since
+from cs_image_system.system.starters import init_config
 
 if TYPE_CHECKING:
     from cs_image_system.base.global_context import GlobalTypeContext
@@ -213,7 +215,7 @@ def run_command(
         selected = parse_lifecycles(lifecycles, all_)
     except ValueError as e:
         typer.secho(str(e), fg=typer.colors.RED, err=True)
-        raise typer.Exit(code=2)
+        raise typer.Exit(code=2) from None
     if not selected:
         typer.secho("No lifecycles selected; pass names or --all "
                     f"({', '.join(lc.value for lc in all_lifecycles())}).", fg=typer.colors.RED, err=True)
@@ -256,8 +258,8 @@ def run_command(
             only = runtime_bake_selection(gctx, only_runtime, only)
         except ValueError as e:
             typer.secho(f"--only-runtime: {e}", fg=typer.colors.RED, err=True)
-            raise typer.Exit(code=2)
-        # ledger 70: a run scoped to one runtime's images plans no OTHER
+            raise typer.Exit(code=2) from None
+        # a run scoped to one runtime's images plans no OTHER
         # runtime's terraform roots either (their plans can only fail or waste
         # time -- one cloud's instance root looked its image family up and got a
         # 404 during a bake scoped to the other cloud, after a cycle had
@@ -292,7 +294,7 @@ def validate_command(
         lines, code = (failure.lines, failure.code) if failure is not None else (e.lines, e.code)
         for line in lines:
             typer.secho(line, fg=typer.colors.RED, err=True)
-        raise typer.Exit(code=code)
+        raise typer.Exit(code=code) from None
     for err in errors:
         typer.secho(f" - {err}", fg=typer.colors.RED, err=True)
     if errors:
@@ -323,7 +325,7 @@ def upgrade_command(
         previous, target = upgrade(_loaded(ctx), kind, name, to, runtime)
     except Exception as e:
         typer.secho(str(e), fg=typer.colors.RED, err=True)
-        raise typer.Exit(code=1)
+        raise typer.Exit(code=1) from None
     typer.secho(f"{kind} {name}: pin moved {previous} -> {target}", fg=typer.colors.GREEN)
 
 
@@ -400,7 +402,7 @@ def encrypt_command(
         recipients = recipients_from_config(root)
     except Exception as e:      # a message, not a traceback
         typer.secho(f"encrypt: {e}", fg=typer.colors.RED, err=True)
-        raise typer.Exit(code=1)
+        raise typer.Exit(code=1) from None
     if file:
         if not field:
             typer.secho("encrypt: --file needs at least one --field", fg=typer.colors.RED, err=True)
@@ -462,7 +464,7 @@ def decrypt_command(
         typer.echo(decrypt_marker(marker), nl=False)
     except ValueError as e:
         typer.secho(f"decrypt: {e}", fg=typer.colors.RED, err=True)
-        raise typer.Exit(code=1)
+        raise typer.Exit(code=1) from None
 
 
 @app.command(name="mask")
@@ -531,10 +533,11 @@ def materialize_command(
         typer.echo(str(dst), nl=False)
     except (ValueError, OSError) as e:
         typer.secho(f"materialize: {e}", fg=typer.colors.RED, err=True)
-        raise typer.Exit(code=1)
+        raise typer.Exit(code=1) from None
 
 
-from cs_image_system.system.starters import DEFAULT_STARTER as _DEFAULT_STARTER, STARTERS as _STARTERS
+from cs_image_system.system.starters import DEFAULT_STARTER as _DEFAULT_STARTER
+from cs_image_system.system.starters import STARTERS as _STARTERS
 
 # the help is built from the list the command accepts, so it cannot fall behind it
 _STARTER_HELP = (f"the starter tree: {', '.join(_STARTERS)}; a new tree defaults to {_DEFAULT_STARTER}, "
@@ -573,7 +576,7 @@ def init_config_command(
             changes = _changes_since(destination, changes_since, starter)
         except ValueError as e:
             typer.secho(f"init-config: {e}", fg=typer.colors.RED, err=True)
-            raise typer.Exit(code=2)
+            raise typer.Exit(code=2) from None
         for line in changes.lines():
             typer.echo(line)
         if not changes.clear:
@@ -583,10 +586,10 @@ def init_config_command(
         report = init_config(destination, starter, force=force)
     except ValueError as e:
         typer.secho(f"init-config: {e}", fg=typer.colors.RED, err=True)
-        raise typer.Exit(code=2)
+        raise typer.Exit(code=2) from None
     except (OSError, RuntimeError) as e:
         typer.secho(f"init-config: {e}", fg=typer.colors.RED, err=True)
-        raise typer.Exit(code=1)
+        raise typer.Exit(code=1) from None
     for line in report.lines():
         refused = line.startswith("init-config: REFUSED")
         typer.secho(line, fg=typer.colors.RED if refused else None, err=refused)
@@ -626,10 +629,10 @@ def modules_command(
         report = materialise_modules(write, force=force)
     except ValueError as e:
         typer.secho(f"modules: {e}", fg=typer.colors.RED, err=True)
-        raise typer.Exit(code=2)
+        raise typer.Exit(code=2) from None
     except OSError as e:
         typer.secho(f"modules: {e}", fg=typer.colors.RED, err=True)
-        raise typer.Exit(code=1)
+        raise typer.Exit(code=1) from None
     for line in report.lines():
         refused = line.startswith("modules: REFUSED")
         typer.secho(line, fg=typer.colors.RED if refused else None, err=refused)
@@ -665,10 +668,10 @@ def bootstrap_command(
         result = run_interview(sections, facts, quiet=quiet, prior=prior, only=section or None)
     except Refused as e:
         typer.secho(f"bootstrap: refused: {e}", fg=typer.colors.RED, err=True)
-        raise typer.Exit(code=2)
+        raise typer.Exit(code=2) from None
     except ValueError as e:
         typer.secho(f"bootstrap: {e}", fg=typer.colors.RED, err=True)
-        raise typer.Exit(code=2)
+        raise typer.Exit(code=2) from None
     write_answers(root / ANSWERS_FILE, result)
     written = regenerate(root, sections=sections) or []
     wanted = [name for name, a in sorted(result.items()) if a.get("wanted")]
@@ -792,7 +795,7 @@ def reencrypt_command(
         identities = identities_from_env()
     except Exception as e:      # a message, not a traceback
         typer.secho(f"reencrypt: NOTHING written -- {e}", fg=typer.colors.RED, err=True)
-        raise typer.Exit(code=1)
+        raise typer.Exit(code=1) from None
     files = sorted({p for pat in ("*.yml", "*.yaml") for p in root.rglob(pat) if p.is_file() and ".git" not in p.parts and "generated" not in p.parts})
     rewrites: list[tuple[Path, str, int]] = []
     for f in files:
@@ -803,7 +806,7 @@ def reencrypt_command(
             new_text, n = rotate_text(text, identities, recipients)
         except ValueError as e:
             typer.secho(f"reencrypt: NOTHING written -- {f}: {e}", fg=typer.colors.RED, err=True)
-            raise typer.Exit(code=1)
+            raise typer.Exit(code=1) from None
         rewrites.append((f, new_text, n))
     total = 0
     for f, new_text, n in rewrites:
@@ -864,7 +867,7 @@ def release_command(
                 release(gctx, name, build_id, model=m, note=f"declared release ({rt})")
             except ReleaseError as e:
                 typer.secho(f"release refused: {e}", fg=typer.colors.RED, err=True)
-                raise typer.Exit(code=1)
+                raise typer.Exit(code=1) from None
             done.append(f"{name}@{rt} {build_id} -> {m}")
         typer.secho("released: " + "; ".join(done), fg=typer.colors.GREEN)
         return
@@ -879,7 +882,7 @@ def release_command(
         entry = release(gctx, image, build_id, model=model, note=note)
     except ReleaseError as e:
         typer.secho(f"release refused: {e}", fg=typer.colors.RED, err=True)
-        raise typer.Exit(code=1)
+        raise typer.Exit(code=1) from None
     typer.echo(json.dumps(entry, indent=2, sort_keys=True))
     typer.secho(f"released {image} {build_id} for model {model}", fg=typer.colors.GREEN)
 
@@ -1072,7 +1075,7 @@ def export_gids_command() -> None:
         result = export_gids(query)
     except Exception as e:
         typer.secho(f"export-gids: {e}", fg=typer.colors.RED, err=True)
-        raise typer.Exit(code=1)
+        raise typer.Exit(code=1) from None
     typer.echo(json.dumps(result, sort_keys=True))
 
 
@@ -1092,7 +1095,7 @@ def runtime_describe_command(
         typer.echo(json.dumps(describe_runtime(_loaded(typer_cntx), name), indent=2, sort_keys=True))
     except ValueError as e:
         typer.secho(f"runtime describe: {e}", fg=typer.colors.RED, err=True)
-        raise typer.Exit(code=1)
+        raise typer.Exit(code=1) from None
 
 
 @app.command(name="empty")
@@ -1108,7 +1111,7 @@ def empty_command(
         result = emptiness(ctx, runtime)
     except (ValueError, NotImplementedError, RuntimeError) as e:
         typer.secho(f"empty: {e}", fg=typer.colors.RED, err=True)
-        raise typer.Exit(code=2)
+        raise typer.Exit(code=2) from None
     for kind, names in result["leftovers"].items():
         if names:
             unlabelled = set(result.get("unlabelled", {}).get(kind) or [])
@@ -1154,7 +1157,7 @@ def lineage_restamp_command(
         results = restamp(ctx, runtime, series)
     except (ValueError, RuntimeError) as e:
         typer.secho(f"restamp: {e}", fg=typer.colors.RED, err=True)
-        raise typer.Exit(code=1)
+        raise typer.Exit(code=1) from None
     typer.echo(json.dumps([r.as_dict() for r in results], indent=2, sort_keys=True))
     if not results:
         typer.secho("restamp: every series head already carries the current fingerprint", fg=typer.colors.GREEN)
@@ -1187,7 +1190,7 @@ def lineage_relabel_command(
         results = relabel(ctx, runtime, build)
     except (ValueError, RuntimeError, NotImplementedError) as e:
         typer.secho(f"relabel: {e}", fg=typer.colors.RED, err=True)
-        raise typer.Exit(code=1)
+        raise typer.Exit(code=1) from None
     typer.echo(json.dumps([r.as_dict() for r in results], indent=2, sort_keys=True))
     if not results:
         typer.secho("relabel: every recorded image carries its record's tags, and every standing storage and "
@@ -1229,7 +1232,7 @@ def unmount_storage_command(
                                  timeout=timeout)
     except (ValueError, NotImplementedError, RuntimeError) as e:
         typer.secho(f"unmount: {e}", fg=typer.colors.RED, err=True)
-        raise typer.Exit(code=1)
+        raise typer.Exit(code=1) from None
     typer.echo(json.dumps(result, indent=2, sort_keys=True))
     typer.secho(f"unmount receipt written for {instance}:{storage}", fg=typer.colors.GREEN)
 
@@ -1258,10 +1261,10 @@ def verify_instance_command(
     except VerificationFailed as e:
         typer.echo(json.dumps(e.record, indent=2, sort_keys=True))
         typer.secho(str(e), fg=typer.colors.RED, err=True)
-        raise typer.Exit(code=1)
+        raise typer.Exit(code=1) from None
     except (ValueError, NotImplementedError, RuntimeError) as e:
         typer.secho(f"verify: {e}", fg=typer.colors.RED, err=True)
-        raise typer.Exit(code=1)
+        raise typer.Exit(code=1) from None
     typer.echo(json.dumps(record, indent=2, sort_keys=True))
     if record.get("ok"):
         typer.secho(f"instance {name} verified", fg=typer.colors.GREEN)
@@ -1280,7 +1283,7 @@ def verify_assert_command(
         assert_last_verification(_loaded(typer_cntx), name)
     except VerificationFailed as e:
         typer.secho(str(e), fg=typer.colors.RED, err=True)
-        raise typer.Exit(code=1)
+        raise typer.Exit(code=1) from None
     typer.secho(f"instance {name}: last verification passed", fg=typer.colors.GREEN)
 
 
@@ -1348,7 +1351,7 @@ def dispose_image_command(
         results = dispose_images(ctx, build_ids, runtime, all_, retention=retention)
     except (ValueError, NotImplementedError, RuntimeError) as e:
         typer.secho(str(e), fg=typer.colors.RED, err=True)
-        raise typer.Exit(code=1)
+        raise typer.Exit(code=1) from None
     typer.echo(json.dumps([r.as_dict() for r in results], indent=2, sort_keys=True))
     if not results:
         typer.secho("dispose: nothing recorded to dispose of", fg=typer.colors.YELLOW)
@@ -1455,10 +1458,10 @@ def identity_attributes_command(
             lines = apply(ctx, plan, dry_run=not apply_for_real)
         except AttributeApplyDisabled as e:
             typer.secho(str(e), fg=typer.colors.RED, err=True)
-            raise typer.Exit(code=4)
+            raise typer.Exit(code=4) from None
         except ValueError as e:
             typer.secho(str(e), fg=typer.colors.RED, err=True)
-            raise typer.Exit(code=3)
+            raise typer.Exit(code=3) from None
         for line in lines:
             typer.echo(f"would set: {line}")
         if not lines:
@@ -1610,9 +1613,7 @@ mount_plugin_commands(app)
 @app.callback(invoke_without_command=False)
 def main(
     typer_cntx: typer.Context,
-    root_dir: Path | None = typer.Option(
-        None, "--root-dir", help="Location of root "
-    ),
+    root_dir: Annotated[Path | None, typer.Option("--root-dir", help="Location of root ")] = None,
     show_version: Annotated[bool, typer.Option(
         "--version", callback=_version_callback, is_eager=True,
         help="Print the installed release (the cs-image-system distribution's version) and exit; "
@@ -1677,11 +1678,14 @@ def main(
             release_lock = tofu_lock.acquire()
         except tofu_lock.NoCacheDir as e:
             typer.secho(f"--locked: {e}", fg=typer.colors.RED, err=True)
-            raise typer.Exit(code=2)
+            raise typer.Exit(code=2) from None
         except tofu_lock.LockHeld as e:
             typer.secho(f"--locked: {e}", fg=typer.colors.RED, err=True)
-            raise typer.Exit(code=tofu_lock.EX_TEMPFAIL)
+            raise typer.Exit(code=tofu_lock.EX_TEMPFAIL) from None
         typer_cntx.call_on_close(release_lock)
+    # the pair to the configuration loader's deliberate chdir into the root:
+    # the command runs after this callback returns, so the restore cannot be
+    # a scoped block here; it rides the context's close instead
     saved_dir = os.getcwd()
 
     def restore_dir():
@@ -1773,7 +1777,7 @@ def main(
             typer.secho(line, fg=typer.colors.RED, err=True)
         if verbose:
             raise e
-        raise typer.Exit(code=failure.code)
+        raise typer.Exit(code=failure.code) from None
 
 
 # ------------------------------------------------ the deferred steps, in this process
@@ -1813,8 +1817,7 @@ def run_in_process(ctx: "RunContext", args: list[str], working_directory: Path |
            # a deferred-load sub-app's command asks this for the context: already loaded
            "deferred_load": lambda: ctx}
     command = typer.main.get_command(app)
-    try:
-        os.chdir(wd)
+    with in_directory(wd):
         try:
             rv = command.main(args=args, prog_name=SYSTEM_CLI, standalone_mode=False, obj=obj)
         except typer.Abort:
@@ -1830,8 +1833,6 @@ def run_in_process(ctx: "RunContext", args: list[str], working_directory: Path |
                 log.error(f"{SYSTEM_CLI} {' '.join(args)}: {format_message()}")
                 return exit_code
             raise
-    finally:
-        os.chdir(here)
     return 0 if rv is None else int(rv)
 
 

@@ -9,6 +9,7 @@ bytes -- so the root is regenerable and ``config-drift`` can judge it."""
 from __future__ import annotations
 
 import json
+from collections.abc import Callable
 from dataclasses import replace
 from typing import Any, Iterable
 
@@ -65,10 +66,12 @@ def _aligned(pairs: list[tuple[str, str]], indent: int = 1) -> str:
     return "".join(f"{pad}{k.ljust(width)} = {v}\n" for k, v in pairs)
 
 
-def render_root(rendered: dict[str, Rendered], *, module_source_base: str, repository: str | None,
+def render_root(rendered: dict[str, Rendered], *, module_source: Callable[[str], str], repository: str | None,
                 secrets_dir: str | None) -> dict[str, str]:
     """``{filename: text}`` for the root: main.tf, providers.tf, variables.tf,
-    outputs.tf, bootstrap.auto.tfvars, set-secrets.sh, README.md."""
+    outputs.tf, bootstrap.auto.tfvars, set-secrets.sh, README.md.
+    ``module_source`` gives a section's module (``bootstrap_github``) the
+    source its call is written with."""
     files: dict[str, str] = {}
     sections = sorted(rendered.items())
 
@@ -100,10 +103,10 @@ def render_root(rendered: dict[str, Rendered], *, module_source_base: str, repos
 
     # main.tf: one module call per section
     main = HEADER
-    for name, r in sections:
+    for _name, r in sections:
         if not r.module:
             continue
-        pairs = [("source", json.dumps(f"{module_source_base.rstrip('/')}/{r.module}"))]
+        pairs = [("source", json.dumps(module_source(r.module)))]
         pairs += [(k, tfv(v, 1)) for k, v in sorted(r.module_args.items())]
         main += f"\nmodule \"{r.module}\" {{\n" + _aligned(pairs) + "}\n"
     for _, r in sections:

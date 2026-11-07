@@ -37,4 +37,4 @@ def test_a_builders_executable_copy_shares_the_run(monkeypatch):
         exe = builder.get_executable_copy()
         assert time.monotonic() - started < 2.0, f"{builder.name}: the copy walked the run"
         assert exe is not ctx.executables[builder.model.get_executable()]
-        assert getattr(exe, "_reg") is ctx.reg
+        assert exe._reg is ctx.reg

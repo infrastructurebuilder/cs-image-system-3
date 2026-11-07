@@ -14,11 +14,13 @@ on the local backend."""
 from __future__ import annotations
 
 import logging
-import os
 import shutil
+from collections.abc import Callable, Mapping
+from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Iterable
 
+from ..utils import module_source
 from .answers import ANSWERS_FILE, read_answers
 from .facts import Facts, gather, raw_yaml
 from .hcl import render_root
@@ -54,18 +56,36 @@ def module_source_base_of(config_root: Path) -> str:
     return "tfmodules"
 
 
-def module_source_for(config_root: Path, module_source_base: str) -> str:
-    """The module source prefix as written from ``generated/bootstrap``: a
-    relative base is relative to the config root (as it is for the
-    lifecycles' roots, four levels deep; this one is two), so it is
-    re-rooted; an absolute path, a URL or a registry address passes."""
-    base = module_source_base.rstrip("/")
-    if base.startswith("/") or "://" in base or base.startswith(("git@", "github.com/")):
-        return base
-    if not base.startswith("."):
-        base = f"./{base}"
-    target = (Path(config_root) / base).resolve()
-    return os.path.relpath(target, output_dir(config_root).resolve()).replace(os.sep, "/")
+def module_sources_of(config_root: Path) -> Any:
+    """The tree's ``config: module_sources`` from the raw ``cfg/_config.yml``
+    as declared (None when unset); :func:`module_source` judges its shape."""
+    config = raw_yaml(Path(config_root) / "cfg" / "_config.yml").get("config")
+    return config.get("module_sources") if isinstance(config, dict) else None
+
+
+@dataclass(frozen=True)
+class _SourceScope:
+    """The three things :func:`module_source` reads from a run context, for
+    the bootstrap root: generated outside a run, it has no context."""
+    config: Mapping[str, Any]
+    working_path: Path
+    generation_path: Path
+
+
+def module_source_of(config_root: Path, module_source_base: str,
+                     module_sources: Mapping[str, Any] | None = None) -> Callable[[str], str]:
+    """A section's module -> the source its call is written with from
+    ``generated/bootstrap``, resolved exactly as every generated root
+    resolves its own (:func:`module_source`): a relative base is relative to
+    the config root and re-rooted for this root's depth (two levels, not the
+    lifecycles' four); a ``config: module_sources`` entry for the module IS
+    the module; an absolute path, a URL or a registry address passes."""
+    root = Path(config_root)
+    config: dict[str, Any] = {"module_source_base": module_source_base}
+    if module_sources is not None:
+        config["module_sources"] = module_sources
+    scope = _SourceScope(config=config, working_path=root, generation_path=root / "generated")
+    return lambda module: module_source(scope, module, Path(BOOTSTRAP_DIRNAME))
 
 
 #: What a person's own `tofu` leaves in the root, which no run may delete:
@@ -115,7 +135,7 @@ def prune(config_root: Path) -> bool:
 
 
 def render_files(sections: Iterable[Section], answers: dict[str, dict[str, Any]], *,
-                 module_source: str, facts: Facts | None = None) -> dict[str, str]:
+                 module_source: Callable[[str], str], facts: Facts | None = None) -> dict[str, str]:
     by_name = {s.name: s for s in sections}
     rendered: dict[str, Rendered] = {}
     repository: str | None = None
@@ -135,14 +155,17 @@ def render_files(sections: Iterable[Section], answers: dict[str, dict[str, Any]]
         if name == "github":
             repository = str(section_answers.get("repository") or "") or None
             secrets_dir = str(section_answers.get("secrets_dir") or "") or None
-    return render_root(rendered, module_source_base=module_source, repository=repository, secrets_dir=secrets_dir)
+    return render_root(rendered, module_source=module_source, repository=repository, secrets_dir=secrets_dir)
 
 
 def regenerate(config_root: Path, *, module_source_base: str | None = None,
+               module_sources: Mapping[str, Any] | None = None,
                sections: Iterable[Section] | None = None) -> list[Path] | None:
     """Rewrite ``generated/bootstrap/`` from ``bootstrap.yaml``; None (and the
     directory pruned) when there is no answers file. Returns the paths
-    written, the ``.gitignore`` included."""
+    written, the ``.gitignore`` included. The module source base and the
+    per-module ``module_sources`` are the tree's raw declarations unless
+    given (a run gives its loaded configuration's)."""
     root = Path(config_root)
     answers_path = root / ANSWERS_FILE
     if not answers_path.is_file():
@@ -153,10 +176,11 @@ def regenerate(config_root: Path, *, module_source_base: str | None = None,
         sections = discover()
     answers = read_answers(answers_path)
     base = module_source_base or module_source_base_of(root)
+    sources = module_sources if module_sources is not None else module_sources_of(root)
     # the raw declarations, for a section that says what it does not make;
     # no git, no gh: a regeneration inside a run must stay cheap and offline
     facts = gather(root, git=False, gh=False)
-    files = render_files(sections, answers, module_source=module_source_for(root, base), facts=facts)
+    files = render_files(sections, answers, module_source=module_source_of(root, base, sources), facts=facts)
     out = output_dir(root)
     out.mkdir(parents=True, exist_ok=True)
     clear_generated(out)                 # rewrite what generation owns; keep .terraform, the lock, a plan, the state
@@ -176,11 +200,13 @@ def regenerate_in_run(ctx: "GlobalTypeContext") -> None:
     """Inside every run, before the lifecycles, by decision (see docs/CHANGES.md#s70)."""
     root = Path(ctx.working_path)
     base = None
+    sources = None
     try:
         base = ctx.config.get("module_source_base")
+        sources = ctx.config.get("module_sources")
     except Exception:
         base = None
-    written = regenerate(root, module_source_base=str(base) if base else None)
+    written = regenerate(root, module_source_base=str(base) if base else None, module_sources=sources)
     if written:
         log.info(f"bootstrap: generated/{BOOTSTRAP_DIRNAME} regenerated from {ANSWERS_FILE} "
                  f"({len(written)} files; generation only, never applied by a run)")

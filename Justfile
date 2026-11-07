@@ -72,7 +72,8 @@ full-test: test
 # index itself (its upload endpoint and every project page answer, and no project
 # holds the version), the index token, the tag -- then the bar, the index asked AGAIN (the
 # bar takes twenty minutes), the bump, the lock, the
-# build and the upload, and only then the commit and the tag, so a failed upload leaves
+# build and the upload, and only then the release's row in docs/CHANGES.md, the commit and
+# the tag, so a failed upload leaves
 # an uncommitted bump to discard and never a tagged, unpublished version. TARGET is a
 # part for bump-my-version (`patch`, `minor` and `major` open the next version as its
 # first development release, 0.1.0 -> 0.1.1.dev1; `dev` is the next development release
@@ -83,148 +84,24 @@ full-test: test
 # dry form: the probes and the version, nothing changed. Nothing is pushed: `git push
 # --follow-tags origin main` and develop's fast-forward back are the operator's acts, and
 # the pushed tag makes CI publish (it uploads nothing the index already holds).
+# The family's logic is scripts/release.py (every step a function, tested with a stubbed
+# shell); the recipes here hand it the branch and the live configuration's root.
 [doc("Gated on the bar (test) or full-test (pypi): probe, bump, lock, build, publish, commit, tag v<version>; `yes` = dry")]
 release target index="test" dry="no":
-	#!/usr/bin/env bash
-	set -euo pipefail
-	case "{{index}}" in
-		test) name=testpypi ;;
-		pypi) name=pypi ;;
-		*) echo "release: the index is test (TestPyPI, the default) or pypi, not '{{index}}'"; exit 2 ;;
-	esac
-	# Every release, development or final, is cut on the one release branch (`release_branch`
-	# above) or on a maintenance branch.
-	# On the release branch develop must be an ancestor: a release never leaves a stage behind.
-	branch=$(git rev-parse --abbrev-ref HEAD)
-	case "$branch" in
-		"{{release_branch}}")
-			dev=develop; git rev-parse -q --verify develop >/dev/null || dev=origin/develop
-			git merge-base --is-ancestor "$dev" HEAD || { echo "release: {{release_branch}} is behind $dev -- a release never leaves a stage behind; first, on {{release_branch}}: git merge --ff-only $dev -- nothing was changed"; exit 1; } ;;
-		release/[0-9]*.[0-9]*) echo "release: on the maintenance branch $branch (an old version's fix; develop is not checked)" ;;
-		*) echo "release: this checkout is on '$branch'; a release is cut on {{release_branch}} alone (or a maintenance branch release/<major.minor>) -- nothing was changed"; exit 1 ;;
-	esac
-	shape='^[0-9]+\.[0-9]+\.[0-9]+(\.dev[0-9]+)?$'
-	current=$(uv run --no-sync bump-my-version show current_version)
-	if [[ "{{target}}" =~ $shape ]]; then
-		new="{{target}}"; bump=(bump --new-version "$new")
-	else
-		new=$(uv run --no-sync bump-my-version show --increment "{{target}}" new_version 2>/dev/null) || { echo "release: '{{target}}' is neither a version part (patch, minor, major, dev, stage) nor a version"; exit 2; }
-		bump=(bump "{{target}}")
-	fi
-	[[ "$new" =~ $shape ]] || { echo "release: $current is a final version and '{{target}}' would make it $new -- open the next version with patch, minor or major (its first development release), then dev for each further one"; exit 2; }
-	# The index itself, first of the probes and again after the bar. 75 is "not now";
-	# 1 is a version some project already holds (never re-cut)
-	ready() {
-		set +e; uv run --no-sync python scripts/publish-target-ready "{{index}}" --version "$new" --refuse-held --quiet; rc=$?; set -e
-		case $rc in
-			0) ;;
-			75) echo "release: $name cannot take an upload now (above) -- nothing was changed; it is the index's condition, not the release's: \`just index-ready {{index}} wait\` waits for it"; exit 75 ;;
-			1) echo "release: $new is already on $name (above) -- a version is never re-cut"; exit 1 ;;
-			*) echo "release: the publish-target probe could not run (exit $rc)"; exit 2 ;;
-		esac
-	}
-	ready
-	# the probes, before anything changes. The token: UV_PUBLISH_TOKEN, else the index's own
-	# name (TEST_PYPI_TOKEN or PYPI_TOKEN, the repository secrets' names, so one .envrc line
-	# serves the shell and CI alike)
-	token_var=TEST_PYPI_TOKEN; [ "$name" = pypi ] && token_var=PYPI_TOKEN
-	export UV_PUBLISH_TOKEN="${UV_PUBLISH_TOKEN:-${!token_var:-}}"
-	[ -n "$UV_PUBLISH_TOKEN" ] || { echo "release: neither UV_PUBLISH_TOKEN nor $token_var is set -- the API token for $name; a release publishes, so it refuses up front rather than leave a tagged, unpublished version"; exit 2; }
-	[ -z "$(git tag -l "v$new")" ] || { echo "release: v$new is already tagged here -- a version is never re-cut, even after its files were deleted from the index"; exit 1; }
-	just _release-probes "{{index}}" release || exit 1
-	gate=test; [ "$name" = pypi ] && gate=full-test
-	if [ "{{dry}}" = "yes" ]; then
-		echo "release: dry -- on $branch, $current would become $new: $name ready and free of it, untagged, token present, the probes above passed. The real form: just $gate, the index again, bump-my-version ${bump[*]}, uv lock, just publish {{index}}, commit 'release $new', tag v$new"
-		exit 0
-	fi
-	dirty=$(git status --porcelain)
-	[ -z "$dirty" ] || { echo "release: the working tree must be clean -- commit these changes, or discard them (git restore, or git stash); the guard counts every tracked change and every file git does not ignore:"; echo "$dirty"; exit 1; }
-	if [ "$name" = pypi ]; then
-		# full-test's docker leg writes meta-state/mod-tests.yaml in the LIVE configuration (the evidence
-		# that the released modifications passed): release commits it THERE
-		just full-test
-		[ -f "{{config_root}}/meta-state/mod-tests.yaml" ] || { echo "release: no modification-test evidence at {{config_root}}/meta-state/mod-tests.yaml (run full-test with docker)"; exit 1; }
-		cdirty=$(git -C "{{config_root}}" status --porcelain | grep -v ' meta-state/mod-tests.yaml$' || true)
-		[ -z "$cdirty" ] || { echo "release: the live configuration must be clean apart from its mod-test evidence:"; echo "$cdirty"; exit 1; }
-	else
-		just test
-	fi
-	# the bar takes twenty minutes; an index that went down meanwhile leaves a clean tree
-	ready
-	uv run --no-sync bump-my-version "${bump[@]}"
-	uv lock
-	# the upload comes BEFORE the commit and the tag: a failed upload leaves an uncommitted bump.
-	# What to do with it depends on whether any project already holds the
-	# version, counted by publish-dist from its own upload (the index's pages lag by minutes)
-	export CSIS_PUBLISH_SUMMARY; CSIS_PUBLISH_SUMMARY=$(mktemp "${TMPDIR:-/tmp}/csis-publish-summary.XXXXXX")
-	set +e; just publish {{index}}; prc=$?; set -e
-	if [ "$prc" -ne 0 ]; then
-		held=$(sed -n 's/^held //p' "$CSIS_PUBLISH_SUMMARY" 2>/dev/null); total=$(sed -n 's/^total //p' "$CSIS_PUBLISH_SUMMARY" 2>/dev/null)
-		rm -f "$CSIS_PUBLISH_SUMMARY"
-		if [ "${held:-0}" -gt 0 ]; then
-			when="again"; [ "$prc" -eq 75 ] && when="again in a day"
-			echo "release: the upload to $name stopped part-way: $held of ${total:-?} projects hold $new, and those files can never be uploaded again under another version. KEEP the uncommitted bump to $new; run \`just publish {{index}}\` $when until every project holds it, then \`just release-finish {{index}}\` commits, tags and records the release"
-			exit "$prc"
-		fi
-		echo "release: the upload to $name failed and no project holds $new; the bump is uncommitted -- discard it with: git checkout -- pyproject.toml packages/*/pyproject.toml uv.lock"
-		exit 1
-	fi
-	rm -f "$CSIS_PUBLISH_SUMMARY"
-	if [ "$name" = pypi ]; then
-		git -C "{{config_root}}" add meta-state/mod-tests.yaml
-		git -C "{{config_root}}" diff --cached --quiet || git -C "{{config_root}}" commit -q -m "release $new: modification-test evidence"
-	fi
-	git add pyproject.toml packages/*/pyproject.toml uv.lock
-	git commit -q -m "release $new"
-	git tag -a "v$new" -m "release $new"
-	after="git push --follow-tags origin $branch"
-	[ "$branch" = "{{release_branch}}" ] && after="$after; then develop takes it back: git checkout develop && git merge --ff-only {{release_branch}} && git push origin develop"
-	echo "release: $new is on $name, committed and tagged v$new; push with: $after (CI checks the pushed tag against the index and uploads nothing already there)"
+	@uv run --no-sync --project "{{justfile_directory()}}" python "{{justfile_directory()}}/scripts/release.py" release "{{target}}" "{{index}}" "{{dry}}" \
+		--release-branch "{{release_branch}}" --config-root {{quote(config_root)}}
 
 # Finish a release whose upload `release` could not complete: after it
 # stopped part-way and `just publish INDEX` was run again until every project held the version
 # -- a first PyPI release of many projects takes days. On `release_branch`, with the bump
 # uncommitted and nothing else changed, and only when the index holds the version for every
-# project: the modification-test evidence (on PyPI), the commit, the tag. Nothing is pushed.
+# project: the modification-test evidence (on PyPI), the docs/CHANGES.md row, the commit, the
+# tag. Nothing is pushed: `git push --follow-tags origin main` and develop's fast-forward back are
+# the operator's acts.
 [doc("After a release's upload was completed by `just publish`: check every project holds the version, then commit and tag it")]
 release-finish index="test":
-	#!/usr/bin/env bash
-	set -euo pipefail
-	case "{{index}}" in
-		test) name=testpypi ;;
-		pypi) name=pypi ;;
-		*) echo "release-finish: the index is test (TestPyPI, the default) or pypi, not '{{index}}'"; exit 2 ;;
-	esac
-	branch=$(git rev-parse --abbrev-ref HEAD)
-	case "$branch" in
-		"{{release_branch}}"|release/[0-9]*.[0-9]*) ;;
-		*) echo "release-finish: this checkout is on '$branch'; a release is cut on {{release_branch}} alone (or a maintenance branch release/<major.minor>) -- nothing was changed"; exit 1 ;;
-	esac
-	just _release-probes "{{index}}" release-finish || exit 1
-	new=$(uv run --no-sync bump-my-version show current_version)
-	committed=$(git show HEAD:pyproject.toml | sed -n 's/^version = "\(.*\)"$/\1/p' | head -1)
-	[ "$committed" != "$new" ] || { echo "release-finish: $new is already committed -- there is no uncommitted bump to finish"; exit 1; }
-	[ -z "$(git tag -l "v$new")" ] || { echo "release-finish: v$new is already tagged here"; exit 1; }
-	others=$(git status --porcelain | grep -v -E '^ M (pyproject\.toml|packages/[^/]+/pyproject\.toml|uv\.lock)$' || true)
-	[ -z "$others" ] || { echo "release-finish: the tree must hold the bump to $new and nothing else:"; echo "$others"; exit 1; }
-	set +e; uv run --no-sync python scripts/publish-target-ready "{{index}}" --version "$new" --all-held --quiet; rc=$?; set -e
-	case $rc in
-		0) ;;
-		1) echo "release-finish: not every project holds $new on $name (above) -- run \`just publish {{index}}\` until it completes (the index's pages lag an upload by minutes)"; exit 1 ;;
-		75) echo "release-finish: $name cannot be asked now (above) -- nothing was changed"; exit 75 ;;
-		*) echo "release-finish: the publish-target probe could not run (exit $rc)"; exit 2 ;;
-	esac
-	if [ "$name" = pypi ]; then
-		[ -f "{{config_root}}/cfg/_config.yml" ] || { echo "release-finish: no live configuration at {{config_root}} (cfg/_config.yml) for the modification-test evidence -- nothing was changed"; exit 1; }
-		git -C "{{config_root}}" add meta-state/mod-tests.yaml 2>/dev/null || true
-		git -C "{{config_root}}" diff --cached --quiet || git -C "{{config_root}}" commit -q -m "release $new: modification-test evidence"
-	fi
-	git add pyproject.toml packages/*/pyproject.toml uv.lock
-	git commit -q -m "release $new"
-	git tag -a "v$new" -m "release $new"
-	after="git push --follow-tags origin $branch"
-	[ "$branch" = "{{release_branch}}" ] && after="$after; then develop takes it back: git checkout develop && git merge --ff-only {{release_branch}} && git push origin develop"
-	echo "release-finish: $new is on $name for every project, committed and tagged v$new; push with: $after"
+	@uv run --no-sync --project "{{justfile_directory()}}" python "{{justfile_directory()}}/scripts/release.py" release-finish "{{index}}" \
+		--release-branch "{{release_branch}}" --config-root {{quote(config_root)}}
 
 # What a release needs and `full-test` only finds out twenty minutes in, asked
 # first and in one line each, before anything changes. For every index: the venv is in step with
@@ -237,28 +114,8 @@ release-finish index="test":
 # same verdicts. `release-finish` asks the venv alone: it runs no bar.
 [private]
 _release-probes index who="release":
-	#!/usr/bin/env bash
-	set -uo pipefail
-	uv sync --all-extras --check >/dev/null 2>&1 || { echo "{{who}}: the venv is behind the checkout (uv sync --all-extras --check) -- \`just init\` syncs it -- nothing was changed"; exit 1; }
-	echo "{{who}}: the venv is in step with the lock"
-	if [ "{{index}}" = pypi ] && [ "{{who}}" = release ]; then
-		docker info >/dev/null 2>&1 || { echo "{{who}}: docker is not answering (docker info) -- full-test's legs need it; start the daemon -- nothing was changed"; exit 1; }
-		echo "{{who}}: docker answers"
-		just config-guard >/dev/null 2>&1 || { echo "{{who}}: no live configuration at {{config_root}} (\`just config-guard\` says why) -- full-test's live legs need it -- nothing was changed"; exit 1; }
-		just preflight >/dev/null 2>&1 || { echo "{{who}}: a runtime session of the live configuration is absent or expired (\`just preflight\` says which) -- full-test's live legs would be skipped; log in -- nothing was changed"; exit 1; }
-		# how long the soonest-expiring session has left; a login lasts one hour and a PyPI release takes nearly all of it
-		left=$(uv run --no-sync python scripts/session-minutes-left {{quote(config_root)}} 2>/dev/null || true)
-		if [ -z "$left" ]; then
-			echo "{{who}}: every runtime session of the live configuration is present"
-		elif [ "$left" -lt 0 ]; then
-			echo "{{who}}: a session's cached token lapsed $((-left)) minutes ago -- a release takes about an hour; log in again first (\`just preflight\` names the command) -- nothing was changed"
-			exit 1
-		elif [ "$left" -lt 60 ]; then
-			echo "{{who}}: every runtime session of the live configuration is present; the soonest-expiring session has $left minutes left and a release takes about an hour -- log in again from a second terminal about halfway: a running run picks the new token up"
-		else
-			echo "{{who}}: every runtime session of the live configuration is present; the soonest-expiring session has $left minutes left"
-		fi
-	fi
+	@uv run --no-sync --project "{{justfile_directory()}}" python "{{justfile_directory()}}/scripts/release.py" probes "{{index}}" "{{who}}" \
+		--config-root {{quote(config_root)}}
 
 # Build and upload the version in the tree: `dist/` cleaned, every package
 # built, every file uploaded to INDEX -- `test` (TestPyPI, the default) or `pypi` -- by
@@ -272,40 +129,18 @@ _release-probes index who="release":
 # never be uploaded again, on either index: the next upload is a new version.
 # Can the index take an upload now? One line per endpoint (the upload endpoint and every
 # project's page); exit 0 ready, 75 not ready. `wait` probes every minute until it is, two hours at most.
+[doc("Can INDEX (test or pypi) take an upload now? exit 0 ready, 75 not; `wait` probes every minute, two hours at most")]
 index-ready index="test" wait="no":
 	@uv run --no-sync python scripts/publish-target-ready {{index}} {{ if wait == "wait" { "--wait 7200" } else { "" } }}
 
+# The index asked first (a partial upload of this version is what a re-run completes, so a
+# project that already holds it is reported, not refused), then `dist/` cleaned, `just build`,
+# and scripts/publish-dist: one project at a time, sdist and wheel together, dependencies first
+# and cs-image-system last; the two workspace-only plugins (`Private :: Do Not Upload`) are built
+# and never uploaded; a 429 is exit 75 with what is left; a failure shows its cause lines.
 [doc("Build and upload the version in the tree to TestPyPI (`test`, the default) or PyPI (`pypi`); UV_PUBLISH_TOKEN from the environment")]
 publish index="test":
-	#!/usr/bin/env bash
-	set -euo pipefail
-	case "{{index}}" in
-		test) name=testpypi ;;
-		pypi) name=pypi ;;
-		*) echo "publish: the index is test (TestPyPI, the default) or pypi, not '{{index}}'"; exit 2 ;;
-	esac
-	# the token: UV_PUBLISH_TOKEN, else the index's own name (TEST_PYPI_TOKEN or PYPI_TOKEN)
-	token_var=TEST_PYPI_TOKEN; [ "$name" = pypi ] && token_var=PYPI_TOKEN
-	export UV_PUBLISH_TOKEN="${UV_PUBLISH_TOKEN:-${!token_var:-}}"
-	[ -n "$UV_PUBLISH_TOKEN" ] || { echo "publish: neither UV_PUBLISH_TOKEN nor $token_var is set -- the API token for $name, from the environment; never in this file"; exit 2; }
-	version=$(uv run --no-sync bump-my-version show current_version)
-	# the index first -- a partial upload of this version is what a re-run completes, so
-	# a project that already holds it is reported, not refused
-	set +e; uv run --no-sync python scripts/publish-target-ready "{{index}}" --version "$version" --quiet; rc=$?; set -e
-	case $rc in
-		0) ;;
-		75) echo "publish: $name cannot take an upload now (above) -- nothing was uploaded; it is the index's condition: \`just index-ready {{index}} wait\` waits for it"; exit 75 ;;
-		*) echo "publish: the publish-target probe could not run (exit $rc)"; exit 2 ;;
-	esac
-	rm -rf dist
-	just build
-	# the two workspace-only plugins (`Private :: Do Not Upload`) are built and never uploaded
-	packages=$(grep -L 'Private :: Do Not Upload' packages/*/pyproject.toml | wc -l | tr -d ' ')
-	# one project at a time, sdist and wheel together, dependencies first and
-	# cs-image-system last; a 429 is exit 75 with what is left; a failure shows its cause lines;
-	# when everything was already there, one file is sent again to prove the token
-	uv run --no-sync python scripts/publish-dist "{{index}}" --version "$version" --token-var "$token_var" ${CSIS_PUBLISH_SUMMARY:+--summary "$CSIS_PUBLISH_SUMMARY"}
-	echo "publish: cs-image-system $version is on $name (the system and its $packages published packages, sdist and wheel each; files already there with the same content were skipped)"
+	@uv run --no-sync --project "{{justfile_directory()}}" python "{{justfile_directory()}}/scripts/release.py" publish "{{index}}"
 
 # ------------------------------------------------------------ development
 
@@ -366,6 +201,7 @@ format:
 
 # Run linter (blocking) -- same command CI runs; then the licensing check: every file carries
 # copyright and licence information (an SPDX header, or a REUSE.toml declaration)
+[doc("The linter (ruff, blocking, as CI runs it), then the licensing check: an SPDX header or a REUSE.toml declaration on every file")]
 lint:
 	@uv run ruff check src packages tests
 	@uv run reuse lint
@@ -373,6 +209,7 @@ lint:
 # Licence headers (REUSE): the SPDX two-liner, holder and licence, on every source file that lacks one.
 # Never the fixtures (hashed modification content, the golden) nor prose: those are declared in
 # REUSE.toml. Idempotent (--skip-existing); ends with the lint.
+[doc("Add the SPDX header to every source file that lacks one (never the fixtures or prose: REUSE.toml declares those); then the lint")]
 headers:
 	#!/usr/bin/env bash
 	set -euo pipefail
@@ -391,10 +228,11 @@ reuse-live: config-guard
 lint-fix:
 	@uv run ruff check --fix src packages tests
 
+[doc("Fix linting issues automatically, unsafe fixes included; review the diff")]
 lint-unsafe-fix:
 	@uv run ruff check --fix --unsafe-fixes src packages tests
 
-# Type check with pyright (basic mode; see [tool.pyright] in pyproject.toml)
+# Type check with pyright (standard mode; see [tool.pyright] in pyproject.toml)
 typecheck:
 	@uv run pyright
 
@@ -405,11 +243,13 @@ pytest:
 # One file, or any pytest expression, for iterating on a single change.
 # NOT the acceptance bar -- `just test` is, and a change is not done until
 # that passes. This exists so proving one file does not cost a full suite.
+[doc("One file, or any pytest expression, for iterating on one change; NOT the acceptance bar (`just test` is)")]
 test-one *ARGS:
 	@uv run pytest {{ARGS}}
 
 # Run every modification twice in a throwaway local container (apply +
 # idempotence); needs docker. Results: <config_root>/meta-state/mod-tests.yaml
+[doc("Run every modification twice in a throwaway container (apply + idempotence); needs docker; results in <config_root>/meta-state/mod-tests.yaml")]
 test-mods *ARGS: config-guard
 	@{{live_cli}} test-mods {{ARGS}}
 
@@ -417,6 +257,7 @@ test-mods *ARGS: config-guard
 # docker -- run twice, against an equal and a differing pre-existing group, a
 # member with no account yet, sudo through visudo. A leg of `full-test`; under
 # `just test` the same file is skipped.
+[doc("The posix accounts script on AlmaLinux 10 and Debian 12 under docker, run twice, with pre-existing groups and sudo; a leg of full-test")]
 test-posix-accounts *ARGS:
 	@CSIS_CONTAINER_TESTS=1 uv run pytest tests/test_posix_containers.py {{ARGS}}
 
@@ -424,6 +265,7 @@ test-posix-accounts *ARGS:
 # under docker, with the package database REALLY held by another process (rpm's
 # transaction lock, dpkg's frontend lock). A leg of `full-test`; under `just
 # test` the same file is skipped.
+[doc("A bake's settle step and step runner on AlmaLinux 10 and Debian 12 under docker, the package database held by another process; a leg of full-test")]
 test-bake-steps *ARGS:
 	@CSIS_CONTAINER_TESTS=1 uv run pytest tests/test_bake_steps_containers.py {{ARGS}}
 
@@ -435,6 +277,7 @@ test-bake-steps *ARGS:
 # docker and ansible plugins, and ansible-playbook; several minutes (pulls,
 # two package updates, the mods). A leg of `full-test`; under `just test` the
 # same file is skipped.
+[doc("The docker runtime bakes two base images and an instance image on the local daemon, from nothing to nothing; needs docker, packer and ansible; a leg of full-test")]
 test-docker-bake *ARGS:
 	@DOCKER_HOST="$(just docker-host)" CSIS_DOCKER_KEEP_HOST=1 CSIS_DOCKER_BAKE=1 uv run pytest tests/test_docker_bake_live.py {{ARGS}}
 
@@ -445,6 +288,7 @@ test-docker-bake *ARGS:
 # a new build (a new generation); both decommissioned, the volume destroyed, the
 # images disposed. Needs what test-docker-bake needs plus tofu; several minutes
 # more. A leg of `full-test`; under `just test` the same file is skipped.
+[doc("The docker runtime's change cycle on the local daemon: the bake, two containers launched through tofu, stopped, upgraded, decommissioned; a leg of full-test")]
 test-docker-cycle *ARGS:
 	@DOCKER_HOST="$(just docker-host)" CSIS_DOCKER_KEEP_HOST=1 CSIS_DOCKER_CYCLE=1 uv run pytest tests/test_docker_cycle_live.py tests/test_docker_starter_live.py {{ARGS}}
 
@@ -464,6 +308,7 @@ docker-host:
 # that has one); unset, the leg is SKIPPED, said so, and exits 0. The leg refuses to
 # pass on a daemon that does not say it is Podman. What differs from docker is what
 # it fails on, and is recorded in docs/OPERATIONS.md, "Container hosts".
+[doc("test-docker-cycle against Podman's API service at CSIS_PODMAN_HOST; unset, SKIPPED with exit 0; refuses a daemon that is not Podman")]
 test-podman-cycle *ARGS:
 	#!/usr/bin/env bash
 	set -euo pipefail
@@ -482,6 +327,7 @@ test-podman-cycle *ARGS:
 # SKIPPED, said so with the reason, and exits 0. A bare `docker` keeps answering from
 # whatever else is running (OrbStack): only the leg's own calls are aimed at Podman.
 # Podman 6 dropped Intel Macs: this leg proves Podman 5.8 there until June 2027.
+[doc("test-podman-cycle against Podman Desktop's machine on macOS (its address read from `podman machine`); no machine, or a stopped one, is SKIPPED")]
 test-podman-desktop-cycle *ARGS:
 	#!/usr/bin/env bash
 	set -uo pipefail
@@ -498,6 +344,7 @@ test-podman-desktop-cycle *ARGS:
 # Build the CI runner image (ci/runner-image: AlmaLinux 10, every tool pinned) for
 # amd64 and run its probe, which asks every tool its version from where cfg/executables.yml
 # pins it. A leg of `full-test`; the Runner image workflow builds and publishes the same.
+[doc("Build the CI runner image (ci/runner-image) for amd64 and run its probe: every pinned tool answers its version; a leg of full-test")]
 runner-image tag="csis-ci:alma10-local":
 	@docker build --platform linux/amd64 -t {{tag}} ci/runner-image
 	@docker run --rm --platform linux/amd64 {{tag}} csis-ci-probe
@@ -505,11 +352,13 @@ runner-image tag="csis-ci:alma10-local":
 # The credential sessions the reference configuration's runtimes need, read from the caches over the
 # loaded configuration -- a load reaches no cloud, so no session is needed to ask (exit 0: every one
 # present; 2: one absent or expired) -- full-test's gate
+[doc("The runtime sessions the reference configuration needs, read from the credential caches (exit 0 all present, 2 one absent or expired); full-test's gate")]
 preflight: config-guard
 	@{{live_cli}} preflight
 
 # Regenerate tests/fixtures/v2_golden (the pinned V2 emission) after an
 # INTENTIONAL emission change; review the resulting diff before committing.
+[doc("Regenerate tests/fixtures/v2_golden (the pinned emission) after an INTENTIONAL emission change; review the diff before committing")]
 golden-regen:
 	@uv run python tests/golden.py
 
@@ -517,6 +366,7 @@ golden-regen:
 # untracked files that are not ignored -- for material that must never be public (keys, tokens,
 # PEM bodies, an age identity, plans and state by name; addresses and long tokens outside prose
 # and tests). The allow list is the frozen fixture's cfg/_config.yml public_safe.allow. CI runs it.
+[doc("Scan what a commit could publish (tracked and unignored files) for material that must never be public, under the fixture's allow list; CI runs it")]
 public-safe *ARGS:
 	@uv run cs-image-system public-safe --tree . --config tests/fixtures/config/cfg/_config.yml {{ARGS}}
 
@@ -525,6 +375,7 @@ public-safe *ARGS:
 # the result with the root's own allow list, the ignore policy checked line by line, then ONE commit on
 # main (PUBLISH_MESSAGE, default "Initial public release"). Refuses a dirty root, a finding, a missing
 # ignore line or an existing DEST. Never pushes: the remote is the operator's act.
+[doc("Build a publishable tree of ROOT's tracked files at HEAD, gate it public-safe, and make ONE commit on main at DEST; never pushes")]
 publish-tree root dest:
 	#!/usr/bin/env bash
 	set -euo pipefail
@@ -556,9 +407,10 @@ publish-tree root dest:
 # commit `cs-image-system <version>` on main and the tag `v<version>`, after the public-safe gate with
 # the starter's own allow list. A final version only (a template names a version teams install from
 # PyPI), from a clean checkout of its tag, never twice. `yes` is the dry form: it builds every tree
-# and shows what would change, and pushes nothing. The push needs STARTER_PUSH_TOKEN (Contents and
-# Workflows read/write on the four repositories); CI's publish job runs it after PyPI.
-[doc("Publish the four template repositories from docs/examples at a final release's tag; `yes` = dry")]
+# and shows what would change, and pushes nothing. The starters are every tree of docs/examples/
+# with a cfg/ (the one list, read by `scripts/starter-tree --list`); the push needs STARTER_PUSH_TOKEN
+# (Contents and Workflows read/write on every template repository); CI's publish job runs it after PyPI.
+[doc("Publish every starter tree of docs/examples as its template repository at a final release's tag; `yes` = dry")]
 publish-starters dry="no":
 	#!/usr/bin/env bash
 	set -euo pipefail
@@ -611,6 +463,7 @@ hooks:
 
 # Alias of `test` (the contract's name for the blocking fast suite); kept
 # because notes and habits say `just verify`.
+[doc("Alias of `test`, the blocking fast suite; kept because notes and habits say `just verify`")]
 verify: test
 
 # Clean build artifacts and temporary files
@@ -644,6 +497,7 @@ clean-all: clean clean-venv
 # modules written beside it, as the fixture's module_source_base expects) with the state query off (the
 # fixture's declarations are synthetic; reality would read as drift), then the modification tests under
 # docker over the copy. Exit 0 when every leg passed.
+[doc("The live proof over the frozen fixture (CI's live job): validate --online, a headless dry run --all over a copy, the modification tests under docker")]
 fixture-live:
 	#!/usr/bin/env bash
 	set -uo pipefail
@@ -682,6 +536,7 @@ fixture-live:
 
 # Run the CLI against the reference configuration, e.g. `just cli validate`, `just cli config-drift`,
 # `just cli state query --strict`: the system's own live proofs. Its cycles run from ITS Justfile.
+[doc("Run the CLI against the reference configuration (`just cli validate`, `just cli state query --strict`): the system's own live proofs")]
 cli *ARGS: config-guard
 	@{{live_cli}} {{ARGS}}
 

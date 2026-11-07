@@ -25,9 +25,10 @@ from typing import TYPE_CHECKING
 
 from cs_image_system.contract.lifecycle import ExecutionLifecyclePhase
 from cs_image_system.contract.lifecycles import LifecycleLike, LifecycleSpec
+
 from .commands.dispose import retention_plan
-from .utils import system_cli_executable_with_config, system_cli_executable
 from .lifecycles import register_lifecycle
+from .utils import system_cli_executable, system_cli_executable_with_config
 
 if TYPE_CHECKING:
     from .global_context import GlobalTypeContext
@@ -102,7 +103,7 @@ def transient_storage_teardown_command(ctx: "GlobalTypeContext", wd):
     gate; no state query (this run's already ran), no commit (this run
     commits at its end)."""
     head: list[str] = ["--root-dir", str(ctx.working_path), "--no-dry-run"]
-    for path, data in zip(getattr(ctx, "overlays", []), getattr(ctx, "_overlay_data", [])):
+    for path, data in zip(getattr(ctx, "overlays", []), getattr(ctx, "_overlay_data", []), strict=False):
         if not any(k != "config" for k in data):
             head += ["--overlay", str(path)]
     args = ["run", "storage", "--only", "none", "--no-state-query", "--no-commit"]

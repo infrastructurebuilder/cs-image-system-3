@@ -26,8 +26,8 @@ installed and mounted once however many share it.
 """
 from __future__ import annotations
 
-import logging
 import json
+import logging
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Annotated, Any
 
@@ -135,10 +135,10 @@ def verify_login_command(
     except LoginProofFailed as e:
         typer.echo(json.dumps(e.records, indent=2, sort_keys=True))
         typer.secho(str(e), fg=typer.colors.RED, err=True)
-        raise typer.Exit(code=1)
+        raise typer.Exit(code=1) from None
     except (ValueError, NotImplementedError, RuntimeError) as e:
         typer.secho(f"verify login: {e}", fg=typer.colors.RED, err=True)
-        raise typer.Exit(code=1)
+        raise typer.Exit(code=1) from None
     typer.echo(json.dumps(records, indent=2, sort_keys=True))
     proved = [r["instance"] for r in records if r.get("ok")]
     skipped = [r["instance"] for r in records if r.get("skipped")]

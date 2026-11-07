@@ -20,6 +20,7 @@ import tomllib
 from pathlib import Path
 
 import yaml
+from harness import FIXTURE_CONFIG, REPO, V2Run, copy_config, reset_singletons
 
 from cs_image_system.contract import core, state
 from cs_image_system.contract.constants import VCT
@@ -28,8 +29,6 @@ from cs_image_system.contract.testing import assert_conforms
 from cs_image_system.contract_example_plugin.builder import InmemStateBuilder
 from cs_image_system.contract_example_plugin.main import initialize
 from cs_image_system.contract_example_plugin.models import INMEM, InmemBackendKind, InmemStateBackendModel
-
-from harness import FIXTURE_CONFIG, REPO, V2Run, copy_config, reset_singletons
 
 PACKAGE = REPO / "packages/contract-example-plugin"
 FORBIDDEN = ("cs_image_system.base", "cs_image_system.system", "cs_image_system.hashicorp_utils")

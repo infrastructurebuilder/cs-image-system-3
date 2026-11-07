@@ -27,20 +27,21 @@ from __future__ import annotations
 import logging
 import os
 from dataclasses import field
-from cs_image_system.contract.model_config import CSIS_MODEL_CONFIG
-from pydantic.dataclasses import dataclass  # validation at construction
 from typing import Any, Mapping
 
-from cs_image_system.contract.names import super_safe_name
+from pydantic.dataclasses import dataclass  # validation at construction
+
 from cs_image_system.contract.constants import DEFAULT, OOPS_DEFAULTS, VCT
-from cs_image_system.contract.secrets import EncryptedStr
 from cs_image_system.contract.fields import fk_field, templated_field
+from cs_image_system.contract.model_config import CSIS_MODEL_CONFIG
+from cs_image_system.contract.names import super_safe_name
+from cs_image_system.contract.secrets import EncryptedStr
+from cs_image_system.hashicorp_utils.blocks import Raw
 from cs_image_system.hashicorp_utils.collector import (
     ConfiguredTerraformProvider,
     TerraformCollector,
     TerraformVariable,
 )
-from cs_image_system.hashicorp_utils.blocks import Raw
 from cs_image_system.hashicorp_utils.hashicorp import QString
 
 log = logging.getLogger(__name__)

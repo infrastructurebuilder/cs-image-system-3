@@ -20,10 +20,9 @@ from pathlib import Path
 import pytest
 import yaml
 
-from tests.harness import V2Run, copy_config, plain
-
 from cs_image_system.base import identity_attributes as ia
 from cs_image_system.contract.lifecycles import Lifecycle
+from tests.harness import V2Run, copy_config, plain
 
 
 def _edit(path: Path, fn) -> None:

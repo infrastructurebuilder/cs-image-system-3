@@ -23,24 +23,35 @@ from __future__ import annotations
 
 import datetime
 import logging
+import os
 import re
 import shutil
 import subprocess
 import tempfile
 from dataclasses import field
-from cs_image_system.contract.model_config import CSIS_MODEL_CONFIG
-from pydantic.dataclasses import dataclass  # validation at construction
 from pathlib import Path
 from typing import Any
 
 import yaml
+from pydantic.dataclasses import dataclass  # validation at construction
 
 from cs_image_system.contract.constants import RUN_LOCAL_FILENAMES
+from cs_image_system.contract.model_config import CSIS_MODEL_CONFIG
+
 from .encryption import decrypt_tree, decrypted_plaintexts
-from .public_safe import (COMMITTED_TFVARS, PRIVATE_DIRNAME, REFUSED_PATHS, PublicSafeError,  # noqa: F401
-                          allow_from_config, assert_public_safe,
-                          config_for, refused_path, scan_file, scan_for_plaintexts)
 from .models.storage import STORAGE_STATE_ACTIVE, STORAGE_STATE_DESTROYED
+from .public_safe import (  # noqa: F401
+    COMMITTED_TFVARS,
+    PRIVATE_DIRNAME,
+    REFUSED_PATHS,
+    PublicSafeError,
+    allow_from_config,
+    assert_public_safe,
+    config_for,
+    refused_path,
+    scan_file,
+    scan_for_plaintexts,
+)
 
 log = logging.getLogger(__name__)
 
@@ -59,9 +70,16 @@ STATE_LOCATIONS = "state-locations.yaml"  # every workspace's resolved state loc
 INSTANCE_STATE = "instance-state.yaml"  # generations: one machine each, and the superseded records
 LOGIN_PROOFS = "login-proofs.yaml"     # CI logged in through the managed policy: every verdict
 RUNTIME_FACTS = "runtime-facts.yaml"   # what each runtime's account answered its networking declaration with
+RELEASES = "releases.yaml"             # every release ever made and, per model, the current build
+MOD_TESTS = "mod-tests.yaml"           # modification test results by content hash
+ALIASES = "aliases.txt"                # the pool of memorable names a launch draws from (a text file, not YAML)
 
+#: Every file the meta-state directory holds, whichever module writes it:
+#: the ones this module's writers own and the three other modules keep
+#: (releases, mod-tests, the alias pool). A new file is added here.
 ALL_FILES = (IDENTITY_READ_MODEL, STORAGE_READ_MODEL, STORAGE_STATE, LINEAGE, PINS,
-             LAUNCH_PARAMS, RUNS, STATE_LOCATIONS, RUNTIME_FACTS)
+             LAUNCH_PARAMS, RUNS, VERIFICATIONS, IMAGE_TESTS, STATE_LOCATIONS, INSTANCE_STATE,
+             LOGIN_PROOFS, RUNTIME_FACTS, RELEASES, MOD_TESTS, ALIASES)
 
 # Public-safe by construction: the scanner lives in public_safe.py
 # and is the same one behind the commit gate, `just public-safe` and the
@@ -159,9 +177,15 @@ class MetaState:
         assert_public_safe(data, where=f"meta-state/{name}")
         self.root.mkdir(parents=True, exist_ok=True)
         p = self.path(name)
+        # written whole beside the file, then renamed over it: a reader never
+        # sees a half-written record, and a failure leaves the old one standing
         tmp = p.with_suffix(p.suffix + ".tmp")
-        tmp.write_text(_dump(data))
-        tmp.replace(p)
+        try:
+            tmp.write_text(_dump(data))
+            os.replace(tmp, p)
+        except BaseException:
+            tmp.unlink(missing_ok=True)
+            raise
         self._cache[name] = data
         return p
 

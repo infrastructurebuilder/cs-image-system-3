@@ -3,27 +3,30 @@
 # SPDX-License-Identifier: Apache-2.0
 
 from __future__ import annotations
+
 import logging
 
 log = logging.getLogger(__name__)
+import shlex
 import shutil
 from pathlib import Path
 from typing import TypeVar, cast
 
-from cs_image_system.contract.assets import AssetSet
-
-from .ansible_models import ANSIBLE_BUILDER, ANSIBLE_EXECUTABLE, AnsibleBuilderModel, AnsibleModItemModel, AnsiblePackerModBuilderModel
 from cs_image_system.base.basic.abstract_version_checker import AbstractVersionChecker
+from cs_image_system.base.basic.builder_base_image import ImageBuilderBase, build_target_label_of
 from cs_image_system.base.basic.builder_base_mod import ModBuilderBase
-from cs_image_system.contract.lifecycle import ExecutionLifecyclePhase
 from cs_image_system.base.models.image import Image
-from cs_image_system.base.basic.builder_base_image import ImageBuilderBase
 from cs_image_system.base.models.moditem_type import ModItemModel
-from cs_image_system.base.basic.builder_base_image import build_target_label_of
+from cs_image_system.contract.assets import AssetSet
+from cs_image_system.contract.lifecycle import ExecutionLifecyclePhase
 
-
-
-
+from .ansible_models import (
+    ANSIBLE_BUILDER,
+    ANSIBLE_EXECUTABLE,
+    AnsibleBuilderModel,
+    AnsibleModItemModel,
+    AnsiblePackerModBuilderModel,
+)
 
 Q = TypeVar("Q", bound=AnsiblePackerModBuilderModel)
 
@@ -55,6 +58,23 @@ class AnsiblePackerModBuilder(ModBuilderBase[Q]):
 
         return retval
 
+    def _python_prep_line(self, image: Image) -> str:
+        """The shell line that readies the bake target for ansible: unless
+        the pinned interpreter exists, install one the way the OS type of
+        the image's root family does (its ``ansible_python_install_command``,
+        run as root in its own shell), then pin the newest ``python3.x``
+        at ``/usr/local/bin/csis-ansible-python``."""
+        ctx = self._get_context()
+        _, root = ctx.services.images.image_chain(image)
+        osb = ctx.os_builders.get(root) if root else None
+        family = osb.get_family() if osb is not None else None
+        install = ctx.services.images.os_type_for_family(family).ansible_python_install_command()
+        return ("test -x /usr/local/bin/csis-ansible-python || { "
+                f"sudo sh -c {shlex.quote(install)}; "
+                "P=$(ls /usr/bin/python3.[0-9]* 2>/dev/null | grep -v config | sort -V | tail -1); "
+                '[ -n "$P" ] || P=$(command -v python3); '
+                'sudo ln -sf "$P" /usr/local/bin/csis-ansible-python; }')
+
     def generate_items_during_modification(self, image: Image, mod: AnsibleModItemModel,  # pyright: ignore[reportIncompatibleMethodOverride]
                                            ibb: ImageBuilderBase,
                                            phase: ExecutionLifecyclePhase,
@@ -82,15 +102,16 @@ class AnsiblePackerModBuilder(ModBuilderBase[Q]):
             retval.add(path, f"# Modifications for {mod.name} of type {mod.type_}")
             # ansible-core needs a modern python on the TARGET (found live:
             # RHEL-8 ships 3.6 and fact-gathering dies with "The module
-            # interpreter..."); install the newest the family offers and pin
-            # it at a fixed path the provisioner can name (same approach as
-            # the docker mod-test harness).
+            # interpreter..."); the OS type of the image's root family says
+            # how its package manager installs one (the line the docker
+            # mod-test harness runs too), then the newest python3.x is
+            # pinned at a fixed path the provisioner can name.
             retval.add(path, 'provisioner "shell" {')
             retval.add(path, f'  only = ["{label}"]')
             # a held package database is waited out (the bake's step runner, the commands service's line)
-            retval.add(path, self._get_context().services.commands.execute_command_line("  "))
+            retval.add(path, ctx.services.commands.execute_command_line("  "))
             retval.add(path, '  inline = [')
-            retval.add(path, '    "test -x /usr/local/bin/csis-ansible-python || { for v in 3.12 3.11 3.9; do command -v python$v >/dev/null 2>&1 && break; sudo dnf -y install python$v >/dev/null 2>&1 && break; done; P=$(ls /usr/bin/python3.[0-9]* 2>/dev/null | grep -v config | sort -V | tail -1); [ -n \\\"$P\\\" ] || P=$(command -v python3); sudo ln -sf \\\"$P\\\" /usr/local/bin/csis-ansible-python; }",')
+            retval.add(path, f"    {_hcl(self._python_prep_line(image))},")
             retval.add(path, '  ]')
             retval.add(path, '}')
             retval.add(path, "provisioner \"ansible\" {")

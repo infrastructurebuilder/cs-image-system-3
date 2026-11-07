@@ -25,22 +25,33 @@ import logging
 import shlex
 from typing import Any, TypeVar, cast
 
-from cs_image_system.contract.names import super_safe_name
-from cs_image_system.contract.constants import OOPS_DEFAULTS
-from cs_image_system.contract.operating_system import PACKAGE_LOCK_TIMEOUT
 from cs_image_system.base.basic.builder_base_storage import CARDINALITY_MANY, CARDINALITY_SINGLE
-from cs_image_system.contract.lifecycle import ExecutionLifecyclePhase
 from cs_image_system.base.models.executable import ExecutableModel
-from cs_image_system.base.models.storage import STORAGE_STATE_ACTIVE, STORAGE_STATE_ARCHIVED, STORAGE_STATE_DESTROYED, Storage
+from cs_image_system.base.models.storage import (
+    STORAGE_STATE_ACTIVE,
+    STORAGE_STATE_ARCHIVED,
+    STORAGE_STATE_DESTROYED,
+    Storage,
+)
+from cs_image_system.contract.constants import OOPS_DEFAULTS
+from cs_image_system.contract.hcl import HclRaw
+from cs_image_system.contract.lifecycle import ExecutionLifecyclePhase
+from cs_image_system.contract.names import super_safe_name
+from cs_image_system.contract.operating_system import PACKAGE_LOCK_TIMEOUT
+from cs_image_system.gcloud_runtime.gcp_packer_source import gce_label, gce_name
+from cs_image_system.gcloud_runtime.gcp_utils import make_credentials, resolve_project
 from cs_image_system.tofu_roots.tofu_storage_builder import TofuStorageBuilderBase, storage_groups, storage_public_read
 
 from .tf_gcp_models import (
-    TF_GCP, TF_GCP_FILESTORE, TF_GCP_GCS, TF_GCP_PD,
-    TofuFilestoreStorageBuilderModel, TofuGcpStorageBuilderModel, TofuGcsStorageBuilderModel,
+    TF_GCP,
+    TF_GCP_FILESTORE,
+    TF_GCP_GCS,
+    TF_GCP_PD,
+    TofuFilestoreStorageBuilderModel,
+    TofuGcpStorageBuilderModel,
+    TofuGcsStorageBuilderModel,
     TofuPdStorageBuilderModel,
 )
-from cs_image_system.gcloud_runtime.gcp_utils import resolve_project, make_credentials
-from cs_image_system.gcloud_runtime.gcp_packer_source import gce_name, gce_label
 
 log = logging.getLogger(__name__)
 
@@ -367,6 +378,10 @@ class TofuFilestoreStorageBuilder(TofuGcpStorageBuilder[S]):
 
     def launch_variables(self) -> tuple[str, ...]:
         return ("filestore",)
+
+    def launch_bindings(self, mount: dict[str, Any], group: str | None, outputs: str) -> dict[str, dict[str, Any]]:
+        """The share's address and name, both by reference."""
+        return {"filestore": {"ip_address": HclRaw(f"{outputs}.ip_address"), "share_name": HclRaw(f"{outputs}.share_name")}}
 
     def module_dirname(self) -> str:
         return "gcp_storage_filestore"

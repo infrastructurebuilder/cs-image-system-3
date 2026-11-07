@@ -8,7 +8,7 @@ name: CI
 # thing. Three jobs: `verify` is the acceptance bar and needs neither
 # configuration nor credentials; `live` proves the system against real clouds
 # over the FROZEN FIXTURE, read-only; `publish` uploads a pushed `v*` tag to
-# the index (TestPyPI always, PyPI for a final version). Since stage 64 the
+# the index (TestPyPI always, PyPI for a final version). The
 # reference configuration (cs-image-system-testconfig) is driven, recorded and
 # performed by its OWN workflow, from the release; nothing here reads it. Each
 # job is gated on the secrets the operator provides -- until they exist every
@@ -22,11 +22,11 @@ on:
 
 jobs:
   verify:
-    # The bar: lint, type-check (blocking since pyright reached 0 errors, stage 23)
-    # and the fast suite over the frozen fixture (stage 28). Every push and PR.
+    # The bar: lint, type-check (blocking: pyright holds 0 errors)
+    # and the fast suite over the frozen fixture. Every push and PR.
     runs-on: ubuntu-24.04
     container:
-      # The runner image (stage 92): AlmaLinux 10 with every tool a job calls at a pinned
+      # The runner image: AlmaLinux 10 with every tool a job calls at a pinned
       # version (docs/CI_RUNNER.md lists them); moved by `init-config --force` with the
       # release's other lines. The host's docker socket lets the modification tests drive
       # the host daemon through the image's docker client.
@@ -34,7 +34,7 @@ jobs:
       # token, as the runner always did (an empty credential is invalid). A team that runs its own
       # build names it in the variable; a registry other than ghcr.io needs the variable
       # CSIS_RUNNER_IMAGE_USERNAME and the secret CSIS_RUNNER_IMAGE_PASSWORD. Release refreshes never
-      # touch them (stage 66).
+      # touch them.
       image: ${{ vars.CSIS_RUNNER_IMAGE || 'ghcr.io/infrastructurebuilder/csis-ci:alma10-20261016.4' }}
       credentials:
         username: ${{ vars.CSIS_RUNNER_IMAGE_USERNAME || github.actor }}
@@ -52,11 +52,11 @@ jobs:
         run: just verify
 
       - name: Public-safe
-        # stage 35: nothing in the checkout may be material that must never be public
+        # nothing in the checkout may be material that must never be public
         run: just public-safe
 
   live:
-    # The system's live proof over the frozen fixture (stage 64): the fixture
+    # The system's live proof over the frozen fixture: the fixture
     # names the real account's networks and project and the real OPA team, so
     # with the read-only identities `just fixture-live` validates it online, dry-runs
     # every lifecycle over a private copy (state query off: the fixture's
@@ -67,7 +67,7 @@ jobs:
     if: github.event_name != 'pull_request'
     runs-on: ubuntu-24.04
     container:
-      # The runner image (stage 92): AlmaLinux 10 with every tool a job calls at a pinned
+      # The runner image: AlmaLinux 10 with every tool a job calls at a pinned
       # version (docs/CI_RUNNER.md lists them); moved by `init-config --force` with the
       # release's other lines. The host's docker socket lets the modification tests drive
       # the host daemon through the image's docker client.
@@ -75,14 +75,14 @@ jobs:
       # token, as the runner always did (an empty credential is invalid). A team that runs its own
       # build names it in the variable; a registry other than ghcr.io needs the variable
       # CSIS_RUNNER_IMAGE_USERNAME and the secret CSIS_RUNNER_IMAGE_PASSWORD. Release refreshes never
-      # touch them (stage 66).
+      # touch them.
       image: ${{ vars.CSIS_RUNNER_IMAGE || 'ghcr.io/infrastructurebuilder/csis-ci:alma10-20261016.4' }}
       credentials:
         username: ${{ vars.CSIS_RUNNER_IMAGE_USERNAME || github.actor }}
         password: ${{ secrets.CSIS_RUNNER_IMAGE_PASSWORD || github.token }}
       options: -v /var/run/docker.sock:/var/run/docker.sock
     permissions:
-      packages: read          # the runner image is pulled with this job's token (stage 92): a permissions block without it reads as none
+      packages: read          # the runner image is pulled with this job's token: a permissions block without it reads as none
       id-token: write          # OIDC federation for the read-only cloud roles
       contents: read
     env:
@@ -99,7 +99,7 @@ jobs:
           HAVE_TF_VAR_NOS_SECRET: ${{ secrets.TF_VAR_NOS_SECRET != '' }}
         run: |
           # A secret that is MISSING and one that is EMPTY read the same here ('' either
-          # way), so the distinction is made on the SET (stage 43): none configured is an
+          # way), so the distinction is made on the SET: none configured is an
           # unconfigured repository -- SKIPPED, and said so in the job summary, because a
           # green conclusion is not proof that a step ran; some configured and some not
           # is configured-and-broken -- a FAILURE that names them. The fixture's age
@@ -169,7 +169,7 @@ jobs:
         run: just fixture-live
 
   publish:
-    # A pushed `v*` tag publishes the release (stage 41): to TestPyPI always, to
+    # A pushed `v*` tag publishes the release: to TestPyPI always, to
     # PyPI when the tag is not a development version. `just publish` skips every
     # file the index already holds with the same content, so a release the
     # operator published locally with `just release` is checked here, not
@@ -181,7 +181,7 @@ jobs:
     if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-24.04
     container:
-      # The runner image (stage 92): AlmaLinux 10 with every tool a job calls at a pinned
+      # The runner image: AlmaLinux 10 with every tool a job calls at a pinned
       # version (docs/CI_RUNNER.md lists them); moved by `init-config --force` with the
       # release's other lines. The host's docker socket lets the modification tests drive
       # the host daemon through the image's docker client.
@@ -189,7 +189,7 @@ jobs:
       # token, as the runner always did (an empty credential is invalid). A team that runs its own
       # build names it in the variable; a registry other than ghcr.io needs the variable
       # CSIS_RUNNER_IMAGE_USERNAME and the secret CSIS_RUNNER_IMAGE_PASSWORD. Release refreshes never
-      # touch them (stage 66).
+      # touch them.
       image: ${{ vars.CSIS_RUNNER_IMAGE || 'ghcr.io/infrastructurebuilder/csis-ci:alma10-20261016.4' }}
       credentials:
         username: ${{ vars.CSIS_RUNNER_IMAGE_USERNAME || github.actor }}
@@ -221,7 +221,7 @@ jobs:
             [ "$HAVE_PYPI_TOKEN" = true ] || { echo "publish: FAILED -- $GITHUB_REF_NAME is a final version and PYPI_TOKEN is missing or EMPTY"; exit 1; }
             echo "publish: $GITHUB_REF_NAME is a final version -- TestPyPI, then PyPI"
             echo "pypi=true" >> "$GITHUB_OUTPUT"
-            # stage 66: then the template repositories, which need their own token
+            # then the template repositories, which need their own token
             if [ "$HAVE_STARTER_PUSH_TOKEN" = true ]; then
               echo "starters=true" >> "$GITHUB_OUTPUT"
             else

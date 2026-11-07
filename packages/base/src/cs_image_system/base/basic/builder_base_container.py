@@ -6,8 +6,8 @@ from typing import TypeVar
 
 from cs_image_system.base.basic.builder_base_runtime import RuntimeBuilderBase
 from cs_image_system.base.models.container_builder import ContainerBuilderModel
-from ..models.container import Container
 
+from ..models.container import Container
 
 TC = TypeVar("TC", bound=ContainerBuilderModel)
 ContainerT = TypeVar("ContainerT", bound=Container)

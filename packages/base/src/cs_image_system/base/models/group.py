@@ -5,20 +5,20 @@
 import logging
 
 from cs_image_system.contract.fields import fk_field, parent_field
+
 log = logging.getLogger(__name__)
 from dataclasses import field
-from cs_image_system.contract.model_config import CSIS_MODEL_CONFIG
+from typing import Annotated, Any, ClassVar
+
 from pydantic import Field
 from pydantic.dataclasses import dataclass  # validation at construction
-from typing import Annotated, Any, ClassVar
-from .mixins import ParentPropertyHolding, SelfInjectedName
-
-
-
-from .root_item import RootItem
-from ..encryption import EncryptedStr
 
 from cs_image_system.contract.constants import DEFAULT, VCT
+from cs_image_system.contract.model_config import CSIS_MODEL_CONFIG
+
+from ..encryption import EncryptedStr
+from .mixins import ParentPropertyHolding, SelfInjectedName
+from .root_item import RootItem
 
 
 @dataclass(kw_only=True, config=CSIS_MODEL_CONFIG)

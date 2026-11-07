@@ -12,12 +12,19 @@ import json
 import subprocess
 from typing import Any, TypeVar, cast
 
+from cs_image_system.aws_runtime.aws_utils import aws_client
 from cs_image_system.base.basic.abstract_version_checker import AbstractVersionChecker
 from cs_image_system.base.basic.builder_base_storage import CARDINALITY_MANY, CARDINALITY_SINGLE
 from cs_image_system.base.models.executable import ExecutableModel
+from cs_image_system.base.models.storage import (
+    STORAGE_STATE_ACTIVE,
+    STORAGE_STATE_ARCHIVED,
+    STORAGE_STATE_DESTROYED,
+    Storage,
+)
+from cs_image_system.contract.hcl import HclRaw
 from cs_image_system.contract.lifecycle import ExecutionLifecyclePhase
 from cs_image_system.contract.operating_system import PACKAGE_LOCK_TIMEOUT
-from cs_image_system.base.models.storage import STORAGE_STATE_ACTIVE, STORAGE_STATE_ARCHIVED, STORAGE_STATE_DESTROYED, Storage
 from cs_image_system.tofu_roots.tofu_storage_builder import (
     RecordedStorage,
     TofuStorageBuilderBase,
@@ -26,10 +33,15 @@ from cs_image_system.tofu_roots.tofu_storage_builder import (
 )
 
 from .tf_storage_models import (
-    TF_AWS, TF_AWS_EBS, TF_AWS_EFS, TF_AWS_S3,
-    TofuEbsStorageBuilderModel, TofuEfsStorageBuilderModel, TofuS3StorageBuilderModel, TofuStorageBuilderModel,
+    TF_AWS,
+    TF_AWS_EBS,
+    TF_AWS_EFS,
+    TF_AWS_S3,
+    TofuEbsStorageBuilderModel,
+    TofuEfsStorageBuilderModel,
+    TofuS3StorageBuilderModel,
+    TofuStorageBuilderModel,
 )
-from cs_image_system.aws_runtime.aws_utils import aws_client
 
 __all__ = [
     "EBS_DEVICES", "RecordedStorage", "TofuEbsStorageBuilder", "TofuEfsStorageBuilder", "TofuS3StorageBuilder",
@@ -178,6 +190,11 @@ class TofuEbsStorageBuilder(TofuStorageBuilder[R]):
 
     def launch_variables(self) -> tuple[str, ...]:
         return ("ebs",)
+
+    def launch_bindings(self, mount: dict[str, Any], group: str | None, outputs: str) -> dict[str, dict[str, Any]]:
+        """The volume id by reference and the device it is attached under;
+        the template resolves the Nitro device name from the volume id."""
+        return {"ebs": {"volume_id": HclRaw(f"{outputs}.volume_id"), "device_name": mount["device"]}}
 
     def _lookup(self, storage: Storage) -> dict[str, Any] | None:
         ec2 = self._aws_client("ec2")
@@ -345,6 +362,14 @@ class TofuEfsStorageBuilder(TofuStorageBuilder[S]):
 
     def launch_variables(self) -> tuple[str, ...]:
         return ("efs",)
+
+    def launch_bindings(self, mount: dict[str, Any], group: str | None, outputs: str) -> dict[str, dict[str, Any]]:
+        """The filesystem id and the access point the mount goes through:
+        the group's own, or the public-read one without a group or when the
+        mount is public-read."""
+        access_point = (f'{outputs}.access_point_ids["{group}"]' if group and not mount.get("public_read")
+                        else f"{outputs}.public_read_access_point_id")
+        return {"efs": {"file_system_id": HclRaw(f"{outputs}.file_system_id"), "access_point_id": HclRaw(access_point)}}
 
     def _lookup(self, storage: Storage) -> dict[str, Any] | None:
         efs = self._aws_client("efs")

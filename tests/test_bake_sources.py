@@ -26,7 +26,6 @@ from pathlib import Path
 
 import pytest
 import yaml
-
 from harness import V2Run, copy_config, load_context, reset_singletons, stub_environment
 
 
@@ -68,6 +67,7 @@ def test_security_group_ids_is_refused(tmp_path: Path, monkeypatch):
 
 def test_the_image_query_never_rewrites_the_entrys_own_query(tmp_path: Path, monkeypatch):
     import copy as _copy
+
     from cs_image_system.aws_runtime.aws_utils import translate_image_query
     stub_environment(monkeypatch)
     ctx = load_context(copy_config(tmp_path))
@@ -260,6 +260,7 @@ def test_an_image_builders_machine_type_sits_between_the_entry_and_the_runtime(t
 
 def test_a_packer_string_default_is_quoted_and_the_version_variable_says_what_it_emits():
     import hcl2
+
     from cs_image_system.hashicorp_utils.hashicorp import FO, Builder, packer_variable
 
     def render(**kw) -> str:

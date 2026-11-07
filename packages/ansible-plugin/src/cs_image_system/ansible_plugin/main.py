@@ -3,9 +3,11 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import logging
-from .ansible_builder import  AnsiblePackerModBuilder, AnsibleVersionChecker
-from .ansible_models import ANSIBLE_BUILDER, ANSIBLE_EXECUTABLE, AnsibleModItemModel, AnsiblePackerModBuilderModel
+
 from cs_image_system.base.basic.abstract_plugin_metadata import AbstractPluginMetadata
+
+from .ansible_builder import AnsiblePackerModBuilder, AnsibleVersionChecker
+from .ansible_models import ANSIBLE_BUILDER, ANSIBLE_EXECUTABLE, AnsibleModItemModel, AnsiblePackerModBuilderModel
 
 log = logging.getLogger(__name__)
 

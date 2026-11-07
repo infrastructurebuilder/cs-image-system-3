@@ -23,9 +23,16 @@ from pathlib import Path
 
 import pytest
 import yaml
-
-from harness import (FIXED_CHECKED_AT, FIXTURE_CONFIG, V2Run, copy_config, load_context,
-                        record_network_facts, reset_singletons, stub_environment)
+from harness import (
+    FIXED_CHECKED_AT,
+    FIXTURE_CONFIG,
+    V2Run,
+    copy_config,
+    load_context,
+    record_network_facts,
+    reset_singletons,
+    stub_environment,
+)
 
 FACTS = Path("meta-state") / "runtime-facts.yaml"
 
@@ -191,6 +198,7 @@ def test_a_failing_online_check_is_one_classified_line_with_its_exit_code(tmp_pa
         assert exc.value.lines[0].startswith("runtime 'aws-east1'")
         # the CLI prints those lines and exits with that code
         from typer.testing import CliRunner
+
         from cs_image_system.system.cli import app
         reset_singletons()                       # the command's own load, fresh (as load_context does)
         result = CliRunner().invoke(app, ["--root-dir", str(root), "validate", "--online"])
@@ -275,6 +283,7 @@ def test_the_record_is_derived_from_the_tree_and_the_hooks_are_optional(tmp_path
 
 def _preflight(monkeypatch, root: Path, *args: str, **env: str):
     from typer.testing import CliRunner
+
     from cs_image_system.system.cli import app
     for var in ("AWS_PROFILE", "AWS_ACCESS_KEY_ID"):
         monkeypatch.delenv(var, raising=False)

@@ -18,9 +18,11 @@ from __future__ import annotations
 
 import logging
 from dataclasses import field
-from cs_image_system.contract.model_config import CSIS_MODEL_CONFIG
-from pydantic.dataclasses import dataclass  # validation at construction
 from typing import Any
+
+from pydantic.dataclasses import dataclass  # validation at construction
+
+from cs_image_system.contract.model_config import CSIS_MODEL_CONFIG
 
 from ..global_context import GlobalTypeContext
 from ..release import releases

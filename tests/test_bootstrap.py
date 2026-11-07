@@ -18,8 +18,13 @@ from pathlib import Path
 import pytest
 import yaml
 
-from tests.starter_support import RENDERED
 from tests.harness import V2Run, copy_config, module_path, modules_inside
+from tests.starter_support import RENDERED
+
+
+def _under(base: str):
+    """The module source every module gets under one base (no overrides)."""
+    return lambda module: f"{base}/{module}"
 
 
 def _assigned(text: str, key: str, value: str) -> bool:
@@ -209,17 +214,17 @@ def test_the_secrets_script_is_the_union_of_the_loaded_sections_secrets():
         "CSIS_CONFIG_IDENTITY", "CSIS_PROOF_SSH_KEY", "BETA_KEY", "BETA_SECRET", "ZETA_TOKEN"]
     assert secrets_union([quiet]) == SECRETS and secrets_union([zeta, zeta]) == secrets_union([zeta])
     # loaded, not wanted: a section's secrets are set whether or not its questions were answered
-    files = render_files([github, zeta, quiet, beta], {**GITHUB_ANSWERS, "zeta": {"wanted": False}}, module_source="../../tfmodules")
+    files = render_files([github, zeta, quiet, beta], {**GITHUB_ANSWERS, "zeta": {"wanted": False}}, module_source=_under("../../tfmodules"))
     script = files["set-secrets.sh"]
     lines = [line for line in script.splitlines() if line.startswith(("from_file ", "from_output "))]
     assert lines == ["from_file CSIS_CONFIG_IDENTITY", "from_file CSIS_PROOF_SSH_KEY", "from_file BETA_KEY",
                      "from_file BETA_SECRET", "from_file ZETA_TOKEN"]
     assert "# zeta's" in script and "| `ZETA_TOKEN` |" in files["README.md"]
     # the loaded section alone: the script names the core's two and nothing else
-    only = render_files([github], GITHUB_ANSWERS, module_source="../../tfmodules")["set-secrets.sh"]
+    only = render_files([github], GITHUB_ANSWERS, module_source=_under("../../tfmodules"))["set-secrets.sh"]
     assert [line for line in only.splitlines() if line.startswith(("from_file ", "from_output "))] == ["from_file CSIS_CONFIG_IDENTITY", "from_file CSIS_PROOF_SSH_KEY"]
     # a wanted section's output wins over the file, wherever the file came from
-    wanted = render_files([github, beta], {**GITHUB_ANSWERS, "beta": {"wanted": True}}, module_source="../../tfmodules")["set-secrets.sh"]
+    wanted = render_files([github, beta], {**GITHUB_ANSWERS, "beta": {"wanted": True}}, module_source=_under("../../tfmodules"))["set-secrets.sh"]
     assert "from_output BETA_KEY beta_key" in wanted and "from_file BETA_KEY" not in wanted and "from_file BETA_SECRET" in wanted
     # every installed section's secrets, and only those, reach the script
     installed = bs.discover()
@@ -250,7 +255,7 @@ def test_the_secrets_keep_the_order_a_committed_root_has():
     from cs_image_system.base.bootstrap.hcl import render_root
     early = Rendered(secrets=(Secret("LATE", "output", "late_out"),))
     core = Rendered(secrets=(Secret("FIRST", "file", order=1), Secret("LATE", "file", order=2), Secret("LAST", "file", order=3)))
-    script = render_root({"a": early, "b": core}, module_source_base="m", repository=None, secrets_dir=None)["set-secrets.sh"]
+    script = render_root({"a": early, "b": core}, module_source=_under("m"), repository=None, secrets_dir=None)["set-secrets.sh"]
     assert [line for line in script.splitlines() if line.startswith(("from_file ", "from_output "))] == [
         "from_file FIRST", "from_output LATE late_out", "from_file LAST"]
 
@@ -276,7 +281,7 @@ def test_the_actions_variables_are_the_union_of_the_wanted_sections_variables():
         "PERFORM_RUNTIME": "aws-east2-runtime", "GUARD_RUNTIME": "gcloud-east1", "ZETA_ZONE": "z-1"}
     assert actions_variables([github, zeta], {**wanted, "zeta": {"wanted": False, "zone": "z-1"}}) == {
         "PERFORM_RUNTIME": "aws-east2-runtime", "GUARD_RUNTIME": "gcloud-east1"}   # not wanted: nothing of its own
-    files = render_files([github, zeta], wanted, module_source="../../tfmodules")
+    files = render_files([github, zeta], wanted, module_source=_under("../../tfmodules"))
     tfvars = files["bootstrap.auto.tfvars"]
     assert re.search(r'github_actions_variables\s*=\s*\{\n\s*"GUARD_RUNTIME"\s*=\s*"gcloud-east1"\n\s*"PERFORM_RUNTIME"\s*=\s*'
                      r'"aws-east2-runtime"\n\s*"ZETA_ZONE"\s*=\s*"z-1"\n\}', tfvars), tfvars
@@ -396,6 +401,33 @@ def test_a_commit_run_stages_the_root_and_its_tfvars(world):
     assert "generated/bootstrap/.gitignore" in staged
 
 
+def test_a_module_sources_entry_reaches_the_bootstrap_root(tmp_path: Path):
+    """``config: module_sources`` names a source for one module at a time;
+    the bootstrap root honours an entry for its own modules exactly as every
+    generated root does -- a relative one re-rooted for its depth, a remote
+    one passed through -- and the base serves the rest."""
+    root = tmp_path / "cfgtree"
+    (root / "cfg").mkdir(parents=True)
+    (root / "cfg" / "_config.yml").write_text(
+        "config:\n  module_source_base: tfmodules\n  module_sources:\n"
+        "    bootstrap_github: ../mine/bootstrap_github\n")
+    bs.write_answers(root / bs.ANSWERS_FILE, GITHUB_ANSWERS)
+    bs.regenerate(root)
+    main = (bs.output_dir(root) / "main.tf").read_text()
+    assert _assigned(main, "source", '"../../../mine/bootstrap_github"')
+    # a run passes its loaded configuration's entries: they win over the raw tree's
+    bs.regenerate(root, module_sources={"bootstrap_github": "git::https://example.invalid/mods.git//github?ref=v1"})
+    main = (bs.output_dir(root) / "main.tf").read_text()
+    assert _assigned(main, "source", '"git::https://example.invalid/mods.git//github?ref=v1"')
+    # an entry for another module leaves this one on the base
+    bs.regenerate(root, module_sources={"bootstrap_aws": "/opt/mods/bootstrap_aws"})
+    main = (bs.output_dir(root) / "main.tf").read_text()
+    assert _assigned(main, "source", '"../../tfmodules/bootstrap_github"')
+    # a malformed declaration is refused by key, as it is for every root
+    with pytest.raises(ValueError, match="'bootstrap_github' must be a path or URL"):
+        bs.regenerate(root, module_sources={"bootstrap_github": ""})
+
+
 def test_config_drift_judges_the_bootstrap_root(tmp_path: Path):
     from cs_image_system.base.commands.emission import config_drift
     root = tmp_path / "cfgtree"
@@ -465,6 +497,7 @@ def test_public_safe_passes_over_a_generated_root(tmp_path: Path):
 
 def test_the_command_runs_without_loading_and_refuses_by_name_under_quiet(tmp_path: Path):
     from typer.testing import CliRunner
+
     from cs_image_system.system.cli import app
     root = _starter_copy(tmp_path, remote=None)                      # no remote: the repository has no default
     quiet = ["--root-dir", str(root), "bootstrap", "--quiet", "--section", "github"]
@@ -494,6 +527,7 @@ def test_set_secrets_refuses_a_secrets_directory_git_would_track(tmp_path):
     the script refuses, before any secret is read, a directory git does not
     ignore."""
     import subprocess
+
     from cs_image_system.base.bootstrap.hcl import _secrets_script
     repo = tmp_path / "repo"; repo.mkdir()
     subprocess.run(["git", "init", "-q", str(repo)], check=True)

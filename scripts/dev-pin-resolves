@@ -2,7 +2,7 @@
 # SPDX-FileCopyrightText: 2026 Mykel Alvis <mykelalvis@infrastructurebuilder.org>
 #
 # SPDX-License-Identifier: Apache-2.0
-"""Does a development pin resolve with the starters' own install line? (stage 99)
+"""Does a development pin resolve with the starters' own install line?
 
     uv run python scripts/dev-pin-resolves [VERSION] [--root DIR]
 
@@ -17,7 +17,7 @@ at VERSION from TestPyPI and no other package comes from TestPyPI; 1 when
 either fails; 2 when the line or a version cannot be found, or the indexes
 could not be asked.
 
-Born from 2026-10-26: once 0.1.1 was on PyPI, uv's default index strategy
+Born from a failed take: once 0.1.1 was on PyPI, uv's default index strategy
 stopped at PyPI for `cs-image-system` and never looked for 0.1.2.dev1 on
 TestPyPI, so every development pin failed to install in CI.
 """

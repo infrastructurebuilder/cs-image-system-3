@@ -5,9 +5,10 @@
 import logging
 from typing import Any
 
-from cs_image_system.contract.context import RunContextProtocol
 from cs_image_system.base.models.provider_specific_image import ProviderSpecificImage
-from cs_image_system.base.run_context import current_context   # a model holds no context; it fetches the current one
+from cs_image_system.base.run_context import current_context  # a model holds no context; it fetches the current one
+from cs_image_system.contract.context import RunContextProtocol
+
 from .docker_names import tag_name
 
 log = logging.getLogger(__name__)

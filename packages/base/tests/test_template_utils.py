@@ -19,7 +19,6 @@ import yaml
 
 from cs_image_system.base import template_utils as tu
 
-
 # --------------------------------------------------------------------------
 # interpolate_tree: value-based rendering, never the serialized text
 # --------------------------------------------------------------------------
@@ -95,21 +94,6 @@ def test_interpolate_warns_when_max_cycles_do_not_converge(caplog):
 def test_interpolate_passes_an_unresolvable_tag_through():
     out = tu.interpolate_tree({"a": "{{ nothing.here }}"})
     assert out["a"] == "{{ nothing.here }}"
-
-
-def test_sort_mappings_orders_every_mapping_and_nothing_else():
-    """The loader presents the document with its mappings' keys sorted, the
-    order the former YAML dump gave the emission; lists keep their order,
-    leaves their types, and the caller's tree is not touched."""
-    doc = {"zeta": [{"b": 1, "a": {"y": "Y", "x": "X"}}, "s"], "alpha": "A", "Mid": 2}
-    before = copy.deepcopy(doc)
-    out = tu.sort_mappings(doc)
-    assert list(out) == ["Mid", "alpha", "zeta"]                 # ASCII order, as the dumper sorts
-    assert out["zeta"] == [{"a": {"x": "X", "y": "Y"}, "b": 1}, "s"]
-    assert list(out["zeta"][0]) == ["a", "b"] and list(out["zeta"][0]["a"]) == ["x", "y"]
-    assert doc == before and list(doc) == ["zeta", "alpha", "Mid"]
-    # keys that do not compare keep their order, as the dumper left them
-    assert list(tu.sort_mappings({1: "a", "b": 2})) == [1, "b"]
 
 
 # --------------------------------------------------------------------------

@@ -5,14 +5,12 @@
 from collections.abc import Mapping
 from typing import Any, TypeVar
 
-from ..models.state_builder import StateBuilderModel
-
 from cs_image_system.contract.constants import VCT
-
-from .builder_base import BuilderBase
 from cs_image_system.contract.session import SessionStatus
 from cs_image_system.contract.state import StateBuilderProtocol
 
+from ..models.state_builder import StateBuilderModel
+from .builder_base import BuilderBase
 
 TSTATE = TypeVar("TSTATE", bound=StateBuilderModel)
 class StateBuilderBase(BuilderBase[TSTATE], StateBuilderProtocol):

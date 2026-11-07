@@ -11,8 +11,6 @@ listening; an unknown target; which projects hold a version; the wait form.
 """
 from __future__ import annotations
 
-from typing import Any
-
 import importlib.machinery
 import importlib.util
 import json
@@ -20,6 +18,7 @@ import socket
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+from typing import Any, cast
 
 import pytest
 
@@ -32,7 +31,7 @@ def _probe():
     assert spec is not None
     m = importlib.util.module_from_spec(spec)
     loader.exec_module(m)
-    setattr(m, "TIMEOUT", 3)                  # a dead port answers fast; a test never waits thirty seconds
+    cast(Any, m).TIMEOUT = 3                  # a dead port answers fast; a test never waits thirty seconds
     return m
 
 

@@ -335,7 +335,7 @@ destroys.
   `<label>` is the instance name with `-` and `.` turned into `_`;
 - `variable "ephemeral_present"` (bool, default `true`) when any instance is
   ephemeral;
-- `variable "sft_enrollment_token"` (string, sensitive, default `""`);
+- `variable "enrollment_token"` (string, sensitive, default `""`);
 - the workspace's backend binding (`state_configuration`), a
   `terraform_remote_state` reference to every storage builder that owns
   storages, and one to every identity workspace that owns an instance
@@ -375,8 +375,8 @@ The template variables are all terraform references: `group_gid` =
 `data.terraform_remote_state.<identity ws>.outputs.group_gids["<group>"]`;
 `ebs` = per-storage `{volume_id, device_name}`; `efs` = per-storage
 `{file_system_id, access_point_id}` (the group's access point, or the
-`public_read` one); `sft_enrollment_token` = `var.sft_enrollment_token`,
-or `(var.sft_enrollment_token != "" ? var.sft_enrollment_token : <group
+`public_read` one); `enrollment_token` = `var.enrollment_token`,
+or `(var.enrollment_token != "" ? var.enrollment_token : <group
 builder's token reference>)` when the group's identity plugin supplies one.
 
 **Launch parameters.** `compute_launch_params()` in
@@ -598,7 +598,7 @@ Instance root (`open-tofu`), under
 
 | File | Content |
 |---|---|
-| [open-tofu-instance-generation.tf](../../tests/fixtures/v2_golden/generated/instance-image/open-tofu/instance-generation/open-tofu-instance-generation.tf) | `terraform {}` with `required_providers` and `backend "s3" {}`; `provider "aws"` (region `us-east-2`, profile `noaa`, alias `open_tofu`); `variable "test_ami_id"`, `variable "test2_ami_id"`, `variable "sft_enrollment_token"`; `data "terraform_remote_state"` for `aws_efs`, `aws_ebs`, `aws_s3`, `gcp_pd`, `gcp_gcs`, `oktagroups`; `data "aws_vpc"` and `resource "aws_security_group" "csis_instances"` |
+| [open-tofu-instance-generation.tf](../../tests/fixtures/v2_golden/generated/instance-image/open-tofu/instance-generation/open-tofu-instance-generation.tf) | `terraform {}` with `required_providers` and `backend "s3" {}`; `provider "aws"` (region `us-east-2`, profile `noaa`, alias `open_tofu`); `variable "test_ami_id"`, `variable "test2_ami_id"`, `variable "enrollment_token"`; `data "terraform_remote_state"` for `aws_efs`, `aws_ebs`, `aws_s3`, `gcp_pd`, `gcp_gcs`, `oktagroups`; `data "aws_vpc"` and `resource "aws_security_group" "csis_instances"` |
 | [open-tofu-instance-generation-instance-test2.tf](../../tests/fixtures/v2_golden/generated/instance-image/open-tofu/instance-generation/open-tofu-instance-generation-instance-test2.tf) | `module "instance_test2"` calling `../../../../../tfmodules/aws_instance` with `ami_id = var.test2_ami_id`, `ami_name_pattern = "imgfile-basic-dask-pckr-ebs-ans*"`, `instance_type = "t3.medium"`, the security groups, `subnet_id`, `iam_instance_profile`, `user_data = templatefile(...)`, and `ebs_volumes` for `mnt_data` on `/dev/xvdf` |
 | [open-tofu-instance-generation-instance-test.tf](../../tests/fixtures/v2_golden/generated/instance-image/open-tofu/instance-generation/open-tofu-instance-generation-instance-test.tf) | the same shape for `test`, with no storages |
 | [user-data-test2.sh.tftpl](../../tests/fixtures/v2_golden/generated/instance-image/open-tofu/instance-generation/user-data-test2.sh.tftpl) | the launch script: hostname, the `mnt_data` mount at `/mnt/data`, the `coops` subtree with mode `2770`, the enrollment block |
@@ -808,7 +808,7 @@ holds them to.
 | Session access (SSM) and its instance profile | the runtime's `verify instance`, the unmount before a detach, the post-bake tests and the alias pass all reach the machine over the session mechanism; the instance must be able to reach SSM | the runtime's `session_mechanism: ssm` and `session_instance_profile:`; the profile is passed as `iam_instance_profile` and must exist in the account (operator wiring; the system generates no IAM). |
 | The identity root, applied first | gids and the enrollment token enter by `terraform_remote_state` from the identity workspace's outputs (`group_gids`, and the group builder's token reference) | the group builder of the image's owning group (`group_builder_of`) names the workspace; the storage lifecycle and the instance-image lifecycle run after `identity` in every run, and the reference resolves only when that state has been applied. A group with no identity builder is a generation-time error on a storage root. |
 | The state backend | the workspace's own state, the partial backend file, and the remote-state data sources that read the storage and identity roots | `state_configuration` on the builder, else the runtime's, else the backend marked `is_default` in `cfg/state-backends*.yml` (an S3 backend needs the same AWS session; see [cs-image-system-tf-s3-state-plugin](../tf-s3-state-plugin/README.md)). Everything about state is gated by `config.use_state_backends`; note under "Variations" what happens when it is off. |
-| `TF_VAR_sft_enrollment_token` (optional) | an explicit override of the enrollment token, and the only source when the group's identity plugin mints none | read by tofu at plan/apply as `var.sft_enrollment_token`; the variable is sensitive and never recorded. |
+| `TF_VAR_enrollment_token` (optional) | an explicit override of the enrollment token, and the only source when the group's identity plugin mints none | read by tofu at plan/apply as `var.enrollment_token`; the variable is sensitive and never recorded. |
 | `TF_PLUGIN_CACHE_DIR` (optional) | provider downloads are reused across roots | exported by the Justfile; a run started outside `just` needs it in the environment to benefit. One tofu process at a time: the recipes take `.tofu-plugin-cache/.lock`. |
 | The alias pool (optional) | a memorable name for every new durable machine | `meta-state/aliases.txt` in the configuration root, hand-appended; absent means no aliases and no error. |
 | Base images that declare the storage type | an instance may mount a storage only when its image's root base build was stamped with that capability type (`ebs`, `efs`, `s3`); the EFS and S3 prerequisites (mount tooling, the AWS CLI) are baked then | the base image's `storage_types:`; the plugin supplies `base_image_prerequisites()` and `verify_commands()` per type to the base-image bake. |

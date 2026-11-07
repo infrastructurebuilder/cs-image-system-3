@@ -32,7 +32,8 @@ from typing import Callable, Iterator, cast
 from cs_image_system.contract.session import LoadFailureReport
 
 from ..encryption import MissingIdentityError
-from ..registry import AmbiguousTypeError, UnknownTypeError
+from ..loader import load_plugins
+from ..registry import AmbiguousTypeError, UnknownTypeError, current_registry
 from ..reserved_names import ReservedNameError
 
 IDENTITY_REMEDY = ("the shell never loaded `.envrc` (a new terminal, a directory direnv has not entered or "
@@ -57,8 +58,6 @@ def _chain(exc: BaseException) -> Iterator[BaseException]:
 
 def _builder_classes() -> list[type]:
     """Every registered builder class once, in registration order."""
-    from ..loader import load_plugins
-    from ..registry import current_registry
     load_plugins()
     seen: dict[int, type] = {}
     for cls in current_registry().builders.values():   # pre-load: no run's registry yet

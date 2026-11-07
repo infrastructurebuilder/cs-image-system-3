@@ -29,10 +29,17 @@ from pathlib import Path
 
 import pytest
 import yaml
-
-from test_docker_bake_live import (ALMA, DEB, IMAGE, REPOSITORY, RUNTIME, _docker_answers, docker_only_tree,
-                                      require_engine_for_leg)
 from harness import copy_config, docker_binary, load_context, modules_beside, reset_singletons
+from test_docker_bake_live import (
+    ALMA,
+    DEB,
+    IMAGE,
+    REPOSITORY,
+    RUNTIME,
+    _docker_answers,
+    docker_only_tree,
+    require_engine_for_leg,
+)
 
 INSTANCE_BUILDER = "tofu-leg"
 VOLUME_BUILDER = "leg-volumes"

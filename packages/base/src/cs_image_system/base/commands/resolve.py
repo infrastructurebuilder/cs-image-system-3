@@ -5,11 +5,11 @@
 import logging
 
 from cs_image_system.base.models.base_image import BaseImage
-
 from cs_image_system.contract.constants import OOPS_DEFAULTS, VCT
-from cs_image_system.contract.lifecycle import ExecutionLifecyclePhase
-from ..global_context import GlobalTypeContext
 from cs_image_system.contract.image import PSISourceKind
+from cs_image_system.contract.lifecycle import ExecutionLifecyclePhase
+
+from ..global_context import GlobalTypeContext
 from ..orchestrator import TemplateResolver
 
 log = logging.getLogger(__name__)

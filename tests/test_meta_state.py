@@ -22,7 +22,6 @@ import subprocess
 from pathlib import Path
 
 import pytest
-
 from harness import V2Run, copy_config, modules_beside
 
 # module sources are filesystem paths (relative or absolute); provider
@@ -174,3 +173,67 @@ def test_run_without_commit_never_touches_git(relocated):
     assert relocated.run("all", apply=True, commit=False).ok
     assert _git(root, "rev-parse", "HEAD") == head
     assert _git(root, "status", "--porcelain") != ""  # generated/meta-state left for review
+
+
+def test_all_files_names_every_meta_state_file():
+    """``ALL_FILES`` is the complete list: every file name the module
+    defines, and the names the other modules keep (releases, the mod tests,
+    the alias pool, the runtime facts) are in it."""
+    from cs_image_system.base import alias_pool, meta_state, mod_tests, network_facts, release
+    defined = {value for name, value in vars(meta_state).items()
+               if name.isupper() and isinstance(value, str) and value.endswith((".yaml", ".txt"))}
+    assert defined == set(meta_state.ALL_FILES)
+    assert len(meta_state.ALL_FILES) == len(set(meta_state.ALL_FILES))
+    for name in (release.RELEASES_FILE, release.MOD_TESTS_FILE, mod_tests.MOD_TESTS_FILE,
+                 alias_pool.POOL_FILE, network_facts.FACTS_FILE):
+        assert name in meta_state.ALL_FILES
+
+
+def test_every_writer_writes_a_file_all_files_names(tmp_path):
+    from cs_image_system.base.meta_state import ALL_FILES, MetaState
+    ms = MetaState(tmp_path / "meta-state")
+    ms.write_identity_read_model({"groups": {}})
+    ms.write_storage_read_model({"storages": {}})
+    ms.record_storage_transition("data", None, "active", "run-1")
+    ms.open_generation("box", kind="durable", run_id="run-1", how="launch", launch_params={"hostname": "box"})
+    ms.add_build({"build_id": "b1", "series": "s"})
+    ms.bind_instance("box", "b1", "run-1")
+    ms.bind_image("img", "b1", "run-1")
+    ms.record_launch_params("box", {"hostname": "box"})
+    ms.record_run({"run": "run-1"})
+    ms.record_verification({"instance": "box"})
+    ms.record_login_proof({"verdict": "ok"})
+    ms.record_image_test("b1", {"passed": True})
+    ms.record_state_locations({"ws": {"kind": "local"}}, "run-1")
+    ms.record_state_migration("ws", {"kind": "local"}, {"kind": "s3"}, "run-1", None, None)
+    written = sorted(p.name for p in (tmp_path / "meta-state").iterdir())
+    assert written, "the writers wrote something"
+    assert not [name for name in written if name not in ALL_FILES]
+
+
+def test_meta_state_write_is_atomic(tmp_path, monkeypatch):
+    """A record is written whole beside its file and renamed over it: a
+    failure leaves the old record standing and no temporary behind."""
+    import os
+
+    from cs_image_system.base import meta_state
+    ms = meta_state.MetaState(tmp_path / "meta-state")
+    target = tmp_path / "meta-state" / "pins.yaml"
+    ms.write("pins.yaml", {"instances": {"x": "ami-1"}})
+    before = target.read_text()
+    replaced: list[tuple[str, str]] = []
+    real_replace = os.replace
+
+    def spy(src, dst, *args, **kwargs):
+        replaced.append((str(src), str(dst)))
+        return real_replace(src, dst, *args, **kwargs)
+    monkeypatch.setattr(meta_state.os, "replace", spy)
+    ms.write("pins.yaml", {"instances": {"x": "ami-2"}})
+    assert replaced and Path(replaced[-1][0]).parent == target.parent and replaced[-1][1] == str(target)
+    assert "ami-2" in target.read_text()
+    monkeypatch.setattr(meta_state, "_dump", lambda data: (_ for _ in ()).throw(RuntimeError("no")))
+    ms.invalidate()
+    with pytest.raises(RuntimeError):
+        ms.write("pins.yaml", {"instances": {"x": "ami-3"}})
+    assert "ami-2" in target.read_text() and before != target.read_text()
+    assert [p.name for p in target.parent.iterdir()] == ["pins.yaml"]

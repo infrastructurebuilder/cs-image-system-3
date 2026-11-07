@@ -35,10 +35,10 @@ import logging
 from pathlib import Path
 from typing import Any
 
-from .basic.builder_base_group import GroupBuilderBase
-from .basic.builder_base_user import UserBuilderBase
 from cs_image_system.contract.lifecycles import Lifecycle
 
+from .basic.builder_base_group import GroupBuilderBase
+from .basic.builder_base_user import UserBuilderBase
 
 log = logging.getLogger(__name__)
 

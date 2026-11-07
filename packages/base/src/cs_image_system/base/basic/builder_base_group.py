@@ -5,20 +5,24 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any, TYPE_CHECKING, TypeVar
-
-from ..models.user import User
-from ..models.group import Group
-
-from ..models.group_builder import GroupBuilderModel
+from typing import TYPE_CHECKING, Any, TypeVar
 
 from cs_image_system.contract.constants import VCT
-
-from .builder_base import BuilderBase
-from cs_image_system.contract.group import (WORKLOAD_CONNECTION_ABSENT, WORKLOAD_CONNECTION_INACTIVE,
-                                            WORKLOAD_CONNECTION_UNREAD, WORKLOAD_POLICY_ABSENT,
-                                            WORKLOAD_POLICY_DIVERGED, WORKLOAD_ROLE_ABSENT, GroupBuilderProtocol)
+from cs_image_system.contract.group import (
+    WORKLOAD_CONNECTION_ABSENT,
+    WORKLOAD_CONNECTION_INACTIVE,
+    WORKLOAD_CONNECTION_UNREAD,
+    WORKLOAD_POLICY_ABSENT,
+    WORKLOAD_POLICY_DIVERGED,
+    WORKLOAD_ROLE_ABSENT,
+    GroupBuilderProtocol,
+)
 from cs_image_system.contract.names import super_safe_name
+
+from ..models.group import Group
+from ..models.group_builder import GroupBuilderModel
+from ..models.user import User
+from .builder_base import BuilderBase
 
 if TYPE_CHECKING:
     from ..models.image import Image
@@ -26,8 +30,10 @@ if TYPE_CHECKING:
 # The GID authority policies (who defines a group's gid, and when) are the
 # contract's vocabulary; this path keeps them.
 from cs_image_system.contract.identity_vocabulary import (  # noqa: F401, E402
-    GID_POLICY_CONFIG_TIME, GID_POLICY_CREATION_ONLY, GID_POLICY_PROVIDER_ASSIGNED)
-
+    GID_POLICY_CONFIG_TIME,
+    GID_POLICY_CREATION_ONLY,
+    GID_POLICY_PROVIDER_ASSIGNED,
+)
 
 TGROUP = TypeVar("TGROUP", bound=GroupBuilderModel)
 class GroupBuilderBase(BuilderBase[TGROUP], GroupBuilderProtocol):
