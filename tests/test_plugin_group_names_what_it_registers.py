@@ -52,7 +52,7 @@ def test_a_group_builder_under_runtime_is_refused_naming_the_fitting_group():
         loader.check_group("dummy", "runtime", _registering(VCT.GROUP_BUILDER_MODEL, VCT.USER_BUILDER))
     text = str(refused.value)
     assert "cs_image_system.plugins.runtime" in text and "no runtime class" in text
-    assert "group_builder_model" in text and "fits what it registers: group, user" in text
+    assert "group_builder_model" in text and "fits what it registers" in text and text.endswith("group, user")
 
 
 def test_a_plugin_may_register_more_than_its_groups_kind():

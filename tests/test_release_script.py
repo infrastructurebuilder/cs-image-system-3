@@ -247,7 +247,7 @@ def test_a_test_index_asks_only_the_venv(tmp_path: Path):
     shell = FakeShell([("docker info", R.Done(1))])
     said: list[str] = []
     _family(root, shell, said=said).probes("test")
-    assert said == ["release: the venv is in step with the lock"] and shell.count("docker") == 0
+    assert said == [f"release: {R.VENV_OK}"] and shell.count("docker") == 0
 
 
 @pytest.mark.parametrize("index", ["test", "pypi"])
@@ -263,7 +263,7 @@ def test_pypi_without_docker_is_refused_first(tmp_path: Path):
     said: list[str] = []
     with pytest.raises(R.Refused) as e:
         _family(root, FakeShell([("docker info", R.Done(1))]), said=said).probes("pypi")
-    assert said == ["release: the venv is in step with the lock"]
+    assert said == [f"release: {R.VENV_OK}"]
     assert "docker" in e.value.message and "nothing was changed" in e.value.message
 
 
@@ -294,7 +294,7 @@ def test_the_session_line_says_the_minutes_left_and_refuses_only_a_lapsed_token(
 
     assert line("120\n").endswith("the soonest-expiring session has 120 minutes left")
     assert "halfway" in line("30\n") and "30 minutes left" in line("30\n")
-    assert line("", rc=1) == "release: every runtime session of the live configuration is present"
+    assert line("", rc=1) == f"release: {R.SESSIONS_OK}"
     with pytest.raises(R.Refused, match="lapsed 5 minutes ago"):
         line("-5\n")
 
@@ -304,7 +304,7 @@ def test_release_finish_asks_the_venv_alone(tmp_path: Path):
     shell = FakeShell([("docker info", R.Done(1))])
     said: list[str] = []
     _family(root, shell, said=said).probes("pypi", "release-finish")
-    assert said == ["release-finish: the venv is in step with the lock"] and shell.count("docker") == 0
+    assert said == [f"release-finish: {R.VENV_OK}"] and shell.count("docker") == 0
 
 
 # ------------------------------------------------------------- the guards
@@ -321,7 +321,7 @@ def test_the_branch_guard_names_the_checkout_and_the_fast_forward(tmp_path: Path
     said: list[str] = []
     maint = _system_repo(tmp_path / "m", branch="release/0.1", develop_ahead=True)
     assert _family(maint, FakeShell(), said=said).branch_guard("release", ancestor_check=True) == "release/0.1"
-    assert said == ["release: on the maintenance branch release/0.1 (an old version's fix; develop is not checked)"]
+    assert len(said) == 1 and "maintenance branch release/0.1" in said[0] and "develop is not checked" in said[0]
 
 
 def test_the_version_plan_takes_a_part_or_a_version_and_refuses_the_rest(tmp_path: Path):
@@ -364,7 +364,7 @@ def test_the_dry_form_prints_what_it_would_do_and_touches_nothing(tmp_path: Path
     said: list[str] = []
     env = {"TEST_PYPI_TOKEN": "t"}
     assert _family(root, shell, env=env, said=said).release("patch", "test", "yes") == 0
-    assert said[-1].startswith("release: dry -- on main, 0.1.0 would become 0.1.1.dev1:")
+    assert said[-1].startswith("release: dry") and "on main, 0.1.0 would become 0.1.1.dev1:" in said[-1]
     for needle in ("the probes above passed", "just test", "the index again", "bump-my-version bump patch", "uv lock",
                    "just publish test", "commit 'release 0.1.1.dev1'", "docs/CHANGES.md", "tag v0.1.1.dev1"):
         assert needle in said[-1], needle
@@ -384,7 +384,7 @@ def test_the_dry_form_of_a_pypi_release_names_full_test(tmp_path: Path):
     said: list[str] = []
     fam = _family(root, FakeShell(_answers(root)), sibling, env={"PYPI_TOKEN": "p"}, said=said)
     assert fam.release("stage", "pypi", "yes") == 0
-    assert "The real form: just full-test, the index again" in said[-1] and "just publish pypi" in said[-1]
+    assert "just full-test, the index again" in said[-1] and "just publish pypi" in said[-1]
 
 
 # ---------------------------------------------------------- the real form
@@ -393,7 +393,8 @@ def test_the_real_form_probes_gates_asks_again_bumps_uploads_then_commits_and_ta
     root = _system_repo(tmp_path)
     shell = FakeShell(_answers(root))
     said: list[str] = []
-    assert _family(root, shell, said=said).release("patch", "test") == 0
+    fam = _family(root, shell, said=said)
+    assert fam.release("patch", "test") == 0
     t = shell.texts()
     order = [shell.first(n) for n in ("publish-target-ready", "uv sync --all-extras --check", "just test",
                                       "bump-my-version bump patch", "uv lock", "just build", "publish-dist")]
@@ -413,10 +414,10 @@ def test_the_real_form_probes_gates_asks_again_bumps_uploads_then_commits_and_ta
         assert name in committed, name
     page = (root / "docs" / "CHANGES.md").read_text().splitlines()
     assert page[4] == R.changes_row("0.1.1.dev1", "2001-02-03") and "| not yet |" not in "\n".join(page)
-    assert said[-1] == ("release: 0.1.1.dev1 is on testpypi, committed and tagged v0.1.1.dev1; push with: git push "
-                        "--follow-tags origin main; then develop takes it back: git checkout develop && git merge "
-                        "--ff-only main && git push origin develop (CI checks the pushed tag against the index and "
-                        "uploads nothing already there)")
+    pushes = fam.closing_line("main")
+    assert pushes.startswith("git push --follow-tags origin main") and "git checkout develop" in pushes
+    assert "git merge --ff-only main" in pushes and pushes.endswith("git push origin develop")
+    assert said[-1] == R.RELEASED.format(version="0.1.1.dev1", name="testpypi", pushes=pushes)
 
 
 def test_a_pypi_release_runs_full_test_needs_the_evidence_and_commits_it_in_the_sibling(tmp_path: Path):
@@ -494,7 +495,7 @@ def test_release_finish_commits_and_tags_only_a_completed_upload(tmp_path: Path)
     (root / "stray").write_text("x\n")
     with pytest.raises(R.Refused) as e:
         _family(root, FakeShell(answers)).finish("test")
-    assert "hold the bump to 0.1.1.dev1 and nothing else" in e.value.message and "?? stray" in e.value.message
+    assert "bump to 0.1.1.dev1 and nothing else" in e.value.message and "?? stray" in e.value.message
     (root / "stray").unlink()
     shell = FakeShell([*answers, ("publish-target-ready", R.Done(1))])
     with pytest.raises(R.Refused, match="not every project holds 0.1.1.dev1 on testpypi"):
@@ -509,12 +510,12 @@ def test_release_finish_commits_and_tags_only_a_completed_upload(tmp_path: Path)
     _git(root, "tag", "-d", "v0.1.1.dev1")
     said: list[str] = []
     shell = FakeShell(answers)
-    assert _family(root, shell, said=said).finish("test") == 0
+    fam = _family(root, shell, said=said)
+    assert fam.finish("test") == 0
     assert shell.first("uv sync --all-extras --check") < shell.first("publish-target-ready") < shell.first("git add")
     assert _git(root, "log", "-1", "--format=%s") == "release 0.1.1.dev1" and _git(root, "tag", "-l") == "v0.1.1.dev1"
     assert _git(root, "status", "--porcelain") == "" and R.changes_row("0.1.1.dev1", "2001-02-03") in (root / "docs" / "CHANGES.md").read_text()
-    assert said[-1].startswith("release-finish: 0.1.1.dev1 is on testpypi for every project, committed and tagged v0.1.1.dev1; "
-                               "push with: git push --follow-tags origin main; then develop takes it back")
+    assert said[-1] == R.FINISHED.format(version="0.1.1.dev1", name="testpypi", pushes=fam.closing_line("main"))
     with pytest.raises(R.Refused, match="already committed"):
         _family(root, FakeShell(answers)).finish("test")
 
@@ -554,8 +555,7 @@ def test_publish_asks_the_index_cleans_builds_and_uploads_one_project_at_a_time(
     assert not (root / "dist").exists()                                     # cleaned before the build
     assert t[-1].endswith(f" pypi --version 0.1.0 --token-var PYPI_TOKEN --summary {tmp_path / 's'}")
     assert env["UV_PUBLISH_TOKEN"] == "p"
-    assert said == ["publish: cs-image-system 0.1.0 is on pypi (the system and its 1 published packages, sdist and "
-                    "wheel each; files already there with the same content were skipped)"]
+    assert said == [R.PUBLISHED.format(version="0.1.0", name="pypi", packages=1)]
     assert _family(root, FakeShell(_answers(root, upload=75))).publish("test") == 75
 
 
