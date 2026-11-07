@@ -434,13 +434,11 @@ A template renders to text, and that text stays a string: `port: "{{
 config.port }}"` over `port: 22` is the string `'22'` until the field it
 lands in is structured (a declared integer field coerces it; a free-form
 mapping keeps the text). A leaf without a tag keeps the type the file gave
-it, and a document with no tag at all passes through untouched. The
-document's mappings are presented with their keys in sorted order
-(`sort_mappings`): that is the order the emission has always seen, because
-the stage used to begin by dumping the document to YAML text and the dumper
-sorts a mapping's keys, so a free-form mapping an emission writes as it is
-(an image's `tags`) comes out sorted whatever order the file gave it. The
-passes:
+it, and a document with no tag at all passes through untouched. A mapping
+keeps the key order its file gave it, so a free-form mapping an emission
+writes as it is (an image's `tags`) comes out in the file's order (an older
+loader began by dumping the document to YAML text, whose dumper sorted
+every mapping's keys). The passes:
 
 1. `interpolate` renders Jinja tags against `ENV` (the process
    environment), `execution` and the document's own `config:` map.

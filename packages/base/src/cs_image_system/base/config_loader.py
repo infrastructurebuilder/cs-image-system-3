@@ -43,7 +43,7 @@ if TYPE_CHECKING:
     from .basic.builder_base_runtime import RuntimeBuilderBase
 from . import registry
 from .loader import load_plugins
-from .template_utils import read_and_preprocess_yaml_files, sort_mappings, string_stage
+from .template_utils import read_and_preprocess_yaml_files, string_stage
 from .encryption import decrypt_tree, decrypted_plaintexts, refuse_markers_at
 from .reserved_names import refuse_invalid_config_keys, refuse_reserved_names
 from .run_context import RunContext, bind_current
@@ -445,10 +445,10 @@ def read_config_and_transform(
 
     # The string stage walks the ONE parsed tree (read_and_process parsed each
     # cfg/*.yml exactly once): the registered passes render its string leaves
-    # in place and nothing is dumped back to text or parsed again. The
-    # document's mappings are presented with their keys sorted, the order the
-    # emission has always seen (sort_mappings says why).
-    generic_yaml: Any = string_stage(sort_mappings(orig), addl=addl)
+    # in place and nothing is dumped back to text or parsed again. A mapping
+    # keeps the key order its file gave it, so a free-form mapping an emission
+    # writes as it is (an image's tags) comes out in the file's order.
+    generic_yaml: Any = string_stage(orig, addl=addl)
     log.debug("string stage result:\n%s", pformat(generic_yaml, indent=2, width=163))
 
     template_resolver = TemplateResolver(addl=addl)

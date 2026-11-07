@@ -345,28 +345,6 @@ def extend_with_envdata(data: dict[str, Any], include_ENV: bool = False, addl: d
     return extended_data
 
 
-def sort_mappings(node: Any) -> Any:
-    """A copy of a parsed document with every mapping's keys in sorted order,
-    lists in their order, leaves untouched.
-
-    The loader presents the merged ``cfg/`` document to the string stage this
-    way. It is the order the emission has always seen: the stage used to
-    begin by dumping the document to YAML text, and the dumper sorts a
-    mapping's keys, so a free-form mapping that reaches an emission as it is
-    (an image's ``tags``, a root's ``labels``) was written sorted whatever
-    order the file gave it. Keys that do not compare (a mapping keyed by
-    both numbers and strings) keep their order, as the dumper left them."""
-    if isinstance(node, dict):
-        try:
-            keys = sorted(node)
-        except TypeError:
-            keys = list(node)
-        return {k: sort_mappings(node[k]) for k in keys}
-    if isinstance(node, list):
-        return [sort_mappings(item) for item in node]
-    return node
-
-
 def _is_tagged(leaf: Any) -> bool:
     """Whether a string leaf carries a Jinja tag the string stage must render."""
     return isinstance(leaf, str) and (("{{" in leaf and "}}" in leaf) or ("{%" in leaf))
