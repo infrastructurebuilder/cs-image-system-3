@@ -76,6 +76,22 @@ PRIVATE = "Private :: Do Not Upload"
 CHANGES = Path("docs") / "CHANGES.md"
 CHANGES_HEADER = "| Stage | Landed | Released in | Squash subject |"
 UNRELEASED = "not yet"
+#: the probes' one-line verdicts, after "<who>: "
+VENV_OK = "the venv is in step with the lock"
+SESSIONS_OK = "every runtime session of the live configuration is present"
+#: the closing lines: what is on the index, and (a release) the operator's pushes
+RELEASED = ("release: {version} is on {name}, committed and tagged v{version}; push with: {pushes} "
+            "(CI checks the pushed tag against the index and uploads nothing already there)")
+FINISHED = ("release-finish: {version} is on {name} for every project, committed and tagged v{version}; "
+            "push with: {pushes}")
+PUBLISHED = ("publish: cs-image-system {version} is on {name} (the system and its {packages} published packages, "
+             "sdist and wheel each; files already there with the same content were skipped)")
+
+
+def published_members(root: Path) -> list[Path]:
+    """The workspace members an upload takes: every ``packages/*/pyproject.toml`` but the ones classified
+    ``Private :: Do Not Upload`` (the workspace-only plugins, built with the rest and never uploaded)."""
+    return sorted(p for p in root.glob("packages/*/pyproject.toml") if PRIVATE not in p.read_text())
 
 
 # ------------------------------------------------------------------ the shell
@@ -316,7 +332,7 @@ class Family:
         if self.run(["uv", "sync", "--all-extras", "--check"], cwd=REPO).rc != 0:
             raise Refused(f"{who}: the venv is behind the checkout (uv sync --all-extras --check) -- `just init` syncs "
                           "it -- nothing was changed")
-        self.say(f"{who}: the venv is in step with the lock")
+        self.say(f"{who}: {VENV_OK}")
         if index != "pypi" or who != "release":
             return
         if self.run(["docker", "info"], cwd=self.root).rc != 0:
@@ -338,18 +354,17 @@ class Family:
         try:
             minutes = int(left)
         except ValueError:
-            self.say(f"{who}: every runtime session of the live configuration is present")
+            self.say(f"{who}: {SESSIONS_OK}")
             return
         if minutes < 0:
             raise Refused(f"{who}: a session's cached token lapsed {-minutes} minutes ago -- a release takes about an "
                           "hour; log in again first (`just preflight` names the command) -- nothing was changed")
         if minutes < 60:
-            self.say(f"{who}: every runtime session of the live configuration is present; the soonest-expiring "
-                     f"session has {minutes} minutes left and a release takes about an hour -- log in again from a "
-                     "second terminal about halfway: a running run picks the new token up")
+            self.say(f"{who}: {SESSIONS_OK}; the soonest-expiring session has {minutes} minutes left and a release "
+                     "takes about an hour -- log in again from a second terminal about halfway: a running run picks "
+                     "the new token up")
         else:
-            self.say(f"{who}: every runtime session of the live configuration is present; the soonest-expiring "
-                     f"session has {minutes} minutes left")
+            self.say(f"{who}: {SESSIONS_OK}; the soonest-expiring session has {minutes} minutes left")
 
     # --- the pieces of a release
 
@@ -469,8 +484,7 @@ class Family:
         if name == "pypi":
             commit_evidence(read_sibling(self.sibling.path, run=self.run), new, run=self.run)
         self.record_and_tag(new, on_release_branch=branch == self.release_branch)
-        self.say(f"release: {new} is on {name}, committed and tagged v{new}; push with: {self.closing_line(branch)} "
-                 "(CI checks the pushed tag against the index and uploads nothing already there)")
+        self.say(RELEASED.format(version=new, name=name, pushes=self.closing_line(branch)))
         return 0
 
     def finish(self, index: str = "test") -> int:
@@ -503,8 +517,7 @@ class Family:
                               "modification-test evidence -- nothing was changed")
             commit_evidence(tree, new, run=self.run, tolerate_missing=True)
         self.record_and_tag(new, on_release_branch=branch == self.release_branch)
-        self.say(f"release-finish: {new} is on {name} for every project, committed and tagged v{new}; push with: "
-                 f"{self.closing_line(branch)}")
+        self.say(FINISHED.format(version=new, name=name, pushes=self.closing_line(branch)))
         return 0
 
     def publish(self, index: str = "test", *, summary: Path | None = None) -> int:
@@ -526,8 +539,7 @@ class Family:
         built = self.run(["just", "build"], cwd=self.root, capture=False)
         if built.rc != 0:
             raise Refused("", built.rc)
-        # the workspace-only plugins (`Private :: Do Not Upload`) are built and never uploaded
-        packages = sum(1 for p in self.root.glob("packages/*/pyproject.toml") if PRIVATE not in p.read_text())
+        packages = len(published_members(self.root))
         cmd = ["uv", "run", "--no-sync", "python", str(HERE / "publish-dist"), index, "--version", version,
                "--token-var", var]
         if summary is not None:
@@ -535,8 +547,7 @@ class Family:
         done = self.run(cmd, cwd=self.root, capture=False)
         if done.rc != 0:
             return done.rc
-        self.say(f"publish: cs-image-system {version} is on {name} (the system and its {packages} published packages, "
-                 "sdist and wheel each; files already there with the same content were skipped)")
+        self.say(PUBLISHED.format(version=version, name=name, packages=packages))
         return 0
 
 

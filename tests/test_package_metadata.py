@@ -287,7 +287,8 @@ def test_the_two_private_plugins_are_workspace_only():
     suite and the dry runs see them) and never published: they carry the
     `Private :: Do Not Upload` classifier an index refuses, no dependency
     or extra of the root or of any published package names them, and the
-    release tooling leaves them out of the upload order and the probe."""
+    release tooling leaves them out of the upload order, the probe and the
+    members it counts as published."""
     root = tomllib.loads(ROOT.read_text())
     private = {canonicalize_name(_project(p / "pyproject.toml")["name"]) for p in PACKAGES
                if _is_private(_project(p / "pyproject.toml"))}
@@ -307,8 +308,10 @@ def test_the_two_private_plugins_are_workspace_only():
     assert set(_load("publish-dist").upload_order(REPO)) == _published() | {OWN}
     assert {canonicalize_name(n) for n in _load("publish-target-ready").projects(REPO)} == _published() | {OWN}
     assert set(_load("publish-dist").project_versions(REPO)) == _published() | {OWN}
-    body = (REPO / "Justfile").read_text()
-    assert "grep -L 'Private :: Do Not Upload' packages/*/pyproject.toml | wc -l" in body
+    from test_release_script import R as release
+    members = release.published_members(REPO)
+    assert not any(_is_private(_project(p)) for p in members)
+    assert {canonicalize_name(_project(p)["name"]) for p in members} == _published()
 
 
 @pytest.mark.parametrize("path", [ROOT, *(p / "pyproject.toml" for p in PACKAGES)], ids=lambda p: p.parent.name)
@@ -380,7 +383,7 @@ def test_the_scheme_opens_a_version_as_a_development_release_and_finalises_it():
     """41.5: patch/minor/major open the next version as .dev1, dev is the next
     development release of the same version, stage finalises; a final version
     parses and serialises to itself; 'dev' on a final version is nonsense the
-    release recipe refuses (bump-my-version would say 0.1.0.final2)."""
+    release script's shape check refuses (bump-my-version would say 0.1.0.final2)."""
     def show(current: str, part: str) -> str:
         r = _bump(REPO, "show", "--current-version", current, "--increment", part, "new_version")
         assert r.returncode == 0, r.stderr
@@ -391,9 +394,10 @@ def test_the_scheme_opens_a_version_as_a_development_release_and_finalises_it():
     assert show("0.1.1.dev1", "dev") == "0.1.1.dev2"
     assert show("0.1.1.dev2", "stage") == "0.1.1"
     assert show("0.1.1", "patch") == "0.1.2.dev1"
-    assert show("0.1.0", "dev") == "0.1.0.final2"           # what the recipe's shape check exists for
-    body = (REPO / "Justfile").read_text()
-    assert r"shape='^[0-9]+\.[0-9]+\.[0-9]+(\.dev[0-9]+)?$'" in body
+    assert show("0.1.0", "dev") == "0.1.0.final2"           # what the script's shape check exists for
+    from test_release_script import R as release
+    assert all(release.SHAPE.match(v) for v in ("0.1.7", "0.1.7.dev2", "1.0.0"))
+    assert not any(release.SHAPE.match(v) for v in ("v0.1.7", "0.1", "0.1.0.final2", "0.1.7.dev", "0.1.7-rc1"))
 
 
 # ------------------------------------------------------------- the index probe
