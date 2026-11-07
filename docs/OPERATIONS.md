@@ -1858,7 +1858,13 @@ release (`0.1.0` → `0.1.1.dev1`), `dev` is the next development release
 of the same version (`0.1.1.dev1` → `0.1.1.dev2`), `stage` finalises it
 (`0.1.1.dev2` → `0.1.1`) -- or an explicit version. The index is `test`
 (TestPyPI, the default) or `pypi`. `yes` as the third argument is the dry
-form: the probes and the version, nothing changed. The real form, in
+form: the probes and the version, nothing changed. The family's logic
+is `scripts/release.py` (every step a function, held by
+`tests/test_release_script.py` against a stubbed shell); the three
+recipes hand it the release branch and the live configuration's root,
+and the configuration's working tree is read in one place there
+(`read_sibling`: its path, whether it is configured, its branch, its
+dirty files, its tags). The real form, in
 order:
 
 1. the probes, before anything changes: the checkout is on `main`
@@ -1875,7 +1881,8 @@ order:
    `v<version>` tag exists here (the local record of a version that was
    cut, deleted from the index or not); `dev` on a final version is
    refused (open the next version with `patch` first);
-2. the probes (`_release-probes`, one line each, before
+2. the probes (`release.py probes`, behind the private recipe
+   `_release-probes`, one line each, before
    anything changes; the dry form prints the same verdicts): the venv is
    in step with the lock (`uv sync --all-extras --check`, because every
    recipe runs `uv run --no-sync` and a venv behind the checkout answers
@@ -1918,9 +1925,14 @@ order:
      below), then `just release-finish <index>`, which makes step 5's
      commits and the tag;
 5. for PyPI, the mod-test evidence committed in the live repository
-   (`release <v>: modification-test evidence`); then `pyproject.toml`,
-   `packages/*/pyproject.toml` and `uv.lock` committed here
-   (`release <v>`) and the annotated tag `v<version>`.
+   (`release <v>: modification-test evidence`); then the release's row
+   at the top of [CHANGES.md](CHANGES.md) (its `#r<version>` anchor,
+   dots as dashes, the date, the version and the commit's subject; on
+   `main` every stage row still "not yet" released takes the version,
+   since the tag contains it -- a maintenance branch's release stamps
+   none), and `pyproject.toml`, `packages/*/pyproject.toml`, `uv.lock`
+   and `docs/CHANGES.md` committed here (`release <v>`) and the
+   annotated tag `v<version>`.
 
 Nothing is pushed. The closing line names the operator's two acts: `git
 push --follow-tags origin main`, whose tag makes CI's `publish` job check
@@ -1958,7 +1970,8 @@ and nothing else changed, it asks the venv probe above, then asks the index whet
 (`scripts/publish-target-ready --all-held`; the index's pages lag an
 upload by minutes, so a count just after one can be short), and only
 then makes the evidence commit in the live repository (PyPI), the
-`release <v>` commit and the tag. It pushes nothing.
+[CHANGES.md](CHANGES.md) row, the `release <v>` commit and the tag. It
+pushes nothing.
 
 **A first release to PyPI takes days.** Production PyPI lets an account
 create only a few NEW projects a day. A first release of many projects
@@ -2253,9 +2266,9 @@ repository's, which the release ships.
 | `build` | sdist + wheel of every workspace member under `dist/` (the system package carries the five starter trees) | nothing |
 | `test` | lint → typecheck → pytest, all blocking (the bar) | nothing |
 | `full-test` | `test`, then `full-test-legs`: the dev-pin resolution check (`scripts/dev-pin-resolves`), the docker legs (`test-mods --strict`, `test-posix-accounts`, `test-bake-steps`, `runner-image`, `test-docker-bake`, `test-docker-cycle`, `test-podman-cycle`, `test-podman-desktop-cycle`) and, gated on `preflight`, a dry `run --all` and `state query --strict` over a copy of the reference configuration | docker, the network, reference configuration, runtime sessions; each leg skips loudly |
-| `release <part\|version> [test\|pypi] [yes]` | probe (branch `main` with `develop` an ancestor, or `release/<major.minor>`; the index ready and free of the version; token; tag), the bar or `full-test`, the index again, `bump-my-version`, `uv lock`, `publish`, commit, tag `v<version>`; `yes` = dry | `UV_PUBLISH_TOKEN`; for `pypi`: clean trees, mod-test evidence, `full-test`'s needs |
+| `release <part\|version> [test\|pypi] [yes]` | probe (branch `main` with `develop` an ancestor, or `release/<major.minor>`; the index ready and free of the version; token; tag), the bar or `full-test`, the index again, `bump-my-version`, `uv lock`, `publish`, the `CHANGES.md` row, commit, tag `v<version>`; `yes` = dry (the logic is `scripts/release.py`) | `UV_PUBLISH_TOKEN`; for `pypi`: clean trees, mod-test evidence, `full-test`'s needs |
 | `publish [test\|pypi]` | the index asked first, clean `dist/`, `build`, then `scripts/publish-dist`: one project at a time (sdist with wheel, dependencies first, `cs-image-system` last), skip what is there, exit 75 on PyPI's limit on new projects, prove the token when nothing went up | `UV_PUBLISH_TOKEN` |
-| `release-finish [test\|pypi]` | after a release's upload stopped part-way and `publish` completed it: on `main` (or a maintenance branch), the bump uncommitted and nothing else, every project holding the version -- then the evidence commit (PyPI), the commit and the tag; pushes nothing | the index, `develop` |
+| `release-finish [test\|pypi]` | after a release's upload stopped part-way and `publish` completed it: on `main` (or a maintenance branch), the bump uncommitted and nothing else, every project holding the version -- then the evidence commit (PyPI), the `CHANGES.md` row, the commit and the tag; pushes nothing | the index, `develop` |
 | `index-ready [test\|pypi] [wait]` | can the index take an upload now: the upload endpoint and every project page, one line each; exit 0 ready, 75 not now; `wait` probes every minute, two hours at most | the network |
 | `full-test-legs` | `full-test` without `test`: the dev-pin check, every docker leg above, then a headless dry run `--all` and a `state query --strict` over a private copy of the reference configuration; re-run these after a session renewal instead of the whole `full-test` | `preflight` gates the two copy legs |
 | `format` | `ruff format packages tests` | nothing |

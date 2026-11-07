@@ -1345,7 +1345,9 @@ copy of the reference configuration, which is checked out BESIDE this
 repository as `cs-image-system-testconfig` for that purpose alone;
 `just fixture-live` proves the frozen fixture against the real accounts
 (what the system's CI does); `just release <part|version> [test|pypi]`
-cuts a release to the index, from `main` alone (`main` takes `develop`
+cuts a release to the index (the recipe wraps `scripts/release.py`, which
+also records the release as a row of [CHANGES.md](CHANGES.md)), from
+`main` alone (`main` takes `develop`
 by fast-forward first and `develop` takes `main` back after; a
 maintenance branch `release/<major.minor>` for an old version's fix).
 Before anything
