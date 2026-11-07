@@ -35,7 +35,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
-from .meta_state import META_STATE_DIRNAME
+from .meta_state import ALIASES, META_STATE_DIRNAME
 from .launch_params import hostname_problems, will_replace
 from .utils import apply_enabled
 
@@ -44,7 +44,7 @@ if TYPE_CHECKING:
 
 log = logging.getLogger(__name__)
 
-POOL_FILE = "aliases.txt"
+POOL_FILE = ALIASES
 _SPENT_RE = re.compile(r"^\s*#\s*(?P<name>[A-Za-z0-9][A-Za-z0-9-]*)\s+--\s+(?P<record>.+?)\s*$")
 
 # names drawn by THIS process, per run and instance: the launch parameters

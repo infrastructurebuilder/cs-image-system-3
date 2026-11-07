@@ -43,13 +43,14 @@ from .lineage import mod_records
 from .image_sources import _runtime_classes, stand_in_runtime_type, container_reference
 from .capabilities import image_chain
 from .os_types import os_type_for_family
+from .meta_state import MOD_TESTS
 
 if TYPE_CHECKING:
     from .global_context import GlobalTypeContext
 
 log = logging.getLogger(__name__)
 
-MOD_TESTS_FILE = "mod-tests.yaml"
+MOD_TESTS_FILE = MOD_TESTS
 
 # The container standing in for an OS is the image-source catalog's
 # stand-in block for its family (overridable per OS builder through
