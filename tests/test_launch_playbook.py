@@ -58,13 +58,13 @@ def test_playbook_mirrors_user_data(tmp_path, monkeypatch):
             if (p.get("enrollment") or {}).get("enrollment") == "sftd-token":
                 assert "enrollment.token" in ud
                 tok = next(t for t in play["tasks"] if "enrollment token" in t["name"])
-                assert tok["no_log"] is True and "sft_enrollment_token" in tok["ansible.builtin.copy"]["content"]
+                assert tok["no_log"] is True and "enrollment_token" in tok["ansible.builtin.copy"]["content"]
             # runtime values by reference only (extra-vars), never literals
             text = ansible_launch.launch_playbook(p, name, run.ctx)
             if p["group"] and any(m["type"] == "ebs" for m in p["mounts"]):
                 assert "{{ group_gid }}" in text
             if (p.get("enrollment") or {}).get("enrollment") == "sftd-token":
-                assert "{{ sft_enrollment_token }}" in text
+                assert "{{ enrollment_token }}" in text
             assert not any(v.isdigit() and len(v) >= 5 for v in text.replace("'", " ").split())
     finally:
         run.restore_cwd()

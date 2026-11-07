@@ -13,7 +13,7 @@ is a change to every machine that launches afterwards, and the golden says
 so.
 
 The enrollment token arrives by reference -- the template variable
-``sft_enrollment_token`` (``launch_params.ENROLLMENT_TOKEN_VARIABLE``),
+``enrollment_token`` (``launch_vocabulary.ENROLLMENT_TOKEN_VARIABLE``),
 supplied at apply time and never recorded.
 """
 
@@ -22,6 +22,7 @@ from __future__ import annotations
 from typing import Any
 
 from cs_image_system.contract.enrollment import register_enrollment_kind
+from cs_image_system.contract.launch_vocabulary import ENROLLMENT_TOKEN_VARIABLE
 
 SFTD_TOKEN = "sftd-token"
 
@@ -35,9 +36,9 @@ def script_lines(params: dict[str, Any]) -> list[str]:
         "grep -q '^AccessAddress:' /etc/sft/sftd.yaml 2>/dev/null"
         " || printf 'AccessAddress: %s\\n' \"$PRIV_IP\" >> /etc/sft/sftd.yaml",
         "# identity enrollment trigger (token supplied at apply time, never recorded)",
-        "%{ if sft_enrollment_token != \"\" }",
+        "%{ if " + ENROLLMENT_TOKEN_VARIABLE + " != \"\" }",
         "mkdir -p /var/lib/sftd",
-        "printf '%s' '${sft_enrollment_token}' > /var/lib/sftd/enrollment.token",
+        "printf '%s' '${" + ENROLLMENT_TOKEN_VARIABLE + "}' > /var/lib/sftd/enrollment.token",
         "chmod 0600 /var/lib/sftd/enrollment.token",
         "systemctl restart sftd || systemctl start sftd",
         "%{ endif }",
@@ -45,13 +46,14 @@ def script_lines(params: dict[str, Any]) -> list[str]:
 
 
 def ansible_tasks(params: dict[str, Any]) -> list[dict[str, Any]]:
+    supplied = f"{ENROLLMENT_TOKEN_VARIABLE} | default('') | length > 0"
     return [
         {"name": "sftd enrollment token (supplied at run time, never recorded)",
          "ansible.builtin.copy": {"dest": "/var/lib/sftd/enrollment.token",
-                                  "content": "{{ sft_enrollment_token }}", "mode": "0600"},
-         "when": "sft_enrollment_token | default('') | length > 0", "no_log": True},
+                                  "content": "{{ " + ENROLLMENT_TOKEN_VARIABLE + " }}", "mode": "0600"},
+         "when": supplied, "no_log": True},
         {"name": "start sftd", "ansible.builtin.service": {"name": "sftd", "state": "restarted"},
-         "when": "sft_enrollment_token | default('') | length > 0"},
+         "when": supplied},
     ]
 
 

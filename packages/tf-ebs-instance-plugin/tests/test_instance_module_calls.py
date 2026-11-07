@@ -196,7 +196,7 @@ def test_the_templatefile_map_is_built_from_the_storage_builders_hooks():
     assert '"key" = data.terraform_remote_state.stub_kind.outputs.storage_s2.key' in user_data
     assert '"group" = "coops"' in user_data
     assert '"ebs"' not in user_data and '"efs"' not in user_data, "no storage kind is the root's own"
-    assert '"sft_enrollment_token" = ""' in user_data and "ebs_volumes" not in args
+    assert '"enrollment_token" = ""' in user_data and "ebs_volumes" not in args
     # the ebs attachments are the volumes the template mounts: what the ebs builder bound
     ctx.storage_builders["aws-ebs"] = _storage_builder(("ebs",), lambda m, g, o: {"ebs": {"volume_id": HclRaw(f"{o}.volume_id"),
                                                                                            "device_name": "/dev/xvdf"}})

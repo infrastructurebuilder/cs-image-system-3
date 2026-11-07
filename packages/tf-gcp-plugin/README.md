@@ -252,7 +252,7 @@ provider requirements from `required_plugins` or
 `google`/`hashicorp/google`; a `provider "google"` block (`project`,
 `region`, `zone`) aliased to the workspace name (`tofu_gce`); one
 `variable "<label>_image"` (string, default `""`) per instance;
-`variable "sft_enrollment_token"` (sensitive); the backend binding; a
+`variable "enrollment_token"` (sensitive); the backend binding; a
 `terraform_remote_state` reference to every storage builder that owns
 storages and to every identity workspace owning an instance image's
 group; then the terraform, provider, variable and remote-state blocks.
@@ -279,7 +279,7 @@ module arguments (`_module_args`):
 
 The template variables: `group_gid` by reference from the identity
 workspace; `efs = {}`; `filestore` = per-storage `{ip_address, share_name}`
-by reference; `sft_enrollment_token = var.sft_enrollment_token` when the
+by reference; `enrollment_token = var.enrollment_token` when the
 group has an enrollment trigger (the GCE root does not add the identity
 plugin's token reference the AWS root adds). The launch script is the same
 `user_data_template()` as on AWS, and each mount's block in it is the
@@ -379,7 +379,7 @@ GCE instance root (`tofu-gce`), under
 
 | File | Content |
 |---|---|
-| [tofu-gce-instance-generation.tf](../../tests/fixtures/v2_golden/generated/instance-image/tofu-gce/instance-generation/tofu-gce-instance-generation.tf) | `terraform {}` with `google` from `hashicorp/google` and `backend "s3" {}`; `provider "google"` (`project = "csis-sandbox"`, `region = "us-east1"`, `zone = "us-east1-b"`, alias `tofu_gce`); `variable "gce_test_image"`, `variable "sft_enrollment_token"`; `data "terraform_remote_state"` for `aws_efs`, `aws_ebs`, `aws_s3`, `gcp_pd`, `gcp_gcs`, `oktagroups` |
+| [tofu-gce-instance-generation.tf](../../tests/fixtures/v2_golden/generated/instance-image/tofu-gce/instance-generation/tofu-gce-instance-generation.tf) | `terraform {}` with `google` from `hashicorp/google` and `backend "s3" {}`; `provider "google"` (`project = "csis-sandbox"`, `region = "us-east1"`, `zone = "us-east1-b"`, alias `tofu_gce`); `variable "gce_test_image"`, `variable "enrollment_token"`; `data "terraform_remote_state"` for `aws_efs`, `aws_ebs`, `aws_s3`, `gcp_pd`, `gcp_gcs`, `oktagroups` |
 | [tofu-gce-instance-generation-instance-gce_test.tf](../../tests/fixtures/v2_golden/generated/instance-image/tofu-gce/instance-generation/tofu-gce-instance-generation-instance-gce_test.tf) | `module "instance_gce_test"` calling `../../../../../tfmodules/gce_instance` with `name = "gce-test"`, `image = var.gce_test_image`, `image_family = "imgfile-basic-dask"`, `machine_type = "e2-micro"`, `zone`, `subnetwork`, `public_ip = false`, `startup_script = templatefile(...)`, and `attached_disks` for `gce_data` with `device_name = "gce-data"` |
 | [user-data-gce_test.sh.tftpl](../../tests/fixtures/v2_golden/generated/instance-image/tofu-gce/instance-generation/user-data-gce_test.sh.tftpl) | the launch script: the `gce_data` mount at `/mnt/gce-data` from `/dev/disk/by-id/google-gce-data`, the `coops` subtree |
 | [tofu-gce-instance-generation.tfbackend.hcl](../../tests/fixtures/v2_golden/generated/instance-image/tofu-gce/instance-generation/tofu-gce-instance-generation.tfbackend.hcl) | the S3 partial backend configuration with `key = "statefiles/csia-image-system-test/tofu_gce.tfstate"` |

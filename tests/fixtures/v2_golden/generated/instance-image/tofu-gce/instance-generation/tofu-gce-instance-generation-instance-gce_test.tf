@@ -14,8 +14,8 @@ module "instance_gce_test" {
   startup_script = templatefile("${path.module}/user-data-gce_test.sh.tftpl", {
     "ebs" = {}
     "efs" = {}
+    "enrollment_token" = var.enrollment_token
     "group_gid" = data.terraform_remote_state.oktagroups.outputs.group_gids["coops"]
-    "sft_enrollment_token" = var.sft_enrollment_token
   })
   attached_disks = {
     "gce_data" = {

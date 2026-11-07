@@ -2341,7 +2341,7 @@ it is the join key between a roster and an access grant.
 | `GOOGLE_APPLICATION_CREDENTIALS` | the GCE runtime, preflight | Application Default Credentials; default `~/.config/gcloud/application_default_credentials.json` |
 | `TF_VAR_<team>_key`, `TF_VAR_<team>_secret` | an `okta-tf` builder with the `oktapam` provider; the gid shim; the state query | the OPA API key pair for the builder's `team` (non-alphanumerics of the team → `_`). Required when the configuration LOADS (the workspace's finalize runs during the load, so `validate` and dry runs need them too) whenever the builder's `key`/`secret` are left at default and `oktapam` is among its `required_providers`. The gid shim also accepts `OKTAPAM_KEY`/`OKTAPAM_SECRET`. |
 | `OKTA_API_CLIENT_ID`, `OKTA_API_SCOPES`, `OKTA_API_PRIVATE_KEY`, `OKTA_API_PRIVATE_KEY_ID` (or `OKTA_API_TOKEN`) | the `okta/okta` provider at plan/apply | user (and read-only group) lookups. The load only checks that one of `OKTA_API_PRIVATE_KEY`, `OKTA_API_TOKEN`, `OKTA_ACCESS_TOKEN` is set and warns otherwise, skipping `plan` for that root. |
-| `TF_VAR_sft_enrollment_token` | the instance roots | explicit override of the enrollment token the identity root mints |
+| `TF_VAR_enrollment_token` | the instance roots | explicit override of the enrollment token the identity root mints |
 | `CSIS_AWS_DIR` | preflight | the `~/.aws` directory to read session caches from |
 | `{{ ENV.<name> }}` | the templating pass | any variable, in any string of `cfg/` (`systemuser: "{{ ENV.USER }}"`, `'{{ ENV["USER"] }}''s node'`) |
 

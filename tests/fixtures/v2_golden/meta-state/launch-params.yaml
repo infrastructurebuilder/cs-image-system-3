@@ -45,7 +45,7 @@ instances:
       type: pd
     run: 2026_08_26t12_00_00
     session: iap
-    user_data_sha256: 9a61e52fdcc51f45e8b6e20082200650510ee73730738c5c85bc0da7add8d878
+    user_data_sha256: 62eea533831b56b6eb6c7c3165bc7d9a27dae0f7981d0c67c00c50130819ceb3
   test:
     build: unbound
     enrollment:
@@ -61,7 +61,7 @@ instances:
     mounts: []
     run: 2026_08_26t12_00_00
     session: ssm
-    user_data_sha256: ebbdafde380a4aeefc067fc0798ebe7e69b28ff143573124b0e0b8e355acc0f1
+    user_data_sha256: 6b08b82f63b05c57d94e8f37a07f3ae29d0683a729f3849ac7c2453bc66b0163
   test2:
     build: unbound
     enrollment:
@@ -85,4 +85,4 @@ instances:
       type: ebs
     run: 2026_08_26t12_00_00
     session: ssm
-    user_data_sha256: 515dc5b15e7ad98ff84d67c300442748f724171d9fc5d9b9da6db638c312a82c
+    user_data_sha256: be2d504a9377048bcb743ef83a2816a1328b174ede526a140a65aaeb32ef2919

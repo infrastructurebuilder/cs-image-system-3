@@ -1340,7 +1340,7 @@ machine by a run that can launch it, or was recorded earlier), `ephemeral`,
 and `userdata` when declared. `user_data_template`
 renders these as a bash script for terraform's `templatefile`: hostname,
 group gid by reference (`${group_gid}`), then one block per mount, then
-the enrollment trigger (`${sft_enrollment_token}`, never recorded), the
+the enrollment trigger (`${enrollment_token}`, never recorded), the
 instance's own `userdata` lines, and finally the marker
 `/var/lib/csis/launch-applied`. The core knows no storage kind: each
 mount's block, from its `# mount storage <name> (<type>) at <mount point>`

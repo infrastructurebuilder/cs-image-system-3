@@ -712,7 +712,7 @@ identity. Without it the load refuses.
 repository), and Debian vendor images get `curl` and `gnupg` installed
 first. An instance enrolls with `sftd` at launch using the token the
 identity root minted (read by the instance root as a sensitive
-remote-state reference; `TF_VAR_sft_enrollment_token` is the explicit
+remote-state reference; `TF_VAR_enrollment_token` is the explicit
 override), advertises its private address, and must be reachable through
 an OPA gateway matching `gateway_selector` (the live value is
 `environment=staging`, from `config.okta_gateway_selector`) that wears the

@@ -294,7 +294,7 @@ writes a `type:` that names one; the `type:` is always the subclass's.
   ephemeral toggle `ephemeral_present` (when any instance is ephemeral),
   one image variable per instance that finalization fills from the
   packer manifests (`_image_var(label)`, default `<label>_image`), and
-  the enrollment-token variable `sft_enrollment_token` (sensitive, empty
+  the enrollment-token variable `enrollment_token` (sensitive, empty
   by default, supplied at apply time and never recorded);
 - the state-manager binding (`bind_workspace` on the run's collector,
   with the builder's own `state_configuration` and the runtime's) and the remote-state

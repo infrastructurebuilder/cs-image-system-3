@@ -15,7 +15,7 @@ module "instance_test" {
   user_data = templatefile("${path.module}/user-data-test.sh.tftpl", {
     "ebs" = {}
     "efs" = {}
+    "enrollment_token" = (var.enrollment_token != "" ? var.enrollment_token : data.terraform_remote_state.oktagroups.outputs.group_enrollment_tokens["coops"])
     "group_gid" = data.terraform_remote_state.oktagroups.outputs.group_gids["coops"]
-    "sft_enrollment_token" = (var.sft_enrollment_token != "" ? var.sft_enrollment_token : data.terraform_remote_state.oktagroups.outputs.group_enrollment_tokens["coops"])
   })
 }
