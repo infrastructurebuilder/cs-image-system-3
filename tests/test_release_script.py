@@ -49,6 +49,16 @@ def _load():
 R = _load()
 
 
+@pytest.fixture(autouse=True)
+def _a_git_identity(monkeypatch):
+    """The script's own commits and tags reach the scratch repositories as real
+    git calls; a machine with no configured identity (a CI runner) refuses them,
+    so every test commits as a synthetic one."""
+    for who in ("AUTHOR", "COMMITTER"):
+        monkeypatch.setenv(f"GIT_{who}_NAME", "t")
+        monkeypatch.setenv(f"GIT_{who}_EMAIL", "t@example.invalid")
+
+
 def _git(cwd: Path, *args: str) -> str:
     return subprocess.run(["git", "-c", "user.name=t", "-c", "user.email=t@example.invalid", *args],
                           cwd=cwd, capture_output=True, text=True, check=True).stdout.strip()
