@@ -2648,10 +2648,12 @@ ansible-core no longer supports.
 
 **Fix.** An emitted `provisioner "shell"` installs a newer Python and pins
 it at `/usr/local/bin/csis-ansible-python`, and `-e
-ansible_python_interpreter=...` names it. A family with no
-`python3.12`/`3.11`/`3.9` package and no `dnf` falls back to whatever
-`python3` exists; check the family's Python against the ansible-core
-support matrix before blaming the playbook.
+ansible_python_interpreter=...` names it. The install line is the OS
+type's `ansible_python_install_command` for the image's root family (the
+dnf type tries `python3.12`/`3.11`/`3.9` and falls back to whatever
+`python3` exists; the apt type installs `python3`); check the family's
+Python against the ansible-core support matrix before blaming the
+playbook.
 
 **Date.** 2026-08-31 (before 2026-09-02).
 
