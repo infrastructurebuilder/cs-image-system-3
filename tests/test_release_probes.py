@@ -9,7 +9,9 @@ session of the live configuration present, and every recipe runs ``uv run --no-s
 behind the checkout answers with stale metadata. The release used to find all three out
 twenty minutes in. ``_release-probes`` asks them first, one line each, and the dry form of
 ``release`` prints the same verdicts. Here docker and ``uv sync`` are stubs on PATH, and the live
-configuration is the frozen fixture with a home directory that holds no AWS session.
+configuration is the frozen fixture with a home directory that holds no AWS session. The recipe is a
+wrapper over scripts/release.py, whose own order and session line
+tests/test_release_script.py holds against a stubbed shell.
 """
 from __future__ import annotations
 
@@ -84,25 +86,3 @@ def test_pypi_without_a_live_configuration_or_a_session_is_refused_by_name(tmp_p
 def test_release_finish_asks_the_venv_alone(tmp_path: Path):
     done = _probes(tmp_path, "pypi", docker_ok=False, who="release-finish")
     assert done.returncode == 0 and done.stdout.startswith("release-finish:") and "in step" in done.stdout
-
-
-def test_release_and_release_finish_ask_before_anything_changes():
-    release = _plan("release", "patch", "test", "yes")
-    probes_at = release.index('just _release-probes "test" release')
-    assert probes_at < release.index('[ "yes" = "yes" ]') and probes_at < release.index('bump-my-version "${bump[@]}"')
-    assert "probes above" in release                                   # the dry form says it ran them
-    finish = _plan("release-finish", "test")
-    assert finish.index("_release-probes") < finish.index("git add pyproject.toml")
-    assert "discard" in release                                        # the clean-tree guard names its remedy
-
-
-def test_the_session_line_says_the_minutes_left_and_refuses_only_a_lapsed_token():
-    """Three branches of the one line (lapsed, under an hour, enough); the
-    operator's decision is to SAY the minutes. A token already lapsed is a
-    fact, not a margin -- preflight judges it too -- so that branch alone refuses."""
-    probes = _plan("_release-probes", "test", "release")
-    assert "scripts/session-minutes-left" in probes
-    for needle in ("lapsed", "halfway", "minutes left"):
-        assert needle in probes, needle
-    branches = probes[probes.index("left=$("):].split("\nfi\n")[0]
-    assert branches.count("exit 1") == 1 and branches.index("exit 1") < branches.index("elif [ \"$left\" -lt 60 ]")   # only a lapsed token refuses
