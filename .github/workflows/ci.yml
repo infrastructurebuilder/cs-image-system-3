@@ -58,7 +58,7 @@ jobs:
   live:
     # The system's live proof over the frozen fixture (stage 64): the fixture
     # names the real account's networks and project and the real OPA team, so
-    # with the read-only identities `just fixture-live` validates it, dry-runs
+    # with the read-only identities `just fixture-live` validates it online, dry-runs
     # every lifecycle over a private copy (state query off: the fixture's
     # declarations are synthetic) and runs its modification tests under docker.
     # Reads only; never --no-dry-run. Pushes and the nightly schedule, never
@@ -110,7 +110,7 @@ jobs:
             if [ "${!have}" = true ]; then present=$((present + 1)); else missing="$missing $name"; fi
           done
           if [ "$present" -eq 0 ]; then
-            echo "live: SKIPPED -- no live secret is configured, so no step runs (AWS_ROLE_ARN: a federated READ-ONLY AWS role (EC2 describe for the configuration load); GCP_WORKLOAD_IDENTITY_PROVIDER / GCP_SERVICE_ACCOUNT: the read-only GCP identity (the gcloud runtime discovers its network at load); OKTA_API_PRIVATE_KEY / TF_VAR_NOS_KEY / TF_VAR_NOS_SECRET: the Okta triple the Okta workspace asserts at load)"
+            echo "live: SKIPPED -- no live secret is configured, so no step runs (AWS_ROLE_ARN: a federated READ-ONLY AWS role (EC2 describe for `validate --online`); GCP_WORKLOAD_IDENTITY_PROVIDER / GCP_SERVICE_ACCOUNT: the read-only GCP identity (the gcloud runtime discovers its network under `validate --online`); OKTA_API_PRIVATE_KEY / TF_VAR_NOS_KEY / TF_VAR_NOS_SECRET: the Okta triple the Okta workspace asserts at load)"
             { echo "## live: SKIPPED"; echo "No live secret is configured; no step ran. A green conclusion here is not proof that anything ran."; } >> "$GITHUB_STEP_SUMMARY"
             echo "ready=false" >> "$GITHUB_OUTPUT"
           elif [ -n "$missing" ]; then
