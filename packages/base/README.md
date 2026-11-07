@@ -398,8 +398,12 @@ registered runtime builder class and merges the parts by family
 WARNING). The catalog therefore depends on which runtime plugins are
 installed, never on which a tree declares, and this module names no
 runtime. The tree's `image_sources:` entries land on the merged result
-by family and version (`ImageSourceCatalog`, a singleton the tests reset
-with the others). An OS builder's runtime entry resolves its effective
+by family and version (`ImageSourceCatalog`, one per run like the
+registry: the loader makes it beside the run's registry, binds it as the
+process's current one and carries it as `ctx.image_sources`; a model,
+which holds no context, reads the current one through
+`current_catalog()` as it reads the registry). An OS builder's runtime
+entry resolves its effective
 query through it (`image_query()`), `get_family()` reads what a family
 IS through it (`is:`), a missing OS builder `type` is defaulted from it
 (`default_os_type`), the modification tests take their stand-in

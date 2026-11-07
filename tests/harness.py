@@ -213,8 +213,8 @@ def reset_singletons() -> None:
     # the registry is per run too: the loader makes the next one;
     # the process binding is dropped so `load_plugins()` below fills a fresh one
     bind_current_registry(None)
-    from cs_image_system.base.image_sources import ImageSourceCatalog
-    ImageSourceCatalog().reset()
+    from cs_image_system.base.image_sources import bind_current_catalog
+    bind_current_catalog(None)   # per run too: the loader makes the next one beside the registry
     TemplateResolver().flattened_map = {}
     TemplateResolver().unresolved_foreign_keys = []   # the loader starts each load with a fresh list too
     Orchestrator().invalidate_converter()

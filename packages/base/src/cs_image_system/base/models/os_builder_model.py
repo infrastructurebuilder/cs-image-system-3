@@ -18,7 +18,7 @@ from .update_policy import POLICY_FULL, POLICY_NONE, UpdatePolicy
 
 from cs_image_system.contract.constants import DEFAULT,  VCT
 from .builder_model import BuilderModel
-from ..image_sources import ImageSourceCatalog
+from ..image_sources import current_catalog
 
 log = logging.getLogger(__name__)
 
@@ -126,7 +126,7 @@ class OsBuilderModel(BuilderModel, OsBuilderModelProtocol):
         """What the declared family IS: the image-source
         catalog's ``is`` for it, else the token itself. Everything that
         branches on a family reads this one."""
-        return ImageSourceCatalog().effective_family(self.family, self.family_version)
+        return current_catalog().effective_family(self.family, self.family_version)  # a model holds no context
     def get_vendor_family(self) -> str:
         """The family token as written (``rhel-from-jerry``): the catalog's key."""
         return self.family

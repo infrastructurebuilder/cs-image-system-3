@@ -82,7 +82,7 @@ from cs_image_system.contract.group import GroupBuilderProtocol
 from cs_image_system.contract.image import ImageQuery
 from cs_image_system.contract.storage import StorageBuilderProtocol
 from .models.ia_config import DEFAULT_DATEFORMAT
-from .image_sources import ImageSourceCatalog, default_os_type
+from .image_sources import ImageSourceCatalog, bind_current_catalog, default_os_type
 
 log = logging.getLogger(__name__)
 
@@ -419,6 +419,11 @@ def read_config_and_transform(
         reg = registry.Registry()
     load_plugins(reg)
     registry.bind_current_registry(reg)
+    # the run's image-source catalog beside its registry: the release layer
+    # read from this registry's runtimes, the tree's layer set below once
+    # the configuration is parsed; current for the models that read it
+    catalog = ImageSourceCatalog(reg)
+    bind_current_catalog(catalog)
     if not root_dir:
         raise ValueError("Root directory must be provided")
     _config_dir = root_dir / "cfg"
@@ -517,7 +522,7 @@ def read_config_and_transform(
     # the tree's image sources land on the release's before any OS
     # builder structures, so a missing `type` can be defaulted from what the
     # family IS and every family reader sees the catalog
-    ImageSourceCatalog().set_tree(list(config_data.image_sources or []))
+    catalog.set_tree(list(config_data.image_sources or []))
 
     cvt = Orchestrator().get_converter()
 
@@ -534,7 +539,7 @@ def read_config_and_transform(
                 if name and not _type and plugin_key == "os_builders":
                     # an OS builder may leave `type` out when exactly
                     # one registered type serves what its family IS
-                    _type = default_os_type(str(item.get("family", "")), item.get("family_version"),
+                    _type = default_os_type(catalog, str(item.get("family", "")), item.get("family_version"),
                                             reg.models_under(VCT.OS_BUILDER_MODEL))
                     if _type:
                         item["type"] = _type
@@ -733,6 +738,7 @@ def read_config_and_transform(
         undeclared=parse_undeclare(undeclare),
         run_start_time=run_start_time,
         reg=reg,
+        image_sources=catalog,
     )
     ctx.bind_finalizer(Finalizer(ctx))
     ctx.bind_services(RunServices(ctx))

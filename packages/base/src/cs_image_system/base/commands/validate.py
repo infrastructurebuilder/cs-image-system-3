@@ -25,7 +25,7 @@ from ..launch_params import HOSTNAME_LABEL_MAX, canonical_hostname, hostname_pro
 from ..alias_pool import free_names, pool_path, pool_problems
 from ..capabilities import group_builder_of
 from ..bake_user import entry_for_runtime, resolve_bake_user, resolve_for_entry, root_os_builder
-from ..image_sources import ImageSourceCatalog, container_reference, stand_in_runtime_type
+from ..image_sources import container_reference, stand_in_runtime_type
 from ..image_names import output_names_by_runtime
 from cs_image_system.base.models.container_builder import ContainerBuilderModel
 
@@ -596,7 +596,7 @@ def check_image_sources(ctx: GlobalTypeContext) -> list[Exception]:
     per entry prints the query in both vocabularies, so a review sees what
     will be asked without opening the catalog."""
     exs: list[Exception] = []
-    catalog = ImageSourceCatalog()
+    catalog = ctx.image_sources
     stand_in_type = stand_in_runtime_type() or "no installed runtime offers a local test target"
     for osb_name, osb in sorted((ctx.os_builders or {}).items()):
         model = osb.model

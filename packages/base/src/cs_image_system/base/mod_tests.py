@@ -40,7 +40,7 @@ from typing import TYPE_CHECKING, Any, Protocol
 
 from cs_image_system.contract.errors import ContainerStartError  # noqa: F401 - the error is the contract's; this path keeps it
 from .lineage import mod_records
-from .image_sources import _runtime_classes, stand_in_runtime_type, ImageSourceCatalog, container_reference
+from .image_sources import _runtime_classes, stand_in_runtime_type, container_reference
 from .capabilities import image_chain
 from .os_types import os_type_for_family
 
@@ -148,7 +148,7 @@ def test_image_for(ctx: "GlobalTypeContext", image: Any) -> str | None:
     override = getattr(osb.model, "local_test_image", None)
     if override:
         return str(override)
-    block = ImageSourceCatalog().stand_in_block(osb.model.get_vendor_family(), osb.get_family_version())
+    block = ctx.image_sources.stand_in_block(osb.model.get_vendor_family(), osb.get_family_version())
     return container_reference(block) if block is not None else None
 
 

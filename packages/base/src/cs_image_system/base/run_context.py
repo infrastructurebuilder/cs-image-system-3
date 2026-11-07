@@ -33,6 +33,7 @@ from cs_image_system.contract.executables import ExecutableProtocol
 from cs_image_system.contract.state import StateBuilderProtocol
 
 from . import registry
+from .image_sources import ImageSourceCatalog, current_catalog
 from cs_image_system.contract.constants import DEFAULT_GITIGNORE_ENTRIES, VCT
 from cs_image_system.contract.lifecycle import ExecutionLifecyclePhase
 from cs_image_system.contract.lifecycles import LifecycleLike
@@ -94,10 +95,13 @@ class RunContext(RunContextProtocol):
                  undeclared: list[tuple[str, str]] | None = None,
                  run_start_time: datetime | None = None,
                  reg: registry.Registry | None = None,
+                 image_sources: ImageSourceCatalog | None = None,
                  ) -> None:
         # the run's registry: the loader makes one per run and hands it in;
         # without one, the process's current (the shim)
         self.reg: registry.Registry = reg if reg is not None else registry.current_registry()
+        # the run's image-source catalog, made beside the registry the same way
+        self._image_sources: ImageSourceCatalog = image_sources if image_sources is not None else current_catalog()
         self._dry_run = dry_run
         self._verbose = verbose or False
         self._run_start_time = run_start_time or datetime.now()
@@ -171,6 +175,12 @@ class RunContext(RunContextProtocol):
 
     def __copy__(self) -> RunContext:
         return self
+
+    @property
+    def image_sources(self) -> ImageSourceCatalog:
+        """This run's image-source catalog: the release's entries over the
+        registry's runtimes, the tree's entries on them."""
+        return self._image_sources
 
     # --- the finalizer handle
     @property

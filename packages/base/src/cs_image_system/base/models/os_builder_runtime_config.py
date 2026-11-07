@@ -24,7 +24,7 @@ if TYPE_CHECKING:
     from .os_builder_model import OsBuilderModel
     from .runtime import RuntimeBuilderModel
 from .base_image import BaseImage
-from ..image_sources import ImageSourceCatalog
+from ..image_sources import current_catalog
 log = logging.getLogger(__name__)
 
 
@@ -219,7 +219,8 @@ class OSBuilderBaseImageBuilderSubconfig(SubRootItem):
         family = parent.get_vendor_family() if parent is not None else ""
         version = parent.get_family_version() if parent is not None else None
         runtime_type = self.runtime_type()
-        q = (ImageSourceCatalog().block(family, version, runtime_type) if runtime_type and family else None) or ImageQuery()
+        # a model holds no context: the current catalog is the run's, as the registry is
+        q = (current_catalog().block(family, version, runtime_type) if runtime_type and family else None) or ImageQuery()
         who = f"OS builder {parent.get_name() if parent is not None else '?'}"
         if parent is not None and parent.get_query():
             q = q.merged(ImageQuery.from_mapping(parent.get_query(), where=f"{who}: query"))

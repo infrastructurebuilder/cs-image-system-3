@@ -49,8 +49,7 @@ from cs_image_system.contract.model_config import CSIS_MODEL_CONFIG
 from cs_image_system.contract.names import safe_name
 
 from .loader import load_plugins
-from .registry import current_registry
-from .singleton import singleton
+from .registry import Registry, current_registry
 
 log = logging.getLogger(__name__)
 
@@ -204,23 +203,27 @@ def stand_in_runtime_type(classes: Mapping[str, type] | None = None) -> str | No
     return None
 
 
-@singleton
 class ImageSourceCatalog:
-    """The two layers and the lookups over them. One per process; tests
-    reset it with the other singletons."""
+    """The two layers and the lookups over them. One per run, like the
+    registry: the loader makes it beside the run's registry (whose runtime
+    classes the release layer is read from), binds it as the process's
+    current one (:func:`bind_current_catalog`) and hands it to the run
+    context as ``ctx.image_sources``; the tree's entries are set on it
+    once the configuration is parsed. Without a registry it reads the
+    process's current one."""
 
-    def __init__(self) -> None:
+    def __init__(self, reg: Registry | None = None) -> None:
+        self._reg = reg
         self._default: list[ImageSource] | None = None
         self._tree: list[ImageSource] = []
 
-    def reset(self) -> None:
-        self._default = None
-        self._tree = []
+    def _classes(self) -> dict[str, type]:
+        return dict(self._reg.runtime_builder_classes()) if self._reg is not None else _runtime_classes()
 
     # ------------------------------------------------------------ the layers
     def default_entries(self) -> list[ImageSource]:
         if self._default is None:
-            self._default = packaged_default_entries()
+            self._default = packaged_default_entries(self._classes())
         return self._default
 
     def tree_entries(self) -> list[ImageSource]:
@@ -274,7 +277,7 @@ class ImageSourceCatalog:
         (``stand_in_runtime_type``): the family's own, else the family it
         IS (a custom family with no container of its own is tested as what
         it is). None when no installed runtime offers a local target."""
-        runtime_type = stand_in_runtime_type()
+        runtime_type = stand_in_runtime_type(self._classes())
         if runtime_type is None:
             return None
         own = self.block(family, version, runtime_type)
@@ -292,10 +295,34 @@ class ImageSourceCatalog:
         return out
 
 
-def default_os_type(family: str, version: str | None, registered: dict[str, type]) -> str | None:
-    """The one registered OS model type that serves what ``family`` IS, by
-    the classes' ``families()``; None when none or more than one does."""
-    real = ImageSourceCatalog().effective_family(family, version)
+_CURRENT: ImageSourceCatalog | None = None
+
+
+def bind_current_catalog(catalog: ImageSourceCatalog | None) -> None:
+    """Make ``catalog`` the process's current image-source catalog (the
+    loader binds the run's beside its registry; None drops the binding)."""
+    global _CURRENT
+    _CURRENT = catalog
+
+
+def current_catalog() -> ImageSourceCatalog:
+    """The process's current catalog: the one the loader bound for the run
+    being loaded, or a fresh one over the current registry when none is
+    bound. Code that holds a context reads ``ctx.image_sources``; a model,
+    which holds no context, reaches the current one here, as it reaches
+    the registry through ``current_registry()``."""
+    global _CURRENT
+    if _CURRENT is None:
+        _CURRENT = ImageSourceCatalog()
+    return _CURRENT
+
+
+def default_os_type(catalog: ImageSourceCatalog, family: str, version: str | None,
+                    registered: dict[str, type]) -> str | None:
+    """The one registered OS model type that serves what ``family`` IS
+    (``catalog.effective_family``), by the classes' ``families()``; None
+    when none or more than one does."""
+    real = catalog.effective_family(family, version)
     hits = sorted(name for name, cls in registered.items()
                   if real in tuple(str(f).lower() for f in getattr(cls, "families", lambda: ())()))
     return hits[0] if len(hits) == 1 else None
