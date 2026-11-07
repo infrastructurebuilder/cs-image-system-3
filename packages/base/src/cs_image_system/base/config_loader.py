@@ -699,6 +699,10 @@ def read_config_and_transform(
     wpath = Path(working_dir).resolve()
     if not wpath.exists():
         raise FileNotFoundError(f"Working directory {wpath} does not exist.")
+    # Deliberately NOT a scoped change: the loaded configuration is used from
+    # its root for the rest of the command (relative paths in it resolve
+    # against the root), so the process stays there. The CLI's main callback
+    # restores the invoking directory when its context closes.
     os.chdir(wpath)
     gen_path = (
         wpath / config_data.generation_directory

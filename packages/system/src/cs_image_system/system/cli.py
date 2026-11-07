@@ -25,7 +25,7 @@ from cs_image_system.base.commands.login_proof import verify_login_command
 from cs_image_system.contract.lifecycles import Lifecycle
 from cs_image_system.base.lifecycles import all_lifecycles, parse_lifecycles
 from cs_image_system.base.loader import load_plugins
-from cs_image_system.base.utils import is_base
+from cs_image_system.base.utils import is_base, in_directory
 from cs_image_system.base.commands.run_lifecycles import run_lifecycles, load_hook_plugins, validate_only
 from cs_image_system.base.commands.runtime_facts import runtime_bake_selection, describe_runtime, emptiness
 from cs_image_system.base.commands.upgrade import upgrade
@@ -1682,6 +1682,9 @@ def main(
             typer.secho(f"--locked: {e}", fg=typer.colors.RED, err=True)
             raise typer.Exit(code=tofu_lock.EX_TEMPFAIL)
         typer_cntx.call_on_close(release_lock)
+    # the pair to the configuration loader's deliberate chdir into the root:
+    # the command runs after this callback returns, so the restore cannot be
+    # a scoped block here; it rides the context's close instead
     saved_dir = os.getcwd()
 
     def restore_dir():
@@ -1813,8 +1816,7 @@ def run_in_process(ctx: "RunContext", args: list[str], working_directory: Path |
            # a deferred-load sub-app's command asks this for the context: already loaded
            "deferred_load": lambda: ctx}
     command = typer.main.get_command(app)
-    try:
-        os.chdir(wd)
+    with in_directory(wd):
         try:
             rv = command.main(args=args, prog_name=SYSTEM_CLI, standalone_mode=False, obj=obj)
         except typer.Abort:
@@ -1830,8 +1832,6 @@ def run_in_process(ctx: "RunContext", args: list[str], working_directory: Path |
                 log.error(f"{SYSTEM_CLI} {' '.join(args)}: {format_message()}")
                 return exit_code
             raise
-    finally:
-        os.chdir(here)
     return 0 if rv is None else int(rv)
 
 

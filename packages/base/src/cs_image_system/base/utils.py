@@ -10,10 +10,12 @@ if TYPE_CHECKING:
     from .run_context import RunContext
 
 
+import contextlib
 import json
+import os
 import re
 from pathlib import Path
-from typing import Any, Iterable, Mapping
+from typing import Any, Iterable, Iterator, Mapping
 
 import logging
 import typer
@@ -29,6 +31,24 @@ from cs_image_system.contract import constants
 
 def is_base(typer_context: typer.Context) -> bool:
     return typer_context.obj.get("base_only", False)
+
+@contextlib.contextmanager
+def in_directory(path: str | Path) -> Iterator[Path]:
+    """Run the block inside ``path`` and come back.
+
+    The process's working directory is ``path`` for the block and the
+    directory the caller had afterwards, however the block ends -- an
+    exception included. Blocks nest like a stack: each one restores the
+    directory the block around it was in. Yields the directory entered,
+    absolute, for the caller's logging.
+    """
+    previous = Path.cwd()
+    os.chdir(path)
+    try:
+        yield Path.cwd()
+    finally:
+        os.chdir(previous)
+
 
 def strip_tags(tags: Mapping[str, Any]) -> dict[str, str]:
     _tags: dict[str, str] = {}

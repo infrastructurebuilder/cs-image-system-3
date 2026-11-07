@@ -23,6 +23,7 @@ from typing import Annotated, Any
 
 from cs_image_system.contract.constants import SYSTEM_CLI, DEFAULT, VCT
 from ..encryption import decrypt_marker, is_marker
+from ..utils import in_directory
 
 
 #: how much of a successful command's output the log
@@ -166,38 +167,34 @@ class ExecutableModel(NameTyped, PluginArtifactProtocol):
         command.extend(alist)
         command.extend(self.appended_arguments if not skips else [])
 
-        cd = Path(os.getcwd()).absolute()
-        try:
+        cd = Path.cwd()
+        target = cd / self.working_directory if self.working_directory else cd
+        with in_directory(target) as here:
             if self.working_directory:
-                os.chdir(cd / self.working_directory)
-                log.debug(
-                    f"Changed working directory to {Path(os.getcwd()).absolute()} "
-                    f"for executing {command}"
+                log.debug(f"Changed working directory to {here} for executing {command}")
+            try:
+                env = None
+                if self.environment:
+                    env = dict(os.environ)
+                    env.update(self.resolved_environment())
+                result = subprocess.run(
+                    command,
+                    check=True,
+                    capture_output=True,
+                    text=True,
+                    env=env,
                 )
-            env = None
-            if self.environment:
-                env = dict(os.environ)
-                env.update(self.resolved_environment())
-            result = subprocess.run(
-                command,
-                check=True,
-                capture_output=True,
-                text=True,
-                env=env,
-            )
-            _log_captured(command, result)
-            return result
-        except subprocess.CalledProcessError as cpe:
-            log.error(f"Command '{' '.join(command)}' failed with exit code {cpe.returncode}")
-            log.warning(f" Standard output:\n{cpe.stdout}")
-            log.warning(f" Standard error:\n{cpe.stderr}")
-            log.warning(f" Path: {Path(os.getcwd()).absolute()}")
-            raise cpe
-        except Exception as ex:
-            log.error(f"Error while executing {bin}: {ex}")
-            raise ex
-        finally:
-            os.chdir(cd)
+                _log_captured(command, result)
+                return result
+            except subprocess.CalledProcessError as cpe:
+                log.error(f"Command '{' '.join(command)}' failed with exit code {cpe.returncode}")
+                log.warning(f" Standard output:\n{cpe.stdout}")
+                log.warning(f" Standard error:\n{cpe.stderr}")
+                log.warning(f" Path: {here}")
+                raise cpe
+            except Exception as ex:
+                log.error(f"Error while executing {bin}: {ex}")
+                raise ex
         
 class DefaultExecutableModelPluginMetadata(AbstractPluginMetadata):
     def __init__(self) -> None:

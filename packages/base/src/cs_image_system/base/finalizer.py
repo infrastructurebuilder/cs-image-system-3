@@ -43,6 +43,7 @@ from cs_image_system.contract.lifecycles import LifecycleLike
 from .in_process import run_executable
 from .lifecycles import all_lifecycles
 from .encryption import is_marker
+from .utils import in_directory
 
 if TYPE_CHECKING:
     from .models.executable import ExecutableModel
@@ -225,31 +226,24 @@ class Finalizer:
             for executable in executables:
                 log.info(f"[DRY RUN] {label}: would execute {render_executable_line(executable)}")
             return True
-        pwd = Path(os.getcwd()).absolute()
-        try:
-            for builder in ctx.all_sorted_builders:
-                builder.pre_finalize_phase(phase)
-            for executable in executables:
-                log.info(f"[{label}] executing {render_executable_line(executable)}")
-                os.chdir(ctx.generation_path)
-                try:
+        for builder in ctx.all_sorted_builders:
+            builder.pre_finalize_phase(phase)
+        for executable in executables:
+            log.info(f"[{label}] executing {render_executable_line(executable)}")
+            try:
+                with in_directory(ctx.generation_path):
                     res = self._run_executable(executable)
-                except Exception as e:
-                    log.error(f"[{label}] command failed: {e}")
-                    os.chdir(pwd)
-                    self.after_failed_phase(phase)     # keep what completed
-                    return False
-                finally:
-                    os.chdir(pwd)
-                if not res or res.returncode != 0:
-                    log.error(f"[{label}] command returned {res.returncode if res else 'None'}")
-                    self.after_failed_phase(phase)
-                    return False
-            for builder in ctx.all_sorted_builders:
-                builder.post_finalize_phase(phase)
-            return True
-        finally:
-            os.chdir(pwd)
+            except Exception as e:
+                log.error(f"[{label}] command failed: {e}")
+                self.after_failed_phase(phase)     # keep what completed
+                return False
+            if not res or res.returncode != 0:
+                log.error(f"[{label}] command returned {res.returncode if res else 'None'}")
+                self.after_failed_phase(phase)
+                return False
+        for builder in ctx.all_sorted_builders:
+            builder.post_finalize_phase(phase)
+        return True
 
     def _run_executable(self, executable: Any) -> Any:
         """Run one deferred executable from the current directory (the

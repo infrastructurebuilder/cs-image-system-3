@@ -21,7 +21,6 @@ from __future__ import annotations
 
 import json
 import logging
-import os
 import shutil
 import traceback
 from dataclasses import asdict, field
@@ -38,6 +37,7 @@ from cs_image_system.contract.lifecycles import Lifecycle, LifecycleLike
 from cs_image_system.contract.hooks import (  # noqa: F401 - re-exported
     HOOK_ENTRY_POINT_GROUP, HookSet, LifecycleHook, StateBindingsHook, SummaryHook, ValidatorHook)
 from ..lifecycles import all_lifecycles, phases_of
+from ..utils import in_directory
 from cs_image_system.contract.constants import RUN_LOCAL_FILENAMES, RUN_SUMMARY_FILENAME
 from ..meta_state import commit_meta_state
 from ..orchestrator import TemplateResolver
@@ -305,25 +305,20 @@ def execute_before_or_after_phase(
         )
         ctx.extend_finalization_phase(phase, cfe.finalize_executables)
 
-        pwd = Path(os.getcwd()).absolute()
-        os.chdir(gen_path)
-        starting_wd = Path(os.getcwd()).absolute()
         for cmd in cfe.build_executables:
-            os.chdir(starting_wd)
-            log.debug(
+            with in_directory(gen_path) as starting_wd:
+                log.debug(
                     f"Running command {bef_aft} phase {phase.value}: "
                     f"{cmd.name} {cmd.args}* in {starting_wd}"
                 )
-            res = run_executable(ctx, cmd)
+                res = run_executable(ctx, cmd)
             if not res or res.returncode != 0:
                 rc = str(res.returncode) if res else "None"
                 log.error(
                     f"Command failed {bef_aft} phase {phase.value}: "
                     f"{cmd.name} (Return code: {rc})"
                 )
-                os.chdir(pwd)
                 return False
-        os.chdir(pwd)
     return True
 
 
