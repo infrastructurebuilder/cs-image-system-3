@@ -96,8 +96,8 @@ def amazon_ebs_source(ctx: RunContextProtocol, model: AwsCloudBuilderModel, imag
     # Credentials for packer's AWS calls: the same named profile the tofu
     # roots put in their provider blocks (found live: without it the
     # amazon-ami datasource fails with "No valid credential sources found").
-    # stage 17: credentials is a declared object; get_credentials() is the
-    # one conversion point to the mapping every consumer wants.
+    # credentials is a declared object; get_credentials() is the one
+    # conversion point to the mapping every consumer wants.
     creds = model.get_credentials() if hasattr(model, "get_credentials") else {}
     profile = creds.get("profile_name")
     if profile:
@@ -118,15 +118,13 @@ def amazon_ebs_source(ctx: RunContextProtocol, model: AwsCloudBuilderModel, imag
     }
     if profile:
         c["profile"] = profile
-    # stage 63: the runtime's ena_support/sriov_support reach the source when
-    # declared (they were accepted and read by nothing); packer's defaults
-    # apply when they are not
+    # the runtime's ena_support/sriov_support reach the source when
+    # declared; packer's defaults apply when they are not
     for flag in ("ena_support", "sriov_support"):
         value = getattr(model, flag, None)
         if value is not None:
             c[flag] = bool(value)
-    # Debug-session parity for BAKES (TODO stage 1 finding, 2026-08-31):
-    # this VPC has no internet gateway and operator machines have no route
+    # Debug-session parity for BAKES: this VPC has no internet gateway and operator machines have no route
     # to private IPs, so SSH-from-outside can never reach a build instance.
     # When the runtime declares session_mechanism: ssm, packer connects
     # through Session Manager instead: no public IP, an SSM-capable
@@ -143,17 +141,17 @@ def amazon_ebs_source(ctx: RunContextProtocol, model: AwsCloudBuilderModel, imag
         # newlines and bare quotes are illegal inside an HCL quoted string)
         c["user_data"] = (_SSM_BOOTSTRAP.rstrip("\n").replace('"', '\\"')
                           .replace("\n", "\\n"))
-    # stage 63 items 22-23: the one resolver (the image's entry, the chain
-    # root's entry, config_username, the runtime's ssh_username, its
+    # the one resolver (the image's entry, the chain root's entry,
+    # config_username, the runtime's ssh_username, its
     # default_config_username, the family's vendor user); the runtime's
-    # ssh_username used to override every entry here
+    # ssh_username does not override an entry's
     c["ssh_username"] = ctx.services.images.resolve_bake_user(image, runtime)
     if networking.default_availability_zone:
         c["availability_zone"] = networking.default_availability_zone
     if model.iam_instance_profile and "iam_instance_profile" not in c:
-        # the SSM profile wins when both are set (stage 63 item 9, decided
-        # 2026-09-24): this assignment used to run after the SSM block and
-        # replace it, so a runtime with both baked under the wrong profile
+        # the SSM profile wins when both are set: were this assignment to
+        # run after the SSM block it would replace it, and a runtime with
+        # both would bake under the wrong profile
         c["iam_instance_profile"] = model.iam_instance_profile
     lmap = {
         # The SOURCE AMI's real root device, never a hardcoded name: RHEL
@@ -164,7 +162,7 @@ def amazon_ebs_source(ctx: RunContextProtocol, model: AwsCloudBuilderModel, imag
         "device_name": f'"{_root_device(ctx, image, psi)}"',
         "volume_type": '"gp3"',
         "delete_on_termination": True,
-        # stage 63: the one bake-disk rule the fingerprint also hashes
+        # the one bake-disk rule the fingerprint also hashes
         "volume_size": _bake_disk(ctx, image, runtime),
     }
     for k, v in c.items():

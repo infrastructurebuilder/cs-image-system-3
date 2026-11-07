@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""Image lineage and pinning (DESIGN §3F4/§3F5, §3M, N5, N11, N17, N23, N24).
+"""Image lineage and pinning (DESIGN §3F4, DESIGN §3F5, DESIGN §3M, DESIGN N5, N11, N17, N23, N24).
 
 Image generation is inherently non-idempotent: every run that bakes writes a
 NEW image. The system embraces it:
@@ -46,7 +46,7 @@ log = logging.getLogger(__name__)
 # (`contract.lineage_vocabulary`); every reader in the core keeps this path.
 from cs_image_system.contract.lineage_vocabulary import CONFIG_TAG, FINGERPRINT_TAG_LENGTH, TAG_PREFIX  # noqa: F401, E402
 
-# Convergent bakes (stage 9)
+# Convergent bakes
 POLICY_PINNED = "pinned"
 POLICY_FOLLOW = "follow"
 POLICIES = (POLICY_PINNED, POLICY_FOLLOW)
@@ -56,7 +56,7 @@ RUN_ID_FORMAT = "%Y_%m_%dt%H_%M_%S_%f"
 
 def _sha(data: Any) -> str:
     text = json.dumps(data, sort_keys=True, default=str)
-    # stage 49: hash the MATERIALISED form. An emission carries the ciphertext,
+    # hash the MATERIALISED form. An emission carries the ciphertext,
     # and age is randomised, so a `reencrypt` mints new ciphertext for the same
     # plaintext -- hashing the marker would move every fingerprint on every
     # rotation and mark every image DUE for a rebake that changes nothing.
@@ -89,7 +89,7 @@ def primary_runtime_of(ctx: "RunContext", image: Any) -> str | None:
 
 def capability_stamp(ctx: "RunContext", image: Any, runtime: str | None = None) -> dict[str, list[str]]:
     """Base image: its own declaration, the storage types narrowed to the
-    bake's runtime (hygiene XII item 21). Instance image: the root's stamp,
+    bake's runtime. Instance image: the root's stamp,
     inherited through the pinned chain (N24) on the bake's runtime."""
     if is_base_image(ctx, image):
         return declared_capabilities(ctx, image.get_name(), runtime or primary_runtime_of(ctx, image))
@@ -145,10 +145,10 @@ def mod_records(ctx: "RunContext", image: Any) -> list[dict[str, Any]]:
 
 def input_fingerprint(ctx: "RunContext", image: Any, runtime: str | None = None) -> str:
     """Hash of everything that determines the build's CONTENT -- the bake
-    decision (stage 9) compares it with the series head's recorded value.
+    decision compares it with the series head's recorded value.
 
-    IN: series; the PARENT IMAGE's own fingerprint on this runtime (stage 67
-    item 1: the parent's content, computed from the tree, never a build id
+    IN: series; the PARENT IMAGE's own fingerprint on this runtime (the
+    parent's content, computed from the tree, never a build id
     -- a parent re-baked from identical inputs leaves the child current, a
     changed parent still marks it due; which BUILD the child bakes from is
     the pin's business, and a moved pin is its own bake reason); the
@@ -159,10 +159,10 @@ def input_fingerprint(ctx: "RunContext", image: Any, runtime: str | None = None)
     the admin user and keys, and the update policy.
     OUT (execution detail, not content): machine type, preemptible, the tunnel,
     ssh username, the run id and timestamps, and the parent's BUILD ID
-    (until 2026-09-26 the effective parent build was hashed, so on an
-    ephemeral runtime -- whose retention disposes the base build every
-    cycle -- the plan and the record could never agree and the child
-    re-baked every cycle). Vendor-family MOVEMENT is also out -- the
+    (an older build hashed the effective parent build, so on an ephemeral
+    runtime -- whose retention disposes the base build every cycle -- the
+    plan and the record could never agree and the child re-baked every
+    cycle). Vendor-family MOVEMENT is also out -- the
     declared reference is hashed, not what the family resolves to today;
     `update.refresh_days` is the way to pick that up.
     """
@@ -199,13 +199,13 @@ def _verify_commands(ctx: "RunContext", image: Any, runtime: str | None) -> list
 
 def bake_disk_size(ctx: "RunContext", image: Any, runtime: str | None) -> int | str | None:
     """The disk a bake of ``image`` on ``runtime`` gets, in GB -- the ONE rule
-    the packer sources and the fingerprint both use (stage 63): the runtime's
-    own ``default_disk_size`` when it declares one (finding 51: on one cloud a
-    boot disk is exactly its image's disk); for a base image, its OS builder
-    entry's ``default_primary_disk_size`` for this runtime when declared, else
-    the OS builder's; for an instance image, its own ``primary_disk_size``.
-    Before stage 63 the fingerprint hashed the entry's value (default 100)
-    while the bake used the OS builder's (200)."""
+    the packer sources and the fingerprint both use: the runtime's own
+    ``default_disk_size`` when it declares one (on one cloud a boot disk is
+    exactly its image's disk); for a base image, its OS builder entry's
+    ``default_primary_disk_size`` for this runtime when declared, else the
+    OS builder's; for an instance image, its own ``primary_disk_size``. An
+    older build's fingerprint hashed the entry's value (default 100) while
+    the bake used the OS builder's (200)."""
     rtb = ctx.runtime_builders.get(str(runtime)) if runtime else None
     rt_disk = getattr(getattr(rtb, "model", None), "default_disk_size", None)
     if rt_disk:
@@ -231,7 +231,7 @@ def _subconfig_runtime(ctx: "RunContext", sub: Any) -> str | None:
 
 
 class BaseImageRef:
-    """A plan-time stand-in for a base image (stage 9): the real BaseImage
+    """A plan-time stand-in for a base image: the real BaseImage
     is synthesized only during the base-image lifecycle's resolution. It
     carries exactly the attributes the fingerprint's inputs read from the
     object (the verify commands: capability axes, admin user/keys, tests),
@@ -272,7 +272,7 @@ def _vendor_source(ctx: "RunContext", image: Any, runtime: str | None) -> dict[s
     if model is None:
         return {}
     out: dict[str, Any] = {k: getattr(model, k, None) for k in ("family", "family_version", "architecture")}
-    # stage 106: the EFFECTIVE query is hashed (the catalog's block under the
+    # the EFFECTIVE query is hashed (the catalog's block under the
     # declarations, in the system's vocabulary), so a source that moves in
     # the catalog re-bakes the base as a moved declaration always did
     for sub in getattr(model, "runtimes", None) or []:
@@ -296,7 +296,7 @@ def update_policy_of(ctx: "RunContext", image: Any) -> dict[str, Any] | None:
 
 
 def parent_policy_of(image: Any) -> str:
-    """``pinned`` (N17, default) or ``follow`` (stage 9)."""
+    """``pinned`` (DESIGN N17, default) or ``follow``."""
     return str(getattr(image, "parent_policy", None) or POLICY_PINNED).strip().lower()
 
 
@@ -321,7 +321,7 @@ def effective_parent_build(ctx: "RunContext", image: Any,
 
 
 def parent_fingerprint(ctx: "RunContext", image: Any, runtime: str | None = None) -> str:
-    """The fingerprint's parent slot (stage 67 item 1): ``vendor`` for a
+    """The fingerprint's parent slot: ``vendor`` for a
     base image (its vendor source is hashed on its own), else the parent
     IMAGE's input fingerprint on this runtime -- the base image hashes from
     its OS builder model, so no lineage record is needed. A parent the tree
@@ -352,7 +352,7 @@ def parent_reference(ctx: "RunContext", image: Any, runtime: str | None = None) 
 
 
 def _will_bake_this_run(ctx: "RunContext", series: str, runtime: str | None) -> bool:
-    """Whether the named image bakes in THIS run (convergent bakes, stage 9):
+    """Whether the named image bakes in THIS run (convergent bakes):
     it is in the run's surface and its bake decision is not `current`."""
     only = getattr(ctx, "only_images", None)
     if only is not None and series not in only and f"{series}@{runtime}" not in only:
@@ -376,7 +376,7 @@ def find_image(ctx: "RunContext", series: str, runtime: str | None = None) -> An
 
 
 def validate_policies(ctx: "RunContext") -> list[str]:
-    """Hard generation-time errors for unknown policies (stage 9)."""
+    """Hard generation-time errors for unknown policies."""
     errors: list[str] = []
     for image in ctx.images_map.values():
         if parent_policy_of(image) not in POLICIES:
@@ -429,7 +429,7 @@ def pinned_parent_build(ctx: "RunContext", image: Any, runtime: str | None = Non
     recorded head of the parent series on that runtime, pinned now --
     unless the parent is being built in this very run (the bind then
     happens after the bake, from the manifest). A parent that is in the
-    run but skipped as current (stage 9) binds now, to its head."""
+    run but skipped as current binds now, to its head."""
     if is_base_image(ctx, image):
         return None
     runtime = runtime or primary_runtime_of(ctx, image)
@@ -471,8 +471,8 @@ def configuration_tag(ctx: "RunContext") -> str:
 
 def belongs_to_another_configuration(ctx: "RunContext", tags: dict[str, Any]) -> bool:
     """A thing tagged for a configuration that is not this one. One with no
-    ``csis_config`` (made before stage 82, or before stage 93 for anything
-    that is not an image) answers False: it is judged as it always was."""
+    ``csis_config`` (made before the tag existed for its kind) answers
+    False: it is judged as it always was."""
     owner = str((tags or {}).get(CONFIG_TAG) or "")
     return bool(owner) and owner != configuration_tag(ctx)
 
@@ -483,18 +483,19 @@ def owner_of(tags: dict[str, Any] | None) -> str:
 
 
 def config_tags(ctx: "RunContext") -> dict[str, str]:
-    """The one tag everything the system makes carries (stage 93: the
+    """The one tag everything the system makes carries (the images, and the
     instances, volumes, disks, filesystems and buckets the terraform modules
-    make, as the images have since stage 82): ``{csis_config: <id>}``, or
-    nothing when the context carries no configuration."""
+    make): ``{csis_config: <id>}``, or nothing when the context carries no
+    configuration."""
     owner = configuration_tag(ctx)
     return {CONFIG_TAG: owner} if owner else {}
 
 
 def ours_or_unlabelled(ctx: "RunContext", tags: dict[str, Any] | None) -> bool:
     """Whether a thing found by name may be taken for this configuration's:
-    it carries our id, or no id at all (made before stage 93, counted and
-    named as such until it is relabelled). Another configuration's never is."""
+    it carries our id, or no id at all (made before the tag existed, counted
+    and named as such until it is relabelled). Another configuration's never
+    is."""
     return not belongs_to_another_configuration(ctx, tags or {})
 
 
@@ -532,7 +533,7 @@ def record_build(ctx: "RunContext", image: Any, runtime: str, build_id: str,
                 ms.bind_image(image.get_name(), resolved, ctx.run_id, runtime)
                 log.info(f"First bind: image {image.get_name()} -> build {resolved} (built this run, {runtime})")
     else:
-        # follow (stage 9): the bake used a newer parent head; now that the
+        # follow: the bake used a newer parent head; now that the
         # bake succeeded, the pin moves to it -- one edge, recorded
         current_pin = ms.image_pin(image.get_name(), runtime)
         if current_pin and parent != current_pin and parent != "vendor":
@@ -559,7 +560,7 @@ def record_build(ctx: "RunContext", image: Any, runtime: str, build_id: str,
 
 
 def pinned_instance_build(ctx: "RunContext", instance: Any) -> str | None:
-    """N5/F5: an instance stays on its pinned build. First bind at
+    """DESIGN N5 and DESIGN §3F5: an instance stays on its pinned build. First bind at
     generation: the recorded head of its image's series (unless the image
     is being built this run, in which case binding follows the bake)."""
     ms = ctx.meta_state
@@ -584,7 +585,7 @@ def pinned_instance_build(ctx: "RunContext", instance: Any) -> str | None:
 
 
 
-# ------------------------------------------------- convergent bakes (stage 9)
+# ----------------------------------------------------------- convergent bakes
 
 def image_policy_of(instance: Any) -> str:
     return str(getattr(instance, "image_policy", None) or POLICY_PINNED).strip().lower()
@@ -635,8 +636,8 @@ def same_inputs(record: dict[str, Any], fingerprint: str) -> bool:
     records the whole fingerprint and must equal it. A build adopted with
     `state import` (``imported: true``) records only what its image's tag
     held, the first FINGERPRINT_TAG_LENGTH characters, and counts as the
-    same when it is that prefix -- before hygiene X item 3 (2026-10-04) an
-    adopted series never counted as current and re-baked on every run.
+    same when it is that prefix (an older build never counted an adopted
+    series as current, and re-baked it on every run).
     Sixteen hex characters are 64 bits: a false match is not a practical
     risk."""
     recorded = str(record.get("input_fingerprint") or "")
@@ -718,7 +719,7 @@ def bake_plan(ctx: "RunContext") -> dict[str, str]:
             key = f"{name}@{rt}"
             if only is not None and name not in only and key not in only:
                 implied = getattr(ctx, "implied_scope", None)
-                if implied and rt != implied:                # stage 12: --apply-runtime implied the filter
+                if implied and rt != implied:                # --apply-runtime implied the filter
                     plan[key] = f"skip: outside the apply scope (--apply-runtime {implied})"
                 else:
                     plan[key] = "skip: not selected (--only)"

@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""Accounts on machines (stage 75 step 4): after an applying instance run,
+"""Accounts on machines: after an applying instance run,
 every launched, RUNNING machine whose owning group's builder renders an
 accounts script gets that script, over the runtime's session.
 
@@ -19,8 +19,8 @@ the contract's ``ACCOUNTS_REPORT_PREFIX``; they are the report, logged
 here, and ``ACCOUNTS_IN_PLACE`` is the line that says the machine agrees. A
 failure is logged as an error and never stops the run -- the apply has
 happened, and the next applying run tries again -- the same rule as the
-provider aliases (stage 58). A machine that is off is the operator's
-decision (stage 57): it waits for a run that finds it running.
+provider aliases. A machine that is off is the operator's decision: it
+waits for a run that finds it running.
 """
 
 from __future__ import annotations

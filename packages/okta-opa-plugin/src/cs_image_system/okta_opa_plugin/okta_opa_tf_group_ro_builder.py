@@ -42,7 +42,7 @@ class OktaTfGroupRoBuilder(OktaTfGroupBuilder):
     def model(self) -> OktaTfGroupRoBuilderModel:
         return self._model  # type: ignore   # FIXME: This is dangerous
 
-    # ------------------------------------------ the read-only truth (stage 63 item 18)
+    # ------------------------------------------------------ the read-only truth
     # The managed parent's hooks ask OPA about groups it CREATED, point
     # instances at an enrollment token its root emits, and keep a CI login
     # policy per group. This builder creates nothing and emits only okta_group
@@ -56,7 +56,7 @@ class OktaTfGroupRoBuilder(OktaTfGroupBuilder):
         never made, so asking would read every one as missing [HARD]."""
         return {}
 
-    # stage 75: a lookup root manages no groups, so `posix:` is neither required nor read
+    # a lookup root manages no groups, so `posix:` is neither required nor read
     def posix_delegate(self) -> Any:
         return None
 

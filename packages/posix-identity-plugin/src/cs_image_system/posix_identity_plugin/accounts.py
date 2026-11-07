@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""The accounts script (stage 75): POSIX groups, users, memberships, keys and
+"""The accounts script: POSIX groups, users, memberships, keys and
 sudo on a machine, as ONE idempotent bash script built from parts.
 
 Every part adopts what already stands when it is equal and REFUSES what
@@ -163,7 +163,7 @@ def accounts_script(*, groups: dict[str, int], users: dict[str, int] | None = No
 #
 # Beside Okta, OPA's agent makes each account at a login and deletes it later
 # (`userdel` drops every supplementary group), so a membership written after an
-# apply would not hold (stage 75 step 1, observed on coops-model-005). The
+# apply would not hold (observed live on a model machine). The
 # image carries a PAM session hook instead: at each login it adds the user to
 # every group whose member list names them. The lists are files the
 # after-apply run keeps current; the hook only reads them.

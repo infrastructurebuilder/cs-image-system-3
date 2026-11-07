@@ -53,7 +53,7 @@ def _img(name: str, ts: str, **kw: Any) -> compute_v1.Image:
 
 
 def test_translate_puts_the_systems_query_in_compute_engines_words():
-    # stage 106: the vocabulary is the system's; the values are mapped
+    # the vocabulary is the system's; the values are mapped
     q = translate_image_query(ImageQuery.from_mapping({
         "publisher": ["self", "rhel-cloud"], "name": "rhel-9-v*", "architecture": "x86_64", "state": "available"}))
     assert q["projects"] == ["self", "rhel-cloud"]

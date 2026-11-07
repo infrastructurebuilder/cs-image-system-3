@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""The plugin contract (stage 30).
+"""The plugin contract.
 
 A plugin is written against this package and nothing else: the protocols a
 model and a builder satisfy, the constants and field helpers a model is
@@ -39,7 +39,7 @@ One module per kind of builder, over a shared core:
   context;
 - :mod:`.context` -- ``RunContextProtocol``, what a plugin may read of the
   run context, ``MetaStateProtocol`` and the service protocols it reaches
-  as ``ctx.services.<name>`` (stage 125);
+  as ``ctx.services.<name>``;
 - :mod:`.testing` -- ``assert_conforms``, the signature-level check the
   core's tests run over every base class and every built-in plugin.
 

@@ -6,7 +6,7 @@
 phases and builder classifications each owns, and the record a plugin
 registers a lifecycle of its own with.
 
-Stage 30: the data lives here so a plugin names a lifecycle or declares one
+The data lives here so a plugin names a lifecycle or declares one
 without importing the core; the registry of plugin lifecycles
 (``register_lifecycle`` and its readers) stays in
 ``cs_image_system.base.lifecycles``, which re-exports everything here.
@@ -16,7 +16,7 @@ from __future__ import annotations
 from dataclasses import field
 from enum import StrEnum
 
-from pydantic.dataclasses import dataclass  # stage 23: validation at construction
+from pydantic.dataclasses import dataclass  # validation at construction
 
 from .constants import VCT
 from .lifecycle import ExecutionLifecyclePhase

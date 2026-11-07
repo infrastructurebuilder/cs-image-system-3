@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""The user kind (stage 30): the people a group builder places in its
+"""The user kind: the people a group builder places in its
 groups, looked up or managed one by one. The user item is the core's model
 and ``Any`` here."""
 from __future__ import annotations

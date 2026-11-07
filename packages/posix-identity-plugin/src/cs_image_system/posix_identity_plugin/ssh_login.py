@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""The posix login proof (stage 75 step 6): log into a standing machine of a
+"""The posix login proof: log into a standing machine of a
 posix group as its PROOF USER over real ssh, and see the group.
 
 The proof user is a member of the group declared as a service account

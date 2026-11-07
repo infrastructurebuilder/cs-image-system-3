@@ -34,7 +34,7 @@ class GcsStateBuilder(StateBuilderBase[Q]):
         session is present and NOT JUDGED, and the line says why."""
         # a class-level session read, before any run is loaded and with no
         # context to reach a service through: the one kit import this plugin
-        # keeps (stage 125's committed exception; the contract's
+        # keeps (the contract's committed exception; the contract's
         # ``session_status`` takes the settings and the executables alone)
         from cs_image_system.base.registry import current_registry
         runtime = current_registry().runtime_builder_classes().get(GCLOUD_RUNTIME_TYPE)

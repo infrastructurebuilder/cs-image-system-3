@@ -3,10 +3,9 @@
 # SPDX-License-Identifier: Apache-2.0
 
 """This GitHub Actions run's OIDC token, presented to the team's workload
-connection (stage 56 step 2; a command of the CLI since stage 64 item 2,
-where it replaced ``scripts/opa-workload-token``; this plugin's since the
-core stopped naming OPA -- ``cs-image-system workload`` is mounted by
-this plugin's ``cli`` module and exists only when it is installed).
+connection (a command of the CLI, this plugin's since the core stopped
+naming OPA -- ``cs-image-system workload`` is mounted by this plugin's
+``cli`` module and exists only when it is installed).
 
 The token OPA issues is the ONLY thing on standard output, so a caller's
 ``OPA_TOKEN="$(cs-image-system workload token)"`` captures it and nothing
@@ -16,13 +15,13 @@ runner scans for workflow commands exactly as it scans standard output. (The
 shell script printed its mask lines on standard output, where a capture
 swallowed them into the value.)
 
-The probe (hygiene XII item 14, the walk's F35): authenticating to the
+The probe: authenticating to the
 CONNECTION proves the claims match, and the role is only a hint there --
 OPA issues the connection's token from any branch, pinned or not. Whether
 the token CARRIES the role is proved by trying what the role allows:
 resolving a standing machine of a managed group, which exits 0 when the
-role reaches it and 125 when it does not (seen 2026-10-08 from a branch
-that was not `main`, after a token had been issued).
+role reaches it and 125 when it does not (seen live from a branch that
+was not `main`, after a token had been issued).
 
 Needs, in the environment: ``ACTIONS_ID_TOKEN_REQUEST_URL`` and ``_TOKEN``
 (a job holding ``id-token: write``), and the four names --
@@ -90,10 +89,9 @@ def public_claims(jwt: str) -> dict[str, Any]:
 def sft_workload_authenticate(names: WorkloadNames, jwt: str) -> tuple[int, str, str]:
     """The client, as a subprocess; the seam the tests stub. Returns exit,
     stdout (the token), stderr (the verdict)."""
-    # hygiene VII item 4: the client reads the OPA address and the team from
-    # its environment (`error: environment variable OPA_ADDR is not set`, the
-    # reference configuration's first performing run, 2026-09-29); the shell
-    # script had them exported by `workload describe --env`, this command
+    # the client reads the OPA address and the team from its environment
+    # (`error: environment variable OPA_ADDR is not set` otherwise); a shell
+    # would have them exported by `workload describe --env`, this command
     # resolves the names itself and must hand them to the client the same way
     env = {**os.environ, "GH_OIDC_JWT": jwt, "OPA_ADDR": names.api_host, "SFT_TEAM": names.team}
     proc = subprocess.run(["sft", "workload", "authenticate", "--team", names.team,  # noqa: S603,S607
@@ -198,7 +196,7 @@ def _group_of(ctx: "RunContextProtocol", instance: Any) -> str:
 def probe_target(ctx: "RunContextProtocol") -> tuple[str, str] | None:
     """``(hostname, group)`` of the first standing machine whose group's
     builder names the workload objects -- what the workload probe resolves
-    to judge the role (hygiene XII item 14); None when none stands."""
+    to judge the role; None when none stands."""
     launched = ctx.meta_state.launch_params()
     for inst in ctx.services.identity.standing_instances():
         group = _group_of(ctx, inst)

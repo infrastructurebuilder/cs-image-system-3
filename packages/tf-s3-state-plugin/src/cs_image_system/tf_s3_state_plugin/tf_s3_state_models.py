@@ -7,7 +7,7 @@ from typing import Any, Mapping
 
 from pydantic import model_validator
 from cs_image_system.contract.model_config import CSIS_MODEL_CONFIG
-from pydantic.dataclasses import dataclass  # stage 23: validation at construction
+from pydantic.dataclasses import dataclass  # validation at construction
 
 from cs_image_system.contract.constants import VCT
 from cs_image_system.base.models.state_builder import StateBuilderModel
@@ -20,7 +20,7 @@ HASHICORP_S3 = "s3-state"
 
 
 class S3BackendKind:
-    """The S3 backend type's renderings (stage 47.2): a workspace's state is the
+    """The S3 backend type's renderings: a workspace's state is the
     object ``<key prefix>/<workspace>.tfstate`` in the bucket; the partial
     configuration carries bucket, key, region, encrypt, use_lockfile and the
     profile; a consumer's data source carries bucket, key, region and the
@@ -40,7 +40,7 @@ class S3BackendKind:
         }
         if settings.get("profile"):
             out["profile"] = settings["profile"]
-        out.update(settings.get("extra") or {})     # stage 63: every other declared backend argument
+        out.update(settings.get("extra") or {})     # every other declared backend argument
         return out
 
     def remote_state_settings(self, settings: Mapping[str, Any], workspace: str) -> dict[str, Any]:
@@ -93,11 +93,11 @@ class AssumeRoleWithWebIdentityConfig:
     web_identity_token_file: str | None = None
 
 
-# stage 63 (decided 2026-09-25): every s3-backend argument the model declares
-# is emitted when set -- into the backend file and into a consumer's
-# terraform_remote_state -- instead of being accepted and read by nothing.
-# Model field -> backend argument; a field at its default is not emitted, so a
-# tree that declares none of them renders exactly as before.
+# every s3-backend argument the model declares is emitted when set -- into
+# the backend file and into a consumer's terraform_remote_state -- never
+# accepted and read by nothing. Model field -> backend argument; a field at
+# its default is not emitted, so a tree that declares none of them renders
+# the bare backend.
 _PASS_THROUGH: dict[str, str] = {
     "allowed_account_ids": "allowed_account_ids",
     "forbidden_account_ids": "forbidden_account_ids",
@@ -137,7 +137,7 @@ class TofuS3StateBuilderModel(StateBuilderModel):
     """An ``s3`` entry under ``state_backends:``: the backend block's
     arguments. bucket/key/region/encrypt/use_lockfile/profile are the core;
     every other field is a terraform s3-backend argument passed through when
-    set (stage 63)."""
+    set."""
     bucket: str
     key: str
     type = TF_AWS_S3_STATE

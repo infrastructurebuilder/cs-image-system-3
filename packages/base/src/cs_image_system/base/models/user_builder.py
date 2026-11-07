@@ -4,7 +4,7 @@
 
 from cs_image_system.contract.model_config import CSIS_MODEL_CONFIG
 from cs_image_system.contract.user import UserBuilderModelProtocol
-from pydantic.dataclasses import dataclass  # stage 23: validation at construction
+from pydantic.dataclasses import dataclass  # validation at construction
 
 from cs_image_system.contract.constants import VCT
 from cs_image_system.base.models.builder_model import BuilderModel
@@ -22,7 +22,7 @@ class UserBuilderModel(BuilderModel, UserBuilderModelProtocol):
     
     default_user_email_template: str = "{{ user.name }}" # "this" in this case, applies to the user object
     default_user_description_template: str = "User {{ user.name }} / {{ user.email }}"
-    # stage 51: the organisation half of a derived address, so it can be
+    # the organisation half of a derived address, so it can be
     # declared encrypted on its own -- `{{ user.name }}@{{ builder.email_domain }}`
     # renders the address in process and, because a derived value inherits its
     # inputs' encryption, carries the ciphertext into every emitted artifact.
@@ -47,7 +47,7 @@ class UserBuilderModel(BuilderModel, UserBuilderModelProtocol):
         key, so a `{{ builder.… }}` inside the template's own VALUE would never
         be rendered. Folding it in keeps the user-level template one pass, and
         the domain's plaintext then carries its ciphertext into the emission
-        the way any derived value does (stage 51)."""
+        the way any derived value does."""
         template = self.default_user_email_template
         if self.email_domain and self.EMAIL_DOMAIN_PLACEHOLDER in template:
             return template.replace(self.EMAIL_DOMAIN_PLACEHOLDER, str(self.email_domain))

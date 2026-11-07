@@ -2,14 +2,14 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""An ephemeral instance's failure policy (stage 10.1-2, stage 11.3): what
+"""An ephemeral instance's failure policy: what
 happens when its verification fails (``on_failure``: kept standing for
 inspection, or torn down) and after how long a standing failure is torn
 down without re-verifying (``teardown_after``), read from the instance's
 declaration, else its runtime's defaults. The verification itself is the
 command (``commands.verify_instance``); this module is what the instance
 root and the state query ask of the records, reached by a plugin as
-``ctx.services.launch`` (stage 125).
+``ctx.services.launch``.
 """
 from __future__ import annotations
 
@@ -53,7 +53,7 @@ def last_verification(ctx: "RunContext", name: str) -> dict[str, Any] | None:
 
 def teardown_due(ctx: "RunContext", instance: Any, now: datetime | None = None) -> bool:
     """A standing ephemeral (last verification failed, launch record still
-    present) whose teardown_after has elapsed (stage 11.3)."""
+    present) whose teardown_after has elapsed."""
     _, after = failure_policy(ctx, instance)
     if after is None:
         return False

@@ -57,7 +57,7 @@ def test_register_plugin_metadata_registers_model_builder_and_injected(clean_reg
     assert reg.get_model(VCT.STORAGE_BUILDER_MODEL, "fake/fake-thing") is FakeModel
     assert reg.get_model(VCT.STORAGE_BUILDER_MODEL, "other/fake-thing") is None
     assert _registry.RegistrationKey(VCT.STORAGE_BUILDER_MODEL, "fake", "fake-thing") in reg.models
-    # Builder wired to the model (stage 67: `get_builder` had no production
+    # Builder wired to the model (`get_builder` had no production
     # caller and is gone; the map itself is what the template's shape shows).
     assert reg.builders[cast(Any, FakeModel)] is FakeBuilder
     # Injected model registered and set as default for its classifier.
@@ -75,7 +75,7 @@ def test_metadata_without_a_namespace_is_refused_unless_it_names_one(clean_regis
 
 
 def test_a_plugin_that_does_not_conform_is_refused_at_load():
-    """Stage 125: the loader holds every class a plugin registers to the
+    """The loader holds every class a plugin registers to the
     contract's protocol for its classification (``protocol_for``) when it
     discovers the installed plugins, so a builder that lacks a hook is
     refused with the plugin, the class, the protocol and the member named

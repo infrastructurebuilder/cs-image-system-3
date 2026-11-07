@@ -14,7 +14,7 @@ log = logging.getLogger(__name__)
 from dataclasses import field
 from cs_image_system.contract.model_config import CSIS_MODEL_CONFIG
 from pydantic import model_validator, Field
-from pydantic.dataclasses import dataclass  # stage 23: validation at construction
+from pydantic.dataclasses import dataclass  # validation at construction
 from typing import Annotated, Any
 from cs_image_system.contract.constants import NO_MODEL_ID, UNSET_MODEL_ID, VCT, DEFAULT, OOPS_DEFAULTS
 from cs_image_system.contract.names import safe_name
@@ -52,7 +52,7 @@ class NameTyped(NameTypedProtocol):
         return self.display_name
     def get_classification(self) -> VCT:
         """Unclassified unless a subclass says otherwise (a builder model
-        answers its ``csis_classifier``). Stage 30: the default the contract's
+        answers its ``csis_classifier``). The default the contract's
         ``NameTypedProtocol`` used to carry; the contract carries no bodies."""
         return VCT.UNCLASSIFIED
     @property
@@ -63,7 +63,7 @@ class NameTyped(NameTypedProtocol):
         return f"{classifier}::{mid}::{self.get_name()}"
     def __post_init__(self) -> None:
         # No super().__post_init__() because this is the base class
-        self._reg = current_registry()  # a model holds no context (stage 124 shim)
+        self._reg = current_registry()  # a model holds no context; the current registry is the one
         self._finalized:bool = False
         # Preserve the original name (case/spacing) before it is normalized below.
         self._display_name = self.name
@@ -97,7 +97,7 @@ class BuilderModel(NameTyped, BuilderModelProtocol):
     @model_validator(mode="before")
     @classmethod
     def _parameters_is_retired(cls, data: Any) -> Any:
-        """Stage 26: `parameters` carried two meanings (argv for a wrapped
+        """`parameters` carried two meanings (argv for a wrapped
         executable, inputs to a module call) under a type that fit only the
         first, and neither was read. Name the replacement instead of the
         generic unknown-key refusal."""

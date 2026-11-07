@@ -19,14 +19,14 @@ resource "docker_container" "this" {
   hostname = var.hostname
   image    = local.image
 
-  # No init system (stage 103, decision 2): the image's keepalive runs
+  # No init system: the image's keepalive runs
   # under --init, and the launch work arrives by exec after the apply.
   init    = true
   command = length(var.command) > 0 ? var.command : null
 
-  # The power state is the operator's (stage 57): a container the operator
+  # The power state is the operator's: a container the operator
   # stopped is left stopped by the next apply (must_run = false, proved
-  # against the provider before anything else in branch 2), and comes back
+  # against the provider before anything else), and comes back
   # with the daemon only if it was running (unless-stopped).
   must_run = false
   start    = true

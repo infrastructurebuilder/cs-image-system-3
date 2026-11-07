@@ -2,9 +2,9 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""Stage 82: an image says which configuration owns it.
+"""An image says which configuration owns it.
 
-Found walking the daily driver (stage 65, finding F11): a second
+Found walking the daily driver: a second
 configuration repository in the reference account reported the reference
 configuration's 36 AMIs as ``foreign``, because an image carried the
 system's lineage tags and nothing that said whose lineage. Every bake now
@@ -109,7 +109,7 @@ def test_relabel_adds_the_tag_to_a_recorded_image_that_lacks_it(run, monkeypatch
     assert relabel_plan(run.ctx, AWS) == []                                  # tagged: nothing left to do
 
 
-# ---------------- hygiene XII item 3 (walk finding F14): not created yet
+# ------------------------------------------------------- not created yet
 
 def _managed(run, seen: bool) -> None:
     model = {"run": "r", "groups": {"walk_team": {"builder": "oktagroups", "identity_type": "okta",

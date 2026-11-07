@@ -2,14 +2,14 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""The runtime kind (stage 30): a cloud or container context every other
-builder operates in. The model carries the defaults and the credentials;
-the builder answers the queries, sessions, bakes, power states and image
+"""The runtime kind: a cloud or container context every other builder
+operates in. The model carries the defaults and the credentials; the
+builder answers the queries, sessions, bakes, power states and image
 disposal the core asks a runtime for, translates the system's image query
-into its own words (stage 106), and makes the provider-specific images (the
-resolved or deferred reference to an image on this runtime).
-Stage 103 adds the container runtime's model protocol beside the cloud's,
-and two bake hooks: the post-processor blocks a runtime's packer plugin
+into its own words, and makes the provider-specific images (the resolved
+or deferred reference to an image on this runtime). The container
+runtime's model protocol stands beside the cloud's, with two bake hooks:
+the post-processor blocks a runtime's packer plugin
 wants in the build (the container runtime tags its committed image) and the
 ansible variables a bake on it connects with (``ansible_connection``);
 its second branch adds ``launch_delivery``: whether the platform runs the
@@ -26,7 +26,7 @@ from .core import BuilderModelProtocol, BuilderProtocol
 from .image import ImageQuery, PSISourceKind
 from .session import SessionStatus
 
-#: How an instance's launch script reaches the machine (stage 103 branch 2):
+#: How an instance's launch script reaches the machine:
 #: ``boot`` -- the platform runs it at first boot (a cloud's user data or
 #: startup script); ``session`` -- the system runs it through the runtime's
 #: session after the apply, as it runs the accounts script.
@@ -43,7 +43,7 @@ class RuntimeBuilderModelProtocol(BuilderModelProtocol, Protocol):
     teardown knobs the lineage, retention and state-query code read). The
     fields only the kit's own classes read (``default_image_builder``,
     ``default_machine_type``, ``ephemeral``, ...) are the kit model's,
-    ``RuntimeBuilderModel`` (stage 125)."""
+    ``RuntimeBuilderModel``."""
 
     credentials: Any
 
@@ -65,13 +65,13 @@ class CloudBuilderModelProtocol(RuntimeBuilderModelProtocol, Protocol):
     network, its subnets and availability zones), which every cloud plugin
     redeclares with its own type. The region and the rest of a cloud's
     fields are the kit model's (``CloudBuilderModel``): the core reads
-    them, no plugin does (stage 125)."""
+    them, no plugin does."""
 
     networking: Any
 
 
 class ContainerBuilderModelProtocol(RuntimeBuilderModelProtocol, Protocol):
-    """A container runtime (stage 103): a durable host running a daemon
+    """A container runtime: a durable host running a daemon
     that speaks the container engine's API, reached by a ``host`` URL
     (``unix://``, ``ssh://``, ``tcp://`` with TLS) or a named client ``context``;
     a ``networking`` block that names a network and nothing more (no
@@ -80,7 +80,7 @@ class ContainerBuilderModelProtocol(RuntimeBuilderModelProtocol, Protocol):
     one of which ``default_machine_type`` names. The fields are the kit
     model's (``ContainerBuilderModel``), read by the container plugin on
     its own model and by the core; the protocol adds nothing to the
-    runtime's (stage 125)."""
+    runtime's."""
 
 
 class RuntimeBuilderProtocol(BuilderProtocol, Protocol):
@@ -157,12 +157,12 @@ class RuntimeBuilderProtocol(BuilderProtocol, Protocol):
 
     def label_key_problem(self, key: str) -> str | None: ...
 
-    # --- the names of builds (stage 105)
+    # --- the names of builds
     def image_name_problem(self, name: str) -> str | None: ...
 
     def image_name_as_made(self, name: str) -> str: ...
 
-    # --- the image query (stage 106): the system's vocabulary, translated here
+    # --- the image query: the system's vocabulary, translated here
     def supported_query_keys(self) -> frozenset[str]: ...
 
     def translate_image_query(self, query: ImageQuery) -> Any: ...
@@ -175,7 +175,7 @@ class RuntimeBuilderProtocol(BuilderProtocol, Protocol):
 
     def build_id_from_artifact(self, artifact_id: str) -> str: ...
 
-    # --- stage 103: what else a runtime's packer plugin needs in the build block
+    # --- what else a runtime's packer plugin needs in the build block
     def packer_post_processor_blocks(self, image: Any, *, runtime: str, source_type: str, subconfig: Any,
                                      final_name: str) -> list[str]: ...
 

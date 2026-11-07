@@ -1,5 +1,5 @@
 images:
-  # Stage 128 (item 4): the instance image the docker emission bakes and
+  # The instance image the docker emission bakes and
   # stands -- posix-owned (pxgroup), from the container base, one ansible and
   # one bash modification so the container bake carries both provisioners.
   - name: imgfile-container

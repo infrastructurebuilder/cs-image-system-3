@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 """The starters are one skeleton plus an overlay each, and their terraform
-modules are the installed plugins' (stage 126 items 4 and 5).
+modules are the installed plugins'.
 
 ``docs/examples/_skeleton/`` holds exactly the files every starter shares;
 each starter's directory is its overlay and repeats none of them;

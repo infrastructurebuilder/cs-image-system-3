@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""Convergent bakes (stage 9): an image bakes only when its inputs changed,
+"""Convergent bakes: an image bakes only when its inputs changed,
 its parent moved under `parent_policy: follow`, `update.refresh_days` is
 due, or the operator forced it -- a second run on a converged tree bakes
 nothing, and the bake plan says why for every image.
@@ -234,7 +234,7 @@ def test_policies_are_validated(converged, tmp_path, monkeypatch):
 
 
 def test_instance_follow_plans_a_replacement_and_moves_the_pin_after_apply(converged, tmp_path, monkeypatch):
-    """§9.5: an instance with image_policy: follow is replaced when its
+    """An instance with image_policy: follow is replaced when its
     image's head moves; the pin moves after the apply, not at generation."""
     root, make = converged
     _seed_converged(root, tmp_path, monkeypatch)
@@ -286,11 +286,11 @@ def test_strict_state_query_reports_stale_but_does_not_fail_on_it(monkeypatch, c
         r = StateReport(run="r")
         r.drift = report_drift
         return r
-    sq = cli      # patched where they are read (top-level imports since stage 124)
+    sq = cli      # patched where they are read (top-level imports)
     monkeypatch.setattr(sq, "query_state", lambda ctx: fake_query([Drift("image", "x@rt", DRIFT_STALE, "behind")]))
     monkeypatch.setattr(sq, "write_state_report", lambda ctx, r: "report.json")
     from types import SimpleNamespace
-    typer_cntx = cli_context(SimpleNamespace(run_id="run-1"))   # the command passes what the load returned (stage 124: and reads its run_id)
+    typer_cntx = cli_context(SimpleNamespace(run_id="run-1"))   # the command passes what the load returned (and reads its run_id)
     cli.state_query_command(typer_cntx, strict=True, as_json=False)          # exits 0
     assert "stale" in capsys.readouterr().out
     monkeypatch.setattr(sq, "query_state", lambda ctx: fake_query([Drift("image", "y", DRIFT_MISSING, "gone")]))

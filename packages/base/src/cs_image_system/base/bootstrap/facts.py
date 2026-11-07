@@ -22,7 +22,7 @@ from typing import Any, Callable
 import yaml
 
 # The two rules over a value, and the protocol the facts are handed to a
-# plugin's section as, are the contract's (stage 125); this path keeps the names.
+# plugin's section as, are the contract's; this path keeps the names.
 from cs_image_system.contract.bootstrap import (  # noqa: F401 - re-exported
     PLACEHOLDER_MARKS, FactsProtocol, ci_can_reach, is_placeholder, real)
 
@@ -63,8 +63,8 @@ class Facts(FactsProtocol):
     team: str | None = None
     module_source_base: str = "tfmodules"
     state_backends: list[dict[str, Any]] = field(default_factory=list)
-    #: every `state_configuration` a builder or runtime names (hygiene XX item
-    #: 1): which declared backends a root is bound to
+    #: every `state_configuration` a builder or runtime names: which declared
+    #: backends a root is bound to
     state_configurations: list[str] = field(default_factory=list)
     probe: Callable[..., tuple[int, str]] = field(default=run_tool, repr=False, compare=False)
 
@@ -140,8 +140,8 @@ def collect(cfg: Path, key: str, *, named: bool = True) -> list[dict[str, Any]]:
     loader reads the whole directory -- a tree may keep its default state
     backend in ``state-backends-2.yml`` beside a non-default one in
     ``state-backends.yml`` (the reference configuration does, and reading
-    the one canonical file named the wrong bucket as the tree's on
-    2026-10-01) -- so the defaults must look where the loader looks."""
+    the one canonical file once named the wrong bucket as the tree's) -- so
+    the defaults must look where the loader looks."""
     out: list[dict[str, Any]] = []
     for path in sorted([*cfg.glob("*.yml"), *cfg.glob("*.yaml")]):
         entries = raw_yaml(path).get(key)
@@ -206,8 +206,8 @@ def default_state_backend(facts: Facts, kind: str) -> dict[str, Any] | None:
 
 
 def other_state_backends(facts: Facts, kind: str) -> list[dict[str, Any]]:
-    """The tree's OTHER declared backends of a type (hygiene XX item 1): every
-    one but the default, in declaration order."""
+    """The tree's OTHER declared backends of a type: every one but the
+    default, in declaration order."""
     default = default_state_backend(facts, kind)
     return [b for b in facts.state_backends if str(b.get("type", "")).lower() == kind and b is not default]
 

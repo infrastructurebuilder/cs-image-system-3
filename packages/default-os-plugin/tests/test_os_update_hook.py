@@ -51,7 +51,7 @@ def _full(model_cls) -> list[str]:
     commands_for_policy)."""
     from cs_image_system.base.models.update_policy import POLICY_FULL, UpdatePolicy
     # a stand-in for the model: no instance state, the family's own update
-    # command (an instance method since hygiene XIX, needing no state either)
+    # command (an instance method, needing no state either)
     stand_in = SimpleNamespace(repo_setup_commands=lambda: [])
     stand_in.get_command_to_update = lambda: model_cls.get_command_to_update(stand_in)
     return model_cls.commands_for_policy(stand_in, UpdatePolicy(policy=POLICY_FULL))
@@ -119,7 +119,7 @@ def test_fedora_update_commands():
 def test_alpine_update_commands():
     """Alpine updates via apk — no apt/dnf/subscription-manager machinery."""
     from cs_image_system.default_os_plugin.alpine_type import AlpineOsBuilderModel
-    cmds = _full(AlpineOsBuilderModel)      # an instance method since hygiene XIX, like every OS model's
+    cmds = _full(AlpineOsBuilderModel)      # an instance method, like every OS model's
     assert "sudo apk update" in cmds
     assert "sudo apk upgrade --available" in cmds
     joined = " ".join(cmds)

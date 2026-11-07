@@ -4,8 +4,8 @@
 
 """Pins final_execute: real execution, fail-fast, phase ordering, hooks.
 
-Stage 124: ``final_execute`` is the :class:`Finalizer`'s, bound to a run
-context; these drive one over a stand-in context carrying what it reads.
+``final_execute`` is the :class:`Finalizer`'s, bound to a run context;
+these drive one over a stand-in context carrying what it reads.
 """
 import os
 from pathlib import Path
@@ -97,7 +97,7 @@ def test_fail_fast_on_nonzero_returncode(tmp_path):
         ExecutionLifecyclePhase.INSTANCE_GENERATION: [StubExecutable("tofu-plan", journal)],
     }, journal, tmp_path)
     assert ok is False
-    # hygiene X item 2: the failure hook replaces the post hook, and nothing later runs
+    # the failure hook replaces the post hook, and nothing later runs
     assert journal == ["pre:image-generation", "packer-000", "failed:image-generation"]
 
 
@@ -180,7 +180,7 @@ def test_execute_phase_restores_the_working_directory_however_it_ends(tmp_path, 
 
 def test_a_system_cli_step_goes_through_the_in_process_seam(tmp_path, monkeypatch):
     """A step whose binary is the system's own CLI is handed to the runner
-    the system registered (stage 127: one load per run), with the loaded
+    the system registered (one load per run), with the loaded
     context, the step's arguments and its working directory; the runner's
     integer is the step's return code and ``execute()`` is never called. With
     no runner registered the step executes as any other."""

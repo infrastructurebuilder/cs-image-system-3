@@ -52,7 +52,7 @@ import json
 import logging
 from dataclasses import field
 from cs_image_system.contract.model_config import CSIS_MODEL_CONFIG
-from pydantic.dataclasses import dataclass  # stage 23: validation at construction
+from pydantic.dataclasses import dataclass  # validation at construction
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast
 
@@ -107,7 +107,7 @@ class StateReport:
     reality: dict[str, Any] = field(default_factory=dict)
     drift: list[Drift] = field(default_factory=list)
     unavailable: list[str] = field(default_factory=list)  # providers that could not answer
-    notes: list[str] = field(default_factory=list)        # true, and neither drift nor silence (stage 57)
+    notes: list[str] = field(default_factory=list)        # true, and neither drift nor silence
 
     @property
     def hard(self) -> list[Drift]:
@@ -146,10 +146,10 @@ class StateReport:
 def _query(report: StateReport, label: str, fn) -> Any:
     """Run one provider query; a failing one is reported as unavailable
     (never fatal: the report is read-only and partial knowledge is still
-    knowledge). So is an UNIMPLEMENTED hook (stage 63 item 17): a builder
-    that cannot look its things up is a hole in the picture, and silence
-    read as "nothing to report" -- a shared-filesystem builder vanished from the
-    report while its module docstring promised it reported unavailable."""
+    knowledge). So is an UNIMPLEMENTED hook: a builder that cannot look its
+    things up is a hole in the picture, and silence read as "nothing to
+    report" -- a shared-filesystem builder once vanished from the report
+    while its module docstring promised it reported unavailable."""
     try:
         return fn()
     except NotImplementedError as e:
@@ -159,9 +159,9 @@ def _query(report: StateReport, label: str, fn) -> Any:
         return None
     except Exception as e:  # network, credentials, permissions
         if is_refusal(e):
-            # hygiene XII item 33: the identity the query ran as lacks a
-            # permission -- a role's gap, read as such, not as a cloud that
-            # did not answer (the message names the identity and the action)
+            # the identity the query ran as lacks a permission -- a role's
+            # gap, read as such, not as a cloud that did not answer (the
+            # message names the identity and the action)
             log.warning(f"state query {label} unavailable: {REFUSED} {e}")
             report.unavailable.append(f"{label}: {REFUSED} {e}")
             return None
@@ -180,7 +180,7 @@ _REFUSAL_MARKS: tuple[str, ...] = ("AccessDenied", "UnauthorizedOperation", "is 
 
 
 def is_refusal(exc: BaseException) -> bool:
-    """Whether a provider's error is a permission refusal (hygiene XII item 33)."""
+    """Whether a provider's error is a permission refusal."""
     text = str(exc)
     code = ""
     response = getattr(exc, "response", None)
@@ -215,8 +215,8 @@ def query_storages(ctx: "GlobalTypeContext", report: StateReport) -> dict[str, d
         if recs:
             for sname, rec in recs.items():
                 if rec.get("elsewhere"):
-                    # stage 93: a volume, disk, bucket or share of OUR name that
-                    # belongs to another configuration stands where ours would;
+                    # a volume, disk, bucket or share of OUR name that belongs
+                    # to another configuration stands where ours would;
                     # ours is absent, and the report says whose the other is
                     report.notes.append(f"storages/{sname}: {rec.get('what') or 'a storage'} of that name belongs to "
                                         f"configuration {rec['elsewhere']!r} ({CONFIG_TAG}); not this configuration's, "
@@ -273,8 +273,8 @@ def image_drift(ctx: "GlobalTypeContext", images: dict[str, list[dict[str, Any]]
             if iid not in recorded_ids:
                 tags = real.get("tags") or {}
                 if belongs_to_another_configuration(ctx, tags):
-                    # stage 82: another configuration's image in the same
-                    # account is not ours to call foreign, or to adopt
+                    # another configuration's image in the same account is
+                    # not ours to call foreign, or to adopt
                     owner = str(tags.get(CONFIG_TAG))
                     elsewhere[owner] = elsewhere.get(owner, 0) + 1
                     continue
@@ -285,7 +285,7 @@ def image_drift(ctx: "GlobalTypeContext", images: dict[str, list[dict[str, Any]]
         for owner, count in sorted(elsewhere.items()):
             log.info(f"state query: {count} image(s) on {runtime} belong to configuration "
                      f"{owner!r} ({CONFIG_TAG}); not this configuration's, left alone")
-    # Convergent bakes (stage 9): a pinned child whose parent series has a
+    # Convergent bakes: a pinned child whose parent series has a
     # newer head is `stale` -- informational, never hard; `upgrade image`
     # or parent_policy: follow moves it.
     for key, pin in sorted(ms.image_pins().items()):
@@ -330,8 +330,8 @@ def storage_drift(ctx: "GlobalTypeContext", storages: dict[str, dict[str, Any]])
                                f"recorded active but provider state is {real.get('state')}"))
         elif present and state == STORAGE_STATE_ACTIVE and "lifecycle" in real \
                 and getattr(declared_storages.get(name), "lifecycle", None) and not real.get("lifecycle"):
-            # stage 15: the YAML declares a data lifecycle the resource does
-            # not carry (the storage run that applies it has not run yet)
+            # the YAML declares a data lifecycle the resource does not carry
+            # (the storage run that applies it has not run yet)
             drift.append(Drift("storage", name, DRIFT_STALE,
                                "declares a data lifecycle that the resource does not carry yet (run storage)"))
     return drift
@@ -346,7 +346,7 @@ def _workload_detail(gb: Any, condition: str, expected: dict[str, Any], real: di
 
 
 def workload_drift(name: str, expected: Any, real: Any, gb: Any = None) -> list[Drift]:
-    """Stage 56: the CI login policy the configuration expects for a group
+    """The CI login policy the configuration expects for a group
     against what the identity provider holds. Only when both sides speak: no
     expectation (the builder names no workload connection and role) or no
     record (the provider was silent) says nothing. The role is the
@@ -377,8 +377,8 @@ MODULE_OBJECTS = (("resource_group", "resource group"), ("user_policy", "user po
 
 
 def module_drift(name: str, objects: Any) -> list[Drift]:
-    """Hygiene XIV item 6: a group's resource group and policies against what the
-    identity module makes (the provider's record says how they differ). Neither
+    """A group's resource group and policies against what the identity
+    module makes (the provider's record says how they differ). Neither
     is HARD, for workload_drift's reason: the run the validator would refuse is
     the identity apply that repairs them. An object rewritten by ANOTHER tool
     is rewritten back by that apply, and the other tool's next apply undoes it
@@ -406,7 +406,7 @@ def module_drift(name: str, objects: Any) -> list[Drift]:
 
 def workload_notes(groups: dict[str, dict[str, Any]], report: StateReport,
                    ctx: "GlobalTypeContext | None" = None) -> None:
-    """Stage 56: a connection that is present but not active is true, and
+    """A connection that is present but not active is true, and
     neither drift nor silence -- activating it is the operator's act -- so
     it is a note, in the group builder's words."""
     for name, real in sorted(groups.items()):
@@ -429,9 +429,9 @@ def group_drift(ctx: "GlobalTypeContext", groups: dict[str, dict[str, Any]],
     """Each managed group's provider record against the identity read-model.
     A record carrying an ``error`` is a group the provider could not be ASKED
     about (a lapsed key pair, a network failure): it is reported unavailable
-    on ``report``, never as missing -- stage 61 item 1, after 2026-09-21 when
-    five standing groups read as deleted under an unsourced ``.envrc``. A
-    record that is absent WITHOUT an error is a real deletion: hard drift."""
+    on ``report``, never as missing (five standing groups once read as
+    deleted under an unsourced ``.envrc``). A record that is absent WITHOUT
+    an error is a real deletion: hard drift."""
     ms = ctx.meta_state
     drift: list[Drift] = []
     model = ms.identity_read_model().get("groups", {}) or {}
@@ -454,8 +454,8 @@ def group_drift(ctx: "GlobalTypeContext", groups: dict[str, dict[str, Any]],
             continue
         if not real.get("present", True):
             if not rec.get("seen"):
-                # hygiene XII item 3: a declared group the provider has never
-                # been seen to carry is not missing -- it is not created yet.
+                # a declared group the provider has never been seen to carry
+                # is not missing -- it is not created yet.
                 # A new tree's first dry run recorded its group as managed,
                 # and every later run (the one that would create it included)
                 # refused on hard drift. Once seen, an absence is hard again.
@@ -479,8 +479,8 @@ def group_drift(ctx: "GlobalTypeContext", groups: dict[str, dict[str, Any]],
                                "until the token is removed from tofu state (state rm) and "
                                "recreated by a gated apply", hard=True))
         drift.extend(workload_drift(name, rec.get("workload"), real.get("workload"),
-                                    group_builder_of(ctx, name)))                          # stage 56
-        drift.extend(module_drift(name, real.get("module_objects")))                    # hygiene XIV item 6
+                                    group_builder_of(ctx, name)))
+        drift.extend(module_drift(name, real.get("module_objects")))
         diffs: list[str] = []
         members = real.get("members")
         if isinstance(members, list) and set(rec.get("members") or []) != set(members):
@@ -525,18 +525,18 @@ def instance_boot_drift(ctx: "GlobalTypeContext", report: StateReport) -> list[D
         if rtb is None or not rtb.can_query_instance_boot_image():
             continue
         if ms.current_generation(name) is None and not (ms.launch_params().get(name) or {}).get("launched"):
-            # hygiene XII item 13 (the walk's F33): a bake binds the pin before any
-            # launch, and the cloud, asked about a machine that does not exist, answered
-            # with silence that was filed as "could not answer" from the first bake to
-            # the first launch of every new tree. The records know: no generation, not
-            # launched. A note, and the cloud is not asked.
+            # a bake binds the pin before any launch, and the cloud, asked about a
+            # machine that does not exist, answers with silence that used to be filed
+            # as "could not answer" from the first bake to the first launch of every
+            # new tree. The records know: no generation, not launched. A note, and
+            # the cloud is not asked.
             report.notes.append(f"instances/{name}: declared and not launched yet (pinned to {build}); "
                                 "the cloud is not asked about a machine that does not exist")
             continue
         booted = rtb.query_instance_boot_image(name)
         if booted is None:
-            # stage 57: before calling this silence, ask whether the machine
-            # is simply switched off. The boot-image probe filters on
+            # before calling this silence, ask whether the machine is simply
+            # switched off. The boot-image probe filters on
             # `running`, so an instance the operator stopped answers None
             # exactly as an unreachable cloud does -- and reporting the
             # operator's own choice as "the provider could not answer" is
@@ -555,7 +555,7 @@ def instance_boot_drift(ctx: "GlobalTypeContext", report: StateReport) -> list[D
                 # `upgrade instance` moved the pin on purpose and left the
                 # marker: the mismatch IS the sanctioned procedure mid-way, and
                 # the strict query must not refuse the very run that finishes
-                # it (it did, live 2026-09-22: cloud-launch's preflight)
+                # it (it once did: cloud-launch's preflight)
                 report.notes.append(f"instances/{name}: booted image {booted} is behind its pin {build}; the "
                                     "replacement is PENDING (upgrade instance) and the next applies-on "
                                     "instance-image run makes it")
@@ -569,8 +569,8 @@ def instance_boot_drift(ctx: "GlobalTypeContext", report: StateReport) -> list[D
 # --------------------------------------------------------------- assembly
 
 def storage_state_notes(ctx: "GlobalTypeContext", report: StateReport) -> None:
-    """Hygiene XII item 9 (the walk's F26): an instance root reads its
-    storages' root through ``terraform_remote_state``, and a tree made from a
+    """An instance root reads its storages' root through
+    ``terraform_remote_state``, and a tree made from a
     starter declares the instance and its storage from the first commit with
     ``apply_storage: false``; a run that only PLANS the instance root -- the
     first ``perform``, a ``cloud-bake`` -- then fails with "Unable to find
@@ -586,7 +586,7 @@ def storage_state_notes(ctx: "GlobalTypeContext", report: StateReport) -> None:
 
 
 def standing_ephemeral_drift(ctx: "GlobalTypeContext", report: StateReport) -> list[Drift]:
-    """An ephemeral instance still exists in reality (stage 10.1): its
+    """An ephemeral instance still exists in reality: its
     verification failed, or its teardown never ran. Informational, never
     hard; the operator decommissions it (undeclare, or the decommission
     overlay) after inspecting."""
@@ -602,10 +602,10 @@ def standing_ephemeral_drift(ctx: "GlobalTypeContext", report: StateReport) -> l
             continue
         probe = rtb
         booted = _query(report, f"instances/{name}", lambda: probe.query_instance_boot_image(name))
-        # stage 57: a STOPPED ephemeral is still standing -- it exists and its
-        # disks still cost -- but the boot-image probe filters on `running`,
-        # so until now the one kind of leftover nobody could see was the kind
-        # that had been switched off.
+        # a STOPPED ephemeral is still standing -- it exists and its disks
+        # still cost -- but the boot-image probe filters on `running`, so
+        # the one kind of leftover nobody could otherwise see is the kind
+        # that has been switched off.
         state = (_query(report, f"instances/{name}", lambda: probe.query_instance_power_state(name))
                  if probe.can_query_instance_power_state() else None)
         if booted or power_state.is_off(state):
@@ -636,10 +636,10 @@ def query_state(ctx: "GlobalTypeContext") -> StateReport:
                     + storage_drift(ctx, storages) + group_drift(ctx, groups, report)
                     + instance_boot_drift(ctx, report)
                     + standing_ephemeral_drift(ctx, report))
-    instance_identity_notes(ctx, report)   # stage 58: what each machine answers to
-    workload_notes(groups, report, ctx)    # stage 56: the connection behind CI's login
-    storage_state_notes(ctx, report)       # hygiene XII item 9: a storage root with no state yet
-    for gb in ctx.group_builders.values():          # stage 75: e.g. `posix: none`
+    instance_identity_notes(ctx, report)   # what each machine answers to
+    workload_notes(groups, report, ctx)    # the connection behind CI's login
+    storage_state_notes(ctx, report)       # a storage root with no state yet
+    for gb in ctx.group_builders.values():          # e.g. `posix: none`
         report.notes += gb.configuration_notes()
     return report
 
@@ -688,7 +688,7 @@ def import_foreign(ctx: "GlobalTypeContext", report: StateReport, *,
                 tags = real.get("tags") or {}
                 series = tags.get(f"{TAG_PREFIX}series")
                 if not series or belongs_to_another_configuration(ctx, tags):
-                    continue                              # stage 82: never adopt another configuration's image
+                    continue                              # never adopt another configuration's image
                 ms.add_build({
                     "build_id": iid,
                     "series": str(series),

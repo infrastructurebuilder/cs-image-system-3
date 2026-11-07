@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""Stage 55 step 4: the canonical name is the declared name plus the
+"""The canonical name is the declared name plus the
 generation, zero-padded to three digits.
 
 Two rules. A machine that stands keeps the name it booted with -- the name
@@ -99,7 +99,7 @@ def test_an_ephemeral_instance_counts_on_its_own_counter(world, monkeypatch):
 def test_the_pad_is_a_minimum_width(world):
     """The counter is seeded, not driven: a thousand open/close cycles are
     thousands of atomic ledger writes (over ten minutes, and the run that
-    hit a full temp volume on 2026-09-22) for a fact one write states."""
+    hit a full temp volume) for a fact one write states."""
     ctx = world.ctx
     ms = ctx.meta_state
     from cs_image_system.base.meta_state import INSTANCE_STATE
@@ -209,7 +209,7 @@ def test_the_report_notes_a_name_that_did_not_take_at_boot(world, monkeypatch):
 
 
 def test_a_replacement_retires_the_registration_of_the_machine_it_replaced(world, monkeypatch):
-    """Stage 55 meets stage 60: the replaced machine answered to `test-001`
+    """Hostname claims meet generations: the replaced machine answered to `test-001`
     and is gone once the apply replaced it; its OPA registration would
     otherwise outlive it and claim the bare alias the new machine gets."""
     from tests.harness import stub_environment

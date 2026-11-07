@@ -2,12 +2,12 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""How a bake's shell steps run, and what a bake waits for first (stage 86).
+"""How a bake's shell steps run, and what a bake waits for first.
 
 A build machine is not the bake's alone. Its own first-boot script may still
 be installing something, and the account's fleet management may act on every
-new machine the moment its agent registers: found walking the daily driver
-(stage 65, finding F29), where Systems Manager's associations -- agent
+new machine the moment its agent registers: found walking the daily
+driver, where Systems Manager's associations -- agent
 updates, a patch scan, inventory, all targeting every instance -- fired on
 each build machine within forty seconds of launch and held the package
 database while packer provisioned. ``rpm`` waits for a held transaction lock

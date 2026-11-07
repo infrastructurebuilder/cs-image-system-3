@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""The container-host section of the bootstrap (stage 103 item 15).
+"""The container-host section of the bootstrap.
 
 A read-and-say section with no terraform module, because by decision
 nothing in it can be created: a docker daemon is a host somebody runs, and

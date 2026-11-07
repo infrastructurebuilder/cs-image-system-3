@@ -59,7 +59,7 @@ class GCPCloudBuilder(CloudBuilderBase[GCPCloudBuilderModel], PluginArtifactProt
     def credential_environment_prefixes(cls) -> tuple[str, ...]:
         return session.CREDENTIAL_ENVIRONMENT_PREFIXES
 
-    # --- the network facts (stage 127): online by a real run and `validate
+    # --- the network facts: online by a real run and `validate
     # --online`, adopted offline by every load from meta-state/runtime-facts.yaml
     def network_facts(self) -> dict[str, Any]:
         """ONLINE: the model's networking check against the project (a
@@ -85,7 +85,7 @@ class GCPCloudBuilder(CloudBuilderBase[GCPCloudBuilderModel], PluginArtifactProt
         return self.network_coverage_problems(self.get_name(), facts, declared_network=declared,
                                  subnets=[s.get_subnet_id() for s in networking.subnets])
 
-    # --- the image query (stage 106)
+    # --- the image query
     def supported_query_keys(self) -> frozenset[str]:
         return GCP_QUERY_KEYS
 
@@ -100,7 +100,7 @@ class GCPCloudBuilder(CloudBuilderBase[GCPCloudBuilderModel], PluginArtifactProt
 
     #: This runtime's part of the release-owned image-source catalog: the
     #: `gcloud` blocks, shipped as this package's ``data/image-sources.yml``
-    #: (the core reads the file; stage 125).
+    #: (the core reads the file).
     image_source_package = "cs_image_system.gcloud_runtime"
 
     def query_provider_image(self, os_builder: OSBuilderBaseImageBuilderSubconfig) -> tuple[str, str, Mapping[str,Any]] | None:
@@ -129,7 +129,7 @@ class GCPCloudBuilder(CloudBuilderBase[GCPCloudBuilderModel], PluginArtifactProt
 
     def query_provider_image_by_id(self, os_builder: OSBuilderBaseImageBuilderSubconfig,
                                    image_id: str) -> tuple[str, str, Mapping[str, Any]] | None:
-        """The image an entry pins by ``image_id`` (stage 63): a GCE image is
+        """The image an entry pins by ``image_id``: a GCE image is
         named uniquely within its project, so the name is searched in the
         entry's owner projects, as the vendor query is."""
         q = {"projects": list(os_builder.image_query().publisher), "filter": f'name = "{image_id}"'}
@@ -138,16 +138,16 @@ class GCPCloudBuilder(CloudBuilderBase[GCPCloudBuilderModel], PluginArtifactProt
             return None
         status = str(kv.get("status") or "")
         if status and status != "READY":
-            # stage 67: the vendor query insists on READY; a pinned image must too
+            # the vendor query insists on READY; a pinned image must too
             raise ValueError(f"GCP runtime {self.get_name()}: pinned image {image_id!r} is {status}, not READY; "
                              "a bake from it would fail")
         owner = gcp_utils.get_image_owner(kv) or {}
         return (str(kv.get("name") or image_id), str(owner.get("project") or "self"), kv)
 
-    # stage 24: `resolve_image_for_os_builder` was removed here. It was defined
-    # only on this builder, had no callers and no base-class declaration, and
+    # `resolve_image_for_os_builder` is gone from here: it was defined only on
+    # this builder, had no callers and no base-class declaration, and
     # returned image_from_query_result(...) -- which could never return an
-    # Image. The AWS twin was already commented out. Ledger 78.
+    # Image. The AWS twin is commented out.
 
     def generate_items_during(self, phase: ExecutionLifecyclePhase) -> AssetSet:
         return super().generate_items_during(phase)
@@ -158,8 +158,8 @@ class GCPCloudBuilder(CloudBuilderBase[GCPCloudBuilderModel], PluginArtifactProt
     def gcloud_binary(self) -> str:
         """The gcloud this runtime runs: the ``binary`` of the
         ``cfg/executables.yml`` entry its ``executable`` names (default
-        ``gcloud``), the same one ``validate`` version-checks (stage 63 item
-        14; every call used to be a bare ``gcloud`` from PATH)."""
+        ``gcloud``), the same one ``validate`` version-checks (never a bare
+        ``gcloud`` from PATH)."""
         name = self.model.get_executable() or "gcloud"
         exe = (self._get_context().executables or {}).get(name)
         if exe is None:
@@ -207,20 +207,20 @@ class GCPCloudBuilder(CloudBuilderBase[GCPCloudBuilderModel], PluginArtifactProt
         """Why ``key`` cannot be a GCE label key once it is made one, or None.
         GCE wants a lowercase letter first; ``gce_label`` lowercases and
         replaces what it cannot keep, but it cannot invent a first letter, so
-        a key such as ``2024`` failed at apply (stage 63: refused at validate)."""
+        a key such as ``2024`` would fail at apply; it is refused at validate."""
         label = gce_label(key)
         if not label or not ("a" <= label[0] <= "z"):
             return f"GCE label keys must start with a lowercase letter; {key!r} becomes {label!r}"
         return None
 
     def image_name_as_made(self, name: str) -> str:
-        """What GCE makes of a build name (stage 105): ``gce_name`` --
+        """What GCE makes of a build name: ``gce_name`` --
         lowercase, dashes for what it cannot keep, a letter first, at most
         63 characters -- the name the packer source writes."""
         return gce_name(name)
 
     def image_name_problem(self, name: str) -> str | None:
-        """Why a build's full name cannot be a GCE image name (stage 105):
+        """Why a build's full name cannot be a GCE image name:
         only its length. ``gce_name`` can lowercase and rewrite, but it
         shortens by cutting the end, where the timestamp is, so a name
         longer than 63 characters once rewritten would lose what keeps
@@ -238,9 +238,9 @@ class GCPCloudBuilder(CloudBuilderBase[GCPCloudBuilderModel], PluginArtifactProt
         return True                             # finding 43
 
     def bake_ssh_username(self, image=None) -> str | None:
-        # finding 48: the provisioner must name the user the source bakes as.
-        # stage 63 item 23: both ask the one resolver, so an entry-level user
-        # no longer bakes as itself while ansible connects as `packer`.
+        # the provisioner must name the user the source bakes as: both ask
+        # the one resolver, so an entry-level user never bakes as itself
+        # while ansible connects as `packer`.
         if image is None:
             return self.default_bake_user("")
         return self._get_context().services.images.resolve_bake_user(image, self.get_name())
@@ -268,9 +268,9 @@ class GCPCloudBuilder(CloudBuilderBase[GCPCloudBuilderModel], PluginArtifactProt
         out: list[dict[str, Any]] = []
         from google.cloud import compute_v1  # noqa: PLC0415
         request = compute_v1.ListImagesRequest(project=project, filter=f"labels.{TAG_PREFIX}series:*")
-        # stage 63: only the images of the series asked about (the argument
-        # was ignored, so every labelled image in the project came back); a
-        # series label carries gce_label(<series>), so compare in that form
+        # only the images of the series asked about, never every labelled
+        # image in the project; a series label carries gce_label(<series>),
+        # so compare in that form
         wanted = {gce_label(s) for s in (series or [])}
         for img in client.list(request=request):
             labels = dict(getattr(img, "labels", {}) or {})
@@ -296,14 +296,14 @@ class GCPCloudBuilder(CloudBuilderBase[GCPCloudBuilderModel], PluginArtifactProt
     def verify_instance(self, instance_name: str, expected_build: str | None = None,
                         expect_mounts: int = 0, timeout: int = 600,
                         mount_points: list[str] | None = None) -> dict[str, Any]:
-        """stage 10.2 -- what `just gce-verify` did by hand: poll the serial
-        console until the guest agent reports the startup scripts finished
+        """What an operator verifies by hand: poll the serial console
+        until the guest agent reports the startup scripts finished
         (agent >= 20260715: "Finished running startup scripts"; older:
         "startup-script exit status 0"), fail fast on an explicit failure
         line, then compare the booted image with the expected build and
         read each declared mount point's own line from the startup script
-        (hygiene XII item 22: the kernel's clean XFS mounts counted the
-        image's own filesystems, so the check could not fail); the count
+        (a count of the kernel's clean XFS mounts would include the image's
+        own filesystems, so that check could never fail); the count
         remains for a caller that names no mount points."""
         import re  # noqa: PLC0415
         import time  # noqa: PLC0415
@@ -348,7 +348,7 @@ class GCPCloudBuilder(CloudBuilderBase[GCPCloudBuilderModel], PluginArtifactProt
     def ssh_proxy_command(self, instance_name: str) -> list[str] | None:
         """An IAP TCP tunnel to the instance's port, on stdin/stdout: no
         public address, the IAP firewall rule and grant the session
-        mechanism already needs (stage 75 step 6)."""
+        mechanism already needs."""
         if self.session_mechanism() != self.IAP:
             return None
         project = resolve_project(self.model.self_to_gcp_client_config())
@@ -360,12 +360,12 @@ class GCPCloudBuilder(CloudBuilderBase[GCPCloudBuilderModel], PluginArtifactProt
 
     def run_session_command(self, instance_name: str, script: str, timeout: int = 300) -> tuple[int, str]:
         """``gcloud compute ssh --tunnel-through-iap --command`` as the
-        operator's gcloud account (the IAP grant, stage 2)."""
+        operator's gcloud account (the IAP grant)."""
         import subprocess  # noqa: PLC0415
         if self.session_mechanism() != self.IAP:
-            # stage 63 item 14: a runtime that declares no mechanism has no
-            # IAP firewall rule or grant to lean on; tunnelling anyway failed
-            # as IAP's problem, far from the cause
+            # a runtime that declares no mechanism has no IAP firewall rule
+            # or grant to lean on; tunnelling anyway would fail as IAP's
+            # problem, far from the cause
             raise RuntimeError(f"GCP runtime {self.get_name()} declares no session_mechanism, so no "
                                f"session command can reach its instances (supported: {self.IAP})")
         cfg = self.model.self_to_gcp_client_config()
@@ -378,12 +378,12 @@ class GCPCloudBuilder(CloudBuilderBase[GCPCloudBuilderModel], PluginArtifactProt
         return res.returncode, (res.stdout or "") + (res.stderr or "")
 
     def _theirs(self, resource: Any) -> bool:
-        """Stage 93: whether a GCE resource's labels name another configuration."""
+        """Whether a GCE resource's labels name another configuration."""
         return self._get_context().services.lineage.belongs_to_another_configuration(
             dict(getattr(resource, "labels", {}) or {}))
 
     def instance_tags(self, instance_name: str) -> dict[str, str] | None:
-        """The named machine's labels (stage 93's relabel reads them); None
+        """The named machine's labels (the relabel reads them); None
         when no such machine stands."""
         got = self._instances_client()
         if got is None:
@@ -398,7 +398,7 @@ class GCPCloudBuilder(CloudBuilderBase[GCPCloudBuilderModel], PluginArtifactProt
         return dict(getattr(inst, "labels", {}) or {})
 
     def retag_instance(self, instance_name: str, tags: dict[str, str]) -> bool:
-        """``setLabels`` on the named machine (stage 93: the id, in place,
+        """``setLabels`` on the named machine (the id, in place,
         through the same ``gce_label`` the emission uses)."""
         from google.cloud import compute_v1  # noqa: PLC0415
         got = self._instances_client()
@@ -455,7 +455,7 @@ class GCPCloudBuilder(CloudBuilderBase[GCPCloudBuilderModel], PluginArtifactProt
 
     def dispose_image(self, build_id: str) -> bool:
         """Delete the GCE image named by the build id and wait for the
-        operation (stage 8.4). NotFound = already gone."""
+        operation. NotFound = already gone."""
         from google.api_core.exceptions import NotFound  # noqa: PLC0415
         cfg = self.model.self_to_gcp_client_config()
         project = resolve_project(cfg)
@@ -512,7 +512,7 @@ class GCPCloudBuilder(CloudBuilderBase[GCPCloudBuilderModel], PluginArtifactProt
             inst = compute_v1.InstancesClient(**kw).get(project=project, zone=zone,
                                                         instance=gce_name(instance_name))
             if self._theirs(inst):
-                return None                               # stage 93: another configuration's machine of our name
+                return None                               # another configuration's machine of our name
             boot = next((d for d in (inst.disks or []) if getattr(d, "boot", False)), None)
             if boot is None or not getattr(boot, "source", None):
                 return None
@@ -524,7 +524,7 @@ class GCPCloudBuilder(CloudBuilderBase[GCPCloudBuilderModel], PluginArtifactProt
             log.debug(f"GCE runtime {self.get_name()}: boot image of {instance_name!r} unavailable: {e}")
             return None
 
-    # ------------------------------------------------ power state (stage 57)
+    # ------------------------------------------------------------ power state
     #: GCE ``Instance.status`` mapped onto the system's vocabulary. The trap
     #: is ``TERMINATED``: on GCE that means STOPPED -- the instance exists and
     #: can be started again -- and NOT deleted, which is the opposite of what
@@ -572,7 +572,7 @@ class GCPCloudBuilder(CloudBuilderBase[GCPCloudBuilderModel], PluginArtifactProt
                     return power_state.ABSENT
                 raise
             if self._theirs(inst):
-                return power_state.ABSENT                # stage 93: theirs stands where ours would; ours is absent
+                return power_state.ABSENT                # theirs stands where ours would; ours is absent
             raw = str(getattr(inst, "status", "") or "")
             mapped = self._GCE_POWER.get(raw)
             if mapped is None:
@@ -599,7 +599,7 @@ class GCPCloudBuilder(CloudBuilderBase[GCPCloudBuilderModel], PluginArtifactProt
             client, project, zone = got
             inst = client.get(project=project, zone=zone, instance=gce_name(instance_name))
             if self._theirs(inst):
-                return None                               # stage 93
+                return None                               # another configuration's machine of our name
             host = str(getattr(inst, "hostname", "") or "") or f"{gce_name(instance_name)}.c.{project}.internal"
             return {"instance_id": str(getattr(inst, "id", "") or ""), "provider_hostname": host}
         except Exception as e:  # noqa: BLE001 - read-only probe
@@ -656,5 +656,5 @@ class GCPCLIVersionChecker(AbstractVersionChecker):
 
     def get_regex(self) -> str:
         # the SDK version (`Google Cloud SDK 585.0.0`, the first line), not the
-        # `core` component's date-shaped version nobody quotes (stage 48.1)
+        # `core` component's date-shaped version nobody quotes
         return r"Google Cloud SDK ([\d\.]+)"

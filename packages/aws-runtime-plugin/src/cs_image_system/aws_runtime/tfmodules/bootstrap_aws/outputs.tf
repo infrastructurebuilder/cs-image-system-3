@@ -24,7 +24,7 @@ output "state_bucket" {
 
 output "other_state_buckets" {
   value       = keys(var.other_state_buckets)
-  description = "the tree's other S3 backends' buckets made and managed here (hygiene XX item 1)"
+  description = "the tree's other S3 backends' buckets made and managed here"
 }
 
 output "instance_profile_arn" {

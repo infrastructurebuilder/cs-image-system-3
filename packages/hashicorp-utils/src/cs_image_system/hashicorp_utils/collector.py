@@ -35,8 +35,8 @@ from cs_image_system.contract.constants import DEFAULT, OOPS_DEFAULTS
 from cs_image_system.contract.hcl import emitted
 from cs_image_system.contract.names import super_safe_name as ssn
 
-# stage 30: where a workspace's state lives, a backend's registration and the
-# kind that renders it are the contract's (`contract.state`); a state plugin
+# where a workspace's state lives, a backend's registration and the kind
+# that renders it are the contract's (`contract.state`); a state plugin
 # imports nothing from this library. The names stay importable from here.
 from cs_image_system.contract.state import (  # noqa: F401
     BackendKindProtocol as BackendKind,
@@ -52,8 +52,8 @@ from .versions import HclConfigConflictError, assert_satisfiable
 
 log = logging.getLogger(__name__)
 
-# stage 34: a value the emission must not carry in plaintext is emitted as the
-# SAME ENC[age:...] ciphertext the configuration carries, and terraform decrypts
+# a value the emission must not carry in plaintext is emitted as the SAME
+# ENC[age:...] ciphertext the configuration carries, and terraform decrypts
 # it at plan time through one `data "external"` per root whose program is the
 # system's own decrypt command, with the identity from CSIS_CONFIG_IDENTITY in
 # the runner's environment. The committed emission is readable by anyone and
@@ -108,8 +108,8 @@ def render_backend_value(v: Any) -> str:
     lists and maps (the s3 backend's ``assume_role``/``endpoints`` are
     object attributes) recursively, strings quoted and escaped. A
     decrypted setting is written as the ciphertext it was read from
-    (stage 63; it was written in clear, and only the plaintext guard
-    caught it); ``materialize`` restores it in the private copy."""
+    (it used to be written in clear, and only the plaintext guard caught
+    it); ``materialize`` restores it in the private copy."""
     if isinstance(v, bool):
         return str(v).lower()
     if isinstance(v, (int, float)):
@@ -230,7 +230,7 @@ class TerraformCollector:
         }
 
     def sensitive_ref(self, workspace: str, key: str, value: Any) -> Any:
-        """The emission-side form of a value (stage 34): a decrypted value (one
+        """The emission-side form of a value: a decrypted value (one
         carrying the ``marker`` it was read from) is registered under ``key``
         and referenced as ``local.sensitive["<key>"]``; any other value is
         returned as it is. Registering also requires the external provider the
@@ -277,7 +277,7 @@ class TerraformCollector:
 
     def set_backend(self, workspace: str, backend_name: str = DEFAULT) -> None:
         """Bind a workspace to a backend. A workspace keeps its state in exactly
-        one location (stage 46): a second binding to a DIFFERENT backend is
+        one location: a second binding to a DIFFERENT backend is
         refused, naming the workspace and both backends; rebinding to the same
         one is a no-op (a builder may bind per phase)."""
         current = self._workspace_backend.get(workspace)
@@ -290,7 +290,7 @@ class TerraformCollector:
 
     @staticmethod
     def effective_backend_name(*candidates: str | None) -> str:
-        """The chain a workspace's backend resolves through (stage 46.2): the first
+        """The chain a workspace's backend resolves through: the first
         candidate outside the loader's absent sentinels (``default``, ``self``,
         empty, unset) -- the builder's own ``state_configuration``, then its
         runtime's -- else ``default``, the single backend marked ``is_default``."""
@@ -322,8 +322,8 @@ class TerraformCollector:
         return self._backends_enabled
 
     def pull_declared_backends(self, models: Mapping[str, Any]) -> None:
-        """Stage 30: the declared backends come from the state backend
-        models, each answering ``to_backend_registration`` (the contract's
+        """The declared backends come from the state backend models, each
+        answering ``to_backend_registration`` (the contract's
         ``StateBackendModelProtocol``); the accessor hands them here from
         the context's state backends when it makes the run's instance, so
         no state plugin and no part of the core imports this library for
@@ -348,7 +348,7 @@ class TerraformCollector:
             return defaults[0] if defaults else None
         found = self._backends.get(name_or_default)
         if found is None:
-            # stage 63: an alias binds too (it was registered and never read)
+            # an alias binds too (it used to be registered and never read)
             found = next((b for b in self._backends.values() if name_or_default in b.aliases), None)
         return found
 
@@ -380,8 +380,8 @@ class TerraformCollector:
 
     @staticmethod
     def state_collisions(locations: dict[str, StateLocation]) -> list[str]:
-        """One message per location that two or more workspaces would share
-        (stage 46.3): the same bucket and normalised prefix under two backend
+        """One message per location that two or more workspaces would share:
+        the same bucket and normalised prefix under two backend
         names, two workspace names that collapse under super_safe_name, or a
         doubled slash against a single one."""
         by_location: dict[StateLocation, list[str]] = {}
@@ -479,8 +479,8 @@ class TerraformCollector:
         return lines
 
     def backend_record(self, workspace: str) -> dict[str, Any] | None:
-        """The record meta-state keeps of where a workspace's state lives
-        (stage 46.4): the backend's name and type over its file settings, enough
+        """The record meta-state keeps of where a workspace's state lives:
+        the backend's name and type over its file settings, enough
         to write that file again for a migration's previous location."""
         reg = self._workspace_backend_registration(workspace)
         if reg is None:
@@ -520,7 +520,7 @@ class TerraformCollector:
 
     def generate_sensitive_blocks(self, workspace: str) -> list[str]:
         """``data "external" "sensitive" {...}`` and ``locals { sensitive = ... }``
-        for the workspace's registered ciphertexts (stage 34); empty when none.
+        for the workspace's registered ciphertexts; empty when none.
         Bound to the workspace's configured external provider when it has one
         (the group root aliases it for the gid shim), the default otherwise."""
         values = self._sensitive.get(workspace)
@@ -563,7 +563,7 @@ class TerraformCollector:
                            labels=['"terraform_remote_state"',
                                    f'"{ref.datasource_label()}"'],
                            backend=QString(reg.type, quoted=True))
-            # whatever the producer's TYPE says a data source needs (stage 47.1)
+            # whatever the producer's TYPE says a data source needs
             cargs: dict[str, Any] = {
                 k: (QString(v, quoted=True) if isinstance(v, str) else v)
                 for k, v in reg.remote_state_settings(ref.producer_workspace).items()

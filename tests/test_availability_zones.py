@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""Stage 52: an availability zone is declared, never inferred, and a set that
+"""An availability zone is declared, never inferred, and a set that
 is not compatible is refused at validate.
 
 Compatible, not identical: an unset zone constrains nothing, and a REGIONAL

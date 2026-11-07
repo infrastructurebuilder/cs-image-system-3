@@ -52,7 +52,7 @@ base_images:
           filters:
             name: "RHEL*"
             root_device_type: ebs
-  # Renamed basic-rhel-8 -> basic-rh-10 (2026-09-04): GCE bakes Alma 10,
+  # Renamed basic-rhel-8 -> basic-rh-10: GCE bakes Alma 10,
   # AWS still bakes RHEL 8.10 (parity ignored; migrates forward later)
   - name: basic-rh-10
     type: rhel

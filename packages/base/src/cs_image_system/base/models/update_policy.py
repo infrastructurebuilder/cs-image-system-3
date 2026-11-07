@@ -28,7 +28,7 @@ build is known. ``auto_update: true`` remains an alias for
 from __future__ import annotations
 
 from cs_image_system.contract.model_config import CSIS_MODEL_CONFIG
-from pydantic.dataclasses import dataclass  # stage 23: validation at construction
+from pydantic.dataclasses import dataclass  # validation at construction
 from typing import Any
 
 POLICY_NONE = "none"
@@ -46,7 +46,7 @@ class UpdatePolicy:
     packages: tuple[str, ...] = ()
     exclude: tuple[str, ...] = ()
     pin: tuple[tuple[str, str], ...] = ()   # (package, version) pairs, sorted
-    # Convergent bakes (stage 9): re-bake when the series head is at least this
+    # Convergent bakes: re-bake when the series head is at least this
     # old -- the only way package updates (invisible to the input fingerprint)
     # reach a new build without a config change. None = never by age.
     refresh_days: int | None = None
@@ -56,8 +56,8 @@ class UpdatePolicy:
         if cfg is None:
             return cls(policy=POLICY_FULL if auto_update else POLICY_NONE)
         # a bare policy name (`update: none`) is refused when the structure
-        # loads (the field is a mapping); stage 63 removed the branch that
-        # pretended to accept one here
+        # loads (the field is a mapping); a branch that pretended to accept
+        # one here is gone
         if not isinstance(cfg, dict):
             raise ValueError(f"update: must be a mapping (`update: {{policy: <name>}}`), got {type(cfg).__name__}")
         policy = str(cfg.get("policy", POLICY_FULL if auto_update else POLICY_NONE)).strip().lower()

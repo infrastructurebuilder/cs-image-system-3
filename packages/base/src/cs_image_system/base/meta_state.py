@@ -29,7 +29,7 @@ import subprocess
 import tempfile
 from dataclasses import field
 from cs_image_system.contract.model_config import CSIS_MODEL_CONFIG
-from pydantic.dataclasses import dataclass  # stage 23: validation at construction
+from pydantic.dataclasses import dataclass  # validation at construction
 from pathlib import Path
 from typing import Any
 
@@ -53,17 +53,17 @@ LINEAGE = "lineage.yaml"
 PINS = "pins.yaml"
 LAUNCH_PARAMS = "launch-params.yaml"
 RUNS = "runs.yaml"
-VERIFICATIONS = "verifications.yaml"   # ephemeral / verified instances (stage 10.1)
-IMAGE_TESTS = "image-tests.yaml"       # post-bake test results per build (stage 14)
-STATE_LOCATIONS = "state-locations.yaml"  # every workspace's resolved state location, and the migrations (stage 46)
-INSTANCE_STATE = "instance-state.yaml"  # generations: one machine each, and the superseded records (stage 60)
-LOGIN_PROOFS = "login-proofs.yaml"     # CI logged in through the managed policy: every verdict (stage 56)
-RUNTIME_FACTS = "runtime-facts.yaml"   # what each runtime's account answered its networking declaration with (stage 127)
+VERIFICATIONS = "verifications.yaml"   # ephemeral / verified instances
+IMAGE_TESTS = "image-tests.yaml"       # post-bake test results per build
+STATE_LOCATIONS = "state-locations.yaml"  # every workspace's resolved state location, and the migrations
+INSTANCE_STATE = "instance-state.yaml"  # generations: one machine each, and the superseded records
+LOGIN_PROOFS = "login-proofs.yaml"     # CI logged in through the managed policy: every verdict
+RUNTIME_FACTS = "runtime-facts.yaml"   # what each runtime's account answered its networking declaration with
 
 ALL_FILES = (IDENTITY_READ_MODEL, STORAGE_READ_MODEL, STORAGE_STATE, LINEAGE, PINS,
              LAUNCH_PARAMS, RUNS, STATE_LOCATIONS, RUNTIME_FACTS)
 
-# Public-safe by construction (stage 35): the scanner lives in public_safe.py
+# Public-safe by construction: the scanner lives in public_safe.py
 # and is the same one behind the commit gate, `just public-safe` and the
 # pre-commit hook; these names are kept for the callers of the first gate.
 MetaStateSecretError = PublicSafeError
@@ -75,8 +75,8 @@ def _never_staged_pathspecs() -> list[str]:
     """git pathspecs excluding REFUSED_PATHS names at any depth, appended to
     the run's ``add`` and ``commit`` so those files are never picked up --
     not even one the operator had staged by hand under the same trees."""
-    # The private mirror is NOT excluded here. It was, from stage 49 until
-    # stage 54 gave the configuration root a .gitignore that names it: an
+    # The private mirror is NOT excluded here. It was once, until the
+    # configuration root's .gitignore came to name it: an
     # `:(exclude)` pathspec makes git consider the path, and `git add -A`
     # then exits 1 saying it is ignored, which failed the whole run's commit.
     # Three things still keep it out -- .gitignore, `refused_path` in the
@@ -86,7 +86,7 @@ def _never_staged_pathspecs() -> list[str]:
 
 
 def _run_local_exclude_pathspecs() -> list[str]:
-    """stage 43: the run-local files (``run-summary.json``,
+    """The run-local files (``run-summary.json``,
     ``state-report.json``) are excluded from the run's ``add``; the emitted
     root ``.gitignore`` names them too. Records (``final_execution.sh``,
     ``meta-state/runs.yaml``) are not run-local and stay."""
@@ -146,7 +146,7 @@ class MetaState:
             loaded = yaml.safe_load(p.read_text()) or {}
             if not isinstance(loaded, dict):
                 raise ValueError(f"Meta-state file {p} must hold a mapping at the top level")
-            # stage 50: a record carries the ciphertext it was written from, so
+            # a record carries the ciphertext it was written from, so
             # a read opens it again and every recorded-vs-declared comparison
             # is between PLAINTEXTS -- two markers for one value differ after a
             # rotation, and comparing those would report drift that is not
@@ -198,7 +198,7 @@ class MetaState:
                                   run_id: str, action: str | None = None,
                                   facts: dict[str, Any] | None = None) -> None:
         """One transition into the authoritative record. A destroyed -> active
-        transition is a REGENERATION (stage 10.12): the entry's generation
+        transition is a REGENERATION: the entry's generation
         counter moves on and the history keeps the earlier life. ``facts``
         (owning builder, type, bucket name) let an undeclared storage still
         be planned and wiped after its entry left the YAML."""
@@ -221,7 +221,7 @@ class MetaState:
         entry = self.storage_states().get(name) or {}
         return int(entry.get("generation") or 1)
 
-    # ------------------------------------------ instance generations (stage 60)
+    # ----------------------------------------------------- instance generations
     GENERATION_KINDS = ("durable", "ephemeral")
 
     def instance_states(self) -> dict[str, dict[str, Any]]:
@@ -229,8 +229,8 @@ class MetaState:
 
     def instance_generation(self, name: str, kind: str = "durable") -> int:
         """How many generations of ``kind`` this instance name has had; 0
-        when none was ever recorded. Stage 55 step 4 builds the canonical
-        hostname from the DURABLE count."""
+        when none was ever recorded. The canonical hostname is built from
+        the DURABLE count."""
         counters = (self.instance_states().get(name) or {}).get("generation") or {}
         return int(counters.get(kind) or 0)
 
@@ -292,8 +292,8 @@ class MetaState:
         return changed
 
     def note_generation_resized(self, name: str, *, run_id: str, from_type: str, to_type: str) -> bool:
-        """The open generation's machine changed type IN PLACE (hygiene VIII
-        item 2): the same machine, so no generation moves. Its snapshot takes
+        """The open generation's machine changed type IN PLACE: the same
+        machine, so no generation moves. Its snapshot takes
         the new type and the history gains a ``resized`` event -- from, to,
         run -- beside the closed generations. True when something was written."""
         from datetime import datetime, timezone
@@ -342,7 +342,7 @@ class MetaState:
         self.write(LINEAGE, data)
 
     def remove_build(self, build_id: str) -> dict[str, Any] | None:
-        """Drop a build's lineage record (disposal, stage 8.4): the artifact
+        """Drop a build's lineage record (disposal): the artifact
         is gone from the cloud, so a record would be `missing` drift. The
         git history keeps the record. Returns what was removed."""
         data = self.read(LINEAGE)
@@ -424,8 +424,8 @@ class MetaState:
     def move_pin(self, kind: str, name: str, to_build: str, run_id: str,
                  op: str = "upgrade", pending: bool = True) -> str | None:
         """The explicit upgrade operation: move exactly one edge. Returns the
-        previous build id. ``op="follow"`` records a policy-driven move
-        (stage 9); ``pending=False`` skips the replacement marker (the
+        previous build id. ``op="follow"`` records a policy-driven move;
+        ``pending=False`` skips the replacement marker (the
         replacement already happened)."""
         if kind not in ("instance", "image"):
             raise ValueError(f"Unknown pin kind {kind!r}")
@@ -512,7 +512,7 @@ class MetaState:
         del data["verifications"][:-500]
         self.write(VERIFICATIONS, data)
 
-    # ------------------------------------------------- login proofs (stage 56)
+    # ------------------------------------------------------------ login proofs
     def login_proofs(self) -> list[dict[str, Any]]:
         return self.read(LOGIN_PROOFS).setdefault("proofs", [])
 
@@ -522,7 +522,7 @@ class MetaState:
         del data["proofs"][:-500]
         self.write(LOGIN_PROOFS, data)
 
-    # ------------------------------------------- post-bake image tests (stage 14)
+    # ------------------------------------------------------ post-bake image tests
     def image_tests(self) -> dict[str, Any]:
         """``{build_id: {"ok", "run", "instance", "runtime", "time", "checks"}}`` --
         the latest post-bake result per build."""
@@ -542,8 +542,8 @@ class MetaState:
     # ------------------------------------------------------ state locations
     @staticmethod
     def location_key(record: dict[str, Any]) -> str:
-        """What makes a location THE location (stage 46): the type's rendering of
-        it, ``<type>://<container>/<key>`` (stage 47); region, profile and
+        """What makes a location THE location: the type's rendering of it,
+        ``<type>://<container>/<key>``; region, profile and
         encryption are how it is reached, not where it is. A record from before
         the `location` field is read through its backend's fields."""
         location = record.get("location")
@@ -552,7 +552,7 @@ class MetaState:
         return f"{record.get('type', '')}://{record.get('bucket', '')}/{record.get('key', '')}"
 
     def state_locations(self) -> dict[str, dict[str, Any]]:
-        """workspace -> the location it was last generated against (stage 46.4):
+        """workspace -> the location it was last generated against:
         the backend's name and the settings its ``.tfbackend.hcl`` carried
         (type, bucket, key, region, profile, ...), and the run that recorded
         it. The record, not the emission, is the memory a later run's move
@@ -574,7 +574,7 @@ class MetaState:
     def record_state_migration(self, workspace: str, from_location: dict[str, Any],
                                to_location: dict[str, Any], run_id: str, serial: int | None,
                                backup: str | None) -> None:
-        """A performed move (stage 46.4.3.5): from, to, when, the state serial
+        """A performed move: from, to, when, the state serial
         and the backup file, appended to the audit list; the workspace's record
         moves with it."""
         data = self.read(STATE_LOCATIONS)
@@ -642,7 +642,7 @@ def commit_meta_state(config_root: Path, generated_root: Path, run_id: str,
 
 def _commit_staged(top: Path, existing: list[str], run_id: str, lifecycles: list[str],
                    dry_run: bool, config_root: Path, failed: bool = False) -> str | None:
-    # stage 34: belt to the ignore policy's braces -- a plan, state or key file
+    # belt to the ignore policy's braces -- a plan, state or key file
     # under the run's trees is never staged, and the operator is told which.
     # The listing excludes the run-local files (never staged, no warning due)
     # but not the refused names, so those are still seen and named.
@@ -654,12 +654,12 @@ def _commit_staged(top: Path, existing: list[str], run_id: str, lifecycles: list
     if refused:
         log.warning(f"Meta-state commit: never staging {', '.join(refused)} "
                     "(plans, state and key material carry decrypted values)")
-    # stage 35: the gate -- every file about to be staged is scanned, with the
+    # the gate -- every file about to be staged is scanned, with the
     # configuration's allowances, before the index is touched; a finding
     # refuses the whole commit and the run never records a secret
     allow = allow_from_config(config_for(config_root))
     findings = [f for rel in adds if not never_staged(rel) for f in scan_file(top, rel, allow)]
-    # stage 49: and the primary guard -- no value this run DECRYPTED may stand
+    # and the primary guard -- no value this run DECRYPTED may stand
     # in clear in what is about to be committed. The system opened those
     # markers, so this does not guess at shapes the way the rules must.
     findings += scan_for_plaintexts(Path(config_root), decrypted_plaintexts())
@@ -678,12 +678,12 @@ def _commit_staged(top: Path, existing: list[str], run_id: str, lifecycles: list
                f"Meta-state commit: read-models, pins, lineage, launch parameters and "
                f"generated IaC for lifecycles [{', '.join(lifecycles)}].\n"
                f"Run id: {run_id}")
-    # stage 28: commit ONLY the paths this run staged -- the config repo is
+    # commit ONLY the paths this run staged -- the config repo is
     # where operators edit configuration, and a bare `git commit` would sweep
     # whatever they had staged into a "cs-image-system run" commit
     subprocess.run(["git", "-C", str(top), "commit", "-q", "-m", message, "--", *pathspecs],
                    check=True, capture_output=True, text=True)
-    # stage 70 (decision D3): the bootstrap's tfvars IS committed -- it holds the
+    # the bootstrap's tfvars IS committed (a decision, see docs/CHANGES.md#s70) -- it holds the
     # interview's answers, names and ids, never a value. The exclude pathspecs
     # above keep every other tfvars out and a pathspec cannot say "except this
     # one", so it joins the same commit afterwards, by name, once the gate has

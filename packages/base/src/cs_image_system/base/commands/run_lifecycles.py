@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""The V2 meta-workflow runner (DESIGN §3A/§3C).
+"""The V2 meta-workflow runner (DESIGN §3A, DESIGN §3C).
 
 ``run_lifecycles`` drives any subset of the four lifecycles in declared order:
 
@@ -26,7 +26,7 @@ import shutil
 import traceback
 from dataclasses import asdict, field
 from cs_image_system.contract.model_config import CSIS_MODEL_CONFIG
-from pydantic.dataclasses import dataclass  # stage 23: validation at construction
+from pydantic.dataclasses import dataclass  # validation at construction
 from pathlib import Path
 from typing import Callable
 
@@ -87,7 +87,7 @@ _DURING: dict[ExecutionLifecyclePhase, Callable[[GlobalTypeContext, ExecutionLif
 # Hooks other modules register to extend the runner without the runner
 # importing them (read-model writers, V2 validators, post-apply recorders).
 # Their shapes, the entry-point group and ``HookSet`` are the contract's
-# (`contract.hooks`, stage 125), typed over the context protocol; this
+# (`contract.hooks`), typed over the context protocol; this
 # module keeps the names its callers and the tests read them by.
 
 _VALIDATORS: list[ValidatorHook] = []
@@ -157,9 +157,9 @@ class RunSummary:
     meta_state_commit: str | None = None
     error: str | None = None
     state: dict[str, int] | None = None   # pre-run state query: drift counts, unavailable, hard
-    overlays: list[str] = field(default_factory=list)   # transient declaration files (stage 8)
-    undeclared: list[str] = field(default_factory=list)   # `--undeclare kind:name` for this run (stage 28)
-    bake_plan: dict[str, str] = field(default_factory=dict)   # "<series>@<runtime>" -> bake: why | skip: why (stage 9)
+    overlays: list[str] = field(default_factory=list)   # transient declaration files
+    undeclared: list[str] = field(default_factory=list)   # `--undeclare kind:name` for this run
+    bake_plan: dict[str, str] = field(default_factory=dict)   # "<series>@<runtime>" -> bake: why | skip: why
     state_bindings: dict[str, dict[str, str]] = field(default_factory=dict)   # lifecycle -> {workspace: state file}, from the state-bindings hooks
 
     def to_dict(self) -> dict:
@@ -180,7 +180,7 @@ class LifecycleRunError(RuntimeError):
 def _write_gitignore(ctx: GlobalTypeContext, directory: Path, extra: tuple[str, ...] = ()) -> None:
     """The ignore policy (the defaults plus the configuration's list) as a
     ``.gitignore`` in ``directory``; ``extra`` names what only THIS directory
-    ignores -- the root adds the run-local files (stage 43)."""
+    ignores -- the root adds the run-local files."""
     entries = AssetSet(Path(".gitignore"))
     for i in (*ctx.gitignore, *extra):
         entries.add(i)
@@ -199,7 +199,7 @@ def _wipe(path: Path) -> None:
 def out_of_scope_builder_dirs(ctx: GlobalTypeContext) -> set[str]:
     """The builder directories a runtime-scoped run must leave alone: every
     image, storage and instance builder bound to a runtime OTHER than the
-    scope (stage 45). Empty for an unscoped run. A builder's emission lives
+    scope. Empty for an unscoped run. A builder's emission lives
     under ``generated/<lifecycle>/<builder name>/``."""
     scope = getattr(ctx, "only_runtime_scope", None)
     if not scope:
@@ -221,7 +221,7 @@ def out_of_scope_builder_dirs(ctx: GlobalTypeContext) -> set[str]:
 
 
 def _wipe_in_scope(ctx: GlobalTypeContext, lc_path: Path) -> list[str]:
-    """Wipe a lifecycle directory within the run's scope (stage 45): an
+    """Wipe a lifecycle directory within the run's scope: an
     unscoped run wipes it whole, as Q5 says; a run under ``--only-runtime``
     (explicit, or implied by ``--apply-runtime``) emits nothing for the other
     runtimes, so their builder directories are kept exactly as they were and
@@ -243,7 +243,7 @@ def validate(ctx: GlobalTypeContext, requested: list[LifecycleLike]) -> list[str
     """Shared validation: V1 checks (unique names, executables) + registered
     V2 validators. Touches no generated output."""
     errors: list[str] = [str(e) for e in collect_validation_errors(ctx)]
-    errors.extend(validate_policies(ctx))   # parent_policy / image_policy (stage 9)
+    errors.extend(validate_policies(ctx))   # parent_policy / image_policy
     for hook in _VALIDATORS:
         errors.extend(hook(ctx, requested))
     return errors
@@ -340,7 +340,7 @@ def _run_phase(ctx: GlobalTypeContext, lifecycle: LifecycleLike, phase: Executio
 
 #: the lifecycle a run was last in, for the record of an interruption: the
 #: inner `finally` blocks reset ctx.current_lifecycle before the interrupt
-#: reaches the run's own handler (hygiene XII item 19)
+#: reaches the run's own handler
 _LAST_LIFECYCLE: dict[str, str] = {}
 
 
@@ -414,7 +414,7 @@ def _execute_in_process(ctx: GlobalTypeContext, lifecycle: LifecycleLike) -> boo
 
 
 def apply_lifecycles(ctx: GlobalTypeContext, summary: RunSummary) -> None:
-    """GOALS.md 5.5 amended (finding 34, 2026-09-03): within a REQUESTED
+    """GOALS.md 5.5 as amended: within a REQUESTED
     lifecycle, a runner script exists -> it runs; absent -> no-op. A script
     left behind by an earlier run of an UNREQUESTED lifecycle is skipped
     loudly, never executed: bare-bash execution bypasses the lifecycle's
@@ -441,7 +441,7 @@ def apply_lifecycles(ctx: GlobalTypeContext, summary: RunSummary) -> None:
         if not ok:
             summary.apply[lifecycle.value] = "failed"
             if not ctx.dry_run:
-                # hygiene XII item 32 (the walk's F62): the roots before the one
+                # the roots before the one
                 # that failed applied for real; what they did (a decommission, a
                 # launch) must reach the record, so the after-apply hooks run,
                 # each on its own, before the failure is raised
@@ -464,7 +464,7 @@ def run_lifecycles(ctx: GlobalTypeContext, requested: list[LifecycleLike], *, ap
                    force_bake: list[str] | None = None) -> RunSummary:
     """Run the requested lifecycles (in declared order) end to end.
 
-    ``state_query`` (decision 2026-08-27): every run first asks reality
+    ``state_query``, by decision: every run first asks reality
     (read-only) and writes ``generated/state-report.json``; the hard-drift
     validator then refuses to build on a false belief. Providers that
     cannot answer are reported, never fatal. ``--no-state-query`` keeps
@@ -479,13 +479,13 @@ def run_lifecycles(ctx: GlobalTypeContext, requested: list[LifecycleLike], *, ap
     load_hook_plugins()
     ctx.reset_generated_lifecycles()
     ctx.only_images = None
-    # convergent bakes (stage 9): a fresh decision cache per run; --force-bake
+    # convergent bakes: a fresh decision cache per run; --force-bake
     # names images (or `all`) that bake even when current
     ctx.bake_decisions = {}
     ctx.force_bake = {f.strip() for f in force_bake if f.strip()} or None if force_bake else None
     if only and [o.lower() for o in only] == ["none"]:
         # `--only none`: an explicitly EMPTY bake surface -- the terraform
-        # roots alone (a launch or teardown that must not re-bake, stage 8)
+        # roots alone (a launch or teardown that must not re-bake)
         ctx.only_images = set()
         only = None
     if only:
@@ -512,7 +512,7 @@ def run_lifecycles(ctx: GlobalTypeContext, requested: list[LifecycleLike], *, ap
     interrupted = False
     try:
         if getattr(ctx, "migrate_state", None) and ctx.dry_run:
-            # stage 46.4.3: the operation needs --no-dry-run; refused here as well
+            # the operation needs --no-dry-run; refused here as well
             # as at the CLI so that no other path moves state dry
             raise LifecycleRunError("--migrate-state moves state and needs --no-dry-run: a dry run never moves state")
         if state_query:
@@ -523,11 +523,11 @@ def run_lifecycles(ctx: GlobalTypeContext, requested: list[LifecycleLike], *, ap
             for u in report.unavailable:
                 log.warning(f"state query: {u}")
             log.info(f"state query: {summary.state}")
-            lines, blocking = session_lines(ctx)              # stage 12.3: warn, never refuse, in a run
+            lines, blocking = session_lines(ctx)              # warn, never refuse, in a run
             for line in lines:
                 (log.warning if line in blocking else log.info)(f"preflight {line}")
         if not ctx.dry_run:
-            # stage 127: a REAL run checks every runtime's networking against
+            # a REAL run checks every runtime's networking against
             # its account and records what it resolved to; the record is
             # adopted again so the resolved network reaches THIS run's
             # emission. A dry run adopts what the last one recorded.
@@ -543,10 +543,10 @@ def run_lifecycles(ctx: GlobalTypeContext, requested: list[LifecycleLike], *, ap
             summary.bake_plan = bake_plan(ctx)
             for key, decision in sorted(summary.bake_plan.items()):
                 log.info(f"bake plan: {key}: {decision}")
-            refusal = check_bake_scope(ctx, summary.bake_plan)   # stage 12: before any bake
+            refusal = check_bake_scope(ctx, summary.bake_plan)   # before any bake
             if refusal:
                 raise LifecycleRunError(f"run scope: {refusal}")
-        # stage 70 (decision D7): generated/bootstrap from the tree's
+        # generated/bootstrap from the tree's
         # bootstrap.yaml, before the lifecycles -- generation only, every run
         regenerate_in_run(ctx)
         for lifecycle in ordered:
@@ -571,15 +571,15 @@ def run_lifecycles(ctx: GlobalTypeContext, requested: list[LifecycleLike], *, ap
         log.error(summary.error)
         log.debug(traceback.format_exc())
         if commit and not ctx.dry_run and "failed" in summary.apply.values():
-            # hygiene XII item 32: a failed applying run still commits its
+            # a failed applying run still commits its
             # record, so what it applied before the failure is not lost
             _record(ctx, summary, root)
             summary.meta_state_commit = commit_meta_state(
                 ctx.working_path, root, ctx.run_id, summary.requested, ctx.dry_run, failed=True)
     except KeyboardInterrupt:
-        # hygiene XII item 19 (the walk's F45): Ctrl-C is no Exception, so the
-        # journal kept the summary's starting values and said `ok: true` of a run
-        # that was cut off five seconds in. It is recorded as interrupted, in the
+        # Ctrl-C is no Exception, so the journal used to keep the summary's
+        # starting values and say `ok: true` of a run that was cut off five
+        # seconds in. It is recorded as interrupted, in the
         # lifecycle it was in, and re-raised once the record is made.
         summary.ok = False
         where = ctx.current_lifecycle.value if ctx.current_lifecycle else _LAST_LIFECYCLE.get("name") or "no lifecycle yet"
@@ -588,7 +588,7 @@ def run_lifecycles(ctx: GlobalTypeContext, requested: list[LifecycleLike], *, ap
         interrupted = True
     finally:
         ctx.current_lifecycle = None
-        # hygiene VIII item 5: a name drawn at generation for a machine this
+        # a name drawn at generation for a machine this
         # run did not launch goes back to the pool before anything is recorded
         try:
             release_unlaunched(ctx)
@@ -620,7 +620,7 @@ def _record(ctx: GlobalTypeContext, summary: RunSummary, root: Path) -> None:
 
 def validate_only(ctx: GlobalTypeContext, *, online: bool = False) -> list[str]:
     """Every rule over the loaded configuration. ``online`` (`validate
-    --online`, stage 127) first checks every runtime's networking against
+    --online`) first checks every runtime's networking against
     its account, records the facts and adopts them; offline, the rules read
     what the record says."""
     load_hook_plugins()
@@ -683,13 +683,13 @@ def _register_builtin_hooks() -> None:
     v2_validation.register(this)
     read_models.register(this)
     launch_params.register(this)
-    provider_aliases.register(this)   # after mark_launched: it reads `launched` (stage 58)
-    launch_delivery.register(this)   # after mark_launched, before the accounts: the launch script by session (stage 103)
-    accounts_reconcile.register(this)   # after mark_launched: it reads `launched` (stage 75)
-    generations.register(this)   # after mark_launched and the forgets: the machine decides (stage 60)
-    workload_access.register(this)   # after the identity read-model is written: it records into it (stage 56)
+    provider_aliases.register(this)   # after mark_launched: it reads `launched`
+    launch_delivery.register(this)   # after mark_launched, before the accounts: the launch script by session
+    accounts_reconcile.register(this)   # after mark_launched: it reads `launched`
+    generations.register(this)   # after mark_launched and the forgets: the machine decides
+    workload_access.register(this)   # after the identity read-model is written: it records into it
     release.register(this)
-    retention.register(this)   # the closing lifecycle (stage 10.3-6), after release
+    retention.register(this)   # the closing lifecycle, after release
     state_query.register(this)
     identity_attributes.register(this)
 

@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""What a plugin may import from the kit (stage 125 item 1).
+"""What a plugin may import from the kit.
 
 A plugin is written against the contract; of the kit (``cs_image_system.base``)
 it imports only the base classes (``basic/*``), the models it subclasses
@@ -13,14 +13,14 @@ sources show today, entry by entry, so the list can only be pruned. An
 entry that no source carries any more is stale and goes; an import the
 list does not carry is a new reach into the kit and is refused here.
 
-The second wave (stage 125) emptied the list of every function a plugin
+The contract surface emptied the list of every function a plugin
 reached by import -- they are members of ``ctx.services`` now, or the
 contract's own (the enrollment registry, the hostname rule, the secret
 marker's opening, the catalog words, the hook set, the bootstrap's facts
 protocol) -- down to the four entries that stay, each a read made where
 no context exists to reach a service through: two models fetching the
 current context (the docker floating tag, the Okta gateway selector; the
-stage 124 shim, pinned by their tests), and two state backends reading the
+one-release shim, pinned by their tests), and two state backends reading the
 registry from a class-level ``session_status`` before any run is loaded.
 A package that imports nothing from the kit (hashicorp-utils,
 contract-example-plugin) has no entry.

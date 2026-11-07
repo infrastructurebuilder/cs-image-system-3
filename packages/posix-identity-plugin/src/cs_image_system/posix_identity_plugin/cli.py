@@ -5,7 +5,7 @@
 """What this plugin adds to the command line, through the contract's
 ``cs_image_system.commands`` entry-point group: ``verify login``, the
 login proof. The command is the core's, mounted by name
-(``CommandMount(kit_command=VERIFY_LOGIN)``, stage 125), and every identity
+(``CommandMount(kit_command=VERIFY_LOGIN)``), and every identity
 plugin mounts it: a shared command, mounted once whichever of them is
 installed, so a tree with posix accounts alone has the proof without any
 other identity plugin. This plugin's checks (the proof user over the

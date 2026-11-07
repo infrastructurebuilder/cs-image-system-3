@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""Configuration-driven recipes (stage 11.5): a runtime's facts come from
+"""Configuration-driven recipes: a runtime's facts come from
 the configuration (`runtime describe`), emptiness is a system command
 (`empty --runtime`), and a run is scoped and applied to a runtime with
 `--only-runtime` / `--apply-runtime` -- so no recipe hardcodes a project.
@@ -100,14 +100,14 @@ def test_apply_runtime_lets_that_runtimes_roots_apply_and_the_check_carries_it(r
 
 # ------------------------------------------ the recipes are effective (operator)
 
-JUSTFILES = {"Justfile": "{{live_cli}}",                                            # the developer's (stage 64)
+JUSTFILES = {"Justfile": "{{live_cli}}",                                            # the developer's
              "docs/examples/_skeleton/Justfile": "{{cli}}"}                         # a configuration repository's (every starter's)
 
 
 def _justfile_cli_invocations() -> list[tuple[str, list[str]]]:
     """Every `{{live_cli}} ...`/`{{cli}} ...` or `uv run cs-image-system ...` invocation in this
-    repository's Justfile and in the starter Justfile the release ships (stage 64: the cycle recipes
-    moved there) as argv, with just's templates reduced: `{{ if … }}` → its first quoted literal,
+    repository's Justfile and in the starter Justfile the release ships (the cycle recipes
+    live there) as argv, with just's templates reduced: `{{ if … }}` → its first quoted literal,
     `{{name}}` → X."""
     out = []
     for rel, var in JUSTFILES.items():
@@ -117,7 +117,7 @@ def _justfile_cli_invocations() -> list[tuple[str, list[str]]]:
                 continue
             if var in line:
                 text = line.split(var, 1)[1]
-            elif "uv run cs-image-system " in line:                  # the contract recipes (stage 16)
+            elif "uv run cs-image-system " in line:                  # the contract recipes
                 text = line.split("uv run cs-image-system ", 1)[1]
             else:
                 continue
@@ -141,7 +141,7 @@ def _argv(text: str) -> list[str] | None:
 
 
 def test_every_justfile_recipe_calls_the_cli_with_options_it_actually_has():
-    """The 2026-09-08 lesson: `--apply-runtime` placed before `run` made the
+    """The first live cycle's lesson: `--apply-runtime` placed before `run` made the
     generic cycle recipe fail on its first live use.  Every option before the
     subcommand must be global; every option after it must belong to that
     subcommand (or be global)."""

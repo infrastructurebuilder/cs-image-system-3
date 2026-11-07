@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 from cs_image_system.contract.model_config import CSIS_MODEL_CONFIG
-from pydantic.dataclasses import dataclass  # stage 23: validation at construction
+from pydantic.dataclasses import dataclass  # validation at construction
 from enum import StrEnum
 from typing import Any, Callable
 
@@ -21,7 +21,7 @@ from cs_image_system.hashicorp_utils.blocks import (
 )
 from cs_image_system.hashicorp_utils.hashicorp import TerraformGenerator
 from cs_image_system.contract.context import RunContextProtocol
-from cs_image_system.base.run_context import current_context   # a model holds no context (stage 124 shim)
+from cs_image_system.base.run_context import current_context   # a model holds no context; it fetches the current one
 
 OKTATF: str = "okta-tf"
 OKTATF_RO: str = "okta-tf-ro"
@@ -87,7 +87,7 @@ class OktaTFUser(TerraformGenerator):
             a fresh workspace can plan before the user exists.
         sensitive : callable
             ``(key, value) -> value`` -- the collector's ``sensitive_ref`` for
-            the root (stage 34): a decrypted value comes back as the
+            the root: a decrypted value comes back as the
             ``local.sensitive[...]`` reference to its ciphertext and is
             registered for the root's decrypting data source; anything else
             comes back unchanged. Constructing the object registers.
@@ -464,7 +464,7 @@ class OktaGroupBuilderModel(GroupBuilderModel):
 
     gateway_selector: str | None = None
     account_discovery: bool = True
-    # Stage 56: CI logs in as a WORKLOAD. Both objects are the team's, made by
+    # CI logs in as a WORKLOAD. Both objects are the team's, made by
     # hand once (CI_SETUP.md section 3.5) and named here; with both named the
     # builder keeps one CI login policy per managed group beside the user
     # policy, through the OPA API (the provider cannot name a workload role).
@@ -481,7 +481,7 @@ class OktaGroupBuilderModel(GroupBuilderModel):
         """
         if self.gateway_selector is not None:
             return self.gateway_selector
-        ctx: RunContextProtocol = current_context()     # typed by the contract (stage 125); the fetch is the shim
+        ctx: RunContextProtocol = current_context()     # typed by the contract; a model holds no context of its own
         return ctx.config.get(OKTA_GATEWAY_SELECTOR_CONFIG_KEY) or None
 @dataclass(kw_only=True, config=CSIS_MODEL_CONFIG)
 class OktaUserBuilderModel(UserBuilderModel):

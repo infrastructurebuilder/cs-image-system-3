@@ -67,7 +67,7 @@ def test_only_requested_lifecycles_are_generated(v2):
 
 
 def test_existing_script_from_a_previous_run_is_skipped(v2, tmp_path):
-    """GOALS.md 5.5 amended (finding 34, 2026-09-03): a leftover script for an
+    """GOALS.md 5.5: a leftover script for an
     UNREQUESTED lifecycle never executes -- bare-bash execution bypasses the
     lifecycle hooks, so its effects would change reality unrecorded (found
     live: `run storage --no-dry-run` executed the previous day's base-image

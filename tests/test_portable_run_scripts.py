@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""Stage 38: a committed runner script is self-contained.
+"""A committed runner script is self-contained.
 
 ``generated/<lifecycle>/run-<lifecycle>.sh`` names no machine's absolute
 path -- its header defines ``CSIS_ROOT`` as the configuration root RELATIVE
@@ -89,7 +89,7 @@ def test_the_executable_keeps_the_absolute_argument_and_the_line_gets_the_refere
     e.args = ["--root-dir", str(root), "--overlay", str(root / "overlays" / "x.yaml"), "--no-dry-run", "release"]
     e.working_directory = root / "generated" / "release" / "release"
     line = render_executable_line(e, base=root / "generated" / "release", root=root)
-    # stage 49: the committed emission carries ciphertext, so the line enters
+    # the committed emission carries ciphertext, so the line enters
     # its root, materializes it into the private mirror, and runs there
     assert line == (f'( cd "release" && cd "$(cs-image-system materialize . '
                     f'--root-dir "${ROOT_VARIABLE}")" && cs-image-system --root-dir "${ROOT_VARIABLE}" '

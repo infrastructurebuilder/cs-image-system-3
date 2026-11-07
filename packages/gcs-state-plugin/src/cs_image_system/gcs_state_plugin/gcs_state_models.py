@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""The ``gcs`` state backend type (stage 47.4): a Google Cloud Storage bucket.
+"""The ``gcs`` state backend type: a Google Cloud Storage bucket.
 
 OpenTofu's ``gcs`` backend stores a workspace's state as
 ``<prefix>/<terraform workspace>.tfstate``, the terraform workspace being
@@ -16,7 +16,7 @@ from __future__ import annotations
 
 from typing import Any, Mapping
 
-from pydantic.dataclasses import dataclass  # stage 23: validation at construction
+from pydantic.dataclasses import dataclass  # validation at construction
 
 from cs_image_system.contract.constants import VCT
 from cs_image_system.contract.model_config import CSIS_MODEL_CONFIG
@@ -80,7 +80,7 @@ class GcsStateBuilderModel(StateBuilderModel):
     kms_encryption_key: str | None = None           # a Cloud KMS key name
     type = GCS_STATE
     # the executables entry these roots run; None = unspecified (no version
-    # check), a declared name is checked like every builder's (stage 63)
+    # check), a declared name is checked like every builder's
     executable: str | None = None
 
     @classmethod

@@ -29,7 +29,7 @@ from ..image_sources import ImageSourceCatalog, container_reference, stand_in_ru
 from ..image_names import output_names_by_runtime
 from cs_image_system.base.models.container_builder import ContainerBuilderModel
 
-if TYPE_CHECKING:          # annotations only (stage 125)
+if TYPE_CHECKING:          # annotations only
     from ..global_context import GlobalTypeContext
 
 
@@ -64,13 +64,13 @@ def check_version(sv: str | None, version: str | None) -> ComplianceState:
 
 
 def version_checker_for(exe: ExecutableModel) -> type[AbstractVersionChecker] | None:
-    """The checker for an executable (stage 48.1): registered under its NAME
+    """The checker for an executable: registered under its NAME
     first -- packer, tofu, each cloud's CLI, ansible-playbook and bash have
     their own -- then under its TYPE (`packer-1.9.4` with `type: packer`),
     which for the default type `executable` is the generic checker base
     registers. The checkers were always registered by name while the lookup
     keyed on the type in the wrong table, so none had ever matched."""
-    reg = registry.current_registry()   # an executable holds no context (stage 124 shim)
+    reg = registry.current_registry()   # an executable holds no context; the current registry is the one
     for key in (exe.name, exe.type_):
         cc = reg.get_model(VCT.VERSION_CHECKER, key)
         if cc is not None:
@@ -188,7 +188,7 @@ def check_name_uniquness(ctx: GlobalTypeContext) -> list[Exception]:
             seen_names.add(name)
     return exceptions
 def check_state_backend_executables(ctx: GlobalTypeContext) -> list[Exception]:
-    """Stage 63: a state backend names an executable too (the tofu its roots
+    """A state backend names an executable too (the tofu its roots
     run). A declared one must exist in the executables list, where it is
     version-checked like every other entry; an undeclared one is skipped."""
     exs: list[Exception] = []
@@ -201,8 +201,8 @@ def check_state_backend_executables(ctx: GlobalTypeContext) -> list[Exception]:
 
 
 def check_executables_exist_and_versions(ctx: GlobalTypeContext) -> list[Exception]:
-    """Every declared executable exists and meets its version requirement
-    (stage 48.1), said once as one INFO line -- the record of what versions a
+    """Every declared executable exists and meets its version requirement,
+    said once as one INFO line -- the record of what versions a
     run actually ran with -- and every provider's executable is declared."""
     exs: list[Exception] = []
     checked: list[str] = []
@@ -221,10 +221,10 @@ def check_executables_exist_and_versions(ctx: GlobalTypeContext) -> list[Excepti
 
 # ------------------------------------------------------------ state locations
 
-from ..standing import deployed_in_workspace, terraform_workspaces  # noqa: E402, F401 - re-exported (stage 125)
+from ..standing import deployed_in_workspace, terraform_workspaces  # noqa: E402, F401 - re-exported
 
 def check_posix_ids(ctx: GlobalTypeContext) -> list[Exception]:
-    """Stage 75: every POSIX id the configuration's builders claim, resolved
+    """Every POSIX id the configuration's builders claim, resolved
     by the operator's rule (``posix_ids.resolve_posix_ids``): one name with
     two ids is refused naming both sides, a name no side supplies an id for
     is refused, two names on one id are refused. An id the configuration
@@ -254,7 +254,7 @@ def check_posix_ids(ctx: GlobalTypeContext) -> list[Exception]:
 
 
 def check_group_builders(ctx: GlobalTypeContext) -> list[Exception]:
-    """Stage 75 step 4: what each group builder finds wrong with its own
+    """What each group builder finds wrong with its own
     declarations that only the plugin can see (``configuration_errors``) --
     a posix group's member with no account to create."""
     for gb in ctx.group_builders.values():
@@ -264,7 +264,7 @@ def check_group_builders(ctx: GlobalTypeContext) -> list[Exception]:
 
 
 def check_foreign_keys(ctx: GlobalTypeContext) -> list[Exception]:
-    """Stage 48.3: a field declared as a foreign key that names nothing is an
+    """A field declared as a foreign key that names nothing is an
     error, with the object, the field, the value and the target named -- the
     fallback to the raw id let the fixture and the live tree name a
     non-existent image builder for months. A `default` that has no default is
@@ -281,7 +281,7 @@ def check_foreign_keys(ctx: GlobalTypeContext) -> list[Exception]:
         errors.append(Exception(
             f"{cls_name} '{obj_name}': field '{field_name}' names '{value}', which is no {target}"
             + (f" (declared: {', '.join(declared)})" if declared else "")
-            # stage 76: nothing may be named `none`, and this field gives the word no meaning
+            # nothing may be named `none`, and this field gives the word no meaning
             + (" -- `none` names nothing and is not this field's default: leave the field out "
                "(or write `default`) for the default" if value == NONE else "")))
     return errors
@@ -298,7 +298,7 @@ def _zone_of_storage(ctx: GlobalTypeContext, name: str) -> tuple[str | None, boo
 
 
 def _storage_runtime(ctx: GlobalTypeContext, storage) -> str | None:
-    """The runtime a storage is REALLY on: its builder's (stage 63 item 20).
+    """The runtime a storage is REALLY on: its builder's.
 
     Every other reader places a storage by its builder's runtime; this check
     read the storage ITEM's ``runtime``, which defaults to the default runtime,
@@ -318,7 +318,7 @@ def _runtime_zone(ctx: GlobalTypeContext, runtime_name: str | None) -> tuple[str
     """The zone a runtime asserts, and where it said it: its networking's
     ``default_availability_zone``, else its DEFAULT SUBNET's declared zone,
     else the runtime's own ``zone`` (a zonal cloud's runtime states its zone there and
-    nowhere else, stage 63 item 20)."""
+    nowhere else)."""
     rtb = ctx.runtime_builders.get(str(runtime_name or ""))
     own = getattr(getattr(rtb, "model", None), "zone", None)
     fallback = (str(own), f"runtime '{runtime_name}'") if own else (None, "")
@@ -337,7 +337,7 @@ def _runtime_zone(ctx: GlobalTypeContext, runtime_name: str | None) -> tuple[str
 
 
 def check_availability_zones(ctx: GlobalTypeContext) -> list[Exception]:
-    """Everything that shares a zone must ask for a COMPATIBLE one (stage 52).
+    """Everything that shares a zone must ask for a COMPATIBLE one.
 
     An availability zone is declared, never inferred, so an absent value
     constrains nothing and a REGIONAL storage (a shared filesystem, an
@@ -391,7 +391,7 @@ def check_availability_zones(ctx: GlobalTypeContext) -> list[Exception]:
 
 def check_no_plaintext_emitted(ctx: GlobalTypeContext) -> list[Exception]:
     """No value the loader DECRYPTED stands in clear under ``generated/`` or
-    ``meta-state/`` (stage 49).
+    ``meta-state/``.
 
     The primary encryption guard, and the one that does not guess: the system
     opened these markers itself, so it knows exactly which strings must not be
@@ -413,7 +413,7 @@ def check_no_plaintext_emitted(ctx: GlobalTypeContext) -> list[Exception]:
 
 def check_canonical_hostnames(ctx: GlobalTypeContext) -> list[Exception]:
     """Every instance's canonical hostname must be one the machine can
-    actually take (stage 55).
+    actually take.
 
     The canonical name IS the OS hostname -- the launch script runs
     ``hostnamectl set-hostname '<name>'`` -- so what binds is Linux's
@@ -425,8 +425,7 @@ def check_canonical_hostnames(ctx: GlobalTypeContext) -> list[Exception]:
     ``|| true``, so an invalid name does not stop the boot. The machine keeps
     the hyperscaler's name (``ip-10-26-34-156``), enrolls with the identity
     provider under THAT, and a login by the declared name finds nothing
-    while every step reports success. Nothing checked this before
-    2026-09-21."""
+    while every step reports success."""
     exs: list[Exception] = []
     for inst in ctx.instances:
         name = canonical_hostname(ctx, inst)
@@ -439,7 +438,7 @@ def check_canonical_hostnames(ctx: GlobalTypeContext) -> list[Exception]:
 
 
 def check_alias_pool(ctx: GlobalTypeContext) -> list[Exception]:
-    """Stage 59: every free line of ``meta-state/aliases.txt`` must be a name
+    """Every free line of ``meta-state/aliases.txt`` must be a name
     a machine can take -- an RFC 1123 label, no repeat, not a name the
     configuration already gives an instance -- checked here, where an
     unusable line is a typo to fix, not at launch when it is the next one
@@ -459,7 +458,7 @@ def check_alias_pool(ctx: GlobalTypeContext) -> list[Exception]:
 
 def check_state_backends_needed(ctx: GlobalTypeContext) -> list[Exception]:
     """``use_state_backends: false`` is refused when any root would read a
-    producer's outputs (stage 63 item 19, decided 2026-09-25).
+    producer's outputs, by decision.
 
     The flag gates the ``terraform_remote_state`` DATA SOURCES, but the
     instance and storage builders write references to them unconditionally:
@@ -504,8 +503,8 @@ def check_state_backends_needed(ctx: GlobalTypeContext) -> list[Exception]:
 
 
 def check_bake_users(ctx: GlobalTypeContext) -> list[Exception]:
-    """Every bake user resolves, and a chain that must share one does (stage
-    63 item 23, decided 2026-09-25).
+    """Every bake user resolves, and a chain that must share one does, by
+    decision.
 
     Each OS builder entry and each image's runtime entry is resolved through
     ``cs_image_system.base.bake_user`` at validate, so a user nothing can
@@ -557,7 +556,7 @@ def check_bake_users(ctx: GlobalTypeContext) -> list[Exception]:
 def check_label_keys(ctx: GlobalTypeContext) -> list[Exception]:
     """Every declared tag key that becomes a label on a runtime whose labels
     have rules (one cloud: a lowercase letter first) is refused here, naming the
-    key and who declared it (stage 63; it used to fail at apply). The keys
+    key and who declared it (it used to fail at apply). The keys
     are the tags of each image on each runtime it bakes on, of each instance
     on its runtime, and of each storage on its builder's runtime."""
     exs: list[Exception] = []
@@ -588,7 +587,7 @@ def check_label_keys(ctx: GlobalTypeContext) -> list[Exception]:
 
 
 def check_image_sources(ctx: GlobalTypeContext) -> list[Exception]:
-    """Stage 106: every OS builder's runtime entry has a vendor-image query
+    """Every OS builder's runtime entry has a vendor-image query
     its runtime can ask, and says what it is. Refused, naming the entry:
     a key the system does not know (written in the catalog, the OS builder
     or the entry); an entry with no source at all (no catalog block for the
@@ -603,7 +602,7 @@ def check_image_sources(ctx: GlobalTypeContext) -> list[Exception]:
         model = osb.model
         family, version = model.get_vendor_family(), model.get_family_version()
         real = model.get_family()
-        # hygiene XX item 4(b): the container the modification tests run on, one line per OS builder
+        # the container the modification tests run on, one line per OS builder
         override = getattr(model, "local_test_image", None)
         if override:
             log.info(f"mod-test stand-in: OS builder '{osb_name}': {override} (declared: local_test_image)")
@@ -655,7 +654,7 @@ def check_image_sources(ctx: GlobalTypeContext) -> list[Exception]:
                 exs.append(ValueError(f"{who}: {e}"))
                 continue
             log.info(f"image source: {who}: {query} -> {native}")
-            # hygiene XX item 4(c): a WARNING, never a refusal, when the query plainly names another family
+            # a WARNING, never a refusal, when the query plainly names another family
             named = family_named_by_query(query)
             if named and named != family and named != real:
                 log.warning(f"{who}: the query names {named!r} ({query.name or query.family}) under family {family!r}"
@@ -664,9 +663,9 @@ def check_image_sources(ctx: GlobalTypeContext) -> list[Exception]:
     return exs
 
 
-#: What a vendor's image name or family plainly says it is (hygiene XX item
-#: 4c): a marker in the name, in the order checked (the longer, more specific
-#: words first so `almalinux` is not read as `alma`... or `rhel`).
+#: What a vendor's image name or family plainly says it is: a marker in the
+#: name, in the order checked (the longer, more specific words first so
+#: `almalinux` is not read as `alma`... or `rhel`).
 FAMILY_MARKERS: tuple[tuple[str, str], ...] = (
     ("almalinux", "alma-linux"), ("alma", "alma-linux"),
     ("rocky", "rocky-linux"),
@@ -677,7 +676,7 @@ FAMILY_MARKERS: tuple[tuple[str, str], ...] = (
 
 
 def check_image_names(ctx: GlobalTypeContext) -> list[Exception]:
-    """Stage 105: every image's build-name prefix on every runtime it bakes
+    """Every image's build-name prefix on every runtime it bakes
     on (``cs_image_system.base.image_names``), refused in one sentence
     naming the image and the runtime when: it carries the run's timestamp
     (the loader rendered an ``execution.timestamp`` template at load, and
@@ -744,7 +743,7 @@ def _is_container_runtime(rtb: Any) -> bool:
 
 
 def check_container_runtimes(ctx: GlobalTypeContext) -> list[Exception]:
-    """Stage 103, decision 3: on a container runtime, only a group whose
+    """By decision, on a container runtime, only a group whose
     identity lives on the machine itself. Each group builder answers
     ``container_runtime_objection()``: None when its groups may own an
     image there (accounts the image carries), else why not (an agent that

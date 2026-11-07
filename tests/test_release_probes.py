@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""Hygiene XXI item 1: the probes a release asks first.
+"""The probes a release asks first.
 
 ``just release ... pypi`` runs ``full-test``, whose legs need docker answering and every runtime
 session of the live configuration present, and every recipe runs ``uv run --no-sync`` so a venv
@@ -97,12 +97,12 @@ def test_release_and_release_finish_ask_before_anything_changes():
 
 
 def test_the_session_line_says_the_minutes_left_and_refuses_only_a_lapsed_token():
-    """Hygiene XXII item 3: three branches of the one line (lapsed, under an hour, enough); the
-    decision (2026-11-02, default) is to SAY the minutes. Hygiene XXIII: a token already lapsed is a
-    fact, not a margin -- preflight now judges it too -- so that branch alone refuses."""
+    """Three branches of the one line (lapsed, under an hour, enough); the
+    operator's decision is to SAY the minutes. A token already lapsed is a
+    fact, not a margin -- preflight judges it too -- so that branch alone refuses."""
     probes = _plan("_release-probes", "test", "release")
     assert "scripts/session-minutes-left" in probes
     for needle in ("lapsed", "halfway", "minutes left"):
         assert needle in probes, needle
     branches = probes[probes.index("left=$("):].split("\nfi\n")[0]
-    assert branches.count("exit 1") == 1 and branches.index("exit 1") < branches.index("elif [ \"$left\" -lt 60 ]")   # hygiene XXIII: only a lapsed token refuses
+    assert branches.count("exit 1") == 1 and branches.index("exit 1") < branches.index("elif [ \"$left\" -lt 60 ]")   # only a lapsed token refuses

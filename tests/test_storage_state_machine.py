@@ -79,7 +79,7 @@ def test_storage_root_consumes_gids_by_reference_only(v2):
     assert 'data.terraform_remote_state.oktagroups.outputs.group_gids["stofs"]' in module
     assert '"path" = "/coops"' in module and '"permissions" = "2775"' in module
     assert 'output "storage_efs_storage"' in module
-    # stage 46/47: the storage root keeps its own state in the second S3 backend
+    # the storage root keeps its own state in the second S3 backend
     # and reads the identity root's from the LOCAL backend -- across buckets and types
     backend = efs["aws-efs-storage-generation.tfbackend.hcl"]
     assert 'bucket = "my-east1-tfstate-bucket"' in backend and 'key = "statefiles/csia/aws_efs.tfstate"' in backend
@@ -130,8 +130,8 @@ def test_archiving_an_attached_storage_is_refused(tmp_path, monkeypatch):
 
 
 def test_archive_and_restore_are_legal_when_unattached(tmp_path, monkeypatch):
-    # the state machine is the subject; archiving is realized by the pd builder only
-    # (stage 11.6), so EFS is stubbed as archive-capable here
+    # the state machine is the subject; archiving is realized by the pd builder only,
+    # so EFS is stubbed as archive-capable here
     from cs_image_system.tf_ebs_instance_plugin.tf_storage_builder import TofuEfsStorageBuilder
     monkeypatch.setattr(TofuEfsStorageBuilder, "supports_archive", lambda self: True)
     run = _prepared(tmp_path, monkeypatch, lambda root: (
@@ -168,8 +168,8 @@ def test_apply_off_run_records_no_transitions(tmp_path, monkeypatch):
     """truthful-recorders (finding 21): a full storage run with the apply
     flag off leaves storage-state.yaml exactly as seeded — the after-apply
     hook must not write reality-claiming records without a real apply."""
-    # the state machine is the subject; archiving is realized by the pd builder only
-    # (stage 11.6), so EFS is stubbed as archive-capable here
+    # the state machine is the subject; archiving is realized by the pd builder only,
+    # so EFS is stubbed as archive-capable here
     from cs_image_system.tf_ebs_instance_plugin.tf_storage_builder import TofuEfsStorageBuilder
     monkeypatch.setattr(TofuEfsStorageBuilder, "supports_archive", lambda self: True)
     run = _prepared(tmp_path, monkeypatch, lambda root: (
@@ -198,7 +198,7 @@ def test_absent_apply_flag_key_means_false(tmp_path, monkeypatch):
 
 
 def test_new_storages_start_active_and_a_tombstone_regenerates(tmp_path, monkeypatch):
-    """stage 10.12 replaced 'destroyed is terminal': a declared storage whose
+    """'Destroyed is terminal' is replaced: a declared storage whose
     record is a tombstone is a NEW generation of the name (legal), while a
     never-applied storage still must start active."""
     run = _prepared(tmp_path, monkeypatch, lambda root: (
@@ -215,7 +215,7 @@ def test_new_storages_start_active_and_a_tombstone_regenerates(tmp_path, monkeyp
 
 
 def test_a_recorded_storage_that_left_the_yaml_is_a_planned_destroy(tmp_path, monkeypatch):
-    """stage 10.11 replaced N22 ('entries never leave the YAML'): the demise
+    """DESIGN N22 ('entries never leave the YAML') is replaced: the demise
     of a storage is its un-declaration; a still-live record that no longer
     has an entry is destroyed by the next run (its root known from the
     record's facts), and a tombstone that left the YAML is simply history."""

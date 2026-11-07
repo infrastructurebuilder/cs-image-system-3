@@ -1,5 +1,5 @@
 ---
-# The tree's layer of the image-source catalog (stage 106; CONFIGURATION.md
+# The tree's layer of the image-source catalog (CONFIGURATION.md
 # section 5a). Each entry extends or overrides the release's catalog for a
 # family (and version) in the SYSTEM's query vocabulary; `{version}` is the
 # OS builder's family_version. An OS builder's own `query` and its runtime

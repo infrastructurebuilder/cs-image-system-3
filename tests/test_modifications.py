@@ -23,9 +23,10 @@ form and the on-image bundle.
   refusals; the bash builder runs the lines as its ``configuration_user``
   and refuses ``execute_command`` beside it, and ``extra_arguments``.
 
-History: gate 8 (DESIGN §3M2), EXPLORE "Locally Installing Modifications"
-and "Generation of Idempotent Script-based Modifications", stage 63 items
-15 and 16 and the ansible/bash dead-code items.
+Origins: gate 8 (DESIGN §3M2), EXPLORE "Locally Installing Modifications"
+and "Generation of Idempotent Script-based Modifications".
+
+history: stage 63 items 15 and 16 and the ansible/bash dead-code items.
 """
 from __future__ import annotations
 

@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""Stage 66: a template repository's tree is its starter and three generated
+"""A template repository's tree is its starter and three generated
 changes, nothing else.
 
 scripts/starter-tree over every starter: the files are the rendered starter

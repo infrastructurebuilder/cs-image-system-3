@@ -2,10 +2,10 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""Run scoping safe by construction (stage 12).
+"""Run scoping safe by construction.
 
-On 2026-09-09 an ad-hoc ``run … --apply-runtime <the other cloud's runtime>``
-without ``--only-runtime`` baked two images on the first cloud (ledger 68): ``--apply-runtime``
+Once, an ad-hoc ``run … --apply-runtime <the other cloud's runtime>``
+without ``--only-runtime`` baked two images on the first cloud: ``--apply-runtime``
 scopes the terraform applies, while the bake surface is the convergent
 rule filtered only by ``--only`` / ``--only-runtime``. Two rules close it:
 
@@ -17,7 +17,7 @@ rule filtered only by ``--only`` / ``--only-runtime``. Two rules close it:
   would still bake outside it, a ``--no-dry-run`` run refuses before any
   bake unless the operator allowed it (``--allow-unscoped-bakes``) or
   selected the images explicitly; a dry run warns. Bakes are additive and
-  never gated by apply flags (decision 2026-09-02): this is a scope check,
+  never gated by apply flags, by decision: this is a scope check,
   not a bake flag -- a run with no apply scope at all bakes wherever the
   tree says.
 """

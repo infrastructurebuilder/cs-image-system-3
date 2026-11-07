@@ -2,8 +2,8 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""Decommission through the gate (N19) -- findings 52 and 53, found live
-tearing down the first GCE instance (2026-09-05).
+"""Decommission through the gate (DESIGN N19) -- findings 52 and 53, found live
+tearing down the first GCE instance.
 
 The fixture's meta-state records ``gce-test`` as launched and pinned
 (``pins.yaml`` instances, ``launch-params.yaml``). Undeclaring it must:
@@ -132,7 +132,7 @@ def test_declared_instances_keep_their_roots_unchanged(prepared):
 
 
 def test_after_apply_hooks_honour_per_root_scoping(prepared):
-    """Per-root apply scoping (stage 7): with apply_instances listing only
+    """Per-root apply scoping: with apply_instances listing only
     the AWS runtime, the GCE root merely planned -- so its decommission
     record must survive and its instances stay unlaunched, while the AWS
     instances are marked launched. Listing the GCE root then forgets it."""
@@ -193,7 +193,7 @@ def test_an_applied_decommission_forgets_the_pin(prepared):
     A pin that outlives its instance is not merely untidy. With
     `config.require_released_builds` on, a declared instance pinned to a build
     that was never released makes `validate` refuse EVERY run -- including the
-    run that would release it. Stage 19 met that deadlock on 2026-09-20 after
+    run that would release it. The first live teardown met that deadlock after
     `coops-model` was destroyed and its pin stayed behind.
     """
     root, make_run = prepared
@@ -217,7 +217,7 @@ def test_an_applied_decommission_forgets_the_pin(prepared):
 def test_forget_drops_records_that_outlived_their_instance(prepared):
     """`forget instance` is the recourse when a decommission did not clean up.
 
-    It happened on 2026-09-20: coops-model was destroyed through the gate and
+    It happened live: coops-model was destroyed through the gate and
     its pin and launch parameters stayed in the records, which -- with
     require_released_builds on -- made validate refuse every run. The
     mechanism works in this fixture (the test above), so the live failure was

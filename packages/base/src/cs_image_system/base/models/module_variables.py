@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""Declared inputs to an IaC module call (stage 26).
+"""Declared inputs to an IaC module call.
 
 A storage builder's ``variables:`` names the terraform module's own
 tunables that the builder does not derive from the storage item -- volume

@@ -12,7 +12,7 @@ from dataclasses import field
 
 from cs_image_system.contract.model_config import CSIS_MODEL_CONFIG
 from cs_image_system.base.models.module_variables import ModuleVariables
-from pydantic.dataclasses import dataclass  # stage 23: validation at construction
+from pydantic.dataclasses import dataclass  # validation at construction
 
 from cs_image_system.contract.constants import VCT  # noqa: F401  (re-exported for symmetry
 
@@ -34,9 +34,9 @@ class TofuGcpStorageBuilderModel(TofuStorageBuilderModelBase):
         return TF_GCP
 
     def __post_init__(self) -> None:
-        # stage 63 item 17: the shared base of the GCP storage plugins has no
-        # module to emit, so `type: tf-gcp` loaded and then failed at
-        # generation; it is refused here, naming the types that do work
+        # the shared base of the GCP storage plugins has no module to emit,
+        # so `type: tf-gcp` would load and then fail at generation; it is
+        # refused here, naming the types that do work
         if type(self) is TofuGcpStorageBuilderModel:
             raise ValueError(
                 f"storage builder '{getattr(self, 'name', '?')}': type '{TF_GCP}' is the shared base of the "

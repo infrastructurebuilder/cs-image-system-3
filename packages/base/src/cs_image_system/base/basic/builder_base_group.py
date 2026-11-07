@@ -33,7 +33,7 @@ TGROUP = TypeVar("TGROUP", bound=GroupBuilderModel)
 class GroupBuilderBase(BuilderBase[TGROUP], GroupBuilderProtocol):
     """Base of every identity (group) plugin.
 
-    V2 contract (DESIGN §3D, §3F1/F2):
+    V2 contract (DESIGN §3D, DESIGN §3F):
 
     * ``identity_type()`` -- the token base images declare in
       ``identity_types``; a group's builder thereby fixes the identity type
@@ -89,7 +89,7 @@ class GroupBuilderBase(BuilderBase[TGROUP], GroupBuilderProtocol):
         ``identity_types:``. Defaults to the plugin's canonical name."""
         try:
             return str(cls.csis_name())
-        except NotImplementedError:             # a base that names no type (stage 30)
+        except NotImplementedError:             # a base that names no type
             return cls.__name__
 
     def gid_policy(self) -> str:
@@ -133,8 +133,8 @@ class GroupBuilderBase(BuilderBase[TGROUP], GroupBuilderProtocol):
         return {}
 
     def manages_groups(self) -> bool:
-        """Whether this builder CREATES and owns its groups (stage 63 item
-        18). A lookup-only builder answers False: its groups are recorded
+        """Whether this builder CREATES and owns its groups. A lookup-only
+        builder answers False: its groups are recorded
         ``managed: false`` in the identity read-model, so the never-destroy
         rule (N19) and the state query's drift rule leave them alone, as
         they leave a group marked ``unmanaged: true``."""
@@ -148,7 +148,7 @@ class GroupBuilderBase(BuilderBase[TGROUP], GroupBuilderProtocol):
         only when the provider can answer it. Optional."""
         raise NotImplementedError(f"{self.__class__.__name__} cannot query identity state")
 
-    # ------------------------------------------- server registry (stage 55)
+    # ------------------------------------------------------ server registry
     def can_query_servers(self) -> bool:
         """Whether this identity provider keeps a registry of enrolled
         servers that the builder can read and retire (a provider whose agent
@@ -167,8 +167,8 @@ class GroupBuilderBase(BuilderBase[TGROUP], GroupBuilderProtocol):
         """Remove every registration of ``hostname`` for ``group`` and return
         the ids removed. The registration is the third record of a launch,
         beside the pin and the launch parameters, and the only one that
-        used to outlive the machine (stage 55: three ``coops-model``
-        entries, one live). Raises when it cannot: a retirement that did
+        used to outlive the machine (a provider once held three entries for
+        one machine name, one live). Raises when it cannot: a retirement that did
         not happen must not be reported as one."""
         raise NotImplementedError(f"{self.__class__.__name__} keeps no server registry")
 
@@ -183,7 +183,7 @@ class GroupBuilderBase(BuilderBase[TGROUP], GroupBuilderProtocol):
         ``ValueError``. Default: None."""
         return None
 
-    # ------------------------------------ stale memberships (stage 61 item 3)
+    # ---------------------------------------------------- stale memberships
     def prune_stale_attachments(self, tofu: str, run_id: str, cwd: Path) -> int:
         """A runner step, after the root's ``init`` and before its plan: drop
         from terraform state the membership attachments the declaration no
@@ -193,7 +193,7 @@ class GroupBuilderBase(BuilderBase[TGROUP], GroupBuilderProtocol):
         its plan. A provider with no such notion does nothing."""
         return 0
 
-    # --------------------------------- accounts on machines (stage 75 step 4)
+    # ------------------------------------------------- accounts on machines
     def accounts_script(self, group: str) -> str | None:
         """The script that makes ``group``'s accounts true on a machine of
         one of its images -- run as root, idempotent, after an applying
@@ -228,7 +228,7 @@ class GroupBuilderBase(BuilderBase[TGROUP], GroupBuilderProtocol):
         `validate` refuses each. Default: nothing."""
         return []
 
-    # ------------------------------------------ POSIX ids (stage 75 step 3)
+    # ------------------------------------------------------------ POSIX ids
     def posix_id_claims(self) -> list[Any]:
         """What this builder knows about POSIX ids: ``posix_ids.Claim`` per
         group or user name (an id, the name only, or an id it will supply
@@ -236,7 +236,7 @@ class GroupBuilderBase(BuilderBase[TGROUP], GroupBuilderProtocol):
         operator's rule. Default: no claims."""
         return []
 
-    # ------------------------------------ gids in generated IaC (stage 75 step 3)
+    # ------------------------------------------------ gids in generated IaC
     def gid_workspace(self) -> str | None:
         """The terraform workspace whose ``group_gids`` output carries this
         builder's gids -- a root that needs one declares that workspace's
@@ -254,7 +254,7 @@ class GroupBuilderBase(BuilderBase[TGROUP], GroupBuilderProtocol):
             return None
         return f'data.terraform_remote_state.{super_safe_name(ws)}.outputs.group_gids["{group}"]'
 
-    # ------------------------------------- the login proof (stage 75 step 2)
+    # ------------------------------------------------------ the login proof
     def can_prove_login(self, group: str | None = None) -> bool:
         """Whether ``verify login`` can log into a standing machine of this
         builder's groups (of ``group``, when named) the way a person does, and
@@ -279,7 +279,7 @@ class GroupBuilderBase(BuilderBase[TGROUP], GroupBuilderProtocol):
         has already decided the machine is a target and is running."""
         raise NotImplementedError(f"{self.__class__.__name__} cannot prove a login")
 
-    # ------------------------------------------- CI login policy (stage 56)
+    # ------------------------------------------------------ CI login policy
     def can_manage_workload_access(self) -> bool:
         """Whether this builder keeps a CI login policy per managed group --
         true only when the configuration names the team's workload
@@ -330,7 +330,7 @@ class GroupBuilderBase(BuilderBase[TGROUP], GroupBuilderProtocol):
             WORKLOAD_CONNECTION_UNREAD: "the workload connection's status could not be read from its record",
         }.get(condition, f"workload access: {condition}")
 
-    # ------------------------------ where its machines may run (stage 103)
+    # ------------------------------------------- where its machines may run
     def container_runtime_objection(self) -> str | None:
         """Why an instance image owned by one of this builder's groups may
         NOT bake on a container runtime, or ``None`` when it may. A

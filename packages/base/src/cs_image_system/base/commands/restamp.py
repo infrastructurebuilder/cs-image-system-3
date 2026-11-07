@@ -2,9 +2,9 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""Re-stamp recorded fingerprints (stage 11.2).
+"""Re-stamp recorded fingerprints.
 
-Convergent bakes (§9) changed what the input fingerprint covers, so every
+Convergent bakes changed what the input fingerprint covers, so every
 build recorded before it differs from what the tree computes now and the
 next bake run would re-bake it once. For a runtime whose builds are known
 to be current -- nothing about them changed but the hash recipe --
@@ -19,7 +19,7 @@ from __future__ import annotations
 
 import logging
 from cs_image_system.contract.model_config import CSIS_MODEL_CONFIG
-from pydantic.dataclasses import dataclass  # stage 23: validation at construction
+from pydantic.dataclasses import dataclass  # validation at construction
 from typing import Any
 
 from ..global_context import GlobalTypeContext

@@ -6,7 +6,7 @@ mod_builders:
     is_default: true
     type: ansible
     executable: ansible-playbook # Mapped to executable defined in executables section
-    # stage 48.4: no builder-level playbooks -- an item's playbooks are its own
+    # no builder-level playbooks -- an item's playbooks are its own
     config:
       key1: value1
       key2: value2
@@ -16,7 +16,7 @@ mod_builders:
     is_default: false
     type: bash-remote
     executable: bash # Mapped to executable defined in executables section
-    # stage 22.5 REMOVED -- `script` is a field on the bash mod ITEM, not on the mod BUILDER; declared here it is dropped
+    # `script` is a field on the bash mod ITEM, not on the mod BUILDER; declared here it is dropped
     # script: |
     #   echo "Doing some other stuff in the script using config value: {{ config.some_unknown_mod_builder_setting }}"      
     #   ./modify_image.sh

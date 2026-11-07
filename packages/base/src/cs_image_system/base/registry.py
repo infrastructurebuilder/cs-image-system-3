@@ -174,7 +174,7 @@ class Registry:
     classes (e.g., builders, executables) and allows for flexible deserialization of complex
     configurations.
 
-    One registry per run (stage 124): the loader makes it, loads the
+    One registry per run: the loader makes it, loads the
     installed plugins into it (:func:`~.loader.load_plugins`) and carries it
     as ``ctx.reg``; a builder reads it through its bound context. The
     process holds the one made last for the code that has no context handle
@@ -205,8 +205,8 @@ class Registry:
 
     # The registry is an identity object: a model copy (`copy.deepcopy` of an
     # executable or a tag map) keeps its handle to THE registry rather than
-    # cloning every registered model and builder (and, since stage 124,
-    # through a builder's bound context, the whole run).
+    # cloning every registered model and builder (and, through a builder's
+    # bound context, the whole run).
     def __deepcopy__(self, memo: dict[int, Any]) -> "Registry":
         memo[id(self)] = self
         return self
@@ -340,7 +340,7 @@ class Registry:
             log.debug(f"No registering instance {instance} of type {type(instance)}")
             return
         # a builder stands for its model; a model stands for itself (the
-        # protocol check is the dispatch, stage 125)
+        # protocol check is the dispatch)
         model = instance.model if isinstance(instance, BuilderProtocol) else instance
         if not model:
             raise ValueError(f"Cannot register {instance} because it has no model")
@@ -531,7 +531,7 @@ class Registry:
 
 
 
-# --- the one registry of this process (one-release shim, stage 124)
+# --- the one registry of this process (a one-release shim; see docs/CHANGES.md#s124)
 _CURRENT: Registry | None = None
 
 

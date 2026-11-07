@@ -24,12 +24,12 @@ from cs_image_system.base.models.builder_model import NameTyped
 
 
 def _read(stub, spec):
-    # stage 124: the reader is the loader's function over a context; a
+    # the reader is the loader's function over a context; a
     # stand-in with the attributes it reads (working_path, reg) is a context
     return config_loader.read_item_kind(cast(Any, stub), spec)
 
 
-# stage 23: ItemKind.model_cls is declared `type[NameTyped]` and its docstring
+# ItemKind.model_cls is declared `type[NameTyped]` and its docstring
 # says so. This stand-in used to duck-type the protocol instead of inheriting,
 # which nothing checked until pydantic began enforcing the declaration. It
 # inherits now, which is what the contract always asked for.

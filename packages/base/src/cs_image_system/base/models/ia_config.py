@@ -4,7 +4,7 @@
 
 from dataclasses import field
 from cs_image_system.contract.model_config import CSIS_MODEL_CONFIG
-from pydantic.dataclasses import dataclass  # stage 23: validation at construction
+from pydantic.dataclasses import dataclass  # validation at construction
 from typing import Any
 
 import logging
@@ -86,9 +86,9 @@ class IAConfig():
     id: str
     working_directory: str = "./workdir"
     generation_directory: str | None = "generated"
-    # stage 63: ONE default, the one the run's timestamp has always used
-    # (execution.timestamp); the model's own default differed and was read only
-    # by a last_updated formatter nothing called, removed with it
+    # ONE default, the one the run's timestamp has always used
+    # (execution.timestamp); the model's own default once differed and was read
+    # only by a last_updated formatter nothing called, removed with it
     dateformat: str = DEFAULT_DATEFORMAT
     # Named list of executables required by the application, with
     # optional version requirements and binary paths.
@@ -104,12 +104,12 @@ class IAConfig():
     group_builders: dict[str, GroupBuilderModel] = field(default_factory=dict) # type: ignore
     user_builders: dict[str, UserBuilderModel] = field(default_factory=dict) # type: ignore
     gitignore: list[str] = field(default_factory=list)
-    # stage 106: the tree's layer of the image-source catalog (cfg/image-sources*.yml)
+    # the tree's layer of the image-source catalog (cfg/image-sources*.yml)
     image_sources: list[ImageSource] = field(default_factory=list)
     state_backends: dict[str, StateBuilderModel] = field(default_factory=dict) # type: ignore
     sleep_before_finalization: int = 1
-    encryption: EncryptionConfig = field(default_factory=EncryptionConfig)   # stage 33: age recipients
-    public_safe: PublicSafeConfig = field(default_factory=PublicSafeConfig)   # stage 35: allowances by decision
+    encryption: EncryptionConfig = field(default_factory=EncryptionConfig)   # age recipients
+    public_safe: PublicSafeConfig = field(default_factory=PublicSafeConfig)   # allowances by decision
 
     # Arbitrary key-value configuration
     config: dict[str, Any] = field(default_factory=dict)

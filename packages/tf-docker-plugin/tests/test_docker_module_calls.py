@@ -37,7 +37,7 @@ def _rtb(types: dict[str, dict[str, Any]] | None = None, default="small", networ
 
 
 def _ctx(psi):
-    # no meta_state: nothing pinned; the one service reached (stage 125) is a lineage that labels nothing
+    # no meta_state: nothing pinned; the one service reached is a lineage that labels nothing
     services = SimpleNamespace(lineage=SimpleNamespace(config_tags=lambda: {}))
     return SimpleNamespace(get_provider_specific_image=lambda source, runtime: psi, services=services)
 

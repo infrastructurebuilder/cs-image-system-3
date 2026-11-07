@@ -31,8 +31,8 @@ from .registry import NAMESPACE_SEPARATOR, UnknownTypeError, split_qualified
 
 
 
-# stage 48.3: a foreign key that named nothing during resolution -- (object
-# class, object name, field, value, target). The object stage collects them
+# a foreign key that named nothing during resolution -- (object class,
+# object name, field, value, target). The object stage collects them
 # per load (``TemplateResolver.unresolved_foreign_keys``, handed to every
 # ``SmartContext`` it builds), ``resolve_all`` returns them, the loader puts
 # them on the run context and `validate` refuses them.
@@ -41,8 +41,8 @@ UnresolvedForeignKey = tuple[str, str, str, str, str]
 
 def default_fk_value(reg: Any, obj: Any, target: VCT) -> str | None:
     """What a foreign key left at ``default`` resolves to: the registry's default
-    for its target -- except a root's ``state_configuration`` (stage 46.2), which
-    inherits its RUNTIME's backend when that names one, so "everything on this
+    for its target -- except a root's ``state_configuration``, which inherits
+    its RUNTIME's backend when that names one, so "everything on this
     runtime keeps its state in that bucket" is a sentence the configuration can
     write. A runtime model's own field, and a model without a runtime (the
     identity roots), fall through to the default backend."""
@@ -84,7 +84,7 @@ class SmartContext(dict):
         if DEFAULT in flattened_map:
             raise ValueError(f"Flattened map cannot have an entry with the key '{DEFAULT}' as it is reserved for default lookups.")
         self._unresolved_fks: list[UnresolvedForeignKey] = unresolved_fks if unresolved_fks is not None else []
-        reg = registry.current_registry()   # the resolver holds no context (stage 124 shim)
+        reg = registry.current_registry()   # the resolver holds no context; the registry is the run's
         # Shallow copy: we need a private dict (so adding 'this' below doesn't mutate
         # the shared flattened_map), but the objects must be shared by reference so
         # Jinja renders against the live, being-resolved instances. A deepcopy here
@@ -111,7 +111,7 @@ class SmartContext(dict):
             raise ValueError(f"SmartContext can only be initialized with dataclass instances or dicts, got {type(obj)}")    
         
     def record_unresolved_fk(self, cls_name: str, obj_name: str, field_name: str, value: str, target: str) -> None:
-        """Note a foreign key that names nothing (stage 48.3), once per entry."""
+        """Note a foreign key that names nothing, once per entry."""
         entry: UnresolvedForeignKey = (cls_name, obj_name, field_name, value, target)
         if entry not in self._unresolved_fks:
             self._unresolved_fks.append(entry)
@@ -162,13 +162,12 @@ class TemplateResolver:
         self.flattened_map = addl or {}
         self.env = jinja2.Environment(undefined=template_utils.KeepUndefined)
         self.deferred_fields: dict[str, VCT] = {"modifications": VCT.MOD_BUILDER_ITEM_MODEL}  # List of fields that require late-stage structuring into concrete types due to dependencies on the registry
-        # stage 48.3: the foreign keys that named nothing, collected per load
+        # the foreign keys that named nothing, collected per load
         # (the loader starts a load with a fresh list; every SmartContext this
         # resolver builds records into it; resolve_all returns it)
         self.unresolved_foreign_keys: list[UnresolvedForeignKey] = []
     def render_inheriting(self, templ: str, context: dict) -> Any:
-        """Render ``templ``, and let the result INHERIT its inputs' encryption
-        (stage 51).
+        """Render ``templ``, and let the result INHERIT its inputs' encryption.
 
         A value computed from a decrypted one is declared nowhere, so it has no
         ciphertext of its own -- which is why a derived address was emitted in
@@ -215,7 +214,7 @@ class TemplateResolver:
 
     def upgrade_deferred_list_generated(self, obj, dfield):
         conv = Orchestrator().get_converter() 
-        reg = registry.current_registry()   # the resolver holds no context (stage 124 shim)
+        reg = registry.current_registry()   # the resolver holds no context; the registry is the run's
         data_field = dfield.name
         deferred_override_types:dict[VCT,type] = obj.get_subitem_overrides() if isinstance(obj, SubItemOverrideProtocol) else {}
         field_metadata: dict[str, Any] = dfield.metadata if hasattr(dfield, "metadata") else {} # type: ignore                
@@ -244,8 +243,7 @@ class TemplateResolver:
                 # The item's own `type:` names its builder (a configured mod
                 # builder's name or alias). Looking this up under the FIELD
                 # name ('modifications') -- the historical bug -- made every
-                # item resolve to the default builder regardless of type
-                # (GOALS.md findings 2026-08-27).
+                # item resolve to the default builder regardless of type.
                 builder_name = mod_data.get("type", None)
                 if not builder_name:
                     log.debug(f"Deferred item in '{data_field}' has no type: using {DEFAULT}.")
@@ -255,9 +253,9 @@ class TemplateResolver:
                     builder_name = reg.get_default_for(deferred_builder_vct)  # Ensure default is loaded
                     if builder_name is None:
                         if deferred_builder_vct == VCT.MOD_BUILDER_MODEL:
-                            # stage 63: a modification with no `type` and no default
-                            # mod builder was left a plain mapping, and the packer
-                            # builder later died on it with an AttributeError
+                            # a modification with no `type` and no default mod
+                            # builder used to be left a plain mapping, and the
+                            # packer builder later died on it with an AttributeError
                             raise ValueError(
                                 f"modification {mod_data.get('name', '<unnamed>')!r} names no builder "
                                 "(`type`) and no mod builder is `is_default: true`; name one with `type:` "
@@ -279,7 +277,7 @@ class TemplateResolver:
                 
                 # Get the true underlying type: the registry holds a builder or its
                 # model under this classification, and both name their type
-                # (NameTypedProtocol; the protocol check is the dispatch, stage 125)
+                # (NameTypedProtocol; the protocol check is the dispatch)
                 true_type = builder_instance.get_type() if isinstance(builder_instance, NameTypedProtocol) else None
                 
                 # Get the target model class based on the true type
@@ -301,8 +299,8 @@ class TemplateResolver:
                 if target_cls is None:
                     raise KeyError(f"No concrete model registered for underlying deferred type '{true_type}'")
                 
-                # Stage 63 item 15: the item's `type` becomes the BUILDER's own
-                # name, whatever the item wrote (its name, an alias, `default`
+                # the item's `type` becomes the BUILDER's own name, whatever
+                # the item wrote (its name, an alias, `default`
                 # or nothing). Every later reader looks mod builders up by name
                 # (the packer builder's ctx.mod_builders is a name-keyed map),
                 # so an alias kept here passed the load and failed at generation.
@@ -321,8 +319,8 @@ class TemplateResolver:
                 # so that TemplateResolver.resolve_all() will process its Jinja tags!
                 if isinstance(concrete_mod, ParentPropertyHoldingProtocol):
                     try:
-                        # stage 48.2: a sub-item its MODEL already claimed (an OS builder's
-                        # runtime subconfig, parented in the model's __post_init__) keeps
+                        # a sub-item its MODEL already claimed (an OS builder's runtime
+                        # subconfig, parented in the model's __post_init__) keeps
                         # that parent; this used to overwrite it with the builder's id and
                         # warn four times per load
                         if isinstance(obj, NameTypedProtocol) and not concrete_mod.model_id:
@@ -342,7 +340,7 @@ class TemplateResolver:
             setattr(obj, data_field, structured_mods)
         return obj
     def upgrade_deferred_list_object(self, obj, dfield):        
-        reg = registry.current_registry()   # the resolver holds no context (stage 124 shim)
+        reg = registry.current_registry()   # the resolver holds no context; the registry is the run's
         data_field = dfield.name
         field_metadata: dict[str, Any] = dfield.metadata if hasattr(dfield, "metadata") else {} # type: ignore                
         target_fk: VCT | None = field_metadata.get(FK_TARGET, None)
@@ -368,7 +366,7 @@ class TemplateResolver:
             setattr(obj, data_field, resolved_fks)
         return obj
     def upgrade_deferred_fill_defaults(self, obj, dfield):        
-        reg = registry.current_registry()   # the resolver holds no context (stage 124 shim)
+        reg = registry.current_registry()   # the resolver holds no context; the registry is the run's
         data_field = dfield.name
         field_metadata: dict[str, Any] = dfield.metadata if hasattr(dfield, "metadata") else {} # type: ignore                
         target_fk: VCT | None = field_metadata.get(FK_TARGET, None)
@@ -387,7 +385,7 @@ class TemplateResolver:
         Deep-casts generic dictionaries (like modifications) into concrete dataclasses 
         now that all builders are safely loaded into the Registry.
         """
-        reg = registry.current_registry()   # the resolver holds no context (stage 124 shim)
+        reg = registry.current_registry()   # the resolver holds no context; the registry is the run's
         # Grab the orchestrator locally. We use ignore_collections to prevent infinite loops 
         # or overwriting things we are manually managing here.
         conv = Orchestrator().get_converter() 
@@ -431,10 +429,10 @@ class TemplateResolver:
         """Iterates until no more templates exist (handles cascading dependencies).
 
         Returns the foreign keys that named nothing, for the load so far: a
-        copy of the resolver's collector after this pass (stage 48.3). The
-        loader stores it on the run context; `validate` refuses each entry."""
+        copy of the resolver's collector after this pass. The loader stores
+        it on the run context; `validate` refuses each entry."""
         self.upgrade_deferred_types()
-        reg = registry.current_registry()   # the resolver holds no context (stage 124 shim)
+        reg = registry.current_registry()   # the resolver holds no context; the registry is the run's
         for _ in range(5):  # Max depth to prevent infinite loops
             any_changed = False
             for obj_id, obj in self.flattened_map.items():
@@ -465,9 +463,9 @@ class TemplateResolver:
 #                                        raise e # continue
                                         continue
                                 if val == DEFAULT:
-                                    # stage 48.2: `default` here is the declared meaning -- the
-                                    # consumer decides (a machine type the runtime supplies at
-                                    # bake time); five warnings per load said nothing actionable
+                                    # `default` here is the declared meaning -- the consumer
+                                    # decides (a machine type the runtime supplies at bake
+                                    # time); a warning per field would say nothing actionable
                                     log.debug(f"Field '{f.name}' of {type(obj).__name__} '{getattr(obj, 'name', '')}' stays `default`: the consumer resolves it")
                         # NOTE: I have to split this off to two paths
                         # if isinstance(val, list):
@@ -543,8 +541,8 @@ class TemplateResolver:
       if obj_id in self.flattened_map:
         log.debug(f"Object {obj} with id {obj_id} is already registered.")
         if self.flattened_map[obj_id] is not obj:
-            # Stage 63 item 5: name the collision, never the objects -- a model's
-            # repr carries every field, and a state backend's would print
+            # name the collision, never the objects -- a model's repr carries
+            # every field, and a state backend's would print
             # access_key/secret_key if anyone set them
             other = self.flattened_map[obj_id]
             raise ValueError(
@@ -567,7 +565,7 @@ class TemplateResolver:
                       self.flatten_dataclass(item)
       return
 # ==========================================================================
-# stage 23 branch two: the mapper is pydantic, behind the converter interface
+# the mapper is pydantic, behind the converter interface
 # the rest of the system already calls. Replaces ~190 lines of cattrs hook
 # registration. What it must reproduce, and does:
 #   * VCT dispatch: a base class named in BASE_VCTS picks its concrete class
@@ -584,7 +582,7 @@ class TemplateResolver:
 #     dump_python keeps exclude_defaults and writes by alias.
 # ==========================================================================
 def _as_text(x: Any) -> str:
-    """``str(x)`` for a number, but an existing string UNCHANGED (stage 49).
+    """``str(x)`` for a number, but an existing string UNCHANGED.
 
     ``str()`` on a ``str`` subclass returns a new plain ``str``, which would
     drop a :class:`Decrypted`'s ``marker`` -- the one signal that tells an
@@ -597,7 +595,7 @@ def _as_text(x: Any) -> str:
 def _str_collection_kind(ann: Any) -> str | None:
     """Which cattrs-era coercion an annotation wants: ``list`` / ``set`` for a
     collection of strings -- ``str`` itself or an ``Annotated[str, ...]`` such as
-    stage 33's ``EncryptedStr`` -- ``dict`` for any mapping, else None. Handles
+    ``EncryptedStr`` -- ``dict`` for any mapping, else None. Handles
     the annotation as an object or, under ``from __future__ import
     annotations``, as its source text."""
     import re
@@ -627,7 +625,7 @@ class PydanticConverter:
         self._dispatch_vcts: dict[Any, VCT | None] = {}
 
     # -- a dispatch point: a builder-model class that classifies itself and
-    # names no type of its own (stage 30; until then a table of the core's
+    # names no type of its own (an older build kept a table of the core's
     # nine base model classes, by identity)
     @staticmethod
     def _own(model_cls: Any, member: str) -> bool:
@@ -679,7 +677,7 @@ class PydanticConverter:
         `list[str]`, and so the system has only ever held the key NAMES and
         discarded every value. Nothing reads `parameters` and it reaches no
         emitted output, so preserving it here costs nothing; deciding what
-        `parameters` should mean is a separate stage, recorded as §25.
+        `parameters` should mean is a separate decision, not yet taken.
         """
         import dataclasses
         if not dataclasses.is_dataclass(model_cls):
@@ -750,13 +748,13 @@ class PydanticConverter:
 class Orchestrator:
     """The Orchestrator is responsible for managing the overall configuration and state of the system.
     It hands out the one converter that structures YAML into the models and
-    unstructures them back (pydantic behind two verbs, stage 23).
+    unstructures them back (pydantic behind two verbs).
     """
     def __init__(self):
         # Built lazily on first get_converter() -- after plugins have registered
         # their model/builder classes -- and memoized. Previously this rebuilt the
         # entire cattrs Converter (re-registering every hook) on *every* call.
-        self._converter: Any = None          # stage 23: a PydanticConverter
+        self._converter: Any = None          # a PydanticConverter
 
     def get_converter(self, ignore_collections: bool = False) -> Any:
         """Return the cached converter, building it once on first use.
@@ -765,13 +763,13 @@ class Orchestrator:
         is built lazily and memoized. Call :meth:`invalidate_converter` if the
         registered model schema changes (e.g. after loading more plugins).
         """
-        reg = registry.current_registry()   # the orchestrator holds no context (stage 124 shim)
+        reg = registry.current_registry()   # the orchestrator holds no context; the registry is the run's
         if self._converter is None or self._converter._reg is not reg:
-            # stage 23: pydantic behind the same two verbs. The cattrs builder it
-            # replaced was kept for one release and removed in stage 41 (it is in
+            # pydantic behind the same two verbs. The cattrs builder it
+            # replaced was kept for one release and then removed (it is in
             # the history before the first published version).
-            # stage 124: one registry per run -- a converter built against an
-            # earlier run's registry is rebuilt against this one.
+            # One registry per run -- a converter built against an earlier
+            # run's registry is rebuilt against this one.
             self._converter = PydanticConverter(reg)
         return self._converter
 
@@ -804,7 +802,7 @@ class _FkFieldHandler(field_kinds.FieldKindHandler):
             if update_this_field and newf:
                 setattr(obj, newf, key)
             if newf:
-                # stage 75: the owning builder enters the context whether the
+                # the owning builder enters the context whether the
                 # foreign key was defaulted or WRITTEN -- a user whose `type:`
                 # named its builder rendered `{{ builder.get_user_email_template() }}`
                 # against no builder at all (no user wrote one until posix users)
@@ -815,11 +813,11 @@ class _FkFieldHandler(field_kinds.FieldKindHandler):
                     elif ctx.get("builder") is not bldr:
                         log.warning(f"Context already has a 'builder' entry. Skipping setting it to {bldr} for field '{field.name}' in object '{obj}'.")
         else:
-            # stage 48.3: a foreign key that names nothing is a configuration error,
+            # a foreign key that names nothing is a configuration error,
             # recorded here and refused by `validate` (a `default` that has no default
             # is not one: the consumer decides). The raw id stays in the context so
             # templates still render and the run reaches the refusal.
-            # Stage 76: `none` is in OOPS_DEFAULTS so nothing can be NAMED `none`,
+            # `none` is in OOPS_DEFAULTS so nothing can be NAMED `none`,
             # but a reference written `none` is not left at its default either --
             # a foreign key resolves its default only by equality with the field's
             # own (field_set_to_default) -- so it names nothing and is refused like

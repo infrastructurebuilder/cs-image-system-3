@@ -5,7 +5,7 @@
 """Declarable OPA attributes (EXPLORE identity).
 
 Names and types come from the OPA Attributes API as observed read-only on
-the live team (2026-08-27): groups carry ``unix_gid``, ``unix_group_name``,
+the live team: groups carry ``unix_gid``, ``unix_group_name``,
 ``windows_group_name``; users carry ``unix_uid``, ``unix_gid``,
 ``unix_user_name``, ``windows_user_name`` (plus Active Directory identities
 the system does not manage). Every attribute record also carries OPA's own

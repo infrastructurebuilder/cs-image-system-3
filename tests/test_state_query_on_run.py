@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""Decision 2026-08-27: every run first asks reality (read-only) and refuses
+"""Every run first asks reality (read-only) and refuses
 to proceed on hard drift; providers that cannot answer are reported, not
 fatal; --no-state-query keeps the existing report."""
 from __future__ import annotations

@@ -116,7 +116,7 @@ variable "state_bucket_exists" {
 variable "state_bucket_managed" {
   type        = bool
   default     = false
-  description = "this root manages the state bucket (hygiene XX item 2): made by an apply of it, versioned, uniform access, no public access, and kept here from then on; a destroy of the root removes it. False for a bucket that stood before this root"
+  description = "this root manages the state bucket: made by an apply of it, versioned, uniform access, no public access, and kept here from then on; a destroy of the root removes it. False for a bucket that stood before this root"
 }
 
 variable "state_bucket_location" {

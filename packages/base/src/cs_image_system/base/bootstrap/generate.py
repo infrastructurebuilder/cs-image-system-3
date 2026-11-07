@@ -173,7 +173,7 @@ def regenerate(config_root: Path, *, module_source_base: str | None = None,
 
 
 def regenerate_in_run(ctx: "GlobalTypeContext") -> None:
-    """Inside every run, before the lifecycles (stage 70, decision D7)."""
+    """Inside every run, before the lifecycles, by decision (see docs/CHANGES.md#s70)."""
     root = Path(ctx.working_path)
     base = None
     try:

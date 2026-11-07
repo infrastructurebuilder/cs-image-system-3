@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""The ``sftd-token`` launch enrollment (stage 75 step 2): what a machine of
+"""The ``sftd-token`` launch enrollment: what a machine of
 an OPA-managed group does at first boot so the OPA server agent enrolls it.
 
 Moved here, unchanged to the byte, from the core's two launch renderers,

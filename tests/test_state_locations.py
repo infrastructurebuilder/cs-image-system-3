@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""Stage 46: several state backends, used and proven collision-proof.
+"""Several state backends, used and proven collision-proof.
 
 A configured root keeps its state in exactly one location, and no two roots
 may write the same state object. The fixture binds its storage roots to a
@@ -60,7 +60,7 @@ def test_every_root_resolves_a_location_the_run_records_and_the_emission_carries
                               "run": v2.ctx.run_id}
     assert rec["open-tofu"]["bucket"] == "noaa-ioos-cloud-sandbox-tfstate"      # own value: s3-east2
     assert rec["oktagroups"] == {"backend": "local-dev", "type": "local", "location": "local://state/oktagroups.tfstate",
-                                 "path": "../../../../state/oktagroups.tfstate", "run": v2.ctx.run_id}   # stage 47: on disk
+                                 "path": "../../../../state/oktagroups.tfstate", "run": v2.ctx.run_id}   # on disk
     # the read across TYPES: the instance root (s3) reads the identity root's state (local)
     root_local = (v2.generated / "instance-image" / "open-tofu" / "instance-generation" / "open-tofu-instance-generation.tf").read_text()
     assert 'backend = "local"' in root_local and 'path = "../../../../state/oktagroups.tfstate"' in root_local
@@ -208,7 +208,7 @@ def migration(tmp_path):
     tofu.write_text(
         "#!/bin/sh\n"
         # a backend file carrying an argument no backend takes (`location`, the record's
-        # own key) fails the init, as tofu's would (stage 63 item 6)
+        # own key) fails the init, as tofu's would
         'if [ "$1" = init ]; then for a in "$@"; do case "$a" in -backend-config=*) f="${a#-backend-config=}"; grep -q "^location" "$f" && { echo "Unsupported argument: location" >&2; exit 1; }; printf %s "$f" > .current-backend;; esac; done; exit 0; fi\n'
         'if [ "$1" = state ] && [ "$2" = pull ]; then f=$(cat .current-backend); [ -f "state-for-$f.json" ] && cat "state-for-$f.json"; exit 0; fi\n'
         'echo "unexpected: $*" >&2; exit 1\n')
@@ -282,7 +282,7 @@ def test_begin_needs_a_record_and_the_backend_file(migration):
     assert finish(migration.ctx, "ws", "r1", migration.root) == 2                              # begin did not run
 
 
-# ------------------------------------------------------------- stage 47: the gcs type
+# ------------------------------------------------------------------- the gcs type
 
 def test_the_gcs_backend_is_declared_bound_to_nothing_and_its_commented_twin_loads_as_nothing(tmp_path, monkeypatch):
     """The fixture declares `gcs-east1` (cfg/state-gcm.yml) and no root binds

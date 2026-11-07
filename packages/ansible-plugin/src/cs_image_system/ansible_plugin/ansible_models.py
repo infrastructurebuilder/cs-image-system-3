@@ -7,7 +7,7 @@ from pathlib import Path
 log = logging.getLogger(__name__)
 from dataclasses import field
 from cs_image_system.contract.model_config import CSIS_MODEL_CONFIG
-from pydantic.dataclasses import dataclass  # stage 23: validation at construction
+from pydantic.dataclasses import dataclass  # validation at construction
 from typing import Type
 
 from cs_image_system.contract.constants import VCT
@@ -28,7 +28,7 @@ class AnsibleModItemModel(ModItemModel):
     
     def __post_init__(self) -> None:
         super().__post_init__()
-        # stage 43: an item with no playbook has nothing to modify with -- the
+        # an item with no playbook has nothing to modify with -- the
         # builder emits one provisioner per playbook, so such an item rendered
         # nothing while lineage, the on-image bundle and the modification tests
         # all recorded it as present. It is refused at load, by name.
@@ -38,8 +38,8 @@ class AnsibleModItemModel(ModItemModel):
                 "it has nothing to modify with (config alone provisions nothing). "
                 "Give it 'playbooks:' (files the config keys feed as variables) or remove it.")
     def remap_self_with_copied_assets(self, copied_assets: dict[str, Path]) -> None:
-        # stage 48.4: an item's playbooks are its own (the builder-level field that
-        # was copied beside the root and never run is gone)
+        # an item's playbooks are its own (the builder-level field that was
+        # copied beside the root and never run is gone)
         _playbooks: list[str] = []
         for playbook in self.playbooks:
             if playbook not in _playbooks:
@@ -55,10 +55,10 @@ class AnsibleModItemModel(ModItemModel):
 @dataclass(kw_only=True, config=CSIS_MODEL_CONFIG)
 class AnsibleBuilderModel(ModBuilderModel):
     """The ansible modification BUILDER: how ansible-playbook is driven. The
-    playbooks are the modification ITEMS' (stage 48.4: the builder-level list
-    was copied beside the Packer root and never run, so it is gone)."""
+    playbooks are the modification ITEMS' (the builder-level list was copied
+    beside the Packer root and never run, so it is gone)."""
     type = ANSIBLE_BUILDER
-    # stage 63: when set, the ansible provisioner connects as this user for this
+    # when set, the ansible provisioner connects as this user for this
     # builder's items, beating the bake-user resolver (the one place a
     # modification runs as someone other than the bake user)
     configuration_user: str | None = None
@@ -67,7 +67,7 @@ class AnsibleBuilderModel(ModBuilderModel):
     # The connection ansible uses, passed as the ansible VARIABLE
     # `ansible_connection` in --extra-vars (packer's provisioner has no option
     # for it). Usually left None: the runtime says how a bake on it is reached
-    # (stage 103: a docker runtime answers `docker`, with the build container's
+    # (a docker runtime answers `docker`, with the build container's
     # name as ansible_host); set here, it wins for this builder's items.
     # see https://developer.hashicorp.com/packer/integrations/hashicorp/ansible/latest/components/provisioner/ansible#docker
     ansible_connection: str | None = None # e.g. ssh, docker, winrm

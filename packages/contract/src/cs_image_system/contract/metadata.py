@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""The record a plugin's entry point returns (stage 30).
+"""The record a plugin's entry point returns.
 
 A plugin's ``initialize`` returns one :class:`PluginMetadata` (or a list of
 them): the classes to register under service names, the builder class for

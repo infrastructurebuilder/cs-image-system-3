@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 from cs_image_system.contract.model_config import CSIS_MODEL_CONFIG
-from pydantic.dataclasses import dataclass  # stage 23: validation at construction
+from pydantic.dataclasses import dataclass  # validation at construction
 
 
 
@@ -26,13 +26,13 @@ class RhelOsBuilderModel(DnfOsBuilderModel):
 
     @classmethod
     def families(cls) -> tuple[str, ...]:
-        """stage 106: the dnf-and-RHUI family and its rebuilds, which the
-        image-source catalog says ARE rhel."""
+        """The dnf-and-RHUI family and its rebuilds, which the image-source
+        catalog says ARE rhel."""
         return (RHEL_TYPE, "alma-linux", "rocky-linux", "centos", "centos-stream")
 
     def __post_init__(self) -> None:
         super().__post_init__()
-        # stage 63: checked at load, whatever the update policy (it ran only
+        # checked at load, whatever the update policy (it used to run only
         # when update commands were generated, so `policy: none` with an
         # unsupported major was never refused)
         v = self.version()
@@ -45,8 +45,8 @@ class RhelOsBuilderModel(DnfOsBuilderModel):
     def repo_setup_commands(self) -> list[str]:
         """Version-aware repository setup (RHEL 8/9/10 enable different repos).
 
-        Guarded on registration (found live, TODO stage 1: cloud vendor
-        RHEL AMIs are pay-as-you-go/RHUI, "This system is not yet
+        Guarded on registration (found live: cloud vendor RHEL AMIs are
+        pay-as-you-go/RHUI, "This system is not yet
         registered" -- their RHUI repos already serve baseos/appstream and
         security metadata, so on an unregistered system this is a no-op)."""
         v = self.version()

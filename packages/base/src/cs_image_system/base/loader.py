@@ -62,7 +62,7 @@ def namespace_for(pname: str, md: PluginMetadataProtocol, derived: str | None) -
 
 class PluginConformanceError(ValueError):
     """A plugin registered a class that does not satisfy the contract's
-    protocol for its classification (stage 125): refused when the plugin is
+    protocol for its classification: refused when the plugin is
     discovered, with the plugin, the class, the protocol and every missing
     or mis-signed member named, instead of an ``AttributeError`` later in
     the run."""
@@ -120,8 +120,8 @@ def _discovered_plugins() -> tuple[DiscoveredPlugin, ...]:
     """Every installed plugin's ``initialize`` by plugin type and name, in
     name order: discovered (entry points read, modules imported) ONCE per
     process; what each one registers is replayed into every registry a run
-    makes (stage 124). Discovery is where the installed plugin is held to
-    the contract (stage 125): every class its metadata registers is checked
+    makes. Discovery is where the installed plugin is held to the
+    contract: every class its metadata registers is checked
     against the protocol of its classification, once, as shipped -- a
     shortfall is a :class:`PluginConformanceError` here, with the member
     named, and nothing of that plugin loads. The plugin's namespace is
@@ -164,7 +164,7 @@ def discover_plugins() -> None:
 
 def load_plugins(reg: "registry.Registry | None" = None) -> None:
     """Register every installed plugin's models, builders and checkers into
-    ``reg`` -- the registry of the run being loaded (stage 124: the loader
+    ``reg`` -- the registry of the run being loaded (the loader
     makes one per run and loads the plugins into it) -- or, with no
     registry given, into the process's current one
     (:func:`~.registry.current_registry`): a pre-load command (the

@@ -88,7 +88,7 @@ class TofuGcpStorageBuilder(TofuStorageBuilderBase[Q]):
         return self._get_context().runtime_builders.get(self.model.get_runtime_provider(), None)
 
     def _gcloud(self) -> str:
-        """The runtime's declared gcloud (stage 63 item 14) for the lookups and
+        """The runtime's declared gcloud for the lookups and
         the generated scripts (which shell-quote it); a runtime without the
         resolver (a stub) keeps the bare name. The ON-IMAGE gcloud below
         (the gcs prerequisites) is the VM's own and stays a bare name."""
@@ -113,14 +113,14 @@ class TofuGcpStorageBuilder(TofuStorageBuilderBase[Q]):
         return gce_name(name)
 
     def _labels(self, storage: Storage) -> dict[str, str]:
-        # stage 26: the builder's declared default labels under the item's own
+        # the builder's declared default labels under the item's own
         merged = getattr(self.model, "variables", None)
         base = merged.merged_tags(storage.tags) if merged is not None else dict(storage.tags or {})
         labels = {gce_label(k): gce_label(str(v)) for k, v in base.items()}
         labels["csis_storage"] = gce_label(storage.get_name())
         get_ctx: Any = getattr(self, "_get_context", None)      # a stand-in without a context gets no id
         if callable(get_ctx):
-            labels.update(cast(Any, get_ctx()).services.lineage.config_tags())   # stage 93: the disk, bucket, share carry the id
+            labels.update(cast(Any, get_ctx()).services.lineage.config_tags())   # the disk, bucket, share carry the id
         for g in sorted(storage_groups(storage)):
             labels[f"csis_group_{gce_label(g)}"] = "true"
         return labels
@@ -130,7 +130,7 @@ class TofuGcpStorageBuilder(TofuStorageBuilderBase[Q]):
         raise NotImplementedError(f"{self.__class__.__name__} cannot query storage state yet")
 
     def _theirs(self, labels: dict[str, Any]) -> bool:
-        """Stage 93: a thing of our name whose labels name another
+        """A thing of our name whose labels name another
         configuration is not ours (GCE names are unique per zone or project,
         so it stands where ours would)."""
         return self._get_context().services.lineage.belongs_to_another_configuration(labels)
@@ -150,7 +150,7 @@ class TofuPdStorageBuilder(TofuGcpStorageBuilder[R]):
         return "pd"
 
     def is_zonal(self) -> bool:
-        return True     # stage 52: a persistent disk lives in one zone; changing it replaces the volume
+        return True     # a persistent disk lives in one zone; changing it replaces the volume
 
     def attachment_cardinality(self) -> str:
         return CARDINALITY_SINGLE
@@ -207,8 +207,8 @@ class TofuPdStorageBuilder(TofuGcpStorageBuilder[R]):
 
     def _require_script_inputs(self, storage: Storage, **values: str | None) -> None:
         """A generated archive/restore script needs its project (and zone);
-        a missing one used to be written as the literal `None` and failed
-        only when gcloud ran (stage 63: refused at generation instead)."""
+        a missing one would be written as the literal `None` and fail only
+        when gcloud ran, so it is refused at generation instead."""
         missing = sorted(k for k, v in values.items() if not v)
         if missing:
             raise ValueError(f"storage '{storage.get_name()}' on builder {self.get_name()}: the archive "
@@ -217,8 +217,8 @@ class TofuPdStorageBuilder(TofuGcpStorageBuilder[R]):
 
     def _disk_zone(self, storage: Storage) -> str | None:
         """Where THIS disk lives: the storage's own ``availability_zone`` when
-        declared, the runtime's ``zone`` otherwise, as the EBS builder does
-        (stage 63 item 21). `validate` checks the declared zone against the
+        declared, the runtime's ``zone`` otherwise, as the EBS builder does.
+        `validate` checks the declared zone against the
         runtime and every instance that mounts the disk; the module call, the
         lookup and the archive script all read it here, so a disk pinned to a
         zone is created, found and snapshotted in that zone."""
@@ -235,13 +235,13 @@ class TofuPdStorageBuilder(TofuGcpStorageBuilder[R]):
         zone = self._disk_zone(storage)
         if zone:
             args["zone"] = zone
-        # restore (stage 11.6): recorded archived, declared active -> the disk
+        # restore: recorded archived, declared active -> the disk
         # is created FROM the archive snapshot; the module ignores later drift
         if self._get_context().meta_state.storage_state(storage.get_name()) == STORAGE_STATE_ARCHIVED:
             args["snapshot"] = self.archive_name(storage)
         return args
 
-    # ------------------------------------------------ archived (stage 11.6)
+    # --------------------------------------------------------------- archived
     def supports_archive(self) -> bool:
         return True
 
@@ -304,7 +304,7 @@ class TofuPdStorageBuilder(TofuGcpStorageBuilder[R]):
         creds = make_credentials(cfg)
         client = compute_v1.DisksClient(credentials=creds) if creds else compute_v1.DisksClient()
         if self._get_context().meta_state.storage_state(storage.get_name()) == STORAGE_STATE_ARCHIVED:
-            # archived (stage 11.6): the disk is expected absent; the archive
+            # archived: the disk is expected absent; the archive
             # snapshot is what must exist
             try:
                 snap = compute_v1.SnapshotsClient(credentials=creds).get(project=project, snapshot=self.archive_name(storage)) \
@@ -322,7 +322,7 @@ class TofuPdStorageBuilder(TofuGcpStorageBuilder[R]):
             raise
         labels = dict(getattr(d, "labels", {}) or {})
         if self._theirs(labels):
-            return self._elsewhere_by_labels(labels, "a persistent disk")    # stage 93
+            return self._elsewhere_by_labels(labels, "a persistent disk")    # the name is theirs
         return {"id": d.name, "state": str(getattr(d, "status", "")), "size": int(getattr(d, "size_gb", 0)),
                 "tags": labels}
 
@@ -412,13 +412,12 @@ class TofuFilestoreStorageBuilder(TofuGcpStorageBuilder[S]):
         return args
 
     def _lookup(self, storage: Storage) -> dict[str, Any] | None:
-        """State-query parity for Filestore (stage 63 item 17): ``gcloud
-        filestore instances describe`` through the runtime's declared gcloud
-        (item 14), the same CLI path as GCS, no new client library. The
-        instance is found by the name the module gives it, in the runtime's
-        zone. Not found -> absent; any other failure -> the query reports it
-        unavailable. Until 2026-09-25 there was no lookup, and the query
-        dropped every Filestore builder without a word."""
+        """State-query parity for Filestore: ``gcloud filestore instances
+        describe`` through the runtime's declared gcloud, the same CLI path
+        as GCS, no new client library. The instance is found by the name the
+        module gives it, in the runtime's zone. Not found -> absent; any
+        other failure -> the query reports it unavailable (without a lookup
+        the query would drop every Filestore builder without a word)."""
         import json  # noqa: PLC0415
         import subprocess  # noqa: PLC0415
         project, zone = self._project(), self._zone()
@@ -437,7 +436,7 @@ class TofuFilestoreStorageBuilder(TofuGcpStorageBuilder[S]):
         shares = info.get("fileShares") or [{}]
         labels = dict(info.get("labels") or {})
         if self._theirs(labels):
-            return self._elsewhere_by_labels(labels, "a Filestore share")     # stage 93
+            return self._elsewhere_by_labels(labels, "a Filestore share")     # the name is theirs
         rec: dict[str, Any] = {"id": str(info.get("name") or name).rsplit("/", 1)[-1],
                                "state": str(info.get("state") or ""),
                                "tags": labels}
@@ -515,7 +514,7 @@ class TofuGcsStorageBuilder(TofuGcpStorageBuilder[G]):
         The wipe is a generated script, not a bare ``gcloud storage rm``:
         gcloud exits 1 when ``gs://bucket/**`` matches nothing, and an
         EMPTY bucket is the normal case at the end of a change cycle
-        (found live, stage 8: the teardown died on the wipe of an empty
+        (found live: a teardown died on the wipe of an empty
         bucket). "Matched no objects" is success; every other failure
         still stops the run before terraform's destroy."""
         if to_state != STORAGE_STATE_DESTROYED:
@@ -546,7 +545,7 @@ class TofuGcsStorageBuilder(TofuGcpStorageBuilder[G]):
         return f"wipe-{super_safe_name(storage.get_name())}.sh"
 
     def _lookup(self, storage: Storage) -> dict[str, Any] | None:
-        """State-query parity for GCS (GCP-READINESS §7) without a new client
+        """State-query parity for GCS without a new client
         library: ``gcloud storage buckets describe`` -- the same CLI the
         wipe relies on. Not found -> absent; any other failure -> the query
         reports the bucket unavailable (never a silent no-claim)."""
@@ -563,7 +562,7 @@ class TofuGcsStorageBuilder(TofuGcpStorageBuilder[G]):
         info = json.loads(res.stdout or "{}")
         labels = dict(info.get("labels") or {})
         if self._theirs(labels):
-            return self._elsewhere_by_labels(labels, "a GCS bucket")          # stage 93
+            return self._elsewhere_by_labels(labels, "a GCS bucket")          # the name is theirs
         return {"id": info.get("name") or bucket, "state": "active",
                 "location": info.get("location"), "storage_class": info.get("storageClass"),
                 "tags": labels}

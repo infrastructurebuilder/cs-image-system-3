@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""An instance has generations, and each one is a machine (stage 60).
+"""An instance has generations, and each one is a machine.
 
 The system already controls WHETHER a machine may be replaced -- the
 immutability check refuses a changed launch parameter and names the three
@@ -19,18 +19,18 @@ closes when THAT machine is destroyed. Storage already has the concept
 **The machine decides, not our bookkeeping.** Control flow -- ``launched``
 flipping to true, a pending replacement clearing -- is the tempting signal
 and the wrong one: it infers a new machine from our own records, and the
-failure this stage exists to end is records that did not notice a new
+failure this module exists to end is records that did not notice a new
 machine. So a generation is DEFINED by observation: the provider's instance
-id (stage 58's ``query_instance_identity``) differs from the one recorded.
+id (the runtime's ``query_instance_identity``) differs from the one recorded.
 A machine replaced out of band -- a taint, a console terminate and
 re-apply -- is caught. Control flow still opens a generation (a run that
 launched clearly made a machine), but marked ``inferred``; the observation
 pass upgrades it to ``observed`` when it sees the id, or closes it and opens
 the next when it sees a DIFFERENT id.
 
-**What is not a new generation.** A reboot. A stop and start (stage 57: a
-stopped machine is the same machine). A mount detach. A resize applied in
-place (hygiene VIII item 2: the provider stops the machine, changes its
+**What is not a new generation.** A reboot. A stop and start (a stopped
+machine is the same machine). A mount detach. A resize applied in place
+(the provider stops the machine, changes its
 type and starts it -- the same id, so the same generation; the snapshot's
 type moves and the history gains a ``resized`` event). An image pin that
 moved but was not applied. And -- the trap -- an identity query that

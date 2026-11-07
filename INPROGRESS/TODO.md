@@ -12,7 +12,7 @@ Stages from the re-examination of 2026-11-03.
 [REEXAMINE4.md](REEXAMINE4.md) digests the three reviews
 ([REEXAMINE1.md](REEXAMINE1.md), [REEXAMINE2.md](REEXAMINE2.md),
 [REEXAMINE3.md](REEXAMINE3.md)); each stage file
-([§129](STAGE-129.md) and [§130](STAGE-130.md); §118 to §128 and §131
+([§130](STAGE-130.md); §118 to §129 and §131
 landed) cites the review section
 it answers. The conventions are the ones above: one file per stage; a
 stage is a plan until the operator says "do N"; **YOUR DECISION** marks
@@ -64,8 +64,9 @@ order (the default), or [§113](STAGE-113.md) first as its file plans it.
 - §128, tests named for behaviour: landed 2026-11-07. Every test file
   is named for the behaviour it pins and a rule test holds it; the
   golden covers docker (148 files).
-- [§129](STAGE-129.md), the sources stop narrating: any time after
-  §119.
+- §129, the sources stop narrating: landed 2026-11-07. No comment or
+  docstring names a stage, a bundle, a finding or a date; a rule test
+  holds zero.
 - [§130](STAGE-130.md), hygiene bundle XXIV: the open bundle for the small findings.
 - §131, registrations carry their plugin's namespace: landed
   2026-11-06; the contract is 0.2.0 (a minor bump for the new
@@ -90,7 +91,6 @@ and validated by the operator before its "do N")
 - [§112, A release in two boxes](STAGE-112.md)
 - [§113, The kit and the engine: `base` splits where the plugins stop](STAGE-113.md)
 - [§116, A runtime installed from outside](STAGE-116.md)
-- [§129, The sources stop narrating](STAGE-129.md)
 - [§130, Hygiene bundle XXIV](STAGE-130.md)
 
 **Release**
@@ -136,6 +136,20 @@ and validated by the operator before its "do N")
 
 **Landed since 2026-10-05** (newest first)
 
+- §129, the sources stop narrating: 2026-11-07, its squash commit
+  (feature/sources-stop-narrating kept). The comments and docstrings of
+  the sources and the tests, the comments of the terraform modules, the
+  Justfile, pyproject.toml and the fixture's YAML comments no longer say
+  which stage, bundle, finding or date produced them: each token became
+  the behaviour's name or went, ten decisions cite a `docs/CHANGES.md`
+  anchor, DESIGN page references stay, and a test module keeps one
+  closing `history:` line. `tests/test_sources_do_not_narrate.py` holds
+  zero over six areas (the IAM policy's dated `Version` literal and the
+  fixture's four hashed modification files excepted). Only comments
+  changed (an AST comparison proves it); the golden is byte-identical.
+  Carried the two develop CI fixes of the day (typer's colour under
+  GitHub Actions; the live leg binds the fixture's docker context to the
+  machine's daemon).
 - §128, tests named for behaviour: 2026-11-07, its squash commit
   (feature/tests-named-for-behaviour kept). The fifty-two test files
   named after a stage, a bundle, a gate, a defect list or an exploration

@@ -3,8 +3,8 @@
 # SPDX-License-Identifier: Apache-2.0
 
 """Rendering a value or a module call as HCL, with no knowledge of any
-root: the three pure helpers the terraform-emitting plugins use (stage 30:
-moved here from ``cs_image_system.base.utils``, which re-exports them)."""
+root: the three pure helpers the terraform-emitting plugins use (moved
+here from ``cs_image_system.base.utils``, which re-exports them)."""
 
 from __future__ import annotations
 

@@ -95,26 +95,26 @@ def googlecompute_source(ctx: RunContextProtocol, model: Any, image: Any, *, run
     # package egress only.
     if str(getattr(model, "session_mechanism", "") or "").lower() == "iap":
         c["use_iap"] = True
-        # found live (stage 10 proof): a bake that follows another build in the
+        # found live: a bake that follows another build in the
         # same run hits IAP's instance-lookup lag ("4047: Failed to lookup
         # instance") for longer than packer's default 30 s tunnel wait, and
         # SSH then times out with a healthy VM; give the tunnel two minutes
         c["iap_tunnel_launch_wait"] = 120
-    # GCP-READINESS §6: spot build VMs; a preempted bake re-runs (stage 8.6)
+    # spot build VMs; a preempted bake re-runs
     if getattr(model, "bake_preemptible", False):
         c["preemptible"] = True
-    # finding 51: the runtime's bake disk size wins over the image's (which
-    # inherits the OS builder's 200 GB default); the boot disk of every
-    # instance launched from the image is exactly this size
-    # stage 63: the one bake-disk rule the fingerprint also hashes (the
-    # runtime's default_disk_size first, finding 51)
+    # the runtime's bake disk size wins over the image's (which inherits the
+    # OS builder's 200 GB default); the boot disk of every instance launched
+    # from the image is exactly this size. The one bake-disk rule the
+    # fingerprint also hashes (the runtime's default_disk_size first)
     size = ctx.services.lineage.bake_disk_size(image, runtime)
     if size:
         c["disk_size"] = int(size)
-    # stage 63 items 22-23: the one resolver, the same the ansible provisioner
-    # asks (the runtime's ssh_username used to override the entry here, and
-    # the provisioner never read the entry); `packer` is the family default
-    # on GCE (googlecompute creates the account from metadata keys)
+    # the one resolver, the same the ansible provisioner asks (so the
+    # runtime's ssh_username does not override the entry here, and the
+    # provisioner connects as the user the source bakes as); `packer` is the
+    # family default on GCE (googlecompute creates the account from metadata
+    # keys)
     c["ssh_username"] = ctx.services.images.resolve_bake_user(image, runtime)
     networking = getattr(model, "networking", None)
     if networking is not None:

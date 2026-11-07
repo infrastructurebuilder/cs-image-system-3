@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 from cs_image_system.contract.model_config import CSIS_MODEL_CONFIG
-from pydantic.dataclasses import dataclass  # stage 23: validation at construction
+from pydantic.dataclasses import dataclass  # validation at construction
 
 from .okta_tf_models import OKTATF, OKTATF_RO, OktaGroupBuilderModel
 from .okta_tf_workspace import OktaTfWorkspaceModelMixin
@@ -17,13 +17,13 @@ class OktaTfGroupBuilderModel(OktaTfWorkspaceModelMixin, OktaGroupBuilderModel):
     transform_provider, finalize) comes from OktaTfWorkspaceModelMixin.
     """
     type = OKTATF
-    # stage 75: the posix group builder that creates this builder's groups on
+    # the posix group builder that creates this builder's groups on
     # the machines of their images. REQUIRED and without a default: a group
     # builder's name, or `none` for no posix configuration. Read as written by
     # the builder's configuration_errors (absent or null is refused; `none` is
-    # the opt-out), not as a foreign key, which refuses `none` (stage 76).
+    # the opt-out), not as a foreign key, which refuses `none`.
     posix: str | None = None
-    # stage 75: opt-in -- the login hook also installs each member's declared
+    # opt-in -- the login hook also installs each member's declared
     # `public_keys:` as their authorized_keys (a key path beside OPA's certificates)
     posix_ssh_keys: bool = False
 

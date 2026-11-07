@@ -2,8 +2,8 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""A tree whose state backends are all this plugin's `s3` (stage 128,
-item 6): the fixture's local backend gone and its roots moved to the
+"""A tree whose state backends are all this plugin's `s3`:
+the fixture's local backend gone and its roots moved to the
 default bucket, a dry `run --all` puts every root's state in a bucket, each
 backend file carrying the bucket, the key under the declared prefix, the
 region, the profile and the lockfile. Over a copy of the frozen fixture."""

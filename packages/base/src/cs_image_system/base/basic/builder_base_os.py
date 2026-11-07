@@ -71,7 +71,7 @@ class OsBuilderBase(BuilderBase[TOS], OsBuilderProtocol):
         # self.resolved_images_for_runtime: dict[str, Any] = {}
         # self.resolved_query_results_for_runtime: dict[str, dict[str,Any]] = {}
         for rt in self.get_runtimes():
-            rt.model_id = self.global_id   # the subconfigs' one parent (stage 48.2)
+            rt.model_id = self.global_id   # the subconfigs' one parent
 
     # def set_resolved_image_for_runtime(self, runtime: RuntimeBuilderProtocol, image_id: Any, owner: str, query_result: dict[str, Any]) -> None:
     #     self.resolved_images_for_runtime[runtime.get_name()] = image_id
@@ -163,17 +163,17 @@ class OsBuilderBase(BuilderBase[TOS], OsBuilderProtocol):
                 "machine_type": dmt,
                 "tags": tags,
                 "owners" : rt_owners,
-                # stage 105: the declared build-name prefix (the entry's, else
-                # the OS builder's); None keeps the `<OS builder>-<runtime>` shape
+                # the declared build-name prefix (the entry's, else the OS
+                # builder's); None keeps the `<OS builder>-<runtime>` shape
                 "output_image_name": os_img_subconfig.get_output_image_name(),
-                # stage 22.2: this dict also carried "source_image",
+                # this dict once also carried "source_image",
                 # "default_machine_type", "default_primary_disk_size" and
                 # "query". None is a field on BaseImageImageBuilderSubconfig,
                 # so all four were dropped in silence. "machine_type" DOES
                 # land, which is why the dmt comment above still holds; its
                 # "default_machine_type" twin never did.
             }
-            # stage 63 item 22: the one resolver (entry, config_username, the
+            # the one resolver (entry, config_username, the
             # runtime's ssh_username and default_config_username, the family
             # user); this used to take the entry or a hard-coded vendor-user
             # map for the first cloud, never the two config_username fields
@@ -203,7 +203,7 @@ class OsBuilderBase(BuilderBase[TOS], OsBuilderProtocol):
         # package-level update (see generate_items_for_os_update). Any mods
         # declared on the OS builder are intentionally NOT carried onto the
         # synthesized BaseImage.
-        # stage 22.2: the list itself is gone with the dict key that carried it;
+        # the list itself is gone with the dict key that carried it;
         # the warning stays, because an OS builder declaring modifications is
         # still worth telling the operator about.
         if self.model.get_modifications():
@@ -213,9 +213,9 @@ class OsBuilderBase(BuilderBase[TOS], OsBuilderProtocol):
         # self is the OsBuilder
         image_map: dict[str, Any] = {
             "name": self.get_name(),
-            # stage 48.3: BaseImage.type is "the image builder to use for this image"
-            # (an Image says the same); the OS builder's own type was written here
-            # and resolved only through the foreign-key fallback
+            # BaseImage.type is "the image builder to use for this image"
+            # (an Image says the same); the OS builder's own type used to be written
+            # here and resolved only through the foreign-key fallback
             "type": img_bldr.get_name(),
             "description": f"Default resolved image for OS builder {self.name} and runtime {img_bldr.get_name()}",
             "aliases": set(), # No aliases for these image
@@ -228,7 +228,7 @@ class OsBuilderBase(BuilderBase[TOS], OsBuilderProtocol):
             "variables": {},
             "tags": tags,
             "runtimes": rt_list,
-            # stage 22.2: this dict also carried "machine_type",
+            # this dict once also carried "machine_type",
             # "architecture", "auto_generate_storage", "modifications"
             # (mods_list) and "default_groups" -- none of which is a BaseImage
             # field, so all five were dropped in silence. "modifications" is
@@ -296,7 +296,7 @@ class OsBuilderBase(BuilderBase[TOS], OsBuilderProtocol):
             f"pin={dict(policy.pin)}, {self.get_type()})",
             '  provisioner "shell" {',
             f'    only   = ["{build_target_label_of(image_builder, image)}"]',
-            execute_command_line("    "),      # stage 86: a held package database is waited out
+            execute_command_line("    "),      # a held package database is waited out
             f"    inline = [{quoted}]",
             "  }",
         ])

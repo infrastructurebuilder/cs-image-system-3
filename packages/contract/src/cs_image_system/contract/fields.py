@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""The field helpers a model is declared with (stage 30: moved here from
+"""The field helpers a model is declared with (moved here from
 ``cs_image_system.base.helpers.field_helpers``, which re-exports them): a
 foreign key the resolver turns into the object it names, a templated value
 the resolver renders, a deferred list the resolver structures late, and the
@@ -92,8 +92,8 @@ def parent_field(target: VCT, description: str = "The global id of the model thi
     """The ``_model_id`` field of an item that holds its parent model by
     reference (``core.ParentPropertyHoldingProtocol``): a foreign key to the
     builder model classified ``target``, never read from YAML (``init=False``),
-    unset until the orchestrator parents the item. Stage 30: the nine copies
-    of this field the core and two plugins carried (a protocol cannot carry a
+    unset until the orchestrator parents the item. The nine copies of this
+    field the core and two plugins used to carry (a protocol cannot carry a
     dataclass field) are this one call."""
     meta = kwargs.pop("metadata", {})
     meta.setdefault("description", description)

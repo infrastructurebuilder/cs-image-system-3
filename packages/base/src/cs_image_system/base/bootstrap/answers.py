@@ -4,7 +4,7 @@
 
 """``bootstrap.yaml``: the interview's answers, at the root of the tree
 beside ``cfg/`` -- hand-editable, committed, the source every regeneration
-of ``generated/bootstrap/`` reads (decision D3/D7, 2026-09-28)."""
+of ``generated/bootstrap/`` reads, by decision (see docs/CHANGES.md#s70)."""
 
 from __future__ import annotations
 

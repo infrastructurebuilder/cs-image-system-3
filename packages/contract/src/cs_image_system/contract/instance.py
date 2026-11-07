@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""The instance kind (stage 30): named deployments of instance images as
+"""The instance kind: named deployments of instance images as
 machines on a runtime. The instance item is the core's model and ``Any``
 here."""
 from __future__ import annotations

@@ -32,7 +32,7 @@ dependencies = [
     "cs-image-system-tofu-roots==0.1.7.dev2",
 ]
 
-# The extras (stage 126): a provider's runtime plugin with its terraform-root and state-backend
+# The extras: a provider's runtime plugin with its terraform-root and state-backend
 # plugins, and `all` for every provider. Every pin is == the workspace version, so a bump moves
 # them with the rest (the `=={current_version}"` rule below reads the whole file). The two
 # private plugins (dummy, contract-example) are in the dev group, never here.
@@ -71,10 +71,10 @@ Repository = "https://github.com/infrastructurebuilder/cs-image-system-3"
 Documentation = "https://github.com/infrastructurebuilder/cs-image-system-3/blob/develop/docs/OPERATIONS.md"
 Configuration = "https://github.com/infrastructurebuilder/cs-image-system-3/blob/develop/docs/CONFIGURATION.md"
 
-# stage 64: `uv tool install cs-image-system` exposes only the requested package's
+# `uv tool install cs-image-system` exposes only the requested package's
 # executables, and this package had none (the console script is the system package's),
 # so the install ended with "Failed to install entrypoints" -- found by the reference
-# configuration's first CI run, 2026-09-26. The same script, declared here too, names
+# configuration's first CI run. The same script, declared here too, names
 # the module the pinned dependency provides; both declarations point at one function.
 [project.scripts]
 cs-image-system = "cs_image_system.system.cli:app"
@@ -120,7 +120,7 @@ cs-image-system-docker-runtime-plugin = { workspace = true }
 cs-image-system-tf-docker-plugin = { workspace = true }
 cs-image-system-tofu-roots = { workspace = true }
 
-# The indexes a release is published to (stage 41): `uv publish --index <name>` reads the
+# The indexes a release is published to: `uv publish --index <name>` reads the
 # publish-url and skips files already present with the same content (the url is the check
 # url). Both are explicit, so neither takes part in resolving this workspace's dependencies;
 # a consumer installs from TestPyPI with PyPI as the extra index (docs/OPERATIONS.md,
@@ -137,7 +137,7 @@ url = "https://pypi.org/simple/"
 publish-url = "https://upload.pypi.org/legacy/"
 explicit = true
 
-# The one place a version changes (stage 41.4): `bump-my-version bump <part>` moves the
+# The one place a version changes: `bump-my-version bump <part>` moves the
 # `version =` line of every package and every `== <version>` pin between them at once; the
 # release recipe then refreshes the lock, commits and tags. Scheme MAJOR.MINOR.PATCH[.devN]:
 # `bump patch` (or minor, major) opens the next version as its first development release
@@ -170,14 +170,14 @@ replace = "=={new_version}\""
 
 [[tool.bumpversion.files]]
 glob = "packages/*/pyproject.toml"
-glob_exclude = ["packages/contract/pyproject.toml"]     # the contract's version is its own (stage 125); its dependents pin a range
+glob_exclude = ["packages/contract/pyproject.toml"]     # the contract's version is its own; its dependents pin a range
 search = "version = \"{current_version}\""
 replace = "version = \"{new_version}\""
 
 [[tool.bumpversion.files]]
 glob = "packages/*/pyproject.toml"
-glob_exclude = ["packages/contract/pyproject.toml"]     # the contract depends on no other package (stage 30)
-ignore_missing_version = true                            # a package that depends on the contract alone has no == pin (stage 125)
+glob_exclude = ["packages/contract/pyproject.toml"]     # the contract depends on no other package
+ignore_missing_version = true                            # a package that depends on the contract alone has no == pin
 search = "=={current_version}\""
 replace = "=={new_version}\""
 
@@ -236,7 +236,7 @@ addopts = "--import-mode=importlib"
 
 [dependency-groups]
 dev = [
-    # the two workspace-only plugins (stage 126): the extension template and the contract's
+    # the two workspace-only plugins: the extension template and the contract's
     # proof are installed with the workspace and never published (their pyproject's
     # `Private :: Do Not Upload` classifier); the == pin moves with the bump like any other
     "cs-image-system-dummy-plugin==0.1.7.dev2",
@@ -265,8 +265,8 @@ select = ["F", "E9"]
 ignore = ["F841"]
 
 [tool.pyright]
-# "basic" mode, blocking since stage 23 (0 errors is the bar), with the override
-# check on since hygiene XIX; strict typing is not enforced yet.
+# "basic" mode, blocking (0 errors is the bar), with the override
+# check on; strict typing is not enforced yet.
 # NB: "packages/*/src" matches nothing in pyright's spec globbing (it silently
 # analyzed 0 files, which also broke find-all-references); use ** instead.
 include = ["src", "packages/**/src", "packages/**/tests", "tests"]
@@ -304,7 +304,7 @@ extraPaths = [
 pythonVersion = "3.13"
 typeCheckingMode = "basic"
 reportMissingImports = "warning"
-# hygiene XIX item 1 (stage 30's finding): basic mode compares no override's
+# Basic mode compares no override's
 # signature with the base's or the protocol's, so a base class could narrow or
 # widen a contract signature unnoticed. On, as an error, over the whole workspace.
 reportIncompatibleMethodOverride = "error"

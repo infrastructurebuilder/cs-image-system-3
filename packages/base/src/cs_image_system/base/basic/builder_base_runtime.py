@@ -51,8 +51,8 @@ class RuntimeBuilderBase(BuilderBase[R], RuntimeBuilderProtocol):
         return None
 
     def query_provider_image_by_id(self, os_builder, image_id: str) -> tuple[str, str, Any] | None:
-        """The vendor image an OS builder entry PINS by id (stage 63: the
-        entry's ``image_id``; the vendor query is skipped). Same shape as
+        """The vendor image an OS builder entry PINS by id (the entry's
+        ``image_id``; the vendor query is skipped). Same shape as
         ``query_provider_image``; None when the provider does not know it."""
         raise NotImplementedError(f"{self.__class__.__name__} cannot look a vendor image up by id")
 
@@ -66,14 +66,14 @@ class RuntimeBuilderBase(BuilderBase[R], RuntimeBuilderProtocol):
     def verify_instance(self, instance_name: str, expected_build: str | None = None,
                         expect_mounts: int = 0, timeout: int = 600,
                         mount_points: list[str] | None = None) -> dict[str, Any]:
-        """Verify a launched instance without an operator session (TODO
-        §10.2): ``{"ok": bool, "checks": [{"name", "ok", "detail"}],
+        """Verify a launched instance without an operator session:
+        ``{"ok": bool, "checks": [{"name", "ok", "detail"}],
         "evidence": [lines]}``. A cloud runtime reads the serial console (startup
         scripts finished, no failure line, data disks mounted) and the
         booted image; a runtime without a verification path raises
         NotImplementedError (ephemeral instances refuse there).
-        ``mount_points`` names the declared mounts (hygiene XII item 22):
-        a runtime that can read the startup script's own line per mount
+        ``mount_points`` names the declared mounts: a runtime that can read
+        the startup script's own line per mount
         passes the check only when each one reports itself mounted;
         ``expect_mounts`` is the count, for a runtime that can only count."""
         raise NotImplementedError(f"{self.__class__.__name__} cannot verify instances")
@@ -81,14 +81,14 @@ class RuntimeBuilderBase(BuilderBase[R], RuntimeBuilderProtocol):
     def ssh_proxy_command(self, instance_name: str) -> list[str] | None:
         """An ssh ``ProxyCommand`` (argv, ``%p`` for the port) that reaches a
         launched instance through this runtime's session mechanism -- no
-        public address, no inbound rule (stage 75 step 6: one cloud's
-        session-manager ssh document, the path packer already bakes through;
-        another's identity-aware tunnel). None when the runtime has none."""
+        public address, no inbound rule (one cloud's session-manager ssh
+        document, the path packer already bakes through; another's
+        identity-aware tunnel). None when the runtime has none."""
         return None
 
     def run_session_command(self, instance_name: str, script: str, timeout: int = 300) -> tuple[int, str]:
         """Run a shell script ON a launched instance through this runtime's
-        session mechanism (stage 10.14: the unmount before a detach) and
+        session mechanism (the unmount before a detach is one) and
         return ``(exit status, output)``: tunnelled ssh on one cloud, the
         session manager's run-script document on another. A runtime without
         one raises NotImplementedError."""
@@ -96,10 +96,10 @@ class RuntimeBuilderBase(BuilderBase[R], RuntimeBuilderProtocol):
 
     def inventory(self) -> dict[str, Any]:
         """Everything that exists on this runtime that the system could have
-        created (stage 11.5): ``{"instances": [...], "images": [...],
+        created: ``{"instances": [...], "images": [...],
         "disks": [...], "buckets": [...]}`` -- read-only; and, when the
         runtime can read labels, ``"owners": {kind: {name: csis_config}}``
-        for every thing that carries a configuration's id (stage 93), so the
+        for every thing that carries a configuration's id, so the
         emptiness check leaves another configuration's things alone. A
         runtime without an inventory raises NotImplementedError (`empty
         --runtime` refuses)."""
@@ -107,18 +107,18 @@ class RuntimeBuilderBase(BuilderBase[R], RuntimeBuilderProtocol):
 
     def instance_tags(self, instance_name: str) -> dict[str, str] | None:
         """The tags or labels the named machine carries, None when none
-        stands (stage 93: what `lineage relabel` reads before it adds the
+        stands (what `lineage relabel` reads before it adds the
         configuration's id). A runtime that cannot read them raises."""
         raise NotImplementedError(f"{self.__class__.__name__} cannot read a machine's tags")
 
     def retag_instance(self, instance_name: str, tags: dict[str, str]) -> bool:
-        """Add ``tags`` to the named machine in place (stage 93); False when
+        """Add ``tags`` to the named machine in place; False when
         no such machine stands. A runtime that cannot retag raises."""
         raise NotImplementedError(f"{self.__class__.__name__} cannot retag a machine")
 
     def dispose_image(self, build_id: str) -> bool:
         """Delete one of OUR OWN recorded images from this runtime (the
-        sanctioned disposal, stage 8.4): the cloud artifact named by the
+        sanctioned disposal): the cloud artifact named by the
         lineage build id. Returns False when the runtime finds no such
         image (already gone -- the record is still dropped). Raises
         NotImplementedError when this runtime cannot dispose."""
@@ -136,7 +136,7 @@ class RuntimeBuilderBase(BuilderBase[R], RuntimeBuilderProtocol):
             f"{self.__class__.__name__} cannot retag {image_id}; tags {sorted(tags)} stay stale")
         return False
 
-    # ------------------------------------------------- the image query (stage 106)
+    # ------------------------------------------------------- the image query
     def supported_query_keys(self) -> frozenset[str]:
         """The keys of the system's image-query vocabulary this runtime can
         translate (``contract.image.QUERY_KEYS``); ``validate`` refuses an
@@ -177,15 +177,15 @@ class RuntimeBuilderBase(BuilderBase[R], RuntimeBuilderProtocol):
                                      final_name: str) -> list[str]:
         """HCL lines for the post-processor blocks this runtime's packer
         plugin wants in the build block for ``image``, before the manifest
-        (stage 103: the container runtime tags its committed image with the
-        build's final name and the series' floating tag). Default: none --
+        (the container runtime tags its committed image with the build's
+        final name and the series' floating tag). Default: none --
         the clouds name their artifact in the source block itself."""
         return []
 
     def bake_ansible_vars(self, image: Any) -> dict[str, str]:
         """Ansible variables the ansible provisioner passes as
-        ``--extra-vars`` for a bake of ``image`` on this runtime (stage 103:
-        the container runtime's container-type ``ansible_connection`` and the
+        ``--extra-vars`` for a bake of ``image`` on this runtime (the
+        container runtime's container-type ``ansible_connection`` and the
         build container's name as ``ansible_host``, the way packer's ansible
         provisioner documents for its container builder). Default: none; the
         clouds bake over SSH through packer's own adapter."""
@@ -193,8 +193,8 @@ class RuntimeBuilderBase(BuilderBase[R], RuntimeBuilderProtocol):
 
     def tool_environment(self) -> dict[str, str]:
         """Environment variables every tool a bake or an apply on this
-        runtime runs needs on top of the caller's (stage 103: the container
-        runtime's daemon-address or client-context variable, read by packer's
+        runtime runs needs on top of the caller's (the container runtime's
+        daemon-address or client-context variable, read by packer's
         container plugin and ansible's container connection alike). Default: none;
         the clouds' tools read the credentials the environment already has."""
         return {}
@@ -223,7 +223,7 @@ class RuntimeBuilderBase(BuilderBase[R], RuntimeBuilderProtocol):
         """Default: the runtime's secrets have no shape the scan can name."""
         return {}
 
-    # ------------------------------------------ the network facts (stage 127)
+    # ---------------------------------------------------- the network facts
     # Two OPTIONAL hooks the core reaches through ``getattr`` (the contract's
     # protocol gains nothing): a loaded configuration never reaches a cloud,
     # so what an account answers a runtime's networking declaration with is
@@ -252,7 +252,7 @@ class RuntimeBuilderBase(BuilderBase[R], RuntimeBuilderProtocol):
         return []
 
     #: The package that ships this runtime's part of the image-source catalog
-    #: (``<package>/data/image-sources.yml``, stage 125); None for a runtime
+    #: (``<package>/data/image-sources.yml``); None for a runtime
     #: that ships none. A plugin names the package; the core reads the file.
     image_source_package: str | None = None
 
@@ -284,8 +284,8 @@ class RuntimeBuilderBase(BuilderBase[R], RuntimeBuilderProtocol):
         return []
 
     def launch_delivery(self) -> str:
-        """How an instance's launch script reaches a machine on this runtime
-        (stage 103 branch 2): ``boot`` (the default: the platform runs it at
+        """How an instance's launch script reaches a machine on this
+        runtime: ``boot`` (the default: the platform runs it at
         first boot -- a cloud's user data or startup script) or ``session``
         (the system runs it through ``run_session_command`` after the apply,
         exactly as it runs the accounts script; a container has no first
@@ -294,7 +294,7 @@ class RuntimeBuilderBase(BuilderBase[R], RuntimeBuilderProtocol):
 
     def bake_settle_commands(self, os_family: str | None = None) -> list[str]:
         """Shell commands emitted in the FIRST provisioner of every bake on
-        this runtime, before any package work (stage 86): wait, bounded,
+        this runtime, before any package work: wait, bounded,
         for whatever this cloud does to a NEW machine on its own -- fleet
         management that updates agents, scans for patches or takes
         inventory uses the package database the bake is about to use. The
@@ -333,7 +333,7 @@ class RuntimeBuilderBase(BuilderBase[R], RuntimeBuilderProtocol):
     def query_instance_power_state(self, instance_name: str) -> str | None:
         """Is the named machine powered on, as the PROVIDER reports it --
         each cloud's own state field and spelling -- mapped onto the vocabulary
-        in ``power_state`` so no caller reads a cloud's spelling (stage 57).
+        in ``power_state`` so no caller reads a cloud's spelling.
 
         ``None`` means THIS RUNTIME CANNOT ANSWER, which is never the same as
         ``STOPPED``: an instance the operator switched off is in the state
@@ -360,7 +360,7 @@ class RuntimeBuilderBase(BuilderBase[R], RuntimeBuilderProtocol):
         return None
 
     def can_set_instance_power_state(self) -> bool:
-        """Whether this runtime implements start/stop (stage 57). Separate
+        """Whether this runtime implements start/stop. Separate
         from the query gate: a cloud may well be readable but not driveable
         by these credentials."""
         return False
@@ -380,7 +380,7 @@ class RuntimeBuilderBase(BuilderBase[R], RuntimeBuilderProtocol):
         raise NotImplementedError(f"{self.__class__.__name__} cannot stop instances")
 
     def default_bake_user(self, family: str) -> str | None:
-        """The last step of the bake-user order (stage 63 item 22, see
+        """The last step of the bake-user order (see
         ``cs_image_system.base.bake_user``): the user a build VM of this OS
         family is reached as on this runtime when nothing names one. None =
         this runtime cannot say, and the resolver refuses."""
@@ -388,18 +388,18 @@ class RuntimeBuilderBase(BuilderBase[R], RuntimeBuilderProtocol):
 
     def label_key_problem(self, key: str) -> str | None:
         """Why a declared tag key cannot become a label on this runtime, or
-        None (stage 63). Default: any key is fine (the first cloud's tags take anything)."""
+        None. Default: any key is fine (the first cloud's tags take anything)."""
         return None
 
     def image_name_problem(self, name: str) -> str | None:
         """Why a build's full name (``<prefix>-<timestamp>``) cannot be an
-        image name on this runtime, or None (stage 105). Default: any name
+        image name on this runtime, or None. Default: any name
         is fine. The runtime that shortens or rewrites names reports what
         it would make of one through ``image_name_as_made`` instead."""
         return None
 
     def image_name_as_made(self, name: str) -> str:
-        """What this runtime makes of a build name (stage 105): the name
+        """What this runtime makes of a build name: the name
         itself by default; one cloud lowercases, replaces what it cannot keep and
         shortens. ``validate`` compares images' prefixes AS MADE, so two
         names that collapse to one here are refused before a bake."""
@@ -418,7 +418,7 @@ class RuntimeBuilderBase(BuilderBase[R], RuntimeBuilderProtocol):
         otherwise defaults to the operator's LOCAL login — finding 48).
         None = provisioners keep their own default (the first cloud's path, unchanged).
         A runtime that returns a user returns the RESOLVED one for ``image``
-        (stage 63 item 23), the same the packer source bakes as."""
+        the same the packer source bakes as."""
         return None
 
     def release_commands(self, build_id: str, tags: dict[str, str]):

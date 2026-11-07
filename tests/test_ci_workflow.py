@@ -5,9 +5,9 @@
 """The CI workflow calls only `just` targets and splits into three jobs (stage
 64): the credential-free bar, the read-only `live` job that proves the
 system against real clouds over the FROZEN FIXTURE, and the publish job that
-uploads a pushed `v*` tag to the index (stage 41). Recording and performing
+uploads a pushed `v*` tag to the index. Recording and performing
 the reference configuration left this workflow for the configuration
-repository's own (stage 64 item 3), which the starter workflow's test pins
+repository's own, which the starter workflow's test pins
 in tests/test_docs_examples.py.
 
 The Justfile is the single entry point, so the workflow's own test is that
@@ -66,7 +66,7 @@ def test_verify_is_the_bar_and_needs_nothing():
     wf = _workflow()
     verify = wf["jobs"]["verify"]
     assert [run for _, run in _run_steps(verify)] == ["just init", "just verify", "just public-safe"]
-    # stage 66: the one secret it may name is the runner image's optional registry password, in
+    # the one secret it may name is the runner image's optional registry password, in
     # container.credentials -- absent on a fork's pull request, which then logs in with its own token
     steps_and_env = {k: v for k, v in verify.items() if k != "container"}
     assert "secrets." not in yaml.safe_dump(steps_and_env)
@@ -82,14 +82,14 @@ def test_live_proves_the_fixture_read_only_and_is_gated():
     live = wf["jobs"]["live"]
     assert live["needs"] == "verify"
     assert "pull_request" in live["if"]
-    assert live["permissions"] == {"id-token": "write", "contents": "read", "packages": "read"}   # packages: the runner image's pull (stage 92)
+    assert live["permissions"] == {"id-token": "write", "contents": "read", "packages": "read"}   # packages: the runner image's pull
     gate = next(s for s in live["steps"] if s.get("id") == "gate")
     for secret in ("AWS_ROLE_ARN", "GCP_WORKLOAD_IDENTITY_PROVIDER", "GCP_SERVICE_ACCOUNT", "OKTA_API_PRIVATE_KEY",
                    "TF_VAR_NOS_KEY", "TF_VAR_NOS_SECRET"):
         assert secret in yaml.safe_dump(gate["env"]), secret
     # the fixture's identity is committed beside it: no identity secret here
     assert "CSIS_CONFIG_IDENTITY" not in yaml.safe_dump(live)
-    # stage 43: none configured skips (and says so in the job summary); some configured
+    # none configured skips (and says so in the job summary); some configured
     # and some missing or EMPTY fails by name -- a green job that ran nothing is the bug
     assert "SKIPPED" in gate["run"] and "GITHUB_STEP_SUMMARY" in gate["run"]
     assert "EMPTY" in gate["run"] and "exit 1" in gate["run"]
@@ -104,19 +104,19 @@ def test_live_proves_the_fixture_read_only_and_is_gated():
     for var in ("OKTA_API_PRIVATE_KEY", "TF_VAR_nos_coastal_modeling_cloud_sandbox_key",
                 "TF_VAR_nos_coastal_modeling_cloud_sandbox_secret"):
         assert var in proof["env"], var
-    # the tools validate checks for (stage 48) come with the runner image (stage 92), placed where
+    # the tools validate checks for come with the runner image, placed where
     # the fixture's executables.yml pins them; nothing installs them on the runner any more
     image = str((live.get("container") or {}).get("image", ""))
-    assert image.startswith("${{ vars.CSIS_RUNNER_IMAGE || 'ghcr.io/infrastructurebuilder/csis-ci:alma10-")   # stage 66
+    assert image.startswith("${{ vars.CSIS_RUNNER_IMAGE || 'ghcr.io/infrastructurebuilder/csis-ci:alma10-")   # a variable's default
     assert not any("setup-" in (s.get("uses") or "") for s in live["steps"]), "a setup action installs a tool on the runner"
     assert not any("Place the tools" in s.get("name", "") for s in live["steps"])
 
 
 def test_the_fixture_live_recipe_is_read_only_over_a_copy():
-    """`just fixture-live` (stage 64) is the live job's one command: a recipe the
+    """`just fixture-live` is the live job's one command: a recipe the
     Justfile names, run with the fixture's own committed identity over the frozen
     fixture (and private copies of it); never the live configuration, never a real
-    run. Its steps are the Justfile's own business (stage 128): the plan is judged
+    run. Its steps are the Justfile's own business: the plan is judged
     by what it exports and what it never does, not by its lines."""
     if not shutil.which("just"):
         pytest.skip("needs just")
@@ -127,7 +127,7 @@ def test_the_fixture_live_recipe_is_read_only_over_a_copy():
 
 
 def test_publish_runs_on_a_tag_alone_and_is_the_only_uploader():
-    """stage 41: a pushed `v*` tag publishes -- to TestPyPI always, to PyPI when
+    """A pushed `v*` tag publishes -- to TestPyPI always, to PyPI when
     the tag is not a development version -- through `just publish`, after the
     bar, with each index's token from a repository secret; the tag must name
     the version in the tree; no other job uploads anything."""
@@ -145,7 +145,7 @@ def test_publish_runs_on_a_tag_alone_and_is_the_only_uploader():
             assert "steps.gate.outputs.ready == 'true'" in (s.get("if") or ""), s.get("name")
     commands = [run.strip() for name, run in _run_steps(job) if not name.startswith(_PLUMBING)]
     assert commands == ["just init", "just publish test", "just publish pypi", "just publish-starters"]
-    # stage 66: the template repositories, a final version alone, after PyPI, on their own token
+    # the template repositories, a final version alone, after PyPI, on their own token
     starters = next(s for s in job["steps"] if s.get("name") == "Publish the template repositories")
     assert "steps.gate.outputs.pypi == 'true'" in starters["if"] and "steps.gate.outputs.starters == 'true'" in starters["if"]
     assert starters["env"] == {"STARTER_PUSH_TOKEN": "${{ secrets.STARTER_PUSH_TOKEN }}"}
@@ -167,9 +167,9 @@ def test_publish_runs_on_a_tag_alone_and_is_the_only_uploader():
 
 
 def test_the_workload_probe_left_with_the_performing_workflow():
-    """Stage 64 item 3: the probe presents a repository's OIDC token to the
+    """The probe presents a repository's OIDC token to the
     team's workload connection, and the repository that logs in as a workload
     is the configuration repository; the starter trees carry the probe."""
     assert not (REPO / ".github" / "workflows" / "opa-workload-probe.yml").exists()
-    # stage 92 added the from-scratch path and the runner image's own workflow beside ci.yml
+    # the from-scratch path and the runner image's own workflow sit beside ci.yml
     assert sorted(p.name for p in (REPO / ".github" / "workflows").iterdir()) == ["ci-from-scratch.yml", "ci.yml", "runner-image.yml"]

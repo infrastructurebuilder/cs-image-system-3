@@ -84,7 +84,7 @@ variable "state_bucket_managed" {
 variable "other_state_buckets" {
   type        = map(string)
   default     = {}
-  description = "the tree's OTHER S3 backends' buckets this root makes and manages (hygiene XX item 1): bucket name -> state key prefix; each gets versioning, encryption and a public-access block, and the WRITE role's StatePrefix statement covers its prefix"
+  description = "the tree's OTHER S3 backends' buckets this root makes and manages: bucket name -> state key prefix; each gets versioning, encryption and a public-access block, and the WRITE role's StatePrefix statement covers its prefix"
 }
 
 variable "instance_profile" {

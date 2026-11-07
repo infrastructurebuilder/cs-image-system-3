@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""Hygiene XIV: scripts/publish-dist uploads the release one project at a time.
+"""scripts/publish-dist uploads the release one project at a time.
 
 Against a fake `uv` that answers each file as planned (uploaded, already
 there, 429, 403) and records every call: the order (dependencies first, the

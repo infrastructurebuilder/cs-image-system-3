@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""Stage 41: what the packages declare is what they are.
+"""What the packages declare is what they are.
 
 A wheel installed from an index has only its metadata to go on, so every
 package declares exactly the third-party distributions its sources import
@@ -10,14 +10,14 @@ package declares exactly the third-party distributions its sources import
 description, readme and urls an index page shows (41.8); the root is the
 buildable `cs-image-system` umbrella whose dependencies are the core and
 whose extras (`[aws]`, `[gcloud]`, `[docker]`, `[okta]`, `[all]`) are the
-providers, so a bare install carries no runtime (stage 126; the extras'
+providers, so a bare install carries no runtime (the extras'
 table is cs_image_system.extras, the umbrella's one module, tests/test_extras.py); the two
 workspace-only plugins (dummy, contract-example) are in the root's dev
 group alone, classified `Private :: Do Not Upload`, and never published;
 and `bump-my-version` moves every version line and every pin -- the
 extras' and the dev group's included -- at once under the
 MAJOR.MINOR.PATCH[.devN] scheme (41.4, 41.5), proven on a copy of the tree.
-The one exception is the contract (stage 125): its version is its own, every
+The one exception is the contract: its version is its own, every
 dependent pins it to a range, and the bump leaves it alone
 (tests/test_contract_version.py holds that side).
 """
@@ -171,7 +171,7 @@ def test_a_package_declares_exactly_the_third_party_distributions_it_imports(pac
     """41.1: an undeclared import is a wheel that fails to import once installed
     from an index (base imported pydantic and declared it nowhere); a declared
     distribution nothing imports is a dependency the consumer pays for nothing
-    (base declared cattrs and multipledispatch, retired in stage 23)."""
+    (base once declared cattrs and multipledispatch, both retired)."""
     _, declared = _requirements(_project(package / "pyproject.toml"))
     imported = _third_party_imports(package)
     assert set(declared) == imported, (
@@ -217,7 +217,7 @@ def test_every_sibling_pin_is_exactly_the_shared_version():
     """41.2: the packages release together from one tag, so `>=` would let versions
     mix and `~=` buys nothing; every version line and every pin is the one
     version, and bump-my-version's current_version is it too. The contract is
-    the exception (stage 125): its version is its own and every dependent
+    the exception: its version is its own and every dependent
     pins the range of its compatible series."""
     root = tomllib.loads(ROOT.read_text())
     version = root["project"]["version"]
@@ -248,7 +248,7 @@ def _published() -> set[str]:
 
 
 def test_the_root_is_the_core_and_each_provider_is_an_extra():
-    """Stage 126: `cs-image-system` is buildable, carries one module of its own (the
+    """`cs-image-system` is buildable, carries one module of its own (the
     extras table, src/cs_image_system/extras.py, declared to the core by an entry point), and
     its dependencies plus its extras pin exactly the twenty published
     packages (nothing else, nothing twice). The dependencies are the core
@@ -282,7 +282,7 @@ def test_the_root_is_the_core_and_each_provider_is_an_extra():
 
 
 def test_the_two_private_plugins_are_workspace_only():
-    """Stage 126: the extension template and the contract's proof are
+    """The extension template and the contract's proof are
     installed with the workspace through the root's dev group (so the
     suite and the dry runs see them) and never published: they carry the
     `Private :: Do Not Upload` classifier an index refuses, no dependency
@@ -425,7 +425,7 @@ def test_the_index_probe_reads_versions_from_json_and_html_and_exits_by_knowledg
     assert m.main(["index-knows", "https://test.pypi.org/simple", "cs-image-system", "0.1.1.dev2"]) == 1
     assert m.main(["index-knows", "https://test.pypi.org/simple", "never-seen", "0.1.0"]) == 1
     assert m.main(["index-knows", "https://test.pypi.org/simple", "cs-image-system", "not-a-version"]) == 2
-    assert m.main(["index-knows", "test", "cs-image-system", "0.1.1"]) == 2        # hygiene XXII item 4: a label is not a URL
+    assert m.main(["index-knows", "test", "cs-image-system", "0.1.1"]) == 2        # a label is not a URL
     def broken(url, project):
         raise OSError("unreachable")
     monkeypatch.setattr(m, "fetch", broken)

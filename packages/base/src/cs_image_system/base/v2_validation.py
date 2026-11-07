@@ -4,7 +4,7 @@
 
 """V2 generation-time validation rules (registered with the lifecycle runner).
 
-Every rule here is a HARD failure of the run (DESIGN §3E/§3F2 "abort the
+Every rule here is a HARD failure of the run (DESIGN §3E, DESIGN §3F2 "abort the
 run, not a warning"). The rules are organized by lifecycle so the error
 messages say which lifecycle would have been affected, but all rules run for
 every request: a broken configuration must never generate anything.
@@ -86,7 +86,7 @@ def validate_storages(ctx: "GlobalTypeContext", requested: list[Lifecycle]) -> l
                 errors.append(
                     f"instance '{inst.get_name()}' (image '{inst.image}', group '{owning}') may not attach "
                     f"storage '{storage.get_name()}': allowed groups are {storage.groups or '[]'} (N2)")
-    # data lifecycles (stage 15): a declaration only its builder can realize
+    # data lifecycles: a declaration only its builder can realize
     for storage in ctx.storages:
         if getattr(storage, "lifecycle", None):
             builder = ctx.storage_builders.get(str(storage.type_))
@@ -99,7 +99,7 @@ def validate_storages(ctx: "GlobalTypeContext", requested: list[Lifecycle]) -> l
         builder = ctx.storage_builders.get(storage.type_)
         cardinality = builder.attachment_cardinality() if builder is not None else None
         if cardinality == CARDINALITY_SINGLE and len(instances) > 1:
-            # stage 10.13: say which storage builders on the same runtime CAN be
+            # say which storage builders on the same runtime CAN be
             # shared, so the fix is a declaration change, not a guess
             rt = getattr(getattr(builder, "model", None), "get_runtime_provider", lambda: None)()
             shared = sorted(
@@ -114,7 +114,7 @@ def validate_storages(ctx: "GlobalTypeContext", requested: list[Lifecycle]) -> l
 
 
 def validate_image_groups(ctx: "GlobalTypeContext", requested: list[Lifecycle]) -> list[str]:
-    """Q4/§3F2: an instance image's owning group must be a known group."""
+    """DESIGN Q4, DESIGN §3F2: an instance image's owning group must be a known group."""
     errors: list[str] = []
     groups = _group_names(ctx)
     for image in ctx.images:
@@ -131,7 +131,7 @@ def validate_image_groups(ctx: "GlobalTypeContext", requested: list[Lifecycle]) 
 
 
 def validate_base_images(ctx: "GlobalTypeContext", requested: list[Lifecycle]) -> list[str]:
-    """§3F1/N9/N12: declared types resolve to configured plugins; the admin
+    """DESIGN §3F1, N9, N12: declared types resolve to configured plugins; the admin
     user's keys are public keys; every base image has a debug path (keys
     or a session mechanism) -- the dead end fails loudly."""
     errors: list[str] = []
@@ -168,7 +168,7 @@ def validate_base_images(ctx: "GlobalTypeContext", requested: list[Lifecycle]) -
 
 
 def validate_capabilities(ctx: "GlobalTypeContext", requested: list[Lifecycle]) -> list[str]:
-    """§3F2 (both axes, hard stop): an instance image whose group resolves to
+    """DESIGN §3F2 (both axes, hard stop): an instance image whose group resolves to
     an identity type its root base does not carry, or whose attached
     storages are of an undeclared type, breaks the whole cycle. Resolution is
     through pins to the stamped root build (N11/N24)."""

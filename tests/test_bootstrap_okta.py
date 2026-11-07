@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""Stage 70 step 6: the Okta and OPA section of the bootstrap -- a section
+"""The Okta and OPA section of the bootstrap -- a section
 that creates nothing (decisions D4, D5, D9, D10). It reads the OPA workload
 connection and role and tries the Okta API services app, and every check that
 fails becomes the matching step of CI_SETUP.md 3.5. Checks are OBSERVED

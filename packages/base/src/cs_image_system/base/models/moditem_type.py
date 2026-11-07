@@ -5,7 +5,7 @@
 from typing import Annotated
 from cs_image_system.contract.model_config import CSIS_MODEL_CONFIG
 from pydantic import Field
-from pydantic.dataclasses import dataclass  # stage 23: validation at construction
+from pydantic.dataclasses import dataclass  # validation at construction
 from pathlib import Path
 
 from cs_image_system.contract.fields import fk_field, parent_field

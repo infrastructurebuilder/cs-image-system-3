@@ -250,7 +250,7 @@ def test_preflight_reads_the_daemon_in_one_line(prepared, monkeypatch):
         seen.append((binary, dict(env)))
         return True, "answers: engine 29.8.2 (api 1.56)"
     monkeypatch.setattr(drb, "probe_daemon", probe)
-    ctx = load_context(prepared)                       # stage 127: the sessions are read over the loaded tree
+    ctx = load_context(prepared)                       # the sessions are read over the loaded tree
     infos = preflight.session_infos(ctx)
     docker = [i for i in infos if i.provider == "docker" and i.runtime == RUNTIME]   # the overlay's, not the fixture's own
     assert len(docker) == 1 and docker[0].present and docker[0].source == "context orbstack"
@@ -300,7 +300,7 @@ def test_the_contract_declares_the_new_hooks_and_the_core_answers_them():
     declared = getattr(cast(Any, rt.RuntimeBuilderProtocol), "__protocol_attrs__")
     for hook in ("packer_post_processor_blocks", "bake_ansible_vars", "tool_environment"):
         assert hook in declared and hasattr(RuntimeBuilderBase, hook)
-    # stage 125: the container model's fields are the kit's (ContainerBuilderModel);
+    # the container model's fields are the kit's (ContainerBuilderModel);
     # the protocol keeps only what a plugin reads or overrides
     assert {"host", "context", "networking", "machine_types"} <= set(ContainerBuilderModel.__dataclass_fields__)
     assert not getattr(cast(Any, rt.ContainerBuilderModelProtocol), "__protocol_attrs__") - \

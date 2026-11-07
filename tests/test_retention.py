@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""Image retention and ephemeral runtimes (stage 10.3-6): the closing
+"""Image retention and ephemeral runtimes: the closing
 `retention` lifecycle disposes of the builds the declared retention no
 longer keeps -- beyond `retention.keep` per image / `retention_keep` per
 runtime, or everything on an `ephemeral: true` runtime -- never a build an
@@ -167,7 +167,7 @@ def test_retention_values_are_validated(prepared):
 
 
 def test_transient_storages_on_an_ephemeral_runtime_are_torn_down_by_the_closing_phase(tmp_path, monkeypatch):
-    """stage 11.4: a storage declared by an overlay on an ephemeral runtime is
+    """A storage declared by an overlay on an ephemeral runtime is
     destroyed by THIS run's closing phase -- a storage run without the
     declaring overlay -- not left for the next run."""
     root = copy_config(tmp_path)
@@ -185,7 +185,7 @@ def test_transient_storages_on_an_ephemeral_runtime_are_torn_down_by_the_closing
         lines = command_lines((run.generated / "retention" / "run-retention.sh").read_text())
         teardown = next(ln for ln in lines if "run storage --only none" in ln)
         assert '--overlay "$CSIS_ROOT/overlays/knobs.yaml"' in teardown         # config-only overlays carry over
-        assert "scratch.yaml" not in teardown and str(root) not in teardown    # ...by reference (stage 38)
+        assert "scratch.yaml" not in teardown and str(root) not in teardown    # ...by reference
         assert "--no-state-query --no-commit" in teardown
         assert lines.index(teardown) > next(i for i, ln in enumerate(lines) if "dispose image --retention" in ln)
     finally:

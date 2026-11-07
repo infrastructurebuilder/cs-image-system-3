@@ -23,8 +23,7 @@
 The fixture is the AWS tree plus a GCE overlay applied in a temp copy, so
 the AWS golden stays byte-identical.
 
-History: EXPLORE "GCP support" increments 1-3, stage 63 items 14, 17, 20,
-21 and 7, stage 63 dead-code items (the GCP runtime).
+History: EXPLORE "GCP support" increments 1-3; stage 63 items 7, 14, 17, 20, 21 and its GCP dead-code items.
 """
 from __future__ import annotations
 
@@ -65,7 +64,7 @@ def _edit(path: Path, fn) -> None:
 def gce_overlay(root: Path) -> None:
     """Bind basic-rh-10 (base) and imgfile-basic-dask (instance image) to a
     packer-gce builder on the fixture's gcloud-east1 runtime. Idempotent:
-    the real fixture carries these entries since GCP readiness (2026-09-02),
+    the real fixture carries these entries since GCP readiness,
     so every append is skipped when its target already exists."""
     def image_builders(d):
         if any(b.get("name") == GCE_BUILDER for b in d["image_builders"]):
@@ -158,7 +157,7 @@ def test_base_image_bakes_with_googlecompute(gce):
     assert 'source_image = "debian-11-v1"' in text            # the stubbed vendor lookup
     assert "source_image_project_id" in text and '"debian-cloud"' in text
     assert 'image_family = "basic-rh-10"' in text              # series == family
-    # stage 105: the fixture's gcp-my-rh10 entry declares the build-name prefix (noscsb-gcp-rh10-<entry>)
+    # the fixture's gcp-my-rh10 entry declares the build-name prefix (noscsb-gcp-rh10-<entry>)
     assert 'image_name = "noscsb-gcp-rh10-gcp-my-rh10-20260826-120000"' in text
     assert re.search(r'csis_series\s+= "basic-rh-10"', text) and re.search(r'csis_parent\s+= "vendor"', text)
     assert "ami_name" not in text and "amazon-ami" not in text
@@ -434,7 +433,7 @@ def test_gce_state_query_hooks_exist(gce3, monkeypatch):
     assert callable(getattr(gcp, "query_images"))
     pd = ctx.storage_builders["gcp-pd"]
     assert callable(getattr(pd, "_lookup"))
-    # stage 63 item 17: Filestore has a lookup now (it raised NotImplementedError
+    # Filestore has a lookup (it once raised NotImplementedError
     # and the query dropped it); gcloud is stubbed, answering not found
     fs = ctx.storage_builders["gcp-filestore"]
     monkeypatch.setattr(subprocess, "run", lambda cmd, **kw: SimpleNamespace(
@@ -443,7 +442,7 @@ def test_gce_state_query_hooks_exist(gce3, monkeypatch):
 
 
 def private_plugin_cache(tmp_path: Path, roots: list[Path]) -> Path:
-    """stage 43: the suite's real-tofu test never shares the operator's provider
+    """The suite's real-tofu test never shares the operator's provider
     cache -- `TF_PLUGIN_CACHE_DIR` is not safe under concurrent `init`, and a
     cycle that overlapped the bar failed on it. A private cache under the test's
     temporary directory, seeded by COPYING (never linking: tofu writes beside
@@ -742,7 +741,7 @@ def test_a_disk_without_a_zone_keeps_the_runtimes(tmp_path: Path, monkeypatch):
 
 def test_query_images_returns_only_the_series_asked_about(tmp_path: Path, monkeypatch):
     from types import SimpleNamespace
-    from cs_image_system.gcloud_runtime import gcp_runtime_builders    # the consuming module (top-level import since stage 124)
+    from cs_image_system.gcloud_runtime import gcp_runtime_builders    # the consuming module (patch where the name is read)
     from cs_image_system.gcloud_runtime.gcp_runtime_builders import GCPCloudBuilder
     real_query_images = GCPCloudBuilder.query_images      # the harness stubs it
     stub_environment(monkeypatch)

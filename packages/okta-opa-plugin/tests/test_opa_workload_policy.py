@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""Stage 56: the CI login policy is a copy of the user policy with the
+"""The CI login policy is a copy of the user policy with the
 workload role as its only principal, derived from the standing record and
 compared by content; the resolver reads policies and roles and writes
 policies through an injected transport -- no network.
@@ -66,7 +66,7 @@ def test_policies_compare_by_reach_not_by_ids_or_descriptions():
     standing["id"] = "pol-ci"
     standing["description"] = "edited in the console"
     standing["rules"][0]["id"] = "rule-9"
-    standing["rules"][0]["security_policy_id"] = "pol-ci"     # OPA's back-reference on a stored rule (live 2026-09-22)
+    standing["rules"][0]["security_policy_id"] = "pol-ci"     # OPA's back-reference on a stored rule (seen live)
     standing["resource_group"] = {"id": "rg-1", "name": "coops_rg"}
     assert policies_equal(standing, desired)
     standing["rules"][0]["resource_selector"]["selector"]["selectors"][0]["selector"]["server_selector"]["labels"]["sftd.tx.group"] = "other"

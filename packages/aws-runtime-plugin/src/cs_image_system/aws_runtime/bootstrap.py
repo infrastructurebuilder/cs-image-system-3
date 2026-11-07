@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""The AWS section of the bootstrap (stage 70 step 4; CI_SETUP.md 3.3).
+"""The AWS section of the bootstrap (CI_SETUP.md 3.3).
 
 What terraform makes, per the guide: the GitHub OIDC identity provider, the
 READ-ONLY role and the WRITE role with their trust documents (the subject
@@ -142,7 +142,7 @@ def _bucket_named_exists(facts: Facts, answers: Answers, bucket: str) -> bool | 
 
 
 def other_s3_buckets(facts: Facts) -> list[tuple[str, str, str, bool]]:
-    """The tree's other S3 backends (hygiene XX item 1): ``(backend name,
+    """The tree's other S3 backends: ``(backend name,
     bucket, prefix, bound)`` for each with a real bucket, in declaration
     order; ``bound`` when some root's ``state_configuration`` names it."""
     bound = facts.bound_backend_names()
@@ -274,10 +274,10 @@ QUESTIONS: tuple[Question, ...] = (
              default=lambda f, a: _state(f, "region") or a.get("region")),
     Question("state_bucket_exists", "Does the state bucket already exist?", kind="bool", default=_bucket_exists,
              help="the account could not be asked: no AWS session", observed=True),
-    # hygiene XII item 5 (the walk's F17): the second interview, run so the
-    # root binds to the bucket it made, answered "exists" and the module's
-    # four bucket resources went to count 0 while they sat in the state --
-    # the next plan destroyed versioning, encryption and the access block.
+    # The trap this closes: a second interview, run so the root binds to the
+    # bucket it made, answered "exists" and the module's four bucket
+    # resources went to count 0 while they sat in the state -- the next plan
+    # destroyed versioning, encryption and the access block.
     # Whether the bucket STANDS is observed each time (above); whether this
     # root MANAGES it is a choice recorded once, and a bucket the root makes
     # is managed from then on.
@@ -285,10 +285,9 @@ QUESTIONS: tuple[Question, ...] = (
              "here, so a destroy of the root removes it? (a bucket that stood before this root is read, never "
              "managed; one this root makes is managed from then on)", kind="bool",
              default=lambda f, a: not a.get("state_bucket_exists")),
-    # hygiene XX item 1: the tree's OTHER S3 backends. A choice, not an
-    # observation: the second interview keeps the answer, so a bucket this
-    # root made never leaves the plan (the trap item 5 of hygiene XII closed
-    # for the default bucket).
+    # the tree's OTHER S3 backends. A choice, not an observation: the second
+    # interview keeps the answer, so a bucket this root made never leaves
+    # the plan (the trap closed above for the default bucket).
     Question("other_state_buckets", "The tree's other S3 backends' buckets this root MAKES when absent and manages "
              "from then on, as bucket=prefix,bucket=prefix (by default every one bound to a root that the account "
              "says is absent; a backend bound to no root is left out)", default=_other_buckets_default,

@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""The launch script, delivered through the session (stage 103 branch 2).
+"""The launch script, delivered through the session.
 
 A cloud runs an instance's launch script itself, at first boot, from the
 user data or the startup script the instance root handed it. A container
@@ -14,7 +14,7 @@ same ``templatefile`` the clouds feed through user data) and this hook,
 after an applying instance run, runs it there through the runtime's
 session -- once: the script's last act writes the completion marker, and a
 machine that carries the marker is left alone. The same shape as the
-accounts (stage 75): after every applying run, over every launched machine
+accounts: after every applying run, over every launched machine
 that is running, a failure logged and never fatal, a machine that is off
 left to a run that finds it running.
 

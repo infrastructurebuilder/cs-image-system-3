@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""A tree whose modifications are this plugin's alone (stage 128, item 6):
+"""A tree whose modifications are this plugin's alone:
 the fixture's one ansible mod builder kept, its bash builder and every
 bash item gone. A dry `instance-image` generation emits, for every image
 that keeps a modification, one ansible item per modification in the

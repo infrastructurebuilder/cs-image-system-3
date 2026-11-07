@@ -2,14 +2,14 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""Stage 90: a group's release is decided by the state.
+"""A group's release is decided by the state.
 
 A group marked ``unmanaged: true`` leaves terraform state and nothing is
 destroyed. The removal used to be decided at generation, from the identity
 read-model's ``managed``; every dry run (and every ``record``) rewrites that
 file, so a dry run of a release recorded it as done, the real run emitted no
 removal, and its plan was the destroy of the group, its project, its token and
-its policies (the walk's F63, live 2026-10-13: the gate refused all eight).
+its policies (seen live: the gate refused all eight).
 
 Now the runner's pre-plan step lists the state itself and removes, after a
 backup, whatever it still holds of an unmanaged group. No record is read.
@@ -87,7 +87,7 @@ def test_what_the_state_holds_of_an_unmanaged_group_leaves_it_after_a_backup(tmp
 
 
 @pytest.mark.parametrize("record", [
-    {"managed": False, "builder": "oktagroups"},      # what a dry run, or a `record`, leaves behind: F63
+    {"managed": False, "builder": "oktagroups"},      # what a dry run, or a `record`, leaves behind
     {"managed": True, "builder": "oktagroups"},       # the record as it stood before anyone looked
     None,                                             # no record at all
 ])

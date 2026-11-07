@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""Stage 56: the CI login policy is a COPY of the group's user policy.
+"""The CI login policy is a COPY of the group's user policy.
 
 CI logs into a group's servers as a workload -- GitHub's own OIDC token,
 presented to the team's workload connection and mapped to the team's one
@@ -58,7 +58,7 @@ def by_name(records: list[dict[str, Any]], name: str) -> dict[str, Any] | None:
 
 # OPA's own bookkeeping on a stored record: the object's id and, on each
 # rule, the id of the policy it belongs to (``security_policy_id`` -- the one
-# field on which a fresh copy differed from its original, live 2026-09-22).
+# field on which a fresh copy differs from its original, seen live).
 _BOOKKEEPING = ("id", "security_policy_id")
 
 

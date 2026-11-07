@@ -25,16 +25,16 @@ def _subnet(name, subnet_id, zone, public=False) -> Any:
 
 
 def _builder(variables=None, networking=None) -> Any:
-    """A builder stand-in: ``module_args`` reads ``self.model.variables`` (stage 26)
-    and, for EFS mount targets, the runtime's networking (stage 19)."""
+    """A builder stand-in: ``module_args`` reads ``self.model.variables``
+    and, for EFS mount targets, the runtime's networking."""
     model = SimpleNamespace(variables=variables or EfsVariables(),
                             get_runtime_provider=lambda: "aws")
     rtb = SimpleNamespace(model=SimpleNamespace(networking=networking)) if networking else None
-    # the one service the tags reach (stage 125): a lineage that labels nothing
+    # the one service the tags reach: a lineage that labels nothing
     services = SimpleNamespace(lineage=SimpleNamespace(config_tags=lambda: {}))
     ctx = SimpleNamespace(runtime_builders={"aws": rtb} if rtb else {}, services=services)
     stub = SimpleNamespace(model=model, _get_context=lambda: ctx)
-    # stage 67: the S3 module call asks the builder for the storage's bucket
+    # the S3 module call asks the builder for the storage's bucket
     # (the storage's, else the builder's, else the name); this stub's model
     # names none, so the storage decides
     stub._bucket_for = lambda storage: TofuS3StorageBuilder._bucket_for(cast(Any, stub), storage)
@@ -95,7 +95,7 @@ def test_efs_module_args_pass_existing_filesystem():
     assert args == {"name": "efs-storage", "existing_file_system_id": "fs-12345678"}
 
 
-# ------------------------------------------------- variables (stage 26)
+# ------------------------------------------------------------ variables
 
 def test_declared_variables_reach_the_module_call_and_the_item_wins():
     """A builder's ``variables:`` are module inputs; what the item decides
@@ -139,9 +139,9 @@ def test_parameters_is_refused_with_the_replacement_named():
 
 
 def test_efs_mount_targets_reach_the_module_by_private_subnet_and_group(_=None):
-    """Stage 19: an EFS filesystem is unreachable without a mount target -- an
-    ENI per availability zone -- which this module never made, so nothing in the
-    account could mount EFS until 2026-09-20.
+    """An EFS filesystem is unreachable without a mount target -- an ENI per
+    availability zone -- which this module once never made, so nothing in the
+    account could mount EFS.
 
     One subnet per ZONE (EFS permits a single mount target each), PRIVATE only
     (the public subnets of this VPC share those zones), and the clients are

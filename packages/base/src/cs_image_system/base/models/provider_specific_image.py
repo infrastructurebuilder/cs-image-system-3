@@ -14,7 +14,7 @@ log = logging.getLogger(__name__)
 
 class ProviderSpecificImage(ABC):
     """An image as a specific runtime provider knows it (the contract's
-    ``ProviderSpecificImageProtocol``, stage 125; the attributes are
+    ``ProviderSpecificImageProtocol``; the attributes are
     declared here so the conformance check sees them).
 
     Generated for a given RuntimeBuilder from either a generic Image or an

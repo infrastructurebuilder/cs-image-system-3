@@ -2,11 +2,11 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""The run context as a plugin sees it (stage 125, absorbing stages 114
-and 115): :class:`RunContextProtocol` holds exactly the members the
-plugins, the terraform library and the terraform roots read from the
-context, counted from their sources on 2026-11-05, and nothing the kit's
-context has beyond them; :class:`MetaStateProtocol` the members they read
+"""The run context as a plugin sees it: :class:`RunContextProtocol`
+holds exactly the members the plugins, the terraform library and the
+terraform roots read from the context, counted from their sources, and
+nothing the kit's context has beyond them; :class:`MetaStateProtocol`
+the members they read
 of the run's meta-state; and the service protocols what they call of the
 engine's knowledge, reached as ``ctx.services.<name>`` instead of by
 module import: lineage, launch, secrets, files, commands, images, identity,

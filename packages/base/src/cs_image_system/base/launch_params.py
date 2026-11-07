@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""Launch parameterization (DESIGN N26; §3F2, §3M).
+"""Launch parameterization (DESIGN N26; DESIGN §3F2; DESIGN §3M).
 
 The image carries all tooling and policy (baked). Launch parameters carry
 only instance-specific bindings -- which storages to mount (and where), the
@@ -112,9 +112,9 @@ def will_replace(ctx: "RunContext", instance: Any) -> bool:
 
 
 def canonical_hostname(ctx: "RunContext", instance: Any) -> str:
-    """The name the machine is given at boot and enrolls in OPA under
-    (stage 55 step 4, operator decision 2026-09-21): the declared name plus
-    its generation, zero-padded to three digits -- ``coops-model-003``.
+    """The name the machine is given at boot and enrolls in OPA under: the
+    declared name plus its generation, zero-padded to three digits --
+    ``coops-model-003``.
 
     Two rules, in this order:
 
@@ -158,9 +158,10 @@ def effective_machine_type(instance: "Instance", rtb: Any) -> str:
 
 def resize_of(ctx: "RunContext", instance: "Instance") -> tuple[str, str] | None:
     """``(from, to)`` when a LAUNCHED instance's declaration names a different
-    machine type than its record -- the in-place change hygiene VIII item 2
-    allows. None when the instance is unlaunched, the type is unchanged, or
-    the record predates the key (then the key is adopted, not resized)."""
+    machine type than its record -- the one in-place change a launch record
+    allows (a resize). None when the instance is unlaunched, the type is
+    unchanged, or the record predates the key (then the key is adopted, not
+    resized)."""
     old = ctx.meta_state.launch_params().get(instance.get_name()) or {}
     if not old.get("launched") or not old.get("machine_type"):
         return None
@@ -208,13 +209,13 @@ def compute_launch_params(ctx: "RunContext", instance: "Instance") -> dict[str, 
     delivery = str(rtb.launch_delivery()) if rtb is not None and hasattr(rtb, "launch_delivery") else LAUNCH_DELIVERY_BOOT
     hostname = canonical_hostname(ctx, instance)
     from .alias_pool import alias_for   # lazy: alias_pool imports this module
-    alias = alias_for(ctx, instance, hostname)     # stage 59: a pool name, spent once, for a new machine
+    alias = alias_for(ctx, instance, hostname)     # a pool name, spent once, for a new machine
     machine_type = effective_machine_type(instance, rtb)
     return {
         "image": str(instance.image),
         "build": ctx.meta_state.instance_pin(instance.get_name()) or "unbound",
-        # hygiene VIII item 2: the type the machine booted on -- the ONE launch
-        # parameter that may change in place (a resize: the provider stops the
+        # the type the machine booted on -- the ONE launch parameter that may
+        # change in place (a resize: the provider stops the
         # machine, changes its type and starts it; the same machine, recorded
         # on the same generation). Present only when resolvable, so a record
         # from before the key existed is adopted, not refused.
@@ -224,13 +225,12 @@ def compute_launch_params(ctx: "RunContext", instance: "Instance") -> dict[str, 
         "mounts": mounts,
         "enrollment": enrollment,
         "session": session,
-        # stage 103 branch 2: how the script reaches the machine -- present
-        # only when it is not the platform's first boot, so every cloud
-        # record stays as it was
+        # how the script reaches the machine -- present only when it is not
+        # the platform's first boot, so every cloud record stays as it was
         **({"launch_delivery": delivery} if delivery != LAUNCH_DELIVERY_BOOT else {}),
         "hostname": hostname,
         **({"alias": alias} if alias else {}),
-        "ephemeral": bool(getattr(instance, "ephemeral", False)),   # stage 10.1
+        "ephemeral": bool(getattr(instance, "ephemeral", False)),
         # the instance's own startup lines (ledger 68): part of what the machine
         # booted with, hence immutable like every other launch parameter
         # (present only when declared, so records from before it stay comparable)
@@ -261,8 +261,8 @@ def user_data_template(params: dict[str, Any], ctx: "RunContext | None" = None) 
         "set -euo pipefail",
     ]
     if params.get("launch_delivery"):
-        # stage 103 branch 2: delivered through the session after the apply,
-        # to a machine the platform already named (a container's hostname is
+        # delivered through the session after the apply, to a machine the
+        # platform already named (a container's hostname is
         # set when it is created, and it has no hostnamectl to run)
         lines.append(f"# delivered by the runtime's session ({params['launch_delivery']}); the platform "
                      f"named the machine {params['hostname']}")
@@ -276,13 +276,13 @@ def user_data_template(params: dict[str, Any], ctx: "RunContext | None" = None) 
         # the mount's whole block -- header, device, mount, mark, the
         # group's subtree -- is the storage's; the core adds nothing to it
         lines += mount_script_lines(m, group, ctx)
-    # stage 75 step 2: the identity plugin that issued the enrollment renders
-    # its steps (the agent's address and the token, for the kind it registered); the
-    # core names no agent, and a kind nothing renders is refused
+    # the identity plugin that issued the enrollment renders its steps (the
+    # agent's address and the token, for the kind it registered); the core
+    # names no agent, and a kind nothing renders is refused
     kind = enrollment_kind_for(params)
     if kind is not None:
         lines += kind.script_lines(params)
-    # Completion marker (stage 11.1): the last act of the script under `set -e`,
+    # Completion marker: the last act of the script under `set -e`,
     # so its presence means every launch parameter above was applied. The
     # first cloud's verification reads it over the session mechanism; the
     # second's guest agent writes its own line.
@@ -341,8 +341,8 @@ def forget_decommissioned(ctx: "RunContext", lifecycle: Lifecycle) -> None:
     declared = {i.get_name() for i in ctx.instances}
     params, pins = ms.launch_params(), ms.instance_pins()
     for name in sorted((set(params) | set(pins)) - declared):
-        # Per-root scoping (stage 7): the destroy was planned in the root of
-        # the runtime the build was baked on (the decommission whitelist's
+        # Per-root scoping: the destroy was planned in the root of the
+        # runtime the build was baked on (the decommission whitelist's
         # rule); forget the record only when THAT root applied.
         build_id = pins.get(name) or (params.get(name) or {}).get("build")
         rec = ms.build(str(build_id)) if build_id else None
@@ -351,12 +351,12 @@ def forget_decommissioned(ctx: "RunContext", lifecycle: Lifecycle) -> None:
             continue
         log.info(f"Instance {name} is no longer declared and its destroy applied: "
                  "dropping its launch parameters and pin (decommission)")
-        # stage 60: the machine is gone -- its generation closes into the
-        # history with the launch parameters it booted with, BEFORE the
-        # launch record is forgotten
+        # the machine is gone -- its generation closes into the history with
+        # the launch parameters it booted with, BEFORE the launch record is
+        # forgotten
         generations.on_gone(ctx, name, why=generations.WHY_DECOMMISSION)
-        # stage 55: the OPA server registration is the THIRD record of the
-        # same launch, and the one that used to outlive the machine. Same
+        # the OPA server registration is the THIRD record of the same
+        # launch, and the one that used to outlive the machine. Same
         # hook, same guard -- and a failure to retire is reported, not
         # swallowed, because the whole point is that nothing silently leaves
         # a dead machine answering to a live name.
@@ -368,7 +368,7 @@ def forget_decommissioned(ctx: "RunContext", lifecycle: Lifecycle) -> None:
 def record_detachments(ctx: "RunContext", lifecycle: Lifecycle) -> None:
     """After the instance-image runner completed for real: a launched
     instance whose detach applied (its root was allowed to apply) is
-    re-recorded without the mount (stage 10.14)."""
+    re-recorded without the mount."""
     if lifecycle != Lifecycle.INSTANCE_IMAGE:
         return
     if not apply_enabled(ctx, "instances"):
@@ -394,8 +394,8 @@ def record_resizes(ctx: "RunContext", lifecycle: Lifecycle) -> None:
     """After the instance-image runner completed for real: a launched
     instance whose declaration named a different machine type was resized
     IN PLACE by the apply -- the provider stopped it, changed its type and
-    started it; the same machine (hygiene VIII item 2). Its record and its
-    open generation's snapshot take the new type, and the ledger's history
+    started it; the same machine. Its record and its open generation's
+    snapshot take the new type, and the ledger's history
     gains a ``resized`` event. Registered before record_detachments, which
     recomputes the record and would otherwise write the new type unnoticed."""
     if lifecycle != Lifecycle.INSTANCE_IMAGE:
@@ -417,8 +417,8 @@ def record_resizes(ctx: "RunContext", lifecycle: Lifecycle) -> None:
 def forget_ephemerals(ctx: "RunContext", lifecycle: Lifecycle) -> None:
     """After the instance-image runner completed for real, every declared
     EPHEMERAL instance whose root applied was verified and torn down by
-    its own sequence (stage 10.1): its launch parameters and pin are
-    forgotten; the verification record in verifications.yaml remains."""
+    its own sequence: its launch parameters and pin are forgotten; the
+    verification record in verifications.yaml remains."""
     if lifecycle != Lifecycle.INSTANCE_IMAGE:
         return
     if not apply_enabled(ctx, "instances"):
@@ -434,14 +434,14 @@ def forget_ephemerals(ctx: "RunContext", lifecycle: Lifecycle) -> None:
             continue
         name = inst.get_name()
         log.info(f"Ephemeral instance {name}: verified and torn down this run; forgetting its launch record")
-        # stage 60: it EXISTED -- it booted and enrolled -- so its generation
-        # closes into the history rather than vanishing with the record
+        # it EXISTED -- it booted and enrolled -- so its generation closes
+        # into the history rather than vanishing with the record
         generations.on_gone(ctx, name, why=generations.WHY_EPHEMERAL)
         ms.remove_launch_params(name)
         ms.remove_instance_pin(name, ctx.run_id, op="ephemeral")
-        # stage 11.3 `teardown` (ledger 68): the instance was torn down
-        # regardless, its records are now consistent with reality, and a
-        # failed verdict still fails the run -- from here, not from the script
+        # `teardown`: the instance was torn down regardless, its records are
+        # now consistent with reality, and a failed verdict still fails the
+        # run -- from here, not from the script
         policy, _ = failure_policy(ctx, inst)
         last = last_verification(ctx, name)
         if policy == ON_FAILURE_TEARDOWN and last is not None and not last.get("ok"):
@@ -464,8 +464,8 @@ def mark_launched(ctx: "RunContext", lifecycle: Lifecycle) -> None:
     pending = ms.pending_replacements()
     for name, params in ms.launch_params().items():
         inst = declared.get(name)
-        # Per-root scoping (stage 7): a declared instance is launched only
-        # when ITS root (builder name / runtime) was allowed to apply.
+        # Per-root scoping: a declared instance is launched only when ITS
+        # root (builder name / runtime) was allowed to apply.
         if inst is not None and not apply_enabled(ctx, "instances", str(inst.type_), [str(inst.runtime)]):
             continue
         if inst is not None:
@@ -473,18 +473,17 @@ def mark_launched(ctx: "RunContext", lifecycle: Lifecycle) -> None:
             params["launched"] = True
             params["launched_run"] = ctx.run_id
             ms.record_launch_params(name, params)
-            # stage 60: a machine now exists (or a sanctioned replacement
-            # just made a new one) -- open its generation, inferred; the
-            # observation pass confirms it against the provider's id
+            # a machine now exists (or a sanctioned replacement just made a
+            # new one) -- open its generation, inferred; the observation
+            # pass confirms it against the provider's id
             previous = ms.current_generation(name)
             generations.on_launched(ctx, name, params, replaced=name in pending)
-            # stage 55 meets stage 60: the machine this launch REPLACED
-            # answered to a different name (`<name>-NNN`, stage 55 step 4).
-            # Its registration is the third record of that machine, and the
-            # one that would outlive it -- and it would claim the bare alias
-            # stage 58 gives the new machine. Retire it now that the apply
-            # has destroyed the machine behind it. Found in review before the
-            # first live replacement (2026-09-22).
+            # the machine this launch REPLACED answered to a different name
+            # (`<name>-NNN`, its own generation). Its registration is the
+            # third record of that machine, and the one that would outlive it
+            # -- and it would claim the bare alias the new machine is given.
+            # Retire it now that the apply has destroyed the machine behind
+            # it.
             booted_as = str(((previous or {}).get("launch_params") or {}).get("hostname") or "")
             if booted_as and params.get("hostname") and booted_as != params.get("hostname"):
                 _retire_registration(ctx, name, {"group": params.get("group"), "hostname": booted_as})
@@ -497,8 +496,8 @@ def _comparable(params: dict[str, Any]) -> dict[str, Any]:
 
 def detachments(ctx: "RunContext", instance: Any) -> list[dict[str, Any]]:
     """Mounts recorded for a LAUNCHED instance that its declaration no
-    longer lists (stage 10.14): each is a detach the instance root plans,
-    after the unmount the runtime performs."""
+    longer lists: each is a detach the instance root plans, after the
+    unmount the runtime performs."""
     old = ctx.meta_state.launch_params().get(instance.get_name())
     if not old or not old.get("launched"):
         return []
@@ -527,17 +526,17 @@ def validate_immutability(ctx: "RunContext", requested: list[Lifecycle]) -> list
         if name in pending:
             continue
         if instance_follow_target(ctx, instance):
-            continue   # a policy-driven replacement (stage 9.5) is a replacement
+            continue   # a policy-driven replacement is a replacement
         new = compute_launch_params(ctx, instance)
         old_cmp, new_cmp = _comparable(old), _comparable(new)
-        # hygiene VIII item 2: the machine type may change in place (a resize
-        # -- the same machine, recorded by record_resizes after the apply),
+        # the machine type may change in place (a resize -- the same
+        # machine, recorded by record_resizes after the apply),
         # and a record from before the key existed adopts it; either way it
         # is not what immutability compares
         old_cmp.pop("machine_type", None)
         new_cmp.pop("machine_type", None)
-        # stage 10.14: a mount REMOVAL is the other in-place change allowed (a
-        # detach, unmounted first); everything else stays immutable
+        # a mount REMOVAL is the other in-place change allowed (a detach,
+        # unmounted first); everything else stays immutable
         removed = {str(m.get("storage")) for m in detachments(ctx, instance)}
         if removed and _without_mounts(old_cmp, removed) == new_cmp:
             continue
@@ -552,7 +551,7 @@ def validate_immutability(ctx: "RunContext", requested: list[Lifecycle]) -> list
 
 def _retire_registration(ctx: "RunContext", name: str, recorded: dict[str, Any]) -> None:
     """Retire every OPA registration of a decommissioned instance's canonical
-    hostname (stage 55 step 1). The recorded launch parameters say which
+    hostname. The recorded launch parameters say which
     group it enrolled under and which hostname it took; the group's builder
     owns the registry. A provider without one makes no claim."""
     group = str(recorded.get("group") or "")
@@ -571,7 +570,7 @@ def _retire_registration(ctx: "RunContext", name: str, recorded: dict[str, Any])
 
 
 def validate_claimed_hostnames(ctx: "RunContext", requested: list[Lifecycle]) -> list[str]:
-    """A canonical hostname is claimed once (stage 55 step 2). Before a run
+    """A canonical hostname is claimed once. Before a run
     that can LAUNCH, every declared instance's hostname is checked against
     the group's server registry: an unlaunched instance whose name is already
     registered would enroll a second server under it, and a launched one with
@@ -580,12 +579,12 @@ def validate_claimed_hostnames(ctx: "RunContext", requested: list[Lifecycle]) ->
 
     Two deliberate limits. It runs only when the instance-image lifecycle is
     requested AND applies are enabled AND the run is not a dry run, so a dry
-    run or an unrelated command never makes a network call (stage 63 item
-    10: until 2026-09-24 the dry-run flag was not read, so a dry run with
-    the apply flag on asked the registry and could refuse on silence). And an unreachable registry is a refusal
-    saying the claim COULD NOT BE CHECKED -- never "the name is free" (stage
-    57's rule: silence is not an answer), because an unreachable OPA is
-    exactly when a duplicate would otherwise slip through."""
+    run or an unrelated command never makes a network call (an older build
+    did not read the dry-run flag here, so a dry run with the apply flag on
+    asked the registry and could refuse on silence). And an unreachable
+    registry is a refusal saying the claim COULD NOT BE CHECKED -- never
+    "the name is free" (silence is not an answer), because an unreachable
+    OPA is exactly when a duplicate would otherwise slip through."""
     if Lifecycle.INSTANCE_IMAGE not in requested:
         return []
     if not apply_enabled(ctx, "instances") or getattr(ctx, "dry_run", False):

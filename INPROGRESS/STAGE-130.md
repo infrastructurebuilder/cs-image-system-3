@@ -115,13 +115,10 @@ commit on the bundle's branch.
     §125 (`contract.launch_vocabulary`, `contract.enrollment`); no
     plugin reaches them through the service, so the two members go
     and the adapter with them (found by §125).
-23. A ceiling test for the sources' narration tokens (the count of
-    "stage N", "hygiene X", "FNN" and dates under `packages/*/src`,
-    the Justfile, `pyproject.toml`, `tfmodules/`: 1,173 across 218
-    files on 2026-11-05, 106 of them written by §120 to §125) that
-    only falls, so no stage adds to what [§129](STAGE-129.md) will
-    remove; §129's grep-test grows out of it (found by the
-    re-evaluation of 2026-11-05).
+23. CLOSED by §129 (2026-11-07): the ceiling test it asked for landed
+    as `tests/test_sources_do_not_narrate.py`, which holds zero over
+    the sources, the tests, the modules, the Justfile, pyproject.toml
+    and the fixture's comments; nothing is left to do here.
 24. The bootstrap root (`base/bootstrap/generate.py`) renders its
     module calls from `module_source_base` alone: a `config:
     module_sources` entry for `bootstrap_aws`, `bootstrap_gcp` or
@@ -152,6 +149,16 @@ commit on the bundle's branch.
     as a child process, because it needs a context loaded under other
     overlays; loading that second context in-process (the loader is
     offline now) would retire the last spawn (found by §127).
+28. Narration the §129 rule does not reach: `.github/workflows/*.yml`
+    and `scripts/*` (36 stage, bundle and date tokens between them, not
+    in §129's list); "ledger NN" references (21 in the sources and
+    tests, a numbering the rule's pattern does not name); the fixture
+    value `instances.yaml: description: ... (stage 128; ...)`, a value
+    the golden holds; and the comments of the fixture's four
+    modification files (`setup_dask.yml` and its kin), which the
+    emission copies and hashes, so cleaning them is a golden
+    regeneration. Extend the rule's areas and pattern, regenerate the
+    golden once (found by §129).
 
 **Acceptance**: each item its own commit; `just test` green after
 each; one squash, branch kept. Records: the squash; this section goes

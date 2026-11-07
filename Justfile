@@ -9,7 +9,7 @@
 # release, and `just cli ...` against the reference configuration for the
 # system's own live proofs. The cycle recipes (the cloud cycle, the CI login
 # proof, the OPA client) live in a configuration repository's own Justfile,
-# which the release ships (stage 64); a team runs them from its own repository.
+# which the release ships; a team runs them from its own repository.
 
 # Bare `just` lists the recipes in file order: the contract first
 [private]
@@ -18,15 +18,14 @@ default:
 
 # ------------------------------------------------------------- the contract
 
-# The REFERENCE configuration (stage 28) is its own repository, checked out beside this one by
+# The REFERENCE configuration is its own repository, checked out beside this one by
 # default; CSIS_CONFIG_ROOT overrides. The tests never read it -- they own the frozen fixture
 # under tests/fixtures/config/ -- so `just test` needs no live configuration at all; every
-# recipe that drives one depends on config-guard. Since stage 64 it stands alone: its own
+# recipe that drives one depends on config-guard. It stands alone: its own
 # Justfile drives its cycles; the recipes here read it for the system's own proofs.
 config_root := env("CSIS_CONFIG_ROOT", justfile_directory() + "/../cs-image-system-testconfig")
 live_cli := "uv run cs-image-system --root-dir " + quote(config_root)
-# The branch a release is cut on: ONE branch, named here (stage 83's rule, after the walk's F31
-# cut a version on a walk branch). `main` since stage 107 (develop alone from stage 83 to 0.1.5):
+# The branch a release is cut on: ONE branch, named here, never a walk or feature branch. `main`:
 # develop is where work is done and main is where releases live. Before a release main takes
 # develop by fast-forward; the release commit and the tag land on main; develop takes main back
 # by fast-forward. A failed release leaves its evidence on main alone. A maintenance branch
@@ -35,8 +34,8 @@ live_cli := "uv run cs-image-system --root-dir " + quote(config_root)
 release_branch := "main"
 # Provider plugin cache: a provider downloaded once is reused by every `tofu init`; with a root's
 # kept .terraform.lock.hcl the init needs no network at all. The cache is not safe under concurrent
-# `init`, so one tofu process runs at a time by construction (stage 43): every invocation that may
-# EXECUTE tofu passes `--locked` (stage 64), which holds .tofu-plugin-cache/.lock and refuses a
+# `init`, so one tofu process runs at a time by construction: every invocation that may
+# EXECUTE tofu passes `--locked`, which holds .tofu-plugin-cache/.lock and refuses a
 # second holder with exit 75. Dry runs enumerate and never start tofu; the suite's one real-tofu
 # test uses a private cache and never contends.
 export TF_PLUGIN_CACHE_DIR := justfile_directory() / ".tofu-plugin-cache"
@@ -57,7 +56,7 @@ build:
 [doc("The fast suite, all blocking: lint (ruff), type-check (pyright), the unit tests; `verify` is its alias")]
 test: lint typecheck pytest
 
-# Everything `test` does plus the slow and external legs (stage 16): the
+# Everything `test` does plus the slow and external legs: the
 # modification tests under docker (`test-mods --strict`), and -- only when
 # `just preflight` finds every runtime session present -- a headless dry
 # `run --all` over a private copy of the fixture followed by
@@ -69,8 +68,8 @@ test: lint typecheck pytest
 full-test: test
 	@just full-test-legs
 
-# Cut a release (stage 41): the probes first -- the branch (`release_branch` alone, stage 83), the
-# index itself (stage 83: its upload endpoint and every project page answer, and no project
+# Cut a release: the probes first -- the branch (`release_branch` alone), the
+# index itself (its upload endpoint and every project page answer, and no project
 # holds the version), the index token, the tag -- then the bar, the index asked AGAIN (the
 # bar takes twenty minutes), the bump, the lock, the
 # build and the upload, and only then the commit and the tag, so a failed upload leaves
@@ -93,9 +92,8 @@ release target index="test" dry="no":
 		pypi) name=pypi ;;
 		*) echo "release: the index is test (TestPyPI, the default) or pypi, not '{{index}}'"; exit 2 ;;
 	esac
-	# stage 83 (the walk's F31: dev18 was cut, committed and tagged on a walk branch): every
-	# release, development or final, is cut on the one release branch (the operator's decision
-	# of 2026-10-17; `release_branch` above, main since stage 107) or on a maintenance branch.
+	# Every release, development or final, is cut on the one release branch (`release_branch`
+	# above) or on a maintenance branch.
 	# On the release branch develop must be an ancestor: a release never leaves a stage behind.
 	branch=$(git rev-parse --abbrev-ref HEAD)
 	case "$branch" in
@@ -114,7 +112,7 @@ release target index="test" dry="no":
 		bump=(bump "{{target}}")
 	fi
 	[[ "$new" =~ $shape ]] || { echo "release: $current is a final version and '{{target}}' would make it $new -- open the next version with patch, minor or major (its first development release), then dev for each further one"; exit 2; }
-	# stage 83: the index itself, first of the probes and again after the bar. 75 is "not now";
+	# The index itself, first of the probes and again after the bar. 75 is "not now";
 	# 1 is a version some project already holds (never re-cut)
 	ready() {
 		set +e; uv run --no-sync python scripts/publish-target-ready "{{index}}" --version "$new" --refuse-held --quiet; rc=$?; set -e
@@ -143,7 +141,7 @@ release target index="test" dry="no":
 	[ -z "$dirty" ] || { echo "release: the working tree must be clean -- commit these changes, or discard them (git restore, or git stash); the guard counts every tracked change and every file git does not ignore:"; echo "$dirty"; exit 1; }
 	if [ "$name" = pypi ]; then
 		# full-test's docker leg writes meta-state/mod-tests.yaml in the LIVE configuration (the evidence
-		# that the released modifications passed, stage 14): release commits it THERE
+		# that the released modifications passed): release commits it THERE
 		just full-test
 		[ -f "{{config_root}}/meta-state/mod-tests.yaml" ] || { echo "release: no modification-test evidence at {{config_root}}/meta-state/mod-tests.yaml (run full-test with docker)"; exit 1; }
 		cdirty=$(git -C "{{config_root}}" status --porcelain | grep -v ' meta-state/mod-tests.yaml$' || true)
@@ -151,12 +149,12 @@ release target index="test" dry="no":
 	else
 		just test
 	fi
-	# stage 83: the bar took twenty minutes; an index that went down meanwhile leaves a clean tree
+	# the bar takes twenty minutes; an index that went down meanwhile leaves a clean tree
 	ready
 	uv run --no-sync bump-my-version "${bump[@]}"
 	uv lock
 	# the upload comes BEFORE the commit and the tag: a failed upload leaves an uncommitted bump.
-	# Hygiene XIV item 1: what to do with it depends on whether any project already holds the
+	# What to do with it depends on whether any project already holds the
 	# version, counted by publish-dist from its own upload (the index's pages lag by minutes)
 	export CSIS_PUBLISH_SUMMARY; CSIS_PUBLISH_SUMMARY=$(mktemp "${TMPDIR:-/tmp}/csis-publish-summary.XXXXXX")
 	set +e; just publish {{index}}; prc=$?; set -e
@@ -183,9 +181,9 @@ release target index="test" dry="no":
 	[ "$branch" = "{{release_branch}}" ] && after="$after; then develop takes it back: git checkout develop && git merge --ff-only {{release_branch}} && git push origin develop"
 	echo "release: $new is on $name, committed and tagged v$new; push with: $after (CI checks the pushed tag against the index and uploads nothing already there)"
 
-# Finish a release whose upload `release` could not complete (hygiene XIV item 1): after it
+# Finish a release whose upload `release` could not complete: after it
 # stopped part-way and `just publish INDEX` was run again until every project held the version
-# -- a first PyPI release of many projects takes days (item 2). On `release_branch`, with the bump
+# -- a first PyPI release of many projects takes days. On `release_branch`, with the bump
 # uncommitted and nothing else changed, and only when the index holds the version for every
 # project: the modification-test evidence (on PyPI), the commit, the tag. Nothing is pushed.
 [doc("After a release's upload was completed by `just publish`: check every project holds the version, then commit and tag it")]
@@ -228,7 +226,7 @@ release-finish index="test":
 	[ "$branch" = "{{release_branch}}" ] && after="$after; then develop takes it back: git checkout develop && git merge --ff-only {{release_branch}} && git push origin develop"
 	echo "release-finish: $new is on $name for every project, committed and tagged v$new; push with: $after"
 
-# Hygiene XXI item 1: what a release needs and `full-test` only finds out twenty minutes in, asked
+# What a release needs and `full-test` only finds out twenty minutes in, asked
 # first and in one line each, before anything changes. For every index: the venv is in step with
 # the lock (`uv sync --all-extras --check`), because every recipe runs `uv run --no-sync` and a venv
 # behind the checkout answers with stale metadata. For a PyPI release also: docker answers (the
@@ -248,7 +246,7 @@ _release-probes index who="release":
 		echo "{{who}}: docker answers"
 		just config-guard >/dev/null 2>&1 || { echo "{{who}}: no live configuration at {{config_root}} (\`just config-guard\` says why) -- full-test's live legs need it -- nothing was changed"; exit 1; }
 		just preflight >/dev/null 2>&1 || { echo "{{who}}: a runtime session of the live configuration is absent or expired (\`just preflight\` says which) -- full-test's live legs would be skipped; log in -- nothing was changed"; exit 1; }
-		# hygiene XXII item 3: how long the soonest-expiring session has left; a login lasts one hour and the PyPI release took 58 minutes
+		# how long the soonest-expiring session has left; a login lasts one hour and a PyPI release takes nearly all of it
 		left=$(uv run --no-sync python scripts/session-minutes-left {{quote(config_root)}} 2>/dev/null || true)
 		if [ -z "$left" ]; then
 			echo "{{who}}: every runtime session of the live configuration is present"
@@ -262,9 +260,9 @@ _release-probes index who="release":
 		fi
 	fi
 
-# Build and upload the version in the tree (stage 41.6): `dist/` cleaned, every package
+# Build and upload the version in the tree: `dist/` cleaned, every package
 # built, every file uploaded to INDEX -- `test` (TestPyPI, the default) or `pypi` -- by
-# scripts/publish-dist, one project at a time (hygiene XIV), with the files the index
+# scripts/publish-dist, one project at a time, with the files the index
 # already holds with the same content skipped (the index's url is the check url), so a
 # re-run after a partial failure, or CI after a local publish, uploads what is missing and
 # nothing twice; when nothing was missing, one file is sent again to prove the token.
@@ -272,7 +270,7 @@ _release-probes index who="release":
 # repository secrets' names), from the environment and never here; the endpoints are the
 # `[[tool.uv.index]]` entries in pyproject.toml. A deleted version can
 # never be uploaded again, on either index: the next upload is a new version.
-# Stage 83: can the index take an upload now? One line per endpoint (the upload endpoint and every
+# Can the index take an upload now? One line per endpoint (the upload endpoint and every
 # project's page); exit 0 ready, 75 not ready. `wait` probes every minute until it is, two hours at most.
 index-ready index="test" wait="no":
 	@uv run --no-sync python scripts/publish-target-ready {{index}} {{ if wait == "wait" { "--wait 7200" } else { "" } }}
@@ -291,7 +289,7 @@ publish index="test":
 	export UV_PUBLISH_TOKEN="${UV_PUBLISH_TOKEN:-${!token_var:-}}"
 	[ -n "$UV_PUBLISH_TOKEN" ] || { echo "publish: neither UV_PUBLISH_TOKEN nor $token_var is set -- the API token for $name, from the environment; never in this file"; exit 2; }
 	version=$(uv run --no-sync bump-my-version show current_version)
-	# stage 83: the index first -- a partial upload of this version is what a re-run completes, so
+	# the index first -- a partial upload of this version is what a re-run completes, so
 	# a project that already holds it is reported, not refused
 	set +e; uv run --no-sync python scripts/publish-target-ready "{{index}}" --version "$version" --quiet; rc=$?; set -e
 	case $rc in
@@ -301,9 +299,9 @@ publish index="test":
 	esac
 	rm -rf dist
 	just build
-	# the two workspace-only plugins (`Private :: Do Not Upload`, stage 126) are built and never uploaded
+	# the two workspace-only plugins (`Private :: Do Not Upload`) are built and never uploaded
 	packages=$(grep -L 'Private :: Do Not Upload' packages/*/pyproject.toml | wc -l | tr -d ' ')
-	# hygiene XIV: one project at a time, sdist and wheel together, dependencies first and
+	# one project at a time, sdist and wheel together, dependencies first and
 	# cs-image-system last; a 429 is exit 75 with what is left; a failure shows its cause lines;
 	# when everything was already there, one file is sent again to prove the token
 	uv run --no-sync python scripts/publish-dist "{{index}}" --version "$version" --token-var "$token_var" ${CSIS_PUBLISH_SUMMARY:+--summary "$CSIS_PUBLISH_SUMMARY"}
@@ -311,14 +309,14 @@ publish index="test":
 
 # ------------------------------------------------------------ development
 
-# So a session that lapsed after the bar costs the legs again, not the bar (hygiene V item 2); the
+# So a session that lapsed after the bar costs the legs again, not the bar; the
 # session is checked once up front, and a leg that finds it gone mid-way still fails loudly.
 # The live legs of full-test alone: test-mods under docker, a dry run --all and a state query --strict over a private copy of the live configuration
 full-test-legs:
 	#!/usr/bin/env bash
 	set -uo pipefail
 	status=0
-	# stage 99: the starters' own install line resolves the newest development tag -- ours from
+	# the starters' own install line resolves the newest development tag -- ours from
 	# TestPyPI, nothing else from it (read-only; needs the network, not a session)
 	echo "full-test: a development pin resolves with the starters' install line (dev-pin-resolves)"
 	uv run --no-sync python scripts/dev-pin-resolves || { echo "full-test: FAILED dev-pin-resolves"; status=1; }
@@ -346,9 +344,9 @@ full-test-legs:
 		echo "full-test: SKIPPED the live-configuration legs (dry run --all, state query --strict) -- no live configuration at {{config_root}} (see: just config-guard)"
 	elif just preflight; then
 		copy=$(mktemp -d "${TMPDIR:-/tmp}/csis-full-test.XXXXXX")
-		# The reference configuration carries its own tfmodules (stage 64), so the copy needs nothing beside
+		# The reference configuration carries its own tfmodules, so the copy needs nothing beside
 		# it. Never carry its .git (a copy must not commit into the live repo), its generated trees, its mirror
-		# or its provider cache (hygiene XVI item 2: gigabytes, and the copy's inits use this Justfile's own).
+		# or its provider cache (gigabytes, and the copy's inits use this Justfile's own).
 		mkdir -p "$copy/cs-image-system-testconfig"
 		(cd "{{config_root}}" && tar --exclude=./.git --exclude=./generated --exclude=./_private --exclude=./.tofu-plugin-cache -cf - .) | tar -xf - -C "$copy/cs-image-system-testconfig"
 		echo "full-test: headless dry run --all over a private copy of the reference configuration ($copy)"
@@ -415,21 +413,21 @@ test-one *ARGS:
 test-mods *ARGS: config-guard
 	@{{live_cli}} test-mods {{ARGS}}
 
-# Stage 75: the posix accounts script on AlmaLinux 10 and Debian 12, under
+# The posix accounts script on AlmaLinux 10 and Debian 12, under
 # docker -- run twice, against an equal and a differing pre-existing group, a
 # member with no account yet, sudo through visudo. A leg of `full-test`; under
 # `just test` the same file is skipped.
 test-posix-accounts *ARGS:
 	@CSIS_CONTAINER_TESTS=1 uv run pytest tests/test_posix_containers.py {{ARGS}}
 
-# Stage 86: a bake's settle step and step runner on AlmaLinux 10 and Debian 12,
+# A bake's settle step and step runner on AlmaLinux 10 and Debian 12,
 # under docker, with the package database REALLY held by another process (rpm's
 # transaction lock, dpkg's frontend lock). A leg of `full-test`; under `just
 # test` the same file is skipped.
 test-bake-steps *ARGS:
 	@CSIS_CONTAINER_TESTS=1 uv run pytest tests/test_bake_steps_containers.py {{ARGS}}
 
-# Stage 103: the docker runtime's cycle on the local daemon -- a tree of nothing
+# The docker runtime's cycle on the local daemon -- a tree of nothing
 # but a docker runtime is written from the frozen fixture's pieces, its AlmaLinux
 # 10 and Debian 12 base images and a posix-owned instance image are BAKED
 # (packer's docker plugin, ansible through the daemon), the lineage and the
@@ -440,7 +438,7 @@ test-bake-steps *ARGS:
 test-docker-bake *ARGS:
 	@DOCKER_HOST="$(just docker-host)" CSIS_DOCKER_KEEP_HOST=1 CSIS_DOCKER_BAKE=1 uv run pytest tests/test_docker_bake_live.py {{ARGS}}
 
-# Stage 103 branch 2: the docker runtime's CHANGE CYCLE on the local daemon, from
+# The docker runtime's CHANGE CYCLE on the local daemon, from
 # nothing to nothing -- the bake above, then two containers launched on one
 # volume through tofu (kreuzwerker/docker), verified, their accounts reconciled;
 # one stopped and left stopped by the next apply, then started; one upgraded to
@@ -460,7 +458,7 @@ test-docker-cycle *ARGS:
 docker-host:
 	@if [ -n "${DOCKER_HOST:-}" ]; then printf '%s\n' "$DOCKER_HOST"; else docker context inspect --format '{{{{.Endpoints.docker.Host}}' 2>/dev/null || true; fi
 
-# Stage 103 branch 3: the cycle above against PODMAN'S API SERVICE instead of the
+# The cycle above against PODMAN'S API SERVICE instead of the
 # environment's docker daemon. CSIS_PODMAN_HOST is the DOCKER_HOST URL of a running
 # service (`podman system service`, a `podman machine`, or an ssh:// URL to a host
 # that has one); unset, the leg is SKIPPED, said so, and exits 0. The leg refuses to
@@ -476,7 +474,7 @@ test-podman-cycle *ARGS:
 	DOCKER_HOST="$CSIS_PODMAN_HOST" CSIS_DOCKER_KEEP_HOST=1 CSIS_PODMAN_CYCLE=1 CSIS_DOCKER_CYCLE=1 \
 		uv run pytest tests/test_docker_cycle_live.py tests/test_docker_starter_live.py {{ARGS}}
 
-# Stage 109: test-podman-cycle against PODMAN DESKTOP's machine on macOS. The address is
+# test-podman-cycle against PODMAN DESKTOP's machine on macOS. The address is
 # not typed: scripts/podman-machine-host reads it from `podman machine` (the one machine,
 # or the default of several; CSIS_PODMAN_MACHINE names one) and CSIS_PODMAN_HOST is set
 # to it for the run. The leg never creates, starts or stops the machine (the power state
@@ -497,7 +495,7 @@ test-podman-desktop-cycle *ARGS:
 		rm -f "$why"
 	fi
 
-# Stage 92: build the CI runner image (ci/runner-image: AlmaLinux 10, every tool pinned) for
+# Build the CI runner image (ci/runner-image: AlmaLinux 10, every tool pinned) for
 # amd64 and run its probe, which asks every tool its version from where cfg/executables.yml
 # pins it. A leg of `full-test`; the Runner image workflow builds and publishes the same.
 runner-image tag="csis-ci:alma10-local":
@@ -515,18 +513,18 @@ preflight: config-guard
 golden-regen:
 	@uv run python tests/golden.py
 
-# Public-safe by construction (stage 35): scan what a commit could publish -- tracked files and
+# Public-safe by construction: scan what a commit could publish -- tracked files and
 # untracked files that are not ignored -- for material that must never be public (keys, tokens,
 # PEM bodies, an age identity, plans and state by name; addresses and long tokens outside prose
 # and tests). The allow list is the frozen fixture's cfg/_config.yml public_safe.allow. CI runs it.
 public-safe *ARGS:
 	@uv run cs-image-system public-safe --tree . --config tests/fixtures/config/cfg/_config.yml {{ARGS}}
 
-# Build a publishable tree (stage 40): the TRACKED files of ROOT at HEAD (nothing ignored can enter),
+# Build a publishable tree: the TRACKED files of ROOT at HEAD (nothing ignored can enter),
 # a USER exclusion list (PUBLISH_EXCLUDE="path/one path/two", default none), the public-safe gate over
 # the result with the root's own allow list, the ignore policy checked line by line, then ONE commit on
 # main (PUBLISH_MESSAGE, default "Initial public release"). Refuses a dirty root, a finding, a missing
-# ignore line or an existing DEST. Never pushes: the remote is the operator's act (TODO §40.4).
+# ignore line or an existing DEST. Never pushes: the remote is the operator's act.
 publish-tree root dest:
 	#!/usr/bin/env bash
 	set -euo pipefail
@@ -544,7 +542,7 @@ publish-tree root dest:
 	git -C "$dest" init -q -b main
 	# the one commit carries the SOURCE repository's identity (git config reads its local values,
 	# then the global ones): a fresh `git init` knows only the global identity, and the first
-	# publication push was refused for exactly that (stage 43)
+	# publication push was refused for exactly that
 	name=$(git -C "$root" config user.name || true); email=$(git -C "$root" config user.email || true)
 	[ -z "$name" ] || git -C "$dest" config user.name "$name"
 	[ -z "$email" ] || git -C "$dest" config user.email "$email"
@@ -552,7 +550,7 @@ publish-tree root dest:
 	git -C "$dest" commit -q -m "${PUBLISH_MESSAGE:-Initial public release}"
 	echo "publish-tree: $(git -C "$dest" ls-files | wc -l | tr -d ' ') files, one commit on main at $dest"
 
-# Publish the template repositories (stage 66): for each starter, its repository
+# Publish the template repositories: for each starter, its repository
 # (`scripts/starter-tree --list`) takes the starter's tree at this release -- its committed files,
 # `.csis-version`, the generated README header, links out of the tree pointed at the tag -- as ONE
 # commit `cs-image-system <version>` on main and the tag `v<version>`, after the public-safe gate with
@@ -637,7 +635,7 @@ clean-venv:
 clean-all: clean clean-venv
 	@rm -f uv.lock
 
-# The system's live proof over the FROZEN FIXTURE (stage 64: what this repository's CI `live` job runs; the
+# The system's live proof over the FROZEN FIXTURE (what this repository's CI `live` job runs; the
 # reference configuration's own CI proves the live tree). With real sessions -- the fixture names the real
 # account's networks and project -- and the fixture's committed TEST identity: `validate --online` (the one
 # check that asks the clouds: each runtime's networking against its account, recorded in the fixture's

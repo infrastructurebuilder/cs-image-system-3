@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""Stage 125: the contract's version is its own.
+"""The contract's version is its own.
 
 ``cs-image-system-contract`` carries a semantic version independent of the
 workspace's (0.x until the operator decides otherwise): a bump of the

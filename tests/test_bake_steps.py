@@ -2,9 +2,9 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""Stage 86: a bake waits for the package database.
+"""A bake waits for the package database.
 
-Found walking the daily driver (stage 65, findings F28 and F29). The account's
+Found walking the daily driver. The account's
 Systems Manager acts on every new machine -- agent updates, a patch scan,
 inventory -- and held the package database while packer provisioned: `rpm`
 gave up at once ("can't create transaction lock") and the base bake with it,
@@ -17,6 +17,8 @@ which no base carries.
 The runner and the settle are exercised here as the shell they emit, with
 stand-ins for the machine; the same shell against a really held rpm and dpkg
 lock is `tests/test_bake_steps_containers.py` (a leg of `just full-test`).
+
+history: stage 86, from the walk's findings F28 and F29 (stage 65).
 """
 from __future__ import annotations
 
@@ -74,7 +76,7 @@ def test_a_step_that_meets_a_held_package_database_is_run_again(tmp_path: Path, 
 
 
 def test_a_step_that_fails_for_another_reason_fails_at_once(tmp_path: Path):
-    """The walk's OTHER failure (F28) must stay what it was: one run, its own
+    """The walk's OTHER failure (a missing package) must stay what it was: one run, its own
     exit status, no waiting."""
     count = tmp_path / "count"
     step = _step(tmp_path, f'echo x >> {count}\necho "package git is not installed" >&2\nexit 7\n')
@@ -340,7 +342,7 @@ STARTER_BASE_PACKAGES = {
 
 @pytest.mark.parametrize("starter", sorted(STARTER_BASE_PACKAGES))
 def test_a_starters_base_test_names_only_what_a_base_carries(starter: str):
-    """F28: the three starters asserted `git` on the base. A base takes no
+    """The three starters once asserted `git` on the base. A base takes no
     modifications and the vendor image has no git, so the first base bake of
     any tree made from them failed its own test; git is the IMAGE's, where
     the playbook installs it and the image's test checks it."""

@@ -53,7 +53,7 @@ from .capabilities import image_chain
 
 
 KNOWN_KEYS = {"files", "packages", "commands", "services_enabled", "users"}
-# stage 14: `tests.post_bake` is the same vocabulary plus `mounts`, run ON a
+# `tests.post_bake` is the same vocabulary plus `mounts`, run ON a
 # launched (ephemeral) instance over the runtime's session command by
 # `verify instance`, and recorded per build in meta-state/image-tests.yaml
 POST_BAKE_KEY = "post_bake"
@@ -138,7 +138,7 @@ def parse_post_bake_output(spec: dict[str, Any], output: str, *, os_type: type |
 
 def declared_test_commands(spec: dict[str, Any], *, services: bool = True,
                            os_type: type | None = None) -> list[str]:
-    """Shell assertions for a ``tests:`` map. ``services=False`` (stage 103:
+    """Shell assertions for a ``tests:`` map. ``services=False`` (for
     a bake on a container runtime, which has no init system) answers each
     ``services_enabled`` entry with a comment that the check does not apply
     there, instead of a ``systemctl`` that cannot run. ``os_type`` is the
@@ -149,7 +149,7 @@ def declared_test_commands(spec: dict[str, Any], *, services: bool = True,
     Every line must ABORT the script it is spliced into, not merely exit
     nonzero: these run as packer `inline` lines under `set -e`, and errexit
     does not fire for a command inside an AND-OR list. A line that ends in
-    `|| { ... }` is therefore unenforceable however false it is (stage 53)."""
+    `|| { ... }` is therefore unenforceable however false it is."""
     out: list[str] = []
     spec = spec or {}
     for f in spec.get("files", []) or []:
@@ -167,7 +167,7 @@ def declared_test_commands(spec: dict[str, Any], *, services: bool = True,
         # An `a || { b && c; }` cannot fail a bake, however false it is: POSIX
         # suppresses errexit for a command in an AND-OR list, so `set -e` never
         # fires and packer's shell provisioner carries on to the next line.
-        # Stage 19's first image baked green twice while asserting a package
+        # The first image ever baked went green twice while asserting a package
         # on a system that has no package by that name. The type's test must
         # therefore exit for itself -- and while it is doing that, say which
         # package (tests/test_v2_in_bake_tests_enforce.py holds it to both).
@@ -198,7 +198,7 @@ def _admin_verify(ctx: "RunContext", base: Any) -> list[str]:
         # match on the key body (second field), independent of comment/spacing
         marker = getattr(k, "marker", None)
         if marker:
-            # stage 49: the committed command carries the ciphertext, and the
+            # the committed command carries the ciphertext, and the
             # body is taken in the SHELL, after materialize has substituted the
             # key -- a body computed here would be plaintext in the emission.
             body_expr = f"$(echo {shlex.quote(marker)} | awk '{{print $2}}')"
@@ -219,7 +219,7 @@ def _runtime_of(builder: Any) -> str | None:
 
 def _has_init_system(ctx: "RunContext", runtime_name: str | None) -> bool:
     """Whether bakes on ``runtime_name`` have an init system to enable
-    services with: every runtime but a container one (stage 103)."""
+    services with: every runtime but a container one."""
     if not runtime_name:
         return True
     rtb = ctx.runtime_builders.get(str(runtime_name))

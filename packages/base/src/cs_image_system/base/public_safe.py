@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""Public-safe by construction (stage 35): one scanner behind the commit-time
+"""Public-safe by construction: one scanner behind the commit-time
 gate, ``just public-safe``, the plain pre-commit hook, and the meta-state and
 state-report writes.
 
@@ -46,7 +46,7 @@ import yaml
 REFUSED_PATHS = ("tfplan", "*.tfplan", "*.tfstate", "*.tfstate.*", "*.tfvars", "*.tfvars.json",
                  ".envrc", "*.pem", ".private_key.*", ".public_key.json")
 
-# The private mirror (stage 49): the materialised copy an execution runs from,
+# The private mirror: the materialised copy an execution runs from,
 # holding the plaintext of every value the emission carries as ciphertext.
 # Refused as a whole subtree, not by file name, because anything may be in it.
 PRIVATE_DIRNAME = "_private"
@@ -55,7 +55,7 @@ PRIVATE_DIRNAME = "_private"
 SOFT_EXEMPT = ("*.md", "docs/*", "tests/*.py", "*/tests/*.py", "test_*.py", "conftest.py")
 
 
-#: The one tfvars that IS committed (stage 70, decision D3): the bootstrap's
+#: The one tfvars that IS committed (a decision, see docs/CHANGES.md#s70): the bootstrap's
 #: answers as terraform input -- names, ids and branches, never a secret value
 #: (the secrets script keeps those in files). It is scanned like any file.
 COMMITTED_TFVARS = ("generated/bootstrap/bootstrap.auto.tfvars",)
@@ -98,7 +98,7 @@ _OWN_RULES: dict[str, Rule] = {
     "age-identity": _regex(rb"\bAGE-SECRET-KEY-1[A-Z0-9]{58}\b"),
     # an assignment with a literal value; `TF_VAR_x=$FROM_ENV` and `TF_VAR_x="${...}"` pass
     "tfvar-assignment": _regex(rb"\bTF_VAR_\w+=(?![\"']?\$)[^\s\"']{4,}"),
-    # the packer equivalent (stage 49): a run script may pass a materialised
+    # the packer equivalent: a run script may pass a materialised
     # value as PKR_VAR_x="$(...)", never as a literal
     "pkrvar-assignment": _regex(rb"\bPKR_VAR_\w+=(?![\"']?\$)[^\s\"']{4,}"),
 }
@@ -148,7 +148,7 @@ SOFT_RULES: dict[str, Rule] = {
 
 # Public by structure, blanked before any rule runs.
 STRUCTURAL_PUBLIC = [
-    re.compile(rb"ENC\[age:[A-Za-z0-9+/=]+\]"),                                  # ciphertext (stage 33)
+    re.compile(rb"ENC\[age:[A-Za-z0-9+/=]+\]"),                                  # ciphertext
     re.compile(rb"\bgit@[A-Za-z0-9.-]+\.[A-Za-z]{2,}:"),                            # an scp-style git URL is not a person
     re.compile(rb"\bage1[a-z0-9]{58}\b"),                                        # age public key
     re.compile(rb"\b(?:h1|zh):[A-Za-z0-9+/=]{40,}"),                             # .terraform.lock.hcl hashes
@@ -366,7 +366,7 @@ def _whole_token_matches(haystack: str, needle: str) -> bool:
 def scan_for_plaintexts(root: Path, plaintexts: Iterable[str],
                         subdirs: Sequence[str] = ("generated", "meta-state")) -> list[Finding]:
     """Every place a value the loader DECRYPTED appears in clear under
-    ``subdirs`` (stage 49).
+    ``subdirs``.
 
     This is the primary guard, and it does not guess: the system opened these
     markers itself, so it knows exactly what must not be in a committed file.

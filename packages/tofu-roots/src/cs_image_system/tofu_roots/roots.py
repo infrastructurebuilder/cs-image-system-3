@@ -40,7 +40,7 @@ def run_is_dry(builder: Any) -> bool:
     get_ctx = getattr(builder, "_get_context", None)
     try:
         ctx = get_ctx() if callable(get_ctx) else None
-    except (ValueError, RuntimeError):      # no context bound yet (stage 124: RuntimeError)
+    except (ValueError, RuntimeError):      # no context bound yet (the registry raises RuntimeError)
         return False
     return bool(getattr(ctx, "dry_run", False))
 
@@ -54,15 +54,15 @@ class TerraformRootMixin(_Base):
 
     def _context(self) -> Any:
         """The run context, through the builder's own accessor
-        (``_get_context``), never the singleton directly (hygiene XIX item 2):
-        a builder driven outside a run -- the plugins' unit tests, which stub
+        (``_get_context``), never the singleton directly: a builder driven
+        outside a run -- the plugins' unit tests, which stub
         the accessor with a bare object -- gets what the stub gives, and None
         when there is no accessor or the context refuses until a
         configuration is loaded. Every reach below reads it with a default."""
         get_ctx = getattr(self, "_get_context", None)
         try:
             return get_ctx() if callable(get_ctx) else None
-        except (ValueError, RuntimeError):      # no context bound yet (stage 124: RuntimeError)
+        except (ValueError, RuntimeError):      # no context bound yet (the registry raises RuntimeError)
             return None
 
     def _collector(self) -> TerraformCollector | None:
@@ -82,7 +82,7 @@ class TerraformRootMixin(_Base):
         return run_is_dry(self)
 
     def runtime_state_configuration(self) -> str | None:
-        """The runtime's own ``state_configuration`` (stage 46.2), the second
+        """The runtime's own ``state_configuration``, the second
         rung of the chain a root's backend resolves through: the root's own
         value when it names a backend, else its runtime's, else the default.
         None for a root without a runtime (the identity roots) or outside a run."""
@@ -106,8 +106,8 @@ class TerraformRootMixin(_Base):
         all stay off the bucket. A real run adds ``-backend-config=`` when a
         backend is registered for this workspace (the bare filename: tofu runs
         inside the phase directory) and ``-reconfigure``: a backend argument
-        may have changed since the root was last initialised (``encrypt``,
-        stage 39) and the state is remote, so there is nothing to migrate --
+        may have changed since the root was last initialised (``encrypt``)
+        and the state is remote, so there is nothing to migrate --
         without it tofu refuses with "Backend configuration changed"."""
         if run_is_dry(self):
             return ["init", "-backend=false"]
@@ -120,15 +120,15 @@ class TerraformRootMixin(_Base):
                                 arg_lists: Sequence[list[str]]) -> list[Any]:
         """Generation-time tofu commands that must read the PLAINTEXT emission.
 
-        The committed emission carries ``ENC[age:...]`` ciphertext (stage 49),
-        and since stage 51 a derived e-mail address carries it inside the
-        string (``first.last@ENC[...]``); ``fmt``, ``init`` and ``validate`` do
+        The committed emission carries ``ENC[age:...]`` ciphertext, and a
+        derived e-mail address carries it inside the string
+        (``first.last@ENC[...]``); ``fmt``, ``init`` and ``validate`` do
         not care, but a real run's generation-time ``plan`` does -- the Okta
         user lookups search by that address. So, exactly as the deferred
         runner does, the root is materialised into the private mirror,
         initialised THERE (providers are not mirrored) and the commands run
-        there. Found live 2026-09-22: the first real identity run after
-        stage 51 planned in ``generated/`` and every derived lookup failed.
+        there. Found live: the first real identity run with derived
+        addresses planned in ``generated/`` and every derived lookup failed.
         Without a configuration root to mirror under (the offline harness's
         bare context) the commands run where they always did."""
         ctx = self._context()
@@ -143,7 +143,7 @@ class TerraformRootMixin(_Base):
         return commands
 
     def _runner_init_args(self, phase: "ExecutionLifecyclePhase") -> list[str]:
-        """The ``init`` a committed runner script performs for itself (stage 38),
+        """The ``init`` a committed runner script performs for itself,
         always in the REAL-run form: ``-reconfigure`` because a dry run's
         generation-time init was backend-less and a fresh clone has no
         ``.terraform/`` at all, ``-backend-config=`` when a backend is
@@ -208,18 +208,17 @@ class TerraformRootMixin(_Base):
         addresses are forced replacements (an explicit upgrade); ``pre_plan``
         arg lists (e.g. ``state rm``) run before the plan; with
         ``pre_plan_backup`` the runner first pulls the state and keeps it
-        under the root's ``_private/state-backups/`` (stage 61 item 3: a
-        ``state rm`` the system decided on is preceded by the backup a hand
-        edit would take). The flag covers the ``pre_plan`` lines ALONE: with
-        no such line it takes no backup, whatever ``pre_commands`` carries. A
+        under the root's ``_private/state-backups/`` (a ``state rm`` the
+        system decided on is preceded by the backup a hand edit would
+        take). The flag covers the ``pre_plan`` lines ALONE: with no such
+        line it takes no backup, whatever ``pre_commands`` carries. A
         pre-command that removes state (the identity runner's prune step)
         takes its own backup, so a run never pulls state twice for one
-        removal and never backs up a run that removes nothing (stage 63
-        item 4, decided 2026-09-24). ``allow_destroy_from`` names files, in
-        the root, that one of the runner's own steps writes before the plan:
-        the addresses a declaration asks to have destroyed and that only the
-        state can name (stage 88: a membership the YAML dropped). The gate
-        matches them exactly.
+        removal and never backs up a run that removes nothing.
+        ``allow_destroy_from`` names files, in the root, that one of the
+        runner's own steps writes before the plan: the addresses a
+        declaration asks to have destroyed and that only the state can name
+        (a membership the YAML dropped). The gate matches them exactly.
         """
 
         ctx = self._context()
@@ -233,7 +232,7 @@ class TerraformRootMixin(_Base):
         commands.append(rm)
         tofu = self.get_executable_copy()
         tofu_bin = str(tofu.binary or tofu.name)
-        # Stage 46.4.3: a root whose state MOVES this run (`--migrate-state`)
+        # a root whose state MOVES this run (`--migrate-state`)
         # begins with the backup-and-check step, inits with -migrate-state
         # -force-copy instead of -reconfigure, plans with -detailed-exitcode
         # (a change stops the runner: the move is accepted only clean) and
@@ -257,12 +256,12 @@ class TerraformRootMixin(_Base):
                 ["state-migration", "backup", "--workspace", self.name, "--tofu", tofu_bin,
                  "--run", run_id], working_directory))
         commands.extend(self.terraform_commands(phase, list(pre_plan), working_directory))
-        commands.extend(pre_commands)               # e.g. the unmount before a detach (stage 10.14)
+        commands.extend(pre_commands)               # e.g. the unmount before a detach
         plan_args = ["plan", "-input=false", "-out=tfplan"]
         if migrating:
             plan_args.append("-detailed-exitcode")
         plan_args += [f"-replace={addr}" for addr in replace]
-        plan_args += list(plan_extra_args)          # e.g. -var=ephemeral_present=false (stage 10.1)
+        plan_args += list(plan_extra_args)          # e.g. -var=ephemeral_present=false
         commands.extend(self.terraform_commands(phase, [plan_args], working_directory))
         gate_args = ["gate-plan", "--planfile", "tfplan", "--tofu", tofu_bin]
         for addr in list(allow_destroy) + list(replace):
@@ -280,7 +279,7 @@ class TerraformRootMixin(_Base):
             # Re-checked at EXECUTION time: a runner script generated under
             # yesterday's flags must not apply under today's (finding 24).
             if apply_flag_key:
-                # Per-root scoping (stage 7): the root and its aliases (e.g. its
+                # Per-root scoping: the root and its aliases (e.g. its
                 # runtime) let a list-valued flag be re-checked for THIS root.
                 check = ["apply-check", "--lifecycle", apply_flag_key]
                 if apply_root:

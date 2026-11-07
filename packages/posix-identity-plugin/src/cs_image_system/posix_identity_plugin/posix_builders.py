@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""The posix identity plugin's builders (stage 75).
+"""The posix identity plugin's builders.
 
 The group builder's identity type is ``posix``, its gid policy
 ``config-time``: a group's ``gid:`` is declared, the configuration is the

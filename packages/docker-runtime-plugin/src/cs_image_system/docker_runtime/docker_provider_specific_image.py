@@ -7,7 +7,7 @@ from typing import Any
 
 from cs_image_system.contract.context import RunContextProtocol
 from cs_image_system.base.models.provider_specific_image import ProviderSpecificImage
-from cs_image_system.base.run_context import current_context   # a model holds no context (stage 124 shim)
+from cs_image_system.base.run_context import current_context   # a model holds no context; it fetches the current one
 from .docker_names import tag_name
 
 log = logging.getLogger(__name__)
@@ -29,7 +29,7 @@ class DockerProviderSpecificImage(ProviderSpecificImage):
         """``<repository>:<prefix as a tag>`` for a deferred image."""
         if not self.deferred_name_pattern:
             return None
-        ctx: RunContextProtocol = current_context()     # typed by the contract (stage 125); the fetch is the shim
+        ctx: RunContextProtocol = current_context()     # typed by the contract; a model holds no context of its own
         rtb = ctx.runtime_builders.get(self.runtime)
         model = getattr(rtb, "model", None)
         repo = model.get_repository() if model is not None and hasattr(model, "get_repository") else "csis"

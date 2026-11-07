@@ -40,7 +40,7 @@ def workload_describe_command(
     env: Annotated[bool, typer.Option("--env", help="Print shell exports (OPA_WORKLOAD_CONNECTION, "
                                                     "OPA_WORKLOAD_ROLE, SFT_TEAM, OPA_ADDR) for the first builder")] = False,
 ) -> None:
-    """Stage 56: what a workload login needs from the configuration -- the
+    """What a workload login needs from the configuration -- the
     team's workload connection and role as named on the group builder, the
     team and the API address. Nothing secret; empty when none is named.
     Its own group, not `identity`: that group is exempt from loading the
@@ -63,8 +63,7 @@ def workload_describe_command(
 def workload_token_command(typer_cntx: typer.Context) -> None:
     """This GitHub Actions run's OIDC token, presented to the team's workload
     connection; the OPA token it yields is the ONLY thing printed on standard
-    output (stage 56; a command since stage 64, replacing
-    scripts/opa-workload-token).
+    output.
 
     Both tokens are masked in the job log (`::add-mask::` lines on standard
     error, which the runner scans as it scans standard output), the OIDC
@@ -89,7 +88,7 @@ def _loaded(typer_cntx: typer.Context):
     """The configuration's context: loaded now through ``deferred_load``
     (which returns it -- the sub-command's context object predates the
     load), else the one the console script's callback already put in the
-    context object (stage 124: the context is passed, never fetched)."""
+    context object (the context is passed, never fetched)."""
     load = typer_cntx.obj.get("deferred_load")
     return load() if load is not None else typer_cntx.obj["ctx"]
 
@@ -115,7 +114,7 @@ def _workload_names(typer_cntx: typer.Context, env: dict[str, str], what: str):
 
 @workload_app.command(name="probe")
 def workload_probe_command(typer_cntx: typer.Context) -> None:
-    """The workload probe (hygiene XII item 14; `just opa-workload-probe`):
+    """The workload probe (`just opa-workload-probe`):
     present this run's OIDC token to the team's workload connection as
     `workload token` does, discard the token it issues, and say two
     things: `connection: accepted this run's token and issued one`, and

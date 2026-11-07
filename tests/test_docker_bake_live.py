@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""Stage 103, branch 1, the proof: the docker runtime BAKES on the local
+"""The proof: the docker runtime BAKES on the local
 daemon, from nothing to nothing. A tree of nothing but a docker runtime is
 written from the frozen fixture's pieces (the fixture itself does not
 change); its AlmaLinux 10 and Debian 12 base images and a posix-owned

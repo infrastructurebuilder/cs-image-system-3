@@ -2,14 +2,14 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""Stage 126: the umbrella's extras, and the table that names them.
+"""The umbrella's extras, and the table that names them.
 
 ``uv tool install cs-image-system`` carries no runtime; each provider is
 an extra. ``cs_image_system.extras`` (the umbrella's one module) is the static table from a
 ``type:`` word to the extra that installs the plugin registering it,
 written out so it answers when the plugin is absent. Three things hold it
 honest: the table regenerated from the installed workspace's registry is
-the same table (every registration carries its namespace since stage 131);
+the same table (every registration carries its namespace);
 the starters' ``Justfile`` maps the same words to the same extras in its
 ``extras`` recipe (the two tables are one); and ``validate`` on a tree
 declaring a word whose plugin is not installed prints one configuration

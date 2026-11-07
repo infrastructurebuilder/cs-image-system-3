@@ -27,7 +27,7 @@ def col():
 def s3_registration(name: str = "s3-east2", bucket: str = "my-bucket", region: str = "us-east-2",
                     key_prefix: str = "statefiles/csia/", encrypt: bool = True, use_lockfile: bool = True,
                     profile: str | None = "noaa", is_default: bool = True) -> BackendRegistration:
-    """An S3 registration as the S3 plugin builds one (stage 47: the collector
+    """An S3 registration as the S3 plugin builds one (the collector
     itself knows no S3 field; the kind renders the settings)."""
     from cs_image_system.tf_s3_state_plugin.tf_s3_state_models import S3_KIND
     return BackendRegistration(
@@ -207,7 +207,7 @@ def test_explicit_alias_overrides_derived(col):
     assert 'alias = "custom"' in "\n".join(col.generate_provider_blocks("ws"))
 
 
-# ------------------------------------------------------------- stage 46
+# ------------------------------------------------------ state locations
 
 def test_a_state_location_is_the_normalised_tuple():
     """The operator's table: A and B differ by bucket, C normalises to
@@ -309,7 +309,7 @@ def test_the_backend_record_carries_what_a_migration_needs(col, backend, monkeyp
 
 
 def test_a_registration_without_a_kind_cannot_render(col):
-    """stage 47: the collector names no field of any type; a registration is
+    """The collector names no field of any type; a registration is
     rendered by the kind its plugin supplies, and one without is refused
     the moment it is asked for a location."""
     bare = BackendRegistration(name="x", type="mystery", settings={"anything": 1})

@@ -2,8 +2,8 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""Preflight and sso-session profiles (hygiene V item 2, 2026-09-21), as
-the aws runtime plugin answers them (stage 121: the core names no runtime).
+"""Preflight and sso-session profiles, as the aws runtime plugin answers
+them (the core names no runtime).
 
 An sso-session profile's cache holds a ONE-HOUR access token and a refresh
 token the CLI renews it from silently while the portal session lives. Its
@@ -77,7 +77,7 @@ def test_an_sso_session_profile_without_a_refresh_token_is_still_read_literally(
 
 def test_a_refreshable_token_counts_as_present_for_readiness(tmp_path):
     """The reader said 'refreshes itself' and readiness still called it
-    absent, skipping the live legs (2026-09-21 20:55). Presence must follow
+    absent, skipping the live legs. Presence must follow
     the plugin's answer."""
     info = _info(_aws_dir(tmp_path, session=True, refresh=True, minutes=5))
     assert info.present and info.minutes_left(datetime.now(timezone.utc)) is None
@@ -87,11 +87,11 @@ def test_a_refreshable_token_counts_as_present_for_readiness(tmp_path):
     assert info.renew == "aws sso login --profile p"
 
 
-# hygiene XXII item 3: the release says how long the session it starts on has left. On 2026-11-02
+# the release says how long the session it starts on has left. In one evening
 # three logins each ended exactly an hour after they began and the CLI said "Token has expired
 # and refresh failed", so the release reads the cached access token's own expiry, refresh token or not.
 
-# the minutes are read over the LOADED configuration (stage 127: a load reaches no
+# the minutes are read over the LOADED configuration (a load reaches no
 # provider, so it needs no session): a copy of the fixture, whose aws runtimes and
 # s3 backends all name the profile `noaa`
 
@@ -154,7 +154,7 @@ def test_the_minutes_script_prints_whole_minutes_or_nothing(tmp_path, monkeypatc
     assert m.main(["session-minutes-left"]) == 2
 
 
-# hygiene XXIII item 1: a refresh token is not proof the session works. While the cached token has
+# a refresh token is not proof the session works. While the cached token has
 # not lapsed nothing is asked of the cloud; once it has, one read-only call decides.
 
 def test_a_valid_token_makes_no_call(tmp_path, monkeypatch):
@@ -165,14 +165,14 @@ def test_a_valid_token_makes_no_call(tmp_path, monkeypatch):
 
 
 def test_a_lapsed_token_whose_refresh_works_stays_present(tmp_path, monkeypatch):
-    """The 2026-09-21 case: the CLI could have carried it."""
+    """The refresh-works case: the CLI could have carried it."""
     monkeypatch.setattr(aws_session, "refresh_works", lambda profile, aws_dir_=None: True)
     exp, note = aws_session.sso_expiry("p", _aws_dir(tmp_path, session=True, refresh=True, minutes=-80))
     assert exp is None and "refreshes itself" in note
 
 
 def test_a_lapsed_token_whose_refresh_fails_is_expired_with_the_login_command(tmp_path, monkeypatch):
-    """The 2026-11-02 case: lapsed 80 minutes, `Token has expired and refresh failed`."""
+    """The refresh-fails case: lapsed 80 minutes, `Token has expired and refresh failed`."""
     monkeypatch.setattr(aws_session, "refresh_works", lambda profile, aws_dir_=None: False)
     d = _aws_dir(tmp_path, session=True, refresh=True, minutes=-80)
     exp, note = aws_session.sso_expiry("p", d)

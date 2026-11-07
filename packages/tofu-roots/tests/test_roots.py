@@ -94,10 +94,10 @@ def test_a_dry_run_initialises_without_the_backend(run, col):
 
 
 def test_the_runner_script_initialises_in_the_real_form_whatever_the_run_mode(run, col):
-    """Stage 38: a committed run script inits its own root -- with the backend,
+    """A committed run script inits its own root -- with the backend,
     reconfiguring (a dry run left a backend-less .terraform/, or a backend
-    argument such as `encrypt` changed since, stage 39) -- even when the run
-    that wrote it was dry."""
+    argument such as `encrypt` changed since) -- even when the run that
+    wrote it was dry."""
     assert _root_in_run(run, dry_run=True)._runner_init_args(_phase()) == ["init", "-input=false", "-reconfigure"]
     col.register_backend(_s3())
     col.set_backend("okta-tf-users", "s3-east2")

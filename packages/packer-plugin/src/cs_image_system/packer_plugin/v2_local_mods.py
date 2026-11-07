@@ -105,7 +105,7 @@ def stage_local_mods(ctx: "RunContextProtocol", image: Any, block_dir: Path,
                 continue
             shutil.copy2(found, d / found.name)
             files.append(found.name)
-        # stage 63: the guarded `ensure` lines come first, the order the bake ran
+        # the guarded `ensure` lines come first, the order the bake ran
         # them, so `csis-mods rerun` re-applies the declarative form too
         ensure = mod.ensure_lines() if callable(getattr(mod, "ensure_lines", None)) else []
         inline = list(ensure) + list(getattr(mod, "script", None) or [])

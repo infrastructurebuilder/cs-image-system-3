@@ -35,7 +35,7 @@ log = logging.getLogger(__name__)
 
 
 PACKER_PLUGIN_TYPE: str = "PackerPlugin"
-MANIFEST_FILENAME: str = PACKER_MANIFEST_FILENAME   # run-local (stage 48.6): never committed
+MANIFEST_FILENAME: str = PACKER_MANIFEST_FILENAME   # run-local: never committed
 
 
 def parse_packer_manifest(manifest_path: Path, rtb: Any = None) -> dict[str, str]:
@@ -86,7 +86,7 @@ class PackerImageBuilder(PackerImageBuilderBase[PackerImageBuilderModel]):
         event."""
         # the parent's call registers this builder's plugins and variables into
         # the PackerCollector; its own items are superseded by the per-block
-        # ones below (stage 63: the result was bound to a name and dropped)
+        # ones below (the result used to be bound to a name and dropped)
         super().generate_items_before(phase)
         items: AssetSet = AssetSet()
         if phase == ExecutionLifecyclePhase.IMAGE_GENERATION:
@@ -182,7 +182,7 @@ class PackerImageBuilder(PackerImageBuilderBase[PackerImageBuilderModel]):
                         items.add(build_path, "]")
                         # TODO Add mod targets
                         for image in block_list:
-                            # stage 86: before anything else the build machine
+                            # before anything else the build machine
                             # settles (its own first boot, the account's fleet
                             # management) and gets the step runner.
                             settle_osb = ctx.os_builders.get(image.get_name(), None)
@@ -204,7 +204,7 @@ class PackerImageBuilder(PackerImageBuilderBase[PackerImageBuilderModel]):
                                 else:
                                     items.extend(osb.generate_items_for_os_update(
                                         image, self, phase, build_path))
-                                # V2 (§3F1/N9): admin user, declared-type
+                                # DESIGN §3F1 and N9: admin user, declared-type
                                 # prerequisites (dormant) and the session agent.
                                 items.add_list(build_path, base_image_provisioners(
                                     ctx, image, self.get_packer_source_type(),
@@ -236,7 +236,7 @@ class PackerImageBuilder(PackerImageBuilderBase[PackerImageBuilderModel]):
                                 i = mbb.generate_items_after_modification(image, mod, self, phase, build_path)
                                 if i: items.extend(i)
                                 # TODO Add writing of provisioning playbook files in write_specific_files
-                            # V2 (§3F2): activation for the image's OWN owning
+                            # DESIGN §3F2: activation for the image's OWN owning
                             # group, after its modifications, overwriting the
                             # parent image's activation.
                             items.add_list(build_path, instance_image_provisioners(
@@ -257,7 +257,7 @@ class PackerImageBuilder(PackerImageBuilderBase[PackerImageBuilderModel]):
                                 self.model.get_runtime_provider(), None))
                             # for s in image_to_build_target(self.get_packer_source_type(), self, image):
                             #     items.append(Asset((build_path, s + "")))
-                        # stage 103: what else the runtime's packer plugin wants
+                        # what else the runtime's packer plugin wants
                         # in the build (the docker runtime tags its image)
                         rtb_pp = ctx.runtime_builders.get(self.model.get_runtime_provider())
                         if rtb_pp is not None:
@@ -281,7 +281,7 @@ class PackerImageBuilder(PackerImageBuilderBase[PackerImageBuilderModel]):
     def _manifest_paths(self, ctx: RunContextProtocol, phase: ExecutionLifecyclePhase,
                         block: Any) -> list[Path]:
         """Where packer may have written a block's manifest: the private
-        mirror it builds in (stage 49) first, then the generated root."""
+        mirror it builds in first, then the generated root."""
         block_dir = ctx.generation_path / self.get_block_directory_for_phase(phase, block=block)
         paths = [block_dir / MANIFEST_FILENAME]
         working = getattr(ctx, "working_path", None)
@@ -291,7 +291,7 @@ class PackerImageBuilder(PackerImageBuilderBase[PackerImageBuilderModel]):
 
     def pre_finalize_phase(self, phase: ExecutionLifecyclePhase) -> None:
         """Before this builder's packer builds run, remove every manifest an
-        earlier run left (hygiene X item 2). The private mirror is
+        earlier run left. The private mirror is
         incremental -- what the tools wrote there survives between runs -- and
         a block that fails writes no manifest, so without this an earlier
         run's artifacts would be read as this run's. Afterwards a manifest
@@ -319,14 +319,14 @@ class PackerImageBuilder(PackerImageBuilderBase[PackerImageBuilderModel]):
         self._record_built_images(phase)
 
     def post_failed_phase(self, phase: ExecutionLifecyclePhase) -> None:
-        """A packer build of the phase FAILED (hygiene X item 2): record the
-        builds that completed anyway. Packer writes a build into its block's
-        manifest only after the build -- its in-bake verification included --
+        """A packer build of the phase FAILED: record the builds that
+        completed anyway. Packer writes a build into its block's manifest
+        only after the build -- its in-bake verification included --
         succeeded, and :meth:`pre_finalize_phase` removed every earlier
         manifest, so what a manifest holds now is exactly what this run
-        built. Found live 2026-10-04: one block's SSH timeout discarded the
-        records of five builds that had succeeded in the block before it, and
-        the five AMIs stood unrecorded (foreign) until adopted by hand."""
+        built. Found live: one block's SSH timeout discarded the records of
+        five builds that had succeeded in the block before it, and the five
+        AMIs stood unrecorded (foreign) until adopted by hand."""
         if phase != ExecutionLifecyclePhase.IMAGE_GENERATION:
             return
         recorded = self._record_built_images(phase)
@@ -350,8 +350,8 @@ class PackerImageBuilder(PackerImageBuilderBase[PackerImageBuilderModel]):
         built: dict[str, str] = {}
         for block in blocks:
             # packer wrote the manifest where it BUILT: the private mirror
-            # (stage 49), falling back to the generated root for a build that
-            # predates the mirror or ran without one.
+            # falling back to the generated root for a build that predates
+            # the mirror or ran without one.
             candidates = self._manifest_paths(ctx, phase, block)
             manifest = next((p for p in candidates if p.is_file()), candidates[-1])
             for image_name, ami in parse_packer_manifest(manifest, rtb).items():
@@ -400,7 +400,7 @@ class PackerImageBuilder(PackerImageBuilderBase[PackerImageBuilderModel]):
         commands_final: list[ExecutableModel] = []
         if  phase == ExecutionLifecyclePhase.IMAGE_GENERATION:
             blocks, block_map = self.get_blocks()
-            # stage 103: what the runtime's tools need in their environment
+            # what the runtime's tools need in their environment
             # (the docker runtime's daemon address); the clouds add nothing
             rtb_env = self._get_context().runtime_builders.get(self.model.get_runtime_provider())
             tool_env = dict(rtb_env.tool_environment()) if rtb_env is not None else {}
@@ -682,7 +682,7 @@ class PackerImageBuilder(PackerImageBuilderBase[PackerImageBuilderModel]):
         #     log.error(err)
         #     raise ValueError(err)
 
-        self_rtc = irtsc      # stage 63: the same subconfig, fetched once
+        self_rtc = irtsc      # the same subconfig, fetched once
         final_name = self._final_name(ctx, self_rtc)
         if not final_name:
             raise ValueError(

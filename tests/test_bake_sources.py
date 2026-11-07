@@ -76,7 +76,7 @@ def test_the_image_query_never_rewrites_the_entrys_own_query(tmp_path: Path, mon
         entry = next(e for e in osb.get_configs_for_image_builders().values()
                      if e.get_image_builder() == "pckr-ebs-ans")
         before = _copy.deepcopy(dict(entry.query))
-        translate_image_query(entry.image_query())          # stage 106: the effective query is a new object
+        translate_image_query(entry.image_query())          # the effective query is a new object
         translate_image_query(entry.image_query())
         assert dict(entry.query) == before
     finally:

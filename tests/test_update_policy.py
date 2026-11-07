@@ -41,7 +41,7 @@ def test_security_policy_with_packages_and_exclude_on_rhel(v2):
     build = (v2.generated / BASE_BUILD).read_text()
     blk = _update_block(build, "basic-rh-10")
     assert "policy=security" in blk and "packages=['openssl']" in blk and "exclude=['kernel*']" in blk
-    assert "subscription-manager repos --enable='rhel-10-for-x86_64-baseos-rpms'" in blk   # EL10 since stage 13
+    assert "subscription-manager repos --enable='rhel-10-for-x86_64-baseos-rpms'" in blk   # EL10
     assert "sudo dnf -y update --security --exclude=kernel*" in blk
     # finding 42: the targeted-package update is guarded by check-update so
     # dnf5 (EL10) does not fail the bake when the package is already current
@@ -53,7 +53,7 @@ def test_security_policy_with_packages_and_exclude_on_rhel(v2):
 
 
 def test_auto_update_is_an_alias_for_full(tmp_path, monkeypatch):
-    # the shared fixture no longer uses auto_update (2026-08-31): mutate a copy
+    # the shared fixture does not use auto_update: mutate a copy
     root = copy_config(tmp_path)
     p = root / "cfg" / "os-builders.yml"
     d = yaml.safe_load(p.read_text())
@@ -73,7 +73,7 @@ def test_auto_update_is_an_alias_for_full(tmp_path, monkeypatch):
 def _assert_alias_full(build: str) -> None:
     blk = _update_block(build, "basic-rhel-9")
     assert "policy=full" in blk
-    # single upgrade pass with one RHUI retry (2026-08-31): update was a
+    # single upgrade pass with one RHUI retry: update was a
     # redundant alias of upgrade and RHUI cache flips need the second try
     assert "sudo dnf -y upgrade || { sudo dnf clean all; sudo dnf -y upgrade; }" in blk and "sudo dnf -y autoremove" in blk
     assert "rhel-9-for-x86_64-baseos-rpms" in blk
@@ -90,7 +90,7 @@ def test_apt_family_realizes_every_policy():
     assert any("security" in c and "--only-upgrade" in c for c in sec)
     assert sec[-1] == "sudo apt-mark unhold 'linux-image*'"
     pkgs = AptOsBuilderModel.commands_for_policy(m, UpdatePolicy.from_config({"policy": "packages", "packages": ["curl"], "pin": {"openssl": "3.0.2-0ubuntu1"}}))
-    # stage 63: every apt command waits for the dpkg lock
+    # every apt command waits for the dpkg lock
     assert "sudo apt-get -o DPkg::Lock::Timeout=600 install -y --only-upgrade curl" in pkgs
     assert ("sudo apt-get -o DPkg::Lock::Timeout=600 install -y --allow-downgrades 'openssl=3.0.2-0ubuntu1' "
             "&& sudo apt-mark hold 'openssl'") in pkgs

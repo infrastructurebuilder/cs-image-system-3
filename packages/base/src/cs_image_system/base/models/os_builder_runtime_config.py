@@ -7,7 +7,7 @@ import logging
 from dataclasses import field
 from cs_image_system.contract.model_config import CSIS_MODEL_CONFIG
 from pydantic import Field
-from pydantic.dataclasses import dataclass  # stage 23: validation at construction
+from pydantic.dataclasses import dataclass  # validation at construction
 from typing import Annotated, TYPE_CHECKING, Any, Mapping, Sequence
 
 
@@ -44,19 +44,19 @@ class OSBuilderBaseImageBuilderSubconfig(SubRootItem):
                                 "required": True,
                                 })
     description: str = " {{ image_builder.name }} runtime configuration for {{ this.name }}"
-    # stage 105: the declared PREFIX of the base image's build names on this
+    # the declared PREFIX of the base image's build names on this
     # runtime, over the OS builder's (a template: `this` is this entry,
-    # `this.parent` the OS builder at the string stage). Until this stage a
-    # computed property of the same name shadowed any declared value.
+    # `this.parent` the OS builder at the string stage). A computed property
+    # of the same name once shadowed any declared value.
     output_image_name: str | None = None
-    # stage 63: a fixed vendor image on this runtime; when set the vendor query
+    # a fixed vendor image on this runtime; when set the vendor query
     # is skipped and this image is looked up by id (the runtime's own identifier:
     # an image id on one cloud; on another the image name, searched in the
     # entry's owner projects)
     image_id: str | None = None
     auto_update: bool | None = None # None inherits the OS builder's auto_update
     default_machine_type: str | None = None # Only for image creation
-    # stage 63: the base image's bake disk on this runtime, when declared;
+    # the base image's bake disk on this runtime, when declared;
     # unset, the OS builder's default_primary_disk_size (a runtime's own
     # default_disk_size still wins, finding 51)
     default_primary_disk_size: int | None = None
@@ -102,7 +102,7 @@ class OSBuilderBaseImageBuilderSubconfig(SubRootItem):
     def get_type(self) -> str:
         return self.image_builder
     def get_config(self) -> dict[str, Any]:
-        # stage 63: the entry's own free-form mapping (it answered {} always)
+        # the entry's own free-form mapping (it used to answer {} always)
         return dict(self.config or {})
     def get_description(self) -> str | None:
         return self.description
@@ -151,7 +151,7 @@ class OSBuilderBaseImageBuilderSubconfig(SubRootItem):
         # Ensure the model_id is set to the associated OS builder's name for proper association in the registry
         if self._model_id is None:
             raise ValueError(f"Model ID must be set for OSRuntimeConfigModel {self.name} prior to finalization.")
-        # stage 63 item 22: this method used to fill ssh_username from
+        # this method used to fill ssh_username from
         # config_username, then from the runtime's default_config_username
         # (looked up by the wrong key), and refuse when neither answered; it
         # had no caller. The bake user is now decided in ONE place,
@@ -199,13 +199,13 @@ class OSBuilderBaseImageBuilderSubconfig(SubRootItem):
     def runtime_type(self) -> str | None:
         """The TYPE of the runtime this entry bakes on (the runtime model's
         ``type``, each plugin's own word): the image-source catalog's key for
-        it (stage 106)."""
+        it."""
         _rt = self._runtime_model()
         return str(_rt.get_type()) if _rt is not None else None
 
     def image_query(self) -> ImageQuery:
-        """The effective vendor-image query, in the system's vocabulary
-        (stage 106): the catalog's block for this runtime's type (the
+        """The effective vendor-image query, in the system's vocabulary:
+        the catalog's block for this runtime's type (the
         release's layer under the tree's), the OS builder's own ``query``
         landing on it, this entry's landing on that, key by key; the
         publishers declared anywhere (the OS builder's ``owners``, the

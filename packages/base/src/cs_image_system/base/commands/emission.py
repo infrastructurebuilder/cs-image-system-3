@@ -2,9 +2,9 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""Is the committed emission current? (stage 45; commands of the CLI since
-stage 64 item 2, where ``scripts/normalise-emission`` and the two Justfile
-recipes that used it became ``config-drift`` and ``runtime-unchanged``.)
+"""Is the committed emission current? (Commands of the CLI: what
+``scripts/normalise-emission`` and the two Justfile recipes that used it once
+did is now ``config-drift`` and ``runtime-unchanged``.)
 
 ``normalise_emission`` edits a COPY of an emitted tree so two runs of the
 same configuration compare equal: tool residue and the run-local files are
@@ -12,14 +12,14 @@ removed; run ids and the run's date stamp in image names (the configured
 dateformat ``%Y%m%d_%H%M%S``, or the hyphenated form -- an image that is DUE
 for a bake carries the run's stamp until it is baked) become placeholders.
 The runner scripts lose the two lines only an applying run emits per root
-(``apply-check`` and ``tofu apply``; hygiene VIII item 4). Nothing else
-legitimately differs: since stage 38 the emission names no absolute path,
-so a machine's path appearing here IS drift.
+(``apply-check`` and ``tofu apply``). Nothing else legitimately differs:
+the emission names no absolute path, so a machine's path appearing here IS
+drift.
 
 ``config_drift`` runs a headless dry ``run --all`` over a private copy of the
 configuration and compares its ``generated/`` with the one committed at HEAD,
-saying as it goes what it is doing and how long each part took (hygiene XVI
-item 1: it was silent for minutes and looked stuck).
+saying as it goes what it is doing and how long each part took (silent, it
+ran for minutes and looked stuck).
 ``runtime_unchanged`` compares one runtime's emission directories in the
 working tree with the same paths at a ref, which is how CI knows a
 declaration changed on a runtime it must never bake on.
@@ -56,14 +56,14 @@ log = logging.getLogger(__name__)
 
 # names pruned wherever they are, and path suffixes pruned
 RESIDUE_NAMES: tuple[str, ...] = (".terraform", ".terraform.lock.hcl", "tfplan", "temp_assets",
-                                  "csis-sanctioned-removals.txt",        # hygiene XII item 24: a runner's step's, never the emission's
+                                  "csis-sanctioned-removals.txt",        # a runner's step's, never the emission's
                                   *RUN_LOCAL_FILENAMES)
 RESIDUE_SUFFIXES: tuple[str, ...] = ("release/release", "retention/retention")
 RUN_ID = re.compile(rb"[0-9]{4}_[0-9]{2}_[0-9]{2}t[0-9]{2}_[0-9]{2}_[0-9]{2}_[0-9]{6}")
 STAMP = re.compile(rb"[0-9]{8}[-_][0-9]{6}")
 RUN_PLACEHOLDER = b"<RUN>"
 STAMP_PLACEHOLDER = b"<STAMP>"
-# hygiene VIII item 4: an APPLYING run (--apply-runtime) emits, per root, an
+# an APPLYING run (--apply-runtime) emits, per root, an
 # apply-check line and a `tofu apply` line that a resting generation does not,
 # and commits the script it executed. They are a function of the invocation,
 # not of the configuration, so the comparison drops them from the runner
@@ -78,10 +78,10 @@ def _is_runner_script(path: Path) -> bool:
 DryRun = Callable[[Path], None]
 Progress = Callable[[str], None]
 
-#: hygiene XVI item 2: the provider cache a starter's Justfile keeps inside the
-#: tree (``TF_PLUGIN_CACHE_DIR``) holds every provider version the tree ever
-#: fetched -- 5.7 GB in the reference configuration on 2026-10-27, when the copy
-#: filled the disk. The copy's dry run never reads it: the child process inherits
+#: the provider cache a starter's Justfile keeps inside the tree
+#: (``TF_PLUGIN_CACHE_DIR``) holds every provider version the tree ever
+#: fetched -- 5.7 GB in the reference configuration the day the copy filled
+#: the disk. The copy's dry run never reads it: the child process inherits
 #: ``TF_PLUGIN_CACHE_DIR``, which still names the original tree's cache.
 PROVIDER_CACHE = ".tofu-plugin-cache"
 LEFT_OUT_OF_THE_COPY: tuple[str, ...] = (".git", "generated", "_private", ".DS_Store", PROVIDER_CACHE)
@@ -260,7 +260,7 @@ def copy_tree_for_a_dry_run(root: Path, work: Path) -> Path:
     starter name, ``.tofu-plugin-cache``, and as ``TF_PLUGIN_CACHE_DIR`` names
     it when that lies inside the tree). A relative ``module_source_base``
     that escapes the tree (the reference configuration reached the system's
-    modules that way until stage 64) is copied beside it at the same relative
+    modules that way once) is copied beside it at the same relative
     place, so the dry run's ``tofu init`` still finds the modules."""
     base = _module_source_base(root)
     beside: list[str] = [s for s in [base, *_module_sources_outside(root)] if s and _is_local_relative(s)]
@@ -323,7 +323,7 @@ def config_drift(root: Path, *, dry_run: DryRun | None = None,
     BEHIND the configuration, 2 when nothing is committed under ``generated/``
     or the dry run itself fails. ``dry_run`` defaults to the subprocess form
     at call time (a test replaces it on the module). ``progress`` hears what
-    it is doing as it goes, each part with its time (hygiene XVI item 1)."""
+    it is doing as it goes, each part with its time."""
     say: Progress = progress or (lambda _line: None)
     dry_run = dry_run or partial(subprocess_dry_run, progress=say)
     root = Path(root).resolve()
@@ -355,7 +355,7 @@ def config_drift(root: Path, *, dry_run: DryRun | None = None,
             return 0, ["config-drift: the committed emission is current with the configuration"]
         moved = vendor_image_moves(lines)
         if moved:
-            # hygiene XII item 27 (the walk's F55): the emission of a base that has
+            # the emission of a base that has
             # no build yet names the vendor's newest image as the day's generation
             # resolved it; when the vendor publishes again the committed emission is
             # behind by that one line, with no change by anyone, and the scheduled
@@ -376,7 +376,7 @@ def vendor_image_moves(lines: list[str]) -> list[str]:
     and every changed line names the vendor's image, the moves (``file: old ->
     new``); else an empty list, and the diff is the tree's own. A diff
     ``diff_trees`` cut short is never a move: what it left out may be
-    anything (hygiene XVII item 1)."""
+    anything."""
     moves: list[str] = []
     current: str | None = None
     olds: list[str] = []
@@ -414,7 +414,7 @@ def runtime_unchanged(ctx: "GlobalTypeContext", runtime: str, ref: str = "HEAD")
     """0 when the runtime's emission directories (``runtime describe`` ->
     ``emission``) in the working tree equal the same paths at ``ref`` once
     normalised, or differ only by the vendor's newest image under a base not
-    yet baked (said, with the moves; hygiene XVII item 1), 1 with the diff
+    yet baked (said, with the moves), 1 with the diff
     when a declaration of that runtime changed, 2 when the emission
     directories cannot be read. Needs the configuration loaded."""
     root = Path(ctx.working_path).resolve()
@@ -441,8 +441,8 @@ def runtime_unchanged(ctx: "GlobalTypeContext", runtime: str, ref: str = "HEAD")
             return 0, [f"runtime-unchanged: the emission of {runtime} is unchanged since {ref} ({' '.join(dirs)})"]
         moved = vendor_image_moves(lines)
         if moved:
-            # hygiene XVII item 1: the vendor publishing under a base with no build yet is
-            # no declaration of the runtime's -- config-drift's reading (hygiene XII item 27);
+            # the vendor publishing under a base with no build yet is
+            # no declaration of the runtime's -- config-drift's reading;
             # nothing is there to apply by hand, and the guard failed perform for it
             return 0, [f"runtime-unchanged: the emission of {runtime} is unchanged since {ref} ({' '.join(dirs)}), "
                        f"but the vendor's newest image moved under a base this tree has not baked "

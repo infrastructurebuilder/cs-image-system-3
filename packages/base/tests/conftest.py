@@ -5,7 +5,7 @@
 """Shared fixtures for base-package tests.
 
 `TemplateResolver` is a process-wide singleton; the registry is one per run
-since stage 124 (the loader makes it), and what a model or a builder without
+(the loader makes it), and what a model or a builder without
 a bound context reads is the process's current one. `clean_registry` binds a
 fresh, empty registry as the current one for the test and restores the
 previous binding afterward so unit tests don't leak into each other (or

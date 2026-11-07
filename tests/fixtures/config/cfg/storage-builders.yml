@@ -11,8 +11,8 @@ storage_builders:
     type: tf-aws-efs
     executable: open-tofu-1
     runtime: aws-east2-runtime # Refers to the runtime builder named aws-east2-runtime
-    state_configuration: s3-east1   # stage 46: the storage roots keep their state in the second backend
-    # stage 26: inputs to the module call (tfmodules/aws_storage_efs/variables.tf), typed --
+    state_configuration: s3-east1   # the storage roots keep their state in the second backend
+    # inputs to the module call (tfmodules/aws_storage_efs/variables.tf), typed --
     # `performance-mode` (the old spelling) is refused; both values equal the module defaults
     variables:
       performance_mode: generalPurpose
@@ -25,11 +25,11 @@ storage_builders:
     executable: open-tofu-1
     is_default: true
     runtime: aws-east2-runtime # Refers to the runtime builder named aws-east2-runtime  
-    state_configuration: s3-east1   # stage 46: the storage roots keep their state in the second backend
-    # stage 26: `size` is the builder's own field (GB); the rest are inputs to the module
+    state_configuration: s3-east1   # the storage roots keep their state in the second backend
+    # `size` is the builder's own field (GB); the rest are inputs to the module
     # call (tfmodules/aws_storage_ebs/variables.tf). Declared to MATCH the live mnt_data
-    # volume (gp3, 100 GB; operator decision 2026-09-13, snapshot snap-08b1ebbccfbdd7570
-    # taken first) -- the pre-stage-25 gp2/8 GB would have forced its replacement
+    # volume (gp3, 100 GB; operator decision, snapshot snap-08b1ebbccfbdd7570
+    # taken first) -- the earlier gp2/8 GB would have forced its replacement
     size: 100
     variables:
       volume_type: gp3
@@ -41,30 +41,30 @@ storage_builders:
     type: tf-aws-s3
     executable: open-tofu-1
     runtime: aws-east2-runtime # Refers to the runtime builder named aws-east2-runtime  
-    state_configuration: s3-east1   # stage 46: the storage roots keep their state in the second backend
+    state_configuration: s3-east1   # the storage roots keep their state in the second backend
     bucket_name: noscsb-csis-test-514190660293-default-bucket
-    # stage 26: builder-wide default tags (tfmodules/aws_storage_s3/variables.tf); a
+    # builder-wide default tags (tfmodules/aws_storage_s3/variables.tf); a
     # storage item's own tags win key by key
     variables:
       tags:
         Project: MyProject
         Environment: Development
-  # GCP readiness (2026-09-02): pd + gcs only -- Filestore is excluded by
+  # GCP readiness: pd + gcs only -- Filestore is excluded by
   # user decision (1 TiB minimum; file.googleapis.com stays un-enabled)
   - name: gcp-pd
     type: tf-gcp-pd
     executable: open-tofu-1
     runtime: gcloud-east1
-    state_configuration: s3-east1   # stage 46: the storage roots keep their state in the second backend
+    state_configuration: s3-east1   # the storage roots keep their state in the second backend
     size: 30 # the entire Always-Free standard-PD allotment
     disk_type: pd-standard # the free tier is standard only (pd-balanced bills)
   - name: gcp-gcs
     type: tf-gcp-gcs
     executable: open-tofu-1
     runtime: gcloud-east1
-    state_configuration: s3-east1   # stage 46: the storage roots keep their state in the second backend
+    state_configuration: s3-east1   # the storage roots keep their state in the second backend
     bucket_name: csis-sandbox-86233086783-default-bucket
-  # Stage 128 (item 4): named docker volumes on the fixture's docker runtime,
+  # Named docker volumes on the fixture's docker runtime,
   # mounted by the platform; the root inherits the runtime's backend (local-dev)
   - name: docker-volume
     type: tf-docker-volume

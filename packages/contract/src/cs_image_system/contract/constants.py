@@ -2,8 +2,8 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""The constants a plugin declares its models with (stage 30: moved here
-from ``cs_image_system.base.constants``, which re-exports them): the
+"""The constants a plugin declares its models with (moved here from
+``cs_image_system.base.constants``, which re-exports them): the
 sentinels that mean "not set", the classification enum ``VCT``, the field
 metadata keys the field helpers stamp, the entry-point groups, the
 collection names and the file names a run writes."""
@@ -20,7 +20,7 @@ ALL: str = "ALL" # ALL CAPS 'ALL' is a magic value that means "all groups, every
 SELF = "self"
 NONE = "none"
 # The words that mean "not set" wherever a value is read, so nothing may be NAMED
-# after one of them (stage 76). A field that gives one of them a meaning of its own
+# after one of them. A field that gives one of them a meaning of its own
 # (the update policy's `none`, `--only none`) tests for it by name, never through
 # this list.
 OOPS_DEFAULTS: list[str | None] = [DEFAULT, None, "", SELF, NONE]
@@ -70,16 +70,16 @@ DEFAULT_GITIGNORE_ENTRIES = [
     "terraform.tfstate",
     "terraform.tfstate.backup",
     "!.terraform.lock.hcl",
-    # hygiene XII item 24 (the walk's F52): the identity runner's list of sanctioned
+    # the identity runner's list of sanctioned
     # membership removals belongs beside the plan, in the private mirror; wherever a
     # copy lands under generated/, it is never staged (it names a person)
     "csis-sanctioned-removals.txt",
 ]
-# stage 49: the private mirror, beside generated/ under the configuration root.
+# the private mirror, beside generated/ under the configuration root.
 # It holds the plaintext of every value the emission carries as ciphertext, so
 # it is never committed: ignored here, refused by path, skipped by the scanner.
 PRIVATE_DIRNAME = "_private"
-# stage 43: the run-local files a run writes at the top of generated/ and never
+# the run-local files a run writes at the top of generated/ and never
 # commits -- the emitted root .gitignore names them, the run's commit excludes
 # them and drops them from the index where an older tree tracked them (the
 # strict state query rewrites the report outside any run, so a tracked copy
@@ -87,7 +87,7 @@ PRIVATE_DIRNAME = "_private"
 RUN_SUMMARY_FILENAME = "run-summary.json"
 STATE_REPORT_FILENAME = "state-report.json"
 PACKER_MANIFEST_FILENAME: str = "manifest.json"   # packer's post-processor output, read for the build's artifact id
-# Run-local (stage 43, 48.6): what a run writes for itself and never commits -- the summary,
+# Run-local: what a run writes for itself and never commits -- the summary,
 # the state report and packer's manifest (its artifact ids are recorded in lineage; the
 # file itself landed in the record once and is noise there). Ignored under generated/.
 RUN_LOCAL_FILENAMES: tuple[str, ...] = (RUN_SUMMARY_FILENAME, STATE_REPORT_FILENAME, PACKER_MANIFEST_FILENAME)
@@ -201,7 +201,7 @@ class ComplianceState(Enum):
     UNACCEPTABLE = "unacceptable"
 
 # The system's own command, as the emitted runner scripts and the in-process
-# callbacks name it (stage 64 / hygiene VII item 2: a committed script names
+# callbacks name it (a committed script names
 # the bare command, which must be on PATH; a step the running process spawns
 # itself resolves to the running interpreter's own module instead).
 SYSTEM_CLI: str = "cs-image-system"

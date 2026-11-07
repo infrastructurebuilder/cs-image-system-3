@@ -96,7 +96,7 @@ def _refuse_spawning_the_system(monkeypatch) -> None:
 # ------------------------------------------------------------ the seam
 
 def test_with_no_runner_registered_the_executor_spawns_the_running_interpreters_module(tmp_path, monkeypatch):
-    """The hygiene VII pin, through the executor: a bare process (no system
+    """The bare-process pin, through the executor: a bare process (no system
     package imported, an embedding without the CLI) spawns as before."""
     from cs_image_system.base.utils import system_cli_executable
     monkeypatch.setattr(in_process, "_RUNNER", None)

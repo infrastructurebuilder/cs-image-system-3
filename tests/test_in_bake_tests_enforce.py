@@ -2,13 +2,13 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""Stage 53: an in-bake assertion must be able to STOP the bake.
+"""An in-bake assertion must be able to STOP the bake.
 
 The assertions are spliced into a packer shell provisioner as `inline` lines
 behind a leading `set -e`, so "exits nonzero on failure" is not enough: POSIX
 suppresses errexit for a command that is part of an AND-OR list, and a line
 ending in `|| { ... }` therefore cannot fail a build however false it is.
-Stage 19's first image baked green twice while asserting `rpm -q vim` on
+The first live image baked green twice while asserting `rpm -q vim` on
 AlmaLinux 10, which has no package of that name, and an instance launched from
 that AMI then failed the same check.
 

@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 """The starter configuration repositories a release carries, and
-``init-config``, which writes one out (stage 64 item 1).
+``init-config``, which writes one out.
 
 A team installs a release and owns a configuration repository. What that
 repository needs beyond its own YAML -- the ``Justfile``, the workflow, the
@@ -45,14 +45,13 @@ Two forms of ``init-config``:
   without a line of its YAML touched. A release-owned file that already
   exists and differs is refused by name unless ``force`` says to overwrite it.
   Any other directory -- one that holds things but no configuration -- is
-  refused by name, and nothing is written (hygiene XII items 2 and 12).
+  refused by name, and nothing is written.
 
 Either way ``.csis-version`` records the running release, which is the pin
 the starter workflow installs.
 
-Refreshing an existing tree (hygiene IX item 1, found taking releases dev7
-and dev8 into the reference configuration, where both times the diff had to
-be undone by hand):
+Refreshing an existing tree (found taking early releases into the reference
+configuration, where each time the diff had to be undone by hand):
 
 * the starter is the one the tree came from -- ``--from`` when given, else
   the starter whose workflow the tree's own ``.github/workflows/ci.yml`` is
@@ -163,7 +162,7 @@ RELEASE_OWNED_FILES: tuple[str, ...] = (
     "Justfile",
     ".gitignore",
     ".githooks/pre-commit",
-    "CI_SETUP.md",          # stage 69: the guide names the workflow's secrets, so it moves with the workflow
+    "CI_SETUP.md",          # the guide names the workflow's secrets, so it moves with the workflow
 )
 #: ``tfmodules`` stays in the list for a starters directory of the older
 #: layout, where the modules were files of the tree (``changes_since``
@@ -249,10 +248,10 @@ def source_tree_version() -> str | None:
 
 
 def stale_install(installed: str | None = None, declared: str | None = None) -> str | None:
-    """Hygiene XIII item 2: why this install may not stamp a tree, or None.
-    A checkout bumped by a release and not synced runs the new code under
-    the old metadata, and init-config wrote the old version into
-    `.csis-version` (2026-10-17, taking dev26 into the reference)."""
+    """Why this install may not stamp a tree, or None. A checkout bumped by
+    a release and not synced runs the new code under the old metadata, and
+    init-config used to write the old version into `.csis-version` (found
+    taking a release into the reference)."""
     installed = installed if installed is not None else release_version()
     declared = declared if declared is not None else source_tree_version()
     if declared is None or declared == installed:
@@ -388,8 +387,8 @@ def _write_starter(name: str, destination: Path, version: str) -> tuple[list[str
     if base:
         report = materialise_modules(destination / base, overrides=declared_overrides(destination))
         written.extend(_modules_written(destination / base, destination))
-    # hygiene XV item 1: the starter's links into the system repository point at this
-    # release's tag, since a relative one points nowhere in a repository of its own
+    # the starter's links into the system repository point at this release's
+    # tag, since a relative one points nowhere in a repository of its own
     linked = rewrite_tree(destination, name, version)
     (destination / VERSION_FILE).write_text(version + "\n")
     written.append(VERSION_FILE)
@@ -525,8 +524,8 @@ def _refresh_modules(destination: Path, report: InitReport, *, force: bool) -> N
 
 def is_new_tree(destination: Path) -> bool:
     """A destination that takes the WHOLE starter: absent, empty, or a fresh
-    clone holding only ``.git`` (hygiene XII item 2: a team creates its
-    repository on GitHub and clones it, the usual order)."""
+    clone holding only ``.git`` (a team creates its repository on GitHub
+    and clones it, the usual order)."""
     if not destination.exists():
         return True
     entries = [e.name for e in destination.iterdir()]
@@ -559,8 +558,8 @@ def init_config(destination: Path, starter: str | None = None, *, force: bool = 
         raise ValueError(f"{destination} exists and is not a directory")
     empty = is_new_tree(destination)
     if not empty and not holds_configuration(destination):
-        # hygiene XII items 2 and 12: the release-owned form refreshes a configuration
-        # repository and nothing else. The walk typed it in the SYSTEM repository's root,
+        # the release-owned form refreshes a configuration repository and nothing
+        # else. An operator once typed it in the SYSTEM repository's root,
         # which lost its Justfile, .gitignore and workflow to a starter's; and a fresh
         # clone with a README got the release-owned files and no cfg/, with a message
         # that read like success.
@@ -611,9 +610,9 @@ def init_config(destination: Path, starter: str | None = None, *, force: bool = 
 
 @dataclass
 class ChangesReport:
-    """What a release changed in the release-owned files of an existing tree
-    (hygiene XXI item 3). Nothing is written: this is the list a person reads
-    before refreshing by hand."""
+    """What a release changed in the release-owned files of an existing tree.
+    Nothing is written: this is the list a person reads before refreshing by
+    hand."""
     starter: str
     inferred: bool
     refresh: list[str] = field(default_factory=list)    # changed by the release; the tree still has the previous release's text

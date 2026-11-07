@@ -7,7 +7,7 @@ a cloud changed, and no run ever commits into it.
 - It carries **no `meta-state/`** (records of live cloud resources) and no
   generated output; `tests/harness.py:copy_config` copies it into a
   temporary directory for every test. Its instance subjects (`test`,
-  `test2`, `gce-test`, and since stage 128 `container-test`) are declared in
+  `test2`, `gce-test` and `container-test`) are declared in
   `instances/instances.yaml`; `gce-test` is not ephemeral here, and a test
   that wants ephemerality declares it.
 - Its container runtime (`docker-fixture`, `cfg/runtime-builders.yml`) names

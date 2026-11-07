@@ -95,7 +95,7 @@ def test_gid_absent_structures_through_converter(converter):
 
 @pytest.mark.parametrize("bad", [500, "nope"])
 def test_converter_rejects_invalid_gid(converter, bad):
-    # stage 23: the contract is that the converter REFUSES and says why, not
+    # the contract is that the converter REFUSES and says why, not
     # which library's wrapper carries it. The mapper is pydantic now, so the
     # model's own message arrives inside a ValidationError; assert the message.
     from pydantic import ValidationError

@@ -154,10 +154,10 @@ class TestRuntimeBuilderCreation:
                 return "stub-runtime"
 
             def _get_context(self):
-                # stage 124: a builder registers into its run's registry
+                # a builder registers into its run's registry
                 return types.SimpleNamespace(reg=_registry.current_registry())
 
-            _run_context = _get_context      # the kit's own accessor to the registry (stage 125)
+            _run_context = _get_context      # the kit's own accessor to the registry
 
         return Stub()
 

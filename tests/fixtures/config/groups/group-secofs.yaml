@@ -1,7 +1,7 @@
 groups:
   # Re-adopted per PLAN.md local-migration Q5: secofs already exists in OPA and
   # in the remote terraform state (module.group_secofs). Membership mirrors the
-  # LIVE OPA state (state query drift, updated 2026-08-31 per TODO stage 1.4:
+  # LIVE OPA state (state query drift:
   # secofs_user = danishyo/hjyoo/jason.ducker, secofs_admin adds
   # jason.ducker/yjzhang; mykel.alvis also arrives via the root-admin merge).
   - name: secofs

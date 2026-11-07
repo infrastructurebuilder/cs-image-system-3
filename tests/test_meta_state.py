@@ -115,7 +115,7 @@ def test_meta_state_commit_carries_read_models_pins_and_generated_iac(relocated)
 
 
 def test_meta_state_commit_leaves_an_operators_staged_edit_alone(relocated):
-    """Stage 28: the config repo is where operators edit configuration, so a
+    """The config repo is where operators edit configuration, so a
     run's commit carries only the paths the run staged -- never whatever was
     already in the index."""
     root = relocated.config_root

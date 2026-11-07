@@ -35,7 +35,7 @@ def _edit(path: Path, fn) -> None:
 def overlay(root: Path, *, user_attrs=None, group_attrs=None, managed_user=None, bad=False) -> None:
     def users(d):
         for u in d["users"]:
-            if plain(u["name"]) == "avery.alpha":       # the fixture's rosters are encrypted (stage 33)
+            if plain(u["name"]) == "avery.alpha":       # the fixture's rosters are encrypted
                 if user_attrs is not None:
                     u["attributes"] = user_attrs
                 if managed_user is not None:

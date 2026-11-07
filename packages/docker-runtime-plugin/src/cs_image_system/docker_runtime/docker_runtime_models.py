@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""The docker runtime's model (stage 103): the daemon's address, the
+"""The docker runtime's model: the daemon's address, the
 repository builds are tagged into, the state manager its roots use."""
 from __future__ import annotations
 
@@ -13,7 +13,7 @@ from typing import Any
 from cs_image_system.contract.constants import DEFAULT, VCT
 from cs_image_system.contract.fields import fk_field
 from cs_image_system.contract.model_config import CSIS_MODEL_CONFIG
-from pydantic.dataclasses import dataclass  # stage 23: validation at construction
+from pydantic.dataclasses import dataclass  # validation at construction
 
 from cs_image_system.base.models.container_builder import ContainerBuilderModel
 from .docker_names import repository_name
@@ -35,7 +35,7 @@ class DockerContainerBuilderModel(ContainerBuilderModel):
     and ``host`` may be an ENC marker when the address itself is private."""
     type = DOCKER
     # the cfg/executables.yml entry every docker call on this runtime runs
-    # through, as the GCE runtime names its gcloud (stage 63 item 14)
+    # through, as the GCE runtime names its gcloud
     executable: str | None = "docker"
     # where this runtime's builds are tagged: `<repository>:<final name>`
     # and the series' floating `<repository>:<prefix>`; default
@@ -77,7 +77,7 @@ class DockerContainerBuilderModel(ContainerBuilderModel):
         env: dict[str, str] = {}
         if self.host:
             # the loader opens a marker into a value that remembers its
-            # ciphertext; `emit` gives the ciphertext back (stage 49)
+            # ciphertext; `emit` gives the ciphertext back
             env["DOCKER_HOST"] = str(emit(self.host))
         elif self.context:
             env["DOCKER_CONTEXT"] = str(self.context)

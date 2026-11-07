@@ -2,9 +2,9 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""Stage 84: a new group can be created.
+"""A new group can be created.
 
-Found walking the daily driver (stage 65, finding F22): the identity root's
+Found walking the daily driver: the identity root's
 gid lookup (`data "external" "group_gids"`, DESIGN N7) ran at PLAN time with
 no dependency on the group's module, so for a group that did not exist yet
 it found no gid and failed -- and the plan that would create the group could

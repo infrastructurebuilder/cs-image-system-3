@@ -67,7 +67,8 @@ class ImageBuilderBase(BuilderBase[TIMAGE], ImageBuilderProtocol):
             return
         super().finalize()
         # finalize runs in the loader before the run context exists and is
-        # bound; the loader bound the run's registry first (stage 124 shim)
+        # bound; the loader bound the run's registry first, so the current
+        # registry is the one to read
         reg = current_registry()
         rt = self.model.get_runtime_provider()
         if not rt:
@@ -115,7 +116,7 @@ class ImageBuilderBase(BuilderBase[TIMAGE], ImageBuilderProtocol):
             # same name on several runtimes)
             imgs = [i for i in imgs
                     if i.get_name() in only or f"{i.get_name()}@{rt}" in only]
-        # Convergent bakes (stage 9): an image whose series head was built
+        # Convergent bakes: an image whose series head was built
         # from the same inputs is current and leaves no bake surface at all.
         if hasattr(ctx, "meta_state"):
             run = self._run_context()

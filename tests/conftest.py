@@ -4,7 +4,7 @@
 
 """Suite-wide isolation.
 
-The preflight (stage 12.3) reads the operator's credential caches
+The preflight reads the operator's credential caches
 (`~/.aws/sso/cache`, the gcloud ADC file). A test must never read the
 developer's real caches -- an expired real session would fail the headless
 CLI tests on one machine and pass on another -- so every test sees an
@@ -19,7 +19,7 @@ from starter_support import rendered_starters  # noqa: F401 - the session fixtur
 
 
 def pytest_sessionstart(session) -> None:
-    """Stage 125: the installed plugins are held to the contract ONCE, as
+    """The installed plugins are held to the contract ONCE, as
     shipped, when the loader discovers them -- before any test replaces a
     hook with a stub of its own (a stub's parameter names are the test's,
     not the plugin's, and are no verdict on the plugin)."""

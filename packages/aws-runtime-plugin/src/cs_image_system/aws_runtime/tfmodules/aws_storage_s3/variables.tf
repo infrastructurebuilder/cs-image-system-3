@@ -33,7 +33,7 @@ variable "public_read" {
   default     = false
 }
 
-# Data lifecycle (stage 15, DESIGN §3H): declared on the storage as
+# Data lifecycle (DESIGN §3H): declared on the storage as
 # {transition_days, storage_class, expire_days, prefix}; realized as one rule.
 variable "lifecycle_rules" {
   description = "Data lifecycle rules: transition after N days to a storage class and/or expire after N days (0 = none)"

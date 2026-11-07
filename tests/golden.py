@@ -37,7 +37,7 @@ def current_output(tmp_path: Path, monkeypatch) -> dict[str, str]:
         out = {f"generated/{k}": v for k, v in tree(run.generated).items()}
         out.update({f"meta-state/{k}": v for k, v in tree(run.meta_state).items()})
         # nothing in the emission may name the (temporary, per-run) root: the
-        # run scripts reach it through $CSIS_ROOT (stage 38), so the golden
+        # run scripts reach it through $CSIS_ROOT, so the golden
         # is compared verbatim and a stray absolute path fails the test
         return {k: v for k, v in out.items() if Path(k).name not in IGNORED_FILES}
     finally:

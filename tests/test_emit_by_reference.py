@@ -2,12 +2,12 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""Stage 34: sensitive values never enter the emission.
+"""Sensitive values never enter the emission.
 
-A value the configuration carries encrypted (stage 33) is emitted as the SAME
+A value the configuration carries encrypted is emitted as the SAME
 ``ENC[age:...]`` ciphertext, referenced through one ``data "external"`` per
 root whose program is ``cs-image-system decrypt --json``; a run never stages a
-plan, state or key file under ``--commit``. The rule (decided 2026-09-15): no
+plan, state or key file under ``--commit``. The rule: no
 declared-encrypted value other than a username appears in plaintext in the
 emission or the meta-state; an address DERIVED from the email template is
 public by construction (username + template) and stays plaintext.
@@ -133,7 +133,7 @@ def test_the_fixture_emission_carries_only_ciphertexts_the_configuration_carries
     finally:
         run.restore_cwd()
     source = (FIXTURE_CONFIG / "groups" / "users.yaml").read_text()
-    # stage 51: a DERIVED address carries the ciphertext of the piece it was
+    # a DERIVED address carries the ciphertext of the piece it was
     # derived from -- the domain, declared in cfg/ -- so the emission's
     # ciphertexts come from the whole tree, not from the roster alone
     declared = {m for f in FIXTURE_CONFIG.rglob("*.y*ml") if "generated" not in f.parts
@@ -146,7 +146,7 @@ def test_the_fixture_emission_carries_only_ciphertexts_the_configuration_carries
     all_text = "\n".join(emitted.values())
     for email in declared_emails:
         assert email not in all_text
-    # stage 51: EVERY address is read by reference now -- the ten declared
+    # EVERY address is read by reference -- the ten declared
     # explicitly, and the nine derived from the encrypted domain, which used to
     # be quoted in clear because a derived value had no ciphertext of its own
     assert users_tf.count('value = local.sensitive["email_') == 19
@@ -156,7 +156,7 @@ def test_the_fixture_emission_carries_only_ciphertexts_the_configuration_carries
 def test_no_declared_encrypted_value_but_a_username_reaches_the_emission_or_meta_state_in_clear(tmp_path, monkeypatch):
     """The stage's rule over the whole fixture run: every ciphertext in the
     rosters is decrypted and its text looked for in generated/ and
-    meta-state/; usernames are public (the 2026-08-25 ruling) and exempt."""
+    meta-state/; usernames are public by ruling and exempt."""
     import yaml
     run = V2Run(tmp_path, monkeypatch)
     try:
@@ -164,7 +164,7 @@ def test_no_declared_encrypted_value_but_a_username_reaches_the_emission_or_meta
         emitted = "\n".join(tree(run.generated).values()) + "\n" + "\n".join(tree(run.meta_state).values())
     finally:
         run.restore_cwd()
-    # stage 49: EVERY marker in EVERY file under the root, not three fields of
+    # EVERY marker in EVERY file under the root, not three fields of
     # one directory -- the feature's scope is "anywhere", so the guard's must
     # be too, or it drifts from the feature by construction. A value read only
     # under a public-by-decision key (a username) stays exempt.
@@ -184,7 +184,7 @@ def test_no_declared_encrypted_value_but_a_username_reaches_the_emission_or_meta
                 (public_by_decision if key in PUBLIC_BY_DECISION_KEYS else hidden).add(decrypt_marker(node))
         walk(yaml.safe_load(path.read_text()) or {})
     hidden -= public_by_decision       # a username also declared elsewhere is still public
-    # since stage 51 the fixture hides the ADDRESS DOMAIN and the ten explicit
+    # the fixture hides the ADDRESS DOMAIN and the ten explicit
     # addresses, not the first and last names: encrypting those bought nothing
     # while the address derived from them named person and organisation both
     assert len(hidden) >= 10, "the fixture declares encrypted addresses and a domain"

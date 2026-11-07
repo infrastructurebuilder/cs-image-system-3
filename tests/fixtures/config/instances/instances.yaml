@@ -6,9 +6,9 @@
 # public_read).
 instances:
   # The suite's three instance subjects, in this order (tests address them by
-  # position): test and test2 (the stage-1 AWS t3.medium shapes) and gce-test.
-  # They were injected by the harness from tests/fixtures/test_instances.yaml
-  # until stage 39 (2026-09-16); now the fixture declares them itself. This
+  # position): test and test2 (the AWS t3.medium shapes) and gce-test.
+  # The harness once injected them from tests/fixtures/test_instances.yaml;
+  # now the fixture declares them itself. This
   # tree is owned by the tests and no run ever applies it, so a dormant
   # declaration costs nothing here -- the LIVE configuration keeps its own
   # decisions (test/test2 absent, gce-test `ephemeral: true`). gce-test is
@@ -36,7 +36,7 @@ instances:
     storages:
       - name: gce_data
         mount_point: /mnt/gce-data
-  # Stage 128 (item 4): the fourth subject, a container on the fixture's docker
+  # The fourth subject, a container on the fixture's docker
   # runtime (the first three keep their positions). Its hostname is the
   # platform's `<name>-NNN`; nothing here reaches a daemon.
   - name: container-test

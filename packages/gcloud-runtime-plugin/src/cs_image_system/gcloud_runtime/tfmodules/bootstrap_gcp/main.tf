@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-# The GCP section of the bootstrap (cs-image-system stage 70 step 5; CI_SETUP.md 3.4):
+# The GCP section of the bootstrap (CI_SETUP.md 3.4):
 # the workload identity pool and its GitHub provider, the READ-ONLY service
 # account and the optional WRITE one, the project roles they hold and the
 # workloadIdentityUser bindings that let the repository impersonate them.
@@ -131,11 +131,11 @@ resource "google_service_account_iam_member" "write" {
   depends_on         = [google_iam_workload_identity_pool_provider.github]
 }
 
-# ------------------------------- the GCS state bucket, when this root manages it (hygiene XX item 2)
+# ------------------------------- the GCS state bucket, when this root manages it
 # Absent at the first interview, so made here (versioned, uniform access, no
 # public access) and kept managed from then on: a second interview observes
 # that it stands and binds the backend to it, without letting the resources
-# leave the plan (the AWS section's rule, hygiene XII item 5). The CI
+# leave the plan (the AWS section's rule). The CI
 # identities get object access on the bucket as single members added.
 resource "google_storage_bucket" "state" {
   count                       = var.state_bucket != "" && var.state_bucket_managed ? 1 : 0

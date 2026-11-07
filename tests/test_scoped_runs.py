@@ -140,7 +140,7 @@ def test_apply_flag_allows(value, root, aliases, expected):
 
 
 def test_list_valued_flag_scopes_the_apply_to_the_listed_roots(v2):
-    """Per-root apply scoping (stage 7): with apply_storage listing one
+    """Per-root apply scoping: with apply_storage listing one
     runtime and apply_instances one root, only those roots' sequences carry
     an apply (guarded by an apply-check naming the root); every other root
     of the lifecycle still plans and gates -- nothing is undeclared."""

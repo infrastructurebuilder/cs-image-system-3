@@ -2,14 +2,14 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""Credentials as a declared object, not a free-form mapping (stage 17).
+"""Credentials as a declared object, not a free-form mapping.
 
 A runtime's ``credentials:`` was ``dict[str, str]``. cattrs, and pydantic
 after it, treat a plain mapping as opaque: every key inside it is accepted,
 so ``profile_nme: noaa`` was silently kept and the profile silently became
-None -- falling back to the cloud CLI's profile variable or to no profile at all. Stage 21's
-rule cannot reach inside a mapping, which is why this stage exists and why
-its own step 3 says the rule alone does not close the gap.
+None -- falling back to the cloud CLI's profile variable or to no profile at
+all. The unknown-key rule cannot reach inside a mapping, which is why this
+object exists: the rule alone does not close the gap.
 
 Each provider declares what it accepts by subclassing :class:`CredentialsBase`.
 ``extra="forbid"`` comes from the shared model config, so an unknown key

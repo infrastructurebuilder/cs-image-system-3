@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""The alias block of ``sftd.yaml`` (stage 58; this plugin's since the core
+"""The alias block of ``sftd.yaml`` (this plugin's since the core
 stopped naming the agent).
 
 OPA ranks a record's Cloud Instance ID and Hostname above its ``AltNames``,

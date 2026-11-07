@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""What a hook plugin returns (stage 125, absorbing stage 113 item 3b): the
+"""What a hook plugin returns: the
 entry-point group the runner discovers hook plugins in, the shape of each
 hook, and :class:`HookSet`, what a plugin's ``initialize()`` answers with.
 

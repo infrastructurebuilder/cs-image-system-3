@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""The storage kind (stage 30): volumes, filesystems and buckets an instance
+"""The storage kind: volumes, filesystems and buckets an instance
 mounts, each with a lifecycle (standing, archived, restored, transient,
 destroyed). The storage item is the core's model and ``Any`` here."""
 from __future__ import annotations
@@ -21,8 +21,8 @@ class StorageBuilderProtocol(BuilderProtocol, Protocol):
     """A storage builder: what kind of capability it provides to the images
     that mount it, how many instances may attach one, the prerequisites an
     image bakes, the verification an instance runs, and the state
-    transitions it can carry out. ``platform_mounts`` (stage 103 branch 2)
-    says the platform attaches AND mounts the storage before the machine's
+    transitions it can carry out. ``platform_mounts`` says the platform
+    attaches AND mounts the storage before the machine's
     first command (a container volume), so the launch script neither
     formats nor mounts it and only makes the group's subtree.
 

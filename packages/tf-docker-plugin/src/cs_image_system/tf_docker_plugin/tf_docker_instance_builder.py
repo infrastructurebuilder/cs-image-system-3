@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""The container instance builder (stage 103 branch 2).
+"""The container instance builder.
 
 One ``module`` call per instance against tfmodules/docker_container, on
 OpenTofu's ``kreuzwerker/docker`` provider. The image is the instance's
@@ -179,7 +179,7 @@ class TofuDockerInstanceBuilder(TofuInstanceBuilderBase[Q]):
             if network:
                 args["network"] = str(network)
         labels = {str(k): str(v) for k, v in {**(instance.get_tags() or {}),
-                                              **ctx.services.lineage.config_tags()}.items()}   # stage 93
+                                              **ctx.services.lineage.config_tags()}.items()}   # carries the config id
         labels["csis_instance"] = name
         labels["csis_generation"] = generation_of(hostname, name)
         args["labels"] = labels
@@ -193,7 +193,7 @@ class TofuDockerInstanceBuilder(TofuInstanceBuilderBase[Q]):
         by remote-state reference to the storage root's outputs."""
         out: dict[str, Any] = {}
         group = params.get("group")
-        gid = self._gid_expression_for(group)          # stage 75 step 3: the group builder writes it
+        gid = self._gid_expression_for(group)          # the group builder writes it
         template_vars: dict[str, Any] = {}
         if gid is not None:
             template_vars["group_gid"] = HclRaw(gid)

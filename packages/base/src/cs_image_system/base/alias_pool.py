@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""Stage 59: a pool of names, each spent once.
+"""A pool of names, each spent once.
 
 ``meta-state/aliases.txt`` in the configuration is a pool of pre-approved,
 memorable names, hand-written in advance, one per line. When a NEW machine
@@ -106,7 +106,7 @@ def peek(path: Path) -> str | None:
 def pool_problems(path: Path, *, reserved: set[str] | None = None) -> list[str]:
     """Why a free line could not be used as it stands: not a legal hostname
     label (RFC 1123, at most 63 characters -- it goes into OPA as an
-    AltNames entry beside the canonical name, stage 58), a repeat of another
+    AltNames entry beside the canonical name), a repeat of another
     free line, or a name the configuration already gives an instance."""
     problems: list[str] = []
     seen: set[str] = set()
@@ -184,10 +184,10 @@ def undraw(path: Path, *, name: str, run_id: str) -> bool:
 
 def release_unlaunched(ctx: "RunContext") -> list[str]:
     """When a run ends: every name this run drew for a machine that did not
-    come to exist goes back to the pool (hygiene VIII item 5). A draw
-    happens at generation; the machine exists only after the apply, and a
-    run can abort between the two (``tofu init`` failing to download a
-    provider did it on 2026-10-01) with nothing recorded -- the pool file on
+    come to exist goes back to the pool. A draw happens at generation; the
+    machine exists only after the apply, and a run can abort between the
+    two (``tofu init`` failing to download a provider has done it) with
+    nothing recorded -- the pool file on
     disk would still show the name spent for a machine that never was, and
     the retry would burn the next one. A name is GIVEN when the instance's
     launch record is marked launched by this run with that alias; every

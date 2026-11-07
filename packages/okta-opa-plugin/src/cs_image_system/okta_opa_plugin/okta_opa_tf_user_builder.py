@@ -84,7 +84,7 @@ class OktaTfUserBuilder(UserBuilderBase[OktaTfUserBuilderModel], TerraformRootMi
         items.add("\n")
         col = terraform_collector(self._get_context())
         self.model.register_hcl_requirements(self.name, col)
-        # stage 34: values the emission must not carry in plaintext are
+        # values the emission must not carry in plaintext are
         # registered before the terraform block, so the external provider the
         # decrypting data source needs is declared with the others
         sensitive = partial(col.sensitive_ref, self.name)
@@ -182,7 +182,7 @@ class OktaTfUserBuilder(UserBuilderBase[OktaTfUserBuilderModel], TerraformRootMi
             log.info(f"User builder {self.name}: dry run, 'plan' not run at generation time")
         elif okta_credentials_present():
             # in the private mirror: the lookups search by an address whose
-            # domain is ciphertext in the committed emission (stage 51)
+            # domain is ciphertext in the committed emission
             commands += self.plaintext_read_commands(phase, wd, [["plan"]])
         else:
             log.warning(

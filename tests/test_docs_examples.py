@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""Stage 62 step 5: the example configurations under docs/examples/ load and
+"""The example configurations under docs/examples/ load and
 validate.
 
 Three trees, each in the shape of a real configuration root:
@@ -43,7 +43,7 @@ from harness import load_context, record_network_facts, stub_environment
 REPO = Path(__file__).resolve().parents[1]
 EXAMPLES = REPO / "docs" / "examples"
 SKELETON = EXAMPLES / "_skeleton"
-# the starters are the release's constant (stage 128): the standard trees are
+# the starters are the release's constant: the standard trees are
 # every starter but the complete one
 TREES = list(STARTERS)
 STANDARD = [name for name in TREES if name != "complete"]
@@ -121,7 +121,7 @@ def stub_networks_from(monkeypatch, root: Path) -> None:
             entry["subnets"].append({"subnet_id": s.get("subnet_id")})
     monkeypatch.setattr(gcp_utils, "get_network_map_and_default_network",
                         lambda session_config, clients=None: (networks, "default", {}))
-    # stage 127: a load adopts the record a real run would have written
+    # a load adopts the record a real run would have written
     # instead of asking the clouds; the harness writes it, saying what the
     # stubs above answer, so `validate` passes offline as it would after
     # `validate --online`
@@ -288,8 +288,8 @@ def test_the_complete_tree_carries_every_variation(tree):
     assert {image_policy_of(i) for i in ctx.instances} == {"pinned", "follow"}
     assert {bool(i.ephemeral) for i in ctx.instances} == {True, False}
     assert {s.state for s in ctx.storages} == {"active", "archived", "destroyed"}
-    assert {rt.model.type_ for rt in ctx.runtime_builders.values()} == {"aws", "gcloud", "docker"}   # stage 103
-    # stage 106: the token says what the image IS; what it is treated as comes from the catalog
+    assert {rt.model.type_ for rt in ctx.runtime_builders.values()} == {"aws", "gcloud", "docker"}   # the container runtime too
+    # the token says what the image IS; what it is treated as comes from the catalog
     assert {osb.model.get_vendor_family() for osb in ctx.os_builders.values()} == {"alma-linux", "debian", "ubuntu"}
     assert {osb.model.get_family() for osb in ctx.os_builders.values()} == {"rhel", "debian", "ubuntu"}
     assert {b.model.type_ for b in ctx.state_backends.values()} == {"s3", "local", "gcs"}
@@ -298,7 +298,7 @@ def test_the_complete_tree_carries_every_variation(tree):
     assert any(i.get_name() == "gce-node" for i in ctx.instances)
 
 
-# ------------------------------------------------ the starter parts (stage 62 redux)
+# ------------------------------------------------------------- the starter parts
 
 STARTER_FILES = ["Justfile", ".github/workflows/ci.yml", ".githooks/pre-commit", ".gitignore"]
 
@@ -326,7 +326,7 @@ def test_every_example_is_a_whole_repository_a_team_can_copy(rendered_starters):
             assert (root / rel).stat().st_mode & stat.S_IXUSR, f"{name}/{rel} is not executable"
             assert (root / rel).read_bytes() == (REPO / rel).read_bytes(), f"{name}/{rel} differs from the release's"
         assert not (root / "scripts" / "with-tofu-lock").exists(), f"{name}: the helpers are commands of the CLI (stage 64)"
-        # hygiene XXIII item 2: Finder's .DS_Store is git-ignored junk, not a module
+        # Finder's .DS_Store is git-ignored junk, not a module
         theirs = sorted(p.relative_to(root / "tfmodules") for p in (root / "tfmodules").rglob("*")
                         if p.is_file() and p.name not in (".DS_Store", STAMP_FILE))
         ours = sorted(Path(mod) / p.relative_to(src.path) for mod, src in modules.items()
@@ -364,7 +364,7 @@ def test_the_starter_workflow_has_the_three_jobs(rendered_starters):
         assert "uv tool install" in text and "cs-image-system" in text, f"{name}: the workflow must install a release"
         assert "test.pypi.org" in text, f"{name}: a development version installs from TestPyPI"
         assert "just mirror-clean" in text, f"{name}: the mirror must be removed even on failure"
-        # hygiene VII item 3: GITHUB_ENV reaches only the steps after, so the identity
+        # GITHUB_ENV reaches only the steps after, so the identity
         # step exports the variable for its own `mask` before using it
         for job in ("live", "perform"):
             step = next(s for s in doc["jobs"][job]["steps"] if s.get("name") == "The identity that opens the tree")
@@ -379,10 +379,10 @@ def _steps(job: dict) -> list[dict]:
 
 
 def test_the_starter_perform_job_records_guards_performs_proves_and_records_again(rendered_starters):
-    """Stage 64 item 3: the proven shape of a performing job (stage 45, 56)
+    """The proven shape of a performing job
     travels with the starter: a full record pushed first, the guarded runtime
     checked against it, the write identity for the performing step and the
-    login proof straight after it (stage 89), a closing record that runs even
+    login proof straight after it, a closing record that runs even
     after a failed performing step, and the strict state query as the
     post-condition."""
     for name in TREES:
@@ -391,8 +391,8 @@ def test_the_starter_perform_job_records_guards_performs_proves_and_records_agai
         assert "refs/heads/main" in perform["if"] and perform["permissions"]["contents"] == "write"
         assert perform["concurrency"] == {"group": "perform", "cancel-in-progress": False}
         names = [s.get("name", "") for s in _steps(perform)]
-        # the posix starter logs in as its group's proof user, not through OPA's managed policy (stage 75);
-        # the docker starter has no login proof at all (stage 103: a container runs no sshd), and no
+        # the posix starter logs in as its group's proof user, not through OPA's managed policy;
+        # the docker starter has no login proof at all (a container runs no sshd), and no
         # write identity either: its way in is one key, held for the job
         docker = name == "standard-docker"
         login = "CI logs in as the group's proof user" if name == "standard-aws-posix" else "CI logs in through the managed policy"
@@ -404,7 +404,7 @@ def test_the_starter_perform_job_records_guards_performs_proves_and_records_agai
             order.insert(0, "Reach the docker host")
         positions = [names.index(n) for n in order]
         assert positions == sorted(positions), f"{name}: {names}"
-        # stage 89 (the walk's F58): the proof is made while the write identity is held. A posix
+        # the proof is made while the write identity is held. A posix
         # proof's ssh opens a session through the runtime, which the read-only identity may not
         # do; made after the read-only identity was taken back, the proof could never pass
         taken_back = [n for n in names if n.endswith("the read-only role again") or n.endswith("the read-only identity again")]
@@ -441,7 +441,7 @@ def test_the_starter_perform_job_records_guards_performs_proves_and_records_agai
             assert names.index(write_creds[-1]["name"]) < names.index("The runtime performs")
             # the live job never holds one
             assert "APPLY" not in yaml.safe_dump(doc["jobs"]["live"]), name
-        # the probe workflow travels with the tree -- with every tree that has OPA (stage 75: the
+        # the probe workflow travels with the tree -- with every tree that has OPA (the
         # posix starter has no OPA workload connection to probe, and carries no probe)
         probe_path = rendered_starters / name / ".github/workflows/opa-workload-probe.yml"
         if name in ("standard-aws-posix", "standard-docker"):
@@ -450,7 +450,7 @@ def test_the_starter_perform_job_records_guards_performs_proves_and_records_agai
         probe = yaml.safe_load(probe_path.read_text())
         assert list(probe[True].keys()) == ["workflow_dispatch"]
         (job,), = [list(probe["jobs"].values())]
-        assert job["permissions"] == {"id-token": "write", "contents": "read", "packages": "read"}   # packages: the runner image's pull (stage 92)
+        assert job["permissions"] == {"id-token": "write", "contents": "read", "packages": "read"}   # packages: the runner image's pull
         assert any(s.get("run", "").strip() == "just opa-workload-probe" for s in job["steps"])
 
 
@@ -474,10 +474,10 @@ def _run_gate(tmp_path: Path, root: Path, job: str, configured: set[str], is_rec
 
 
 def test_an_unconfigured_copy_of_a_starter_skips_even_on_its_first_push_to_main(tmp_path, rendered_starters):
-    """Hygiene XVI item 3: "Use this template" pushes the copy's first commit
+    """"Use this template" pushes the copy's first commit
     to `main` with no secret set. The perform gate tested the record request
-    first, and that run failed naming every secret (the stage 66 proof, 0.1.2,
-    2026-10-27); none configured is SKIPPED on `main` as anywhere else. Some
+    first, and that run failed naming every secret (the template proof of
+    0.1.2); none configured is SKIPPED on `main` as anywhere else. Some
     configured and some missing still FAILS, and a record request names the
     write identity it lacks."""
     for name in TREES:
@@ -515,7 +515,7 @@ def test_an_unconfigured_copy_of_a_starter_skips_even_on_its_first_push_to_main(
 
 
 def test_the_built_release_carries_the_starters_byte_for_byte(tmp_path):
-    """Stage 64 item 1: `just build` (uv build: the sdist, then the wheel FROM
+    """`just build` (uv build: the sdist, then the wheel FROM
     the sdist) ships the SOURCE every starter is rendered from -- the DEFAULT
     marker naming the one a new tree gets, the skeleton, and every starter's
     overlay -- inside the system package, so a machine that holds nothing
@@ -550,7 +550,7 @@ def test_the_built_release_carries_the_starters_byte_for_byte(tmp_path):
     assert any(n.endswith("/starters/_skeleton/Justfile") for n in names), "the sdist must carry the skeleton too"
 
 
-# ------------------------------------------------ the CI setup guide (stage 69)
+# ----------------------------------------------------------- the CI setup guide
 
 GUIDE = "CI_SETUP.md"
 
@@ -595,7 +595,7 @@ def test_the_guide_has_github_in_full_and_gitlab_as_placeholders():
     text = (SKELETON / GUIDE).read_text()
     github = [h for h in re.findall(r"^### (3\.\d) ", text, flags=re.M)]
     gitlab = [h for h in re.findall(r"^### (4\.\d) ", text, flags=re.M)]
-    assert github == [f"3.{i}" for i in range(0, 10)] and gitlab == [f"4.{i}" for i in range(0, 10)]   # 3.0/4.0: the bootstrap (stage 70)
+    assert github == [f"3.{i}" for i in range(0, 10)] and gitlab == [f"4.{i}" for i in range(0, 10)]   # 3.0/4.0: the bootstrap
     gl = text[text.index("## 4. GitLab"):]
     bodies = re.split(r"^### 4\.\d [^\n]*\n", gl, flags=re.M)[1:]
     assert all(b.strip() == "TBD." for b in bodies), "the GitLab sections are placeholders until a stage writes them"
@@ -604,10 +604,10 @@ def test_the_guide_has_github_in_full_and_gitlab_as_placeholders():
     assert not re.search(r"\b\d{12}\b", text), "an AWS account id in the guide"
 
 
-# ---------------------------------------------------- hygiene XII, the starters
+# ------------------------------------------------------ the starters, as written
 
 def test_each_starter_as_written_is_public_safe_once_its_values_are_filled(tmp_path, rendered_starters):
-    """Hygiene XII item 1 (the walk's F1 and F48): a starter's own hook refused
+    """Found walking the daily driver: a starter's own hook refused
     its first commit, because the SPDX header of every release-owned file
     carries the copyright holder's address and the allow list did not say so;
     and standard-gce did not allow a runner service account's address. Each
@@ -631,7 +631,7 @@ def test_each_starter_as_written_is_public_safe_once_its_values_are_filled(tmp_p
 
 
 def test_each_starter_shows_the_release_model_keys_and_a_release_line(rendered_starters):
-    """Hygiene XII item 18 (the walk's F43): the daily driver's 1.9 names
+    """The daily driver's 1.9 names
     `require_released_builds`, `require_image_tests` and
     `preflight.expected_run_minutes` among a tree's decisions; every starter
     carries them at their defaults, and every image file shows `release:`."""
@@ -645,7 +645,7 @@ def test_each_starter_shows_the_release_model_keys_and_a_release_line(rendered_s
 
 
 def test_the_docker_starters_reach_step_writes_what_ssh_needs_and_refuses_half_a_pair(tmp_path, rendered_starters):
-    """Stage 103 item 16: the step runs as the runner runs it, with a stub
+    """The step runs as the runner runs it, with a stub
     `docker`. No key: the runner's own daemon, said so. Key and known-hosts:
     a 0600 key, the pinned host, the user, and DOCKER_HOST exported. A key
     without its known-hosts line fails by name."""

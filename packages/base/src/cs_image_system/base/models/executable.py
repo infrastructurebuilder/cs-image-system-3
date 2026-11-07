@@ -5,7 +5,7 @@
 from dataclasses import field
 from cs_image_system.contract.model_config import CSIS_MODEL_CONFIG
 from pydantic import Field
-from pydantic.dataclasses import dataclass  # stage 23: validation at construction
+from pydantic.dataclasses import dataclass  # validation at construction
 import logging
 
 from cs_image_system.base.basic.abstract_plugin_metadata import AbstractPluginMetadata
@@ -25,13 +25,13 @@ from cs_image_system.contract.constants import SYSTEM_CLI, DEFAULT, VCT
 from ..encryption import decrypt_marker, is_marker
 
 
-#: hygiene VIII item 3: how much of a successful command's output the log
+#: how much of a successful command's output the log
 #: keeps at INFO (the end is where tofu's ``Plan:`` / ``Apply complete!``
 #: lines, the gate's verdict and packer's artifact line are); the whole of
 #: it at DEBUG.
 OUTPUT_TAIL_LINES = 40
 _ANSI = re.compile(r"\x1b\[[0-9;]*[A-Za-z]")
-#: hygiene XII item 8 (the walk's F25): the lines that carry a command's
+#: the lines that carry a command's
 #: verdict are shown wherever they stand, ahead of the tail. tofu prints
 #: ``Apply complete!`` and THEN the root's outputs, so a root with forty
 #: lines of outputs lost the one line the operator was told to look for;
@@ -42,9 +42,9 @@ VERDICT_LINE = re.compile(r"^\s*(?:Plan: |Apply complete!|Destroy complete!|No c
 
 
 def _log_captured(command: list[str], result: subprocess.CompletedProcess[str]) -> None:
-    """A command the running process executed said something: say it. Until
-    hygiene VIII item 3 (2026-09-30) only a FAILED command's output reached
-    the log, so an applying run showed ``executing ( ... tofu plan ... )``
+    """A command the running process executed said something: say it. Once
+    only a FAILED command's output reached the log, so an applying run
+    showed ``executing ( ... tofu plan ... )``
     and nothing of what tofu planned, the gate decided or the apply did --
     the operator read the plan afterwards from the plan file. Colour codes
     are stripped (tofu emits them to a pipe)."""
@@ -107,7 +107,7 @@ class ExecutableModel(NameTyped, PluginArtifactProtocol):
     appended_arguments: list[str] = field(default_factory=list)
     config: dict[str, Any] = field(default_factory=dict)
     args: list[str] = field(default_factory=list)
-    # stage 103: variables set on top of the caller's environment for this
+    # variables set on top of the caller's environment for this
     # one process (a runtime's `tool_environment`: the daemon address for a
     # bake on a container runtime); never a secret VALUE from the configuration
     environment: dict[str, str] = field(default_factory=dict)
@@ -135,8 +135,8 @@ class ExecutableModel(NameTyped, PluginArtifactProtocol):
     
 
     def resolved_environment(self) -> dict[str, str]:
-        """The ``environment`` with every ENC marker opened (stage 103 branch
-        2): the model carries the ciphertext (a container runtime's private
+        """The ``environment`` with every ENC marker opened: the model
+        carries the ciphertext (a container runtime's private
         ``host``), the process gets the value, and the runner script renders
         the marker as a `decrypt` call (see render_executable_line)."""
         return {str(k): (decrypt_marker(v) if isinstance(v, str) and is_marker(v) else str(v))
@@ -144,11 +144,11 @@ class ExecutableModel(NameTyped, PluginArtifactProtocol):
 
     def execute(self, *args: str, skips: bool = False) -> subprocess.CompletedProcess[str]:
         """Execute the executable with the given arguments."""
-        # stage 63: the command is built once (a first list was built and discarded)
+        # the command is built once (a first list used to be built and discarded)
         command: list[str] = []
         bin = self.binary or self.name
         if bin == SYSTEM_CLI:
-            # hygiene VII item 2 (2026-09-29): a step the running process spawns
+            # a step the running process spawns
             # itself (materialize, gate-plan, prune-attachments, the identity
             # steps) is the same code that is running, so it is invoked as the
             # running interpreter's own module and needs no PATH. The emitted

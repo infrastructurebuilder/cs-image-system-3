@@ -17,7 +17,7 @@ from dataclasses import field
 from .credentials import CredentialsBase
 from cs_image_system.contract.model_config import CSIS_MODEL_CONFIG
 from cs_image_system.contract.runtime import RuntimeBuilderModelProtocol
-from pydantic.dataclasses import dataclass  # stage 23: validation at construction
+from pydantic.dataclasses import dataclass  # validation at construction
 
 
 @dataclass(kw_only=True, config=CSIS_MODEL_CONFIG)
@@ -27,7 +27,7 @@ class RuntimeSubnetModel:
     is_default: bool = False
     public: bool = False
     cidr: str | None = None
-    # stage 52: the zone this subnet is in. Declared, never inferred -- it is
+    # the zone this subnet is in. Declared, never inferred -- it is
     # what lets a zone mismatch be refused at validate instead of discovered
     # as a volume replacement at apply.
     availability_zone: str | None = None
@@ -112,7 +112,7 @@ class RuntimeNetworkingModel:
 class RuntimeBuilderModel(BuilderModel, RuntimeBuilderModelProtocol):
     """Runtime provider configuration data object."""
     default_machine_type: str # reqired field
-    # stage 22.1: this was `init=False`, so cattrs never structured it and the
+    # this was once `init=False`, so cattrs never structured it and the
     # YAML value (`default_image_builder: <name>`) never reached any
     # runtime -- every one of them silently held DEFAULT. Both cloud plugins
     # read it through get_default_image_builder(), so both clouds were equally
@@ -124,19 +124,19 @@ class RuntimeBuilderModel(BuilderModel, RuntimeBuilderModelProtocol):
                                               "required": True,
                                           })
     default_owners: list[str] | None = None 
-    # stage 17: a declared object, not an opaque mapping. Each provider
+    # a declared object, not an opaque mapping. Each provider
     # narrows this to its own subclass, so an unknown key inside
     # `credentials:` is a validation error rather than a silent drop.
     credentials: CredentialsBase = field(default_factory=CredentialsBase)
     default_config_username: str | None = None
-    # Declared ephemerality (stage 10.4): nothing baked on this runtime survives a
+    # Declared ephemerality: nothing baked on this runtime survives a
     # successful run -- the closing `retention` lifecycle disposes every image
     # here regardless of per-image retention. Declared storages are NEVER
-    # touched (stage 10.15). retention_keep is the runtime-level default for
+    # touched. retention_keep is the runtime-level default for
     # images that declare no retention of their own (None = keep everything).
     ephemeral: bool = False
     retention_keep: int | None = None
-    # Runtime-level defaults for the ephemeral failure policy (stage 11.3).
+    # Runtime-level defaults for the ephemeral failure policy.
     on_failure: str | None = None
     teardown_after: str | None = None
     
