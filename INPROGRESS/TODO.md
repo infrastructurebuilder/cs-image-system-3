@@ -12,7 +12,7 @@ Stages from the re-examination of 2026-11-03.
 [REEXAMINE4.md](REEXAMINE4.md) digests the three reviews
 ([REEXAMINE1.md](REEXAMINE1.md), [REEXAMINE2.md](REEXAMINE2.md),
 [REEXAMINE3.md](REEXAMINE3.md)); each stage file
-([§127](STAGE-127.md) to [§130](STAGE-130.md); §118 to §126 and §131
+([§128](STAGE-128.md) to [§130](STAGE-130.md); §118 to §127 and §131
 landed) cites the review section
 it answers. The conventions are the ones above: one file per stage; a
 stage is a plan until the operator says "do N"; **YOUR DECISION** marks
@@ -56,7 +56,11 @@ order (the default), or [§113](STAGE-113.md) first as its file plans it.
   and [§116](STAGE-116.md) (the external-repository proof, docker
   first). Its release proof, a development release on TestPyPI, is the
   operator's box.
-- [§127](STAGE-127.md), loading once: after §124.
+- §127, loading once, without the cloud: landed 2026-11-06. A load
+  reaches no cloud (the networking check is `validate --online` and every
+  real run, recorded in `meta-state/runtime-facts.yaml`); one parse; the
+  deferred system steps run in process. The reference's record is
+  written but UNTRACKED there until its next take.
 - [§128](STAGE-128.md) and [§129](STAGE-129.md), the tests and the
   sources stop narrating: any time after §119.
 - [§130](STAGE-130.md), hygiene bundle XXIV: the open bundle for the small findings.
@@ -83,7 +87,6 @@ and validated by the operator before its "do N")
 - [§112, A release in two boxes](STAGE-112.md)
 - [§113, The kit and the engine: `base` splits where the plugins stop](STAGE-113.md)
 - [§116, A runtime installed from outside](STAGE-116.md)
-- [§127, Loading once, without the cloud](STAGE-127.md)
 - [§128, Tests named for behaviour](STAGE-128.md)
 - [§129, The sources stop narrating](STAGE-129.md)
 - [§130, Hygiene bundle XXIV](STAGE-130.md)
@@ -131,6 +134,16 @@ and validated by the operator before its "do N")
 
 **Landed since 2026-10-05** (newest first)
 
+- §127, loading once, without the cloud: 2026-11-06, its squash commit
+  (feature/loading-once-without-the-cloud kept). The cloud runtime
+  models' `finalize()` is pure; two optional builder hooks check the
+  networking online (`validate --online`, every real run) and adopt the
+  recorded `meta-state/runtime-facts.yaml` offline; the raw preflight
+  readers are gone (preflight loads). Each `cfg/*.yml` is parsed once and
+  the string stage walks the tree; unresolved foreign keys ride on the
+  context. One executor runs the deferred `cs-image-system` steps in the
+  running process through `base/in_process.py`; the Finalizer's mirror
+  wrapper is gone. `validate` fell from ~20 s to ~5.7 s.
 - §126, the package shape: 2026-11-06, its squash commit
   (feature/stage-126-package-shape kept). Each plugin's terraform
   modules are package data inside its wheel, declared by the entry

@@ -12,7 +12,7 @@ commit on the bundle's branch.
    a temporary file and `os.replace`; a test for each (REEXAMINE3
    §1.4).
 2. Dead material: `helpers/async_utils.py` and
-   `helpers/yaml_process.py` if still unreferenced after [§127](STAGE-127.md);
+   `helpers/yaml_process.py` if still unreferenced after §127;
    `bin/manage_ec2.sh`.
 3. The devcontainer installs `just` (the single entry point is not
    the entry point there).
@@ -20,7 +20,7 @@ commit on the bundle's branch.
    tests behind a three-line recipe; the sibling repository's working
    tree is read through one documented function; the release appends
    `docs/CHANGES.md` (§119's owed item).
-5. The lint bar, once §124 and [§127](STAGE-127.md) have lowered the `Any` count:
+5. The lint bar, once §124 and §127 have lowered the `Any` count:
    ruff gains `B`, `I`, `C90` (a complexity ceiling measured first)
    and stops ignoring `F841`; pyright `standard` for contract,
    hashicorp-utils and the plugins, `basic` for base and system until
