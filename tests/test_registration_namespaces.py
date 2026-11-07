@@ -224,8 +224,10 @@ class _FakeEntryPoints:
 
 
 def _with_entry_points(monkeypatch, *points: Any) -> None:
+    # under ``other``: a synthetic plugin that registers nothing is of no
+    # named kind, and the loader holds a named group to what is registered
     def fake_entry_points(group: str) -> _FakeEntryPoints:
-        return _FakeEntryPoints(*points) if group.endswith(".runtime") else _FakeEntryPoints()
+        return _FakeEntryPoints(*points) if group.endswith(".other") else _FakeEntryPoints()
     monkeypatch.setattr(loader, "entry_points", fake_entry_points)
 
 
@@ -241,7 +243,7 @@ def test_a_plugin_without_a_distribution_loads_when_its_metadata_names_the_names
     named = types.SimpleNamespace(name="named", dist=None, load=lambda: (lambda: PluginMetadata(namespace="mine")))
     _with_entry_points(monkeypatch, named)
     found = loader._discovered_plugins.__wrapped__()
-    assert [(d.plugin_type, d.name, d.derived_namespace) for d in found] == [("runtime", "named", None)]
+    assert [(d.plugin_type, d.name, d.derived_namespace) for d in found] == [("other", "named", None)]
     assert loader.namespace_for("named", found[0].initializer(), found[0].derived_namespace) == "mine"
 
 

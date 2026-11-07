@@ -29,7 +29,7 @@ cover the builders and models.
 Two entry points are declared in [pyproject.toml](pyproject.toml):
 
 ```toml
-[project.entry-points."cs_image_system.plugins.runtime"]
+[project.entry-points."cs_image_system.plugins.group"]
 dummy_plugin = "cs_image_system.dummy_plugin.main:initialize"
 
 [project.entry-points."cs_image_system.plugins.hooks"]
@@ -40,10 +40,12 @@ The first is a builder plugin. `initialize()` in
 [main.py](src/cs_image_system/dummy_plugin/main.py) returns a
 `DummyPluginMetadata` whose services map the key `dummy` to four classes
 and whose `builders_for_models` names a builder class per model class.
-The entry-point group is `runtime`, but the group only decides load order:
-the loader ([loader.py](../base/src/cs_image_system/base/loader.py))
-registers each class under the classification its own `csis_classifier()`
-reports.
+The entry-point group is `group`, the kind the plugin is: the loader
+([loader.py](../base/src/cs_image_system/base/loader.py)) refuses a plugin
+whose group names a kind none of its classes registers (this one registers
+user builders beside its group builders; the group names the kind it is,
+not every kind it has), walks the groups in a fixed order, and registers
+each class under the classification its own `csis_classifier()` reports.
 
 | Class | `csis_name()` | `csis_classifier()` | Registered under |
 |---|---|---|---|
@@ -269,7 +271,10 @@ classification (`GroupBuilderModel`, `UserBuilderModel`,
 `cs_image_system.plugins.<kind>` group for the builder kind (`runtime`,
 `state`, `modification`, `storage`, `group`, `user`, `image`, `os`,
 `instance`, `other`; the list is `PLUGIN_TYPES` in the contract's
-[constants.py](../contract/src/cs_image_system/contract/constants.py)). Return an
+[constants.py](../contract/src/cs_image_system/contract/constants.py); the
+loader refuses a plugin that registers no class of its group's kind, and
+`other` is the group of a plugin that registers none of the named kinds).
+Return an
 `AssetSet` from every `generate_items_*` hook, not a list. To write a
 hook plugin: return a `HookSet` from an entry point in the
 `cs_image_system.plugins.hooks` group. Registration is validated: a

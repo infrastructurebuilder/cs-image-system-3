@@ -33,7 +33,13 @@ own version; `tests/test_package_metadata.py` holds it to that.
 ## The plugins
 
 Discovered through Python entry points (`cs_image_system.plugins.*`); each
-registers model and builder classes under the classifications it claims.
+registers model and builder classes under the classifications it claims,
+and the group it declares names the kind it is: the loader refuses a
+plugin that registers no class of its group's kind (a plugin may register
+more than that kind -- the terraform root plugins declare `instance` and
+carry their storage roots; the identity plugins declare `group` and carry
+their user builders -- and one that registers none of the named kinds
+declares `other`).
 
 | Package | Kind | `type:` keys it answers to |
 | --- | --- | --- |

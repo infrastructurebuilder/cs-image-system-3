@@ -25,7 +25,7 @@ Repository = "https://github.com/infrastructurebuilder/cs-image-system-3"
 Documentation = "https://github.com/infrastructurebuilder/cs-image-system-3/blob/develop/docs/OPERATIONS.md"
 "Package README" = "https://github.com/infrastructurebuilder/cs-image-system-3/blob/develop/packages/dummy-plugin/README.md"
 
-[project.entry-points."cs_image_system.plugins.runtime"]
+[project.entry-points."cs_image_system.plugins.group"]
 dummy_plugin = "cs_image_system.dummy_plugin.main:initialize"
 
 [project.entry-points."cs_image_system.plugins.hooks"]

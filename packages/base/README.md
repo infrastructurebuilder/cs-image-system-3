@@ -94,6 +94,19 @@ this order:
 | `instance`     | instance builders |
 | `other`        | anything else  |
 
+The group names the kind the plugin is, and `_discovered_plugins` holds it
+to that (`check_group`, `GROUP_CLASSIFICATIONS`): a plugin found under a
+group other than `base` or `other` must register at least one class of
+that group's classification (`runtime`: a cloud or container builder
+model or a runtime builder; `state`: a state backend; `storage`, `group`,
+`user`, `image`, `os`, `instance`, `modification`: the builder or its
+model), else it is refused with a `PluginGroupError` naming the group it
+chose, what it registers and the group that fits. A plugin may register
+more than its group's kind (the terraform root plugins declare `instance`
+and register their storage roots; the identity plugins declare `group` and
+register their user builders); `other` is for a plugin that registers none
+of the named kinds (a checker, an injected model).
+
 Each entry point loads to a callable. `load_plugins()` calls it and expects
 one object satisfying the contract's `PluginMetadataProtocol`, or a list of
 them (the check is `isinstance`, name-only; anything else is logged as an

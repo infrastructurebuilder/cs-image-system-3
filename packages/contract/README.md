@@ -154,7 +154,12 @@ A plugin is a Python distribution with an entry point in the group
 `cs_image_system.plugins.<kind>` (`PLUGIN_TYPES` in `constants`: `runtime`,
 `state`, `modification`, `storage`, `group`, `user`, `image`, `os`,
 `instance`, `other`). The entry point loads to a zero-argument callable
-that returns one `PluginMetadata` or a list of them.
+that returns one `PluginMetadata` or a list of them. The kind is the one
+the plugin is: at least one class it registers must carry that kind's
+classification (a `runtime` plugin a runtime builder model, a `group`
+plugin a group builder), or the loader refuses it naming the group that
+fits; it may register more than its kind, and a plugin of no named kind
+(a version checker alone, an injected model) declares `other`.
 
 1. **Depend on the contract.** In `pyproject.toml`, `dependencies =
    ["cs-image-system-contract>=X"]`, with `X` the first release that

@@ -47,12 +47,13 @@ def _entry(name: str, load: Any) -> Any:
 
 @pytest.fixture
 def three_runtime_entries(monkeypatch) -> list[str]:
-    """Two sound plugins around one whose module raises on import."""
+    """Two sound plugins around one whose module raises on import, under
+    ``other`` (a synthetic plugin that registers nothing is of no named kind)."""
     sound = lambda: (lambda: PluginMetadata())  # noqa: E731
     points = [_entry("alpha", sound), _entry("broken", _module_that_raises_on_import), _entry("omega", sound)]
 
     def fake_entry_points(group: str) -> _FakeEntryPoints:
-        return _FakeEntryPoints(*points) if group.endswith(".runtime") else _FakeEntryPoints()
+        return _FakeEntryPoints(*points) if group.endswith(".other") else _FakeEntryPoints()
     monkeypatch.setattr(loader, "entry_points", fake_entry_points)
     return [p.name for p in points]
 
@@ -61,7 +62,7 @@ def test_the_broken_plugin_is_skipped_and_the_others_load(three_runtime_entries,
     with caplog.at_level(logging.ERROR, logger=loader.__name__):
         found = loader._discovered_plugins.__wrapped__()
     assert [d.name for d in found] == ["alpha", "omega"]
-    assert all(d.plugin_type == "runtime" for d in found)
+    assert all(d.plugin_type == "other" for d in found)
 
 
 def test_one_error_line_names_the_plugin_and_the_error(three_runtime_entries, caplog):
@@ -78,7 +79,7 @@ def test_an_initialize_that_raises_is_skipped_the_same_way(monkeypatch, caplog):
         raise RuntimeError("the plugin's initialize is broken")
     points = [_entry("alpha", lambda: (lambda: PluginMetadata())), _entry("faulty", lambda: initialize_raises)]
     monkeypatch.setattr(loader, "entry_points",
-                        lambda group: _FakeEntryPoints(*points) if group.endswith(".runtime") else _FakeEntryPoints())
+                        lambda group: _FakeEntryPoints(*points) if group.endswith(".other") else _FakeEntryPoints())
     with caplog.at_level(logging.ERROR, logger=loader.__name__):
         found = loader._discovered_plugins.__wrapped__()
     assert [d.name for d in found] == ["alpha"]
@@ -91,6 +92,6 @@ def test_a_refusal_is_still_a_refusal(monkeypatch):
     field named, not skipped: a shipped plugin's shortfall stays loud."""
     nameless = types.SimpleNamespace(name="nameless", dist=None, load=lambda: (lambda: PluginMetadata()))
     monkeypatch.setattr(loader, "entry_points",
-                        lambda group: _FakeEntryPoints(nameless) if group.endswith(".runtime") else _FakeEntryPoints())
+                        lambda group: _FakeEntryPoints(nameless) if group.endswith(".other") else _FakeEntryPoints())
     with pytest.raises(loader.PluginNamespaceError):
         loader._discovered_plugins.__wrapped__()
