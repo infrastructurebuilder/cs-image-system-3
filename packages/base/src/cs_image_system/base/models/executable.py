@@ -23,7 +23,7 @@ from typing import Annotated, Any
 
 from cs_image_system.contract.constants import SYSTEM_CLI, DEFAULT, VCT
 from ..encryption import decrypt_marker, is_marker
-from ..utils import in_directory
+from ..directory import in_directory
 
 
 #: how much of a successful command's output the log

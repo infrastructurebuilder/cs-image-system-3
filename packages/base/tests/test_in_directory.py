@@ -12,7 +12,7 @@ from pathlib import Path
 
 import pytest
 
-from cs_image_system.base.utils import in_directory
+from cs_image_system.base.directory import in_directory
 
 
 def test_block_runs_inside_the_directory_and_comes_back(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
