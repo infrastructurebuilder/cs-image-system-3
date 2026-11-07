@@ -10,12 +10,11 @@ if TYPE_CHECKING:
     from .run_context import RunContext
 
 
-import contextlib
 import json
 import os
 import re
 from pathlib import Path
-from typing import Any, Iterable, Iterator, Mapping
+from typing import Any, Iterable, Mapping, Protocol
 
 import logging
 import typer
@@ -155,7 +154,20 @@ def _is_remote_module_source(base: str) -> bool:
     return "://" in base or base.startswith(("git@", "github.com/")) or bool(_FORCED_GETTER.match(base))
 
 
-def module_source_overrides(ctx: "RunContext") -> dict[str, str]:
+class ModuleSourceScope(Protocol):
+    """What :func:`module_source` reads from a run context -- the global
+    ``config:`` map, the configuration root and where generated files land
+    -- so a root generated outside a run (the bootstrap's) resolves its
+    module sources the same way with those three alone."""
+    @property
+    def config(self) -> Mapping[str, Any]: ...
+    @property
+    def working_path(self) -> Path: ...
+    @property
+    def generation_path(self) -> Path: ...
+
+
+def module_source_overrides(ctx: ModuleSourceScope) -> dict[str, str]:
     """The per-module sources ``config: module_sources`` declares: a mapping
     from a module's directory name to the path or URL that IS that module.
     Empty when the key is absent; a value that is not a mapping, or an
@@ -177,7 +189,7 @@ def module_source_overrides(ctx: "RunContext") -> dict[str, str]:
     return out
 
 
-def module_source(ctx: "RunContext", module_dirname: str, workspace_dir: Path | None = None) -> str:
+def module_source(ctx: ModuleSourceScope, module_dirname: str, workspace_dir: Path | None = None) -> str:
     """Terraform module source for a generated ``module`` call.
 
     The base comes from the global ``config: module_source_base`` setting:

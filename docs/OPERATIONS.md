@@ -2381,8 +2381,10 @@ answers untouched.
 The answers go to `bootstrap.yaml` at the root of the tree, beside
 `cfg/` -- hand-editable, committed, the source. `generated/bootstrap/` is
 generated from it: `main.tf` calling `tfmodules/bootstrap_<section>` for
-each wanted section, `providers.tf` (local state for the first apply, the
-provider blocks), `variables.tf`, `outputs.tf`, `bootstrap.auto.tfvars`
+each wanted section (its source resolved as every generated root's is:
+`config: module_source_base` re-rooted for this root's depth, or the
+module's own `config: module_sources` entry when one is declared),
+`providers.tf` (local state for the first apply, the provider blocks), `variables.tf`, `outputs.tf`, `bootstrap.auto.tfvars`
 with every answer that feeds a variable, `set-secrets.sh` (the `gh
 secret set` lines, each reading its value from a file named after the
 secret under the directory the interview named, or from an output of the
