@@ -146,3 +146,23 @@ os_builders:
         # stage 106: no vendor query here -- the image-source catalog's
         # `gcloud` block for alma-linux is the source (the release's:
         # project almalinux-cloud, family almalinux-10)
+  # Stage 128 (item 4): the base the docker emission bakes from -- AlmaLinux 10
+  # as a container (the catalog's `docker` block for alma-linux: almalinux:10,
+  # pulled and pinned by digest; the harness answers the pull). posix identity
+  # and docker volumes only: a container carries no cloud storage.
+  - name: rh10-container
+    identity_types: [posix]
+    storage_types: [volume]
+    type: rhel
+    family: alma-linux
+    family_version: 10
+    update:
+      policy: security
+      exclude: ["kernel*"]
+    tests:
+      commands:
+        - run: "id -u csisadmin"
+    runtimes:
+    -   name: docker-rh10
+        image_builder: pckr-docker
+        ssh_username: root   # a bake in a container runs as root through the daemon

@@ -18,10 +18,10 @@ Second, the package has no tests of its own (there is no
 `packages/dummy-plugin/tests` directory, and the root
 [pyproject.toml](../../pyproject.toml) lists none among its
 `testpaths`); the repository's
-[tests/test_v2_explore_plugin_hooks.py](../../tests/test_v2_explore_plugin_hooks.py)
+[tests/test_plugin_hooks.py](../../tests/test_plugin_hooks.py)
 covers the hooks, and
-[tests/test_v2_defects_low_hanging.py](../../tests/test_v2_defects_low_hanging.py)
-and [tests/test_v2_defects_dead.py](../../tests/test_v2_defects_dead.py)
+[tests/test_identity_roots.py](../../tests/test_identity_roots.py)
+and [tests/test_identity_roots.py](../../tests/test_identity_roots.py)
 cover the builders and models.
 
 ## What it registers
@@ -216,7 +216,7 @@ The hook plugin's emission is outside `generated/`: one JSON line appended
 to the file named by `CSIS_NOTIFY_FILE` after every run, and, with
 `CSIS_DUMMY_LIFECYCLE` set, a `generated/notify/.gitignore` and a `notify`
 section in `generated/final_execution.sh`.
-[tests/test_v2_explore_plugin_hooks.py](../../tests/test_v2_explore_plugin_hooks.py)
+[tests/test_plugin_hooks.py](../../tests/test_plugin_hooks.py)
 pins both: the notifier records the run id and the requested lifecycles;
 the `notify` lifecycle takes its place after the four built-in lifecycles,
 runs, and reports `no-script` at apply time.
@@ -439,7 +439,7 @@ What is checked around it, and where the verdict lands:
   present (`org: Field required`); an unknown key is refused
   (`Unexpected keyword argument`, `extra="forbid"`), and that includes
   `key`, `secret` and `api_host`
-  ([test_v2_defects_dead.py](../../tests/test_v2_defects_dead.py),
+  ([test_identity_roots.py](../../tests/test_identity_roots.py),
   `test_the_template_models_keep_org_and_team_and_refuse_credentials`); the retired
   `parameters:` key is refused by name; `name` and
   `aliases` are checked for `/`, `\` and the reserved words (`default`,
@@ -477,7 +477,7 @@ What is checked around it, and where the verdict lands:
   commands. The user builder's file lands under its own root,
   `generated/identity/<builder>/user-generation/`
   (`test_the_dummy_user_builder_writes_under_its_own_root` in
-  [test_v2_defects_dead.py](../../tests/test_v2_defects_dead.py), which
+  [test_identity_roots.py](../../tests/test_identity_roots.py), which
   also checks that no `Dummy-tf` directory appears).
 - **At apply.** Nothing. The builders defer no commands, so no runner
   script names them; the `notify` lifecycle has no phases and no script
@@ -524,7 +524,7 @@ are the traps a plugin copied from this template falls into.
 |---|---|---|
 | A `notify` entry in a run summary or a golden diff of a run you did not ask for it in, and a `generated/notify/` directory | `CSIS_DUMMY_LIFECYCLE` is set in that shell: a registered lifecycle joins `run --all`, which is why the lifecycle is opt-in (registered unconditionally, it would grow every run a fifth lifecycle) | unset the variable in that shell |
 | `run notify` refused with `Unknown lifecycle 'notify'; expected one of [...]` and exit code 2 although the variable is set | the command path resolved the lifecycle names before it loaded the hook plugins, so every plugin-registered lifecycle was absent from `--all` and from `run <name>` | the `run` command loads the hooks before parsing names; a library caller must call `load_hook_plugins()` before `parse_lifecycles()`, and a test of a plugin-registered lifecycle must load the hook plugins itself rather than rely on an earlier test having done so |
-| `ERROR cs_image_system.base.commands.run_lifecycles:AttributeError: 'list' object has no attribute 'sort_and_write'` from the identity lifecycle's during step ([gen_users.py](../base/src/cs_image_system/base/commands/gen_users.py), [gen_groups.py](../base/src/cs_image_system/base/commands/gen_groups.py)) | a builder's `generate_items_*` hook returned a plain `list` where the contract wants an `AssetSet` | return `AssetSet()` from every generation hook; [tests/test_v2_defects_low_hanging.py](../../tests/test_v2_defects_low_hanging.py) runs a declared dummy builder through the identity lifecycle dry to pin it |
+| `ERROR cs_image_system.base.commands.run_lifecycles:AttributeError: 'list' object has no attribute 'sort_and_write'` from the identity lifecycle's during step ([gen_users.py](../base/src/cs_image_system/base/commands/gen_users.py), [gen_groups.py](../base/src/cs_image_system/base/commands/gen_groups.py)) | a builder's `generate_items_*` hook returned a plain `list` where the contract wants an `AssetSet` | return `AssetSet()` from every generation hook; [tests/test_plugin_hooks.py](../../tests/test_plugin_hooks.py) runs a declared dummy builder through the identity lifecycle dry to pin it |
 | A plugin's file lands beside the builder directories (`generated/identity/<something>/<file>`) instead of under `<builder>/<phase>/` | the builder built the path from a helper of its own instead of `get_path_for_phase()`, and a template copied from it teaches the wrong layout | build every asset path with `get_path_for_phase(phase, ..., suffix=...)`; `test_the_dummy_user_builder_writes_under_its_own_root` checks the user builder's file and the absence of a `Dummy-tf` directory |
 | pydantic `Unexpected keyword argument` naming `key`, `secret` or `api_host` on a dummy builder | the template has no credential field on purpose; the key is unknown | delete it; a real plugin reads a credential from the environment or a credential cache |
 

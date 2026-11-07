@@ -1,0 +1,28 @@
+images:
+  # Stage 128 (item 4): the instance image the docker emission bakes and
+  # stands -- posix-owned (pxgroup), from the container base, one ansible and
+  # one bash modification so the container bake carries both provisioners.
+  - name: imgfile-container
+    group: pxgroup # owning group (V2 Q4): identifies the identity type via the group's builder
+    tags:
+      container: "true"
+    source_image: rh10-container
+    description: "A container image: the posix-owned node the docker roots stand."
+    type: pckr-docker
+    runtimes:
+      - image_builder: pckr-docker
+        machine_type: medium
+    tests:
+      packages: [git]
+      commands:
+        - run: "python3 --version"
+          contains: "Python 3"
+    modifications:
+      - name: container-shell
+        type: bash-remote
+        script:
+          - echo hello
+      - name: container-ansible
+        type: ansible-default
+        playbooks:
+          - setup_dask.yml

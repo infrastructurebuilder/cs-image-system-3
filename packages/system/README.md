@@ -766,23 +766,23 @@ contract: on by default and toggled by `--dry-run/--no-dry-run`. The CLI is
 exercised end to end by the workspace suite against the frozen fixture at
 [`tests/fixtures/config`](../../tests/fixtures/config), whose emission is
 pinned under [`tests/fixtures/v2_golden`](../../tests/fixtures/v2_golden):
-[`test_v2_gate7_headless.py`](../../tests/test_v2_gate7_headless.py) (the
+[`test_headless_cli.py`](../../tests/test_headless_cli.py) (the
 whole workflow through `run --all`, the aliases, the exit codes of `run`,
 `validate` and `gate-plan`, the gid shim's pure-JSON standard output),
-[`test_v2_justfile_contract.py`](../../tests/test_v2_justfile_contract.py)
-(`preflight`), [`test_v2_hygiene_five.py`](../../tests/test_v2_hygiene_five.py)
+[`test_justfile_contract.py`](../../tests/test_justfile_contract.py)
+(`preflight`), [`test_stale_attachments.py`](../../tests/test_stale_attachments.py)
 (`state-migration backup` from the directory the runner entered),
-[`test_v2_encrypted_values.py`](../../tests/test_v2_encrypted_values.py)
-and [`test_v2_emit_by_reference.py`](../../tests/test_v2_emit_by_reference.py)
+[`test_encrypted_values.py`](../../tests/test_encrypted_values.py)
+and [`test_emit_by_reference.py`](../../tests/test_emit_by_reference.py)
 (`encrypt`, `decrypt`, `decrypt --json`),
-[`test_v2_scoped_runs.py`](../../tests/test_v2_scoped_runs.py),
-[`test_v2_gce_cycle.py`](../../tests/test_v2_gce_cycle.py) and
-[`test_v2_runtime_facts.py`](../../tests/test_v2_runtime_facts.py)
-(`apply-check`), [`test_v2_detach.py`](../../tests/test_v2_detach.py)
+[`test_scoped_runs.py`](../../tests/test_scoped_runs.py),
+[`test_gce_cycle.py`](../../tests/test_gce_cycle.py) and
+[`test_runtime_facts.py`](../../tests/test_runtime_facts.py)
+(`apply-check`), [`test_detach.py`](../../tests/test_detach.py)
 (`gate-plan --require-unmounted`),
-[`test_v2_decommission.py`](../../tests/test_v2_decommission.py)
-(`forget instance`), [`test_v2_post_bake_tests.py`](../../tests/test_v2_post_bake_tests.py)
-(`release`), [`test_v2_defects_dead.py`](../../tests/test_v2_defects_dead.py)
+[`test_decommission.py`](../../tests/test_decommission.py)
+(`forget instance`), [`test_post_bake_tests.py`](../../tests/test_post_bake_tests.py)
+(`release`), [`test_headless_cli.py`](../../tests/test_headless_cli.py)
 (`--force` is `No such
 option`, `encrypt` without recipients is a message, a zero-minute session
 is expired). [`tests/test_docs_contract.py`](../../tests/test_docs_contract.py)

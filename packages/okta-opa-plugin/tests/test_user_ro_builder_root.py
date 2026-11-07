@@ -17,7 +17,7 @@ from cs_image_system.hashicorp_utils.collector import (
     ConfiguredTerraformProvider,
     terraform_collector,
 )
-from v2_support import bare_run
+from harness import bare_run
 from cs_image_system.okta_opa_plugin.okta_opa_tf_user_ro_builder import OktaTfUserRoBuilder
 from cs_image_system.okta_opa_plugin.okta_opa_tf_user_models import OktaTfUserRoBuilderModel
 

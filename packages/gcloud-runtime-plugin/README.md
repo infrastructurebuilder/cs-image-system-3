@@ -901,7 +901,7 @@ absent, and a warning when no project can be resolved. The verdict lands
 in the log; the discovered `network_map`, `default_network` and
 `all_firewall_rules` stay on the model for the emitters. The test suite
 stubs `get_network_map_and_default_network` with the fixture's own subnet
-ids (see `tests/v2_support.py`), so no test reaches the API.
+ids (see `tests/harness.py`), so no test reaches the API.
 
 **At `validate`.** The `gcloud` executable's binary exists and its SDK
 version satisfies the declared requirement (one INFO line names every
@@ -921,11 +921,11 @@ object, and `validate` exits 1.
 the instance builder, the launch record). The packer source is emitted
 with the sanitised names; the golden emission under
 `tests/fixtures/v2_golden` pins its exact shape, and `just test` fails on
-any drift of it. `test_v2_explore_gcp.py` asserts the emitted commands: the
+any drift of it. `test_gcp_runtime.py` asserts the emitted commands: the
 finalize provisioner is the last one of every GCE bake, IAP runtimes emit
 `use_iap` and the tunnel wait and non-IAP ones do not, the disk size comes
 from the runtime, the device name and the mounted by-id path agree.
-`test_v2_gce_cycle.py` pins that `bake_preemptible` lands on the source and
+`test_gce_cycle.py` pins that `bake_preemptible` lands on the source and
 that `retag_image` merges the lineage truth into the labels. The package's
 own tests pin the query remap and project resolution.
 
@@ -986,7 +986,7 @@ cannot answer exits 2.
 `deleted=True|False` per build in the log (`False` when GCE already had no
 such image); the lineage record is dropped either way.
 
-`tests/test_v2_bootstrap_gcp.py` holds the bootstrap's GCP section: the
+`tests/test_bootstrap_gcp.py` holds the bootstrap's GCP section: the
 entry point and the tree-derived gates (a GCE-only tree's quiet interview
 asks nothing of AWS), placeholders and an unaskable project refused by
 name, a fresh project getting the guide's pool, provider and accounts, an

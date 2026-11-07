@@ -1,4 +1,27 @@
 instances:
+  container-test:
+    build: unbound
+    enrollment: {}
+    ephemeral: false
+    group: pxgroup
+    hostname: container-test-001
+    identity_type: posix
+    image: imgfile-container
+    launch_delivery: session
+    launched: false
+    machine_type: small
+    mounts:
+    - builder: docker-volume
+      group: pxgroup
+      mount_point: /mnt/data
+      platform_mounted: true
+      public_read: false
+      share_mode: '2770'
+      storage: container_data
+      type: volume
+    run: 2026_08_26t12_00_00
+    session: exec
+    user_data_sha256: 2d715466c934e1a924c1ec083cd5cec16f4044df2d873caaae11af328fcef012
   gce-test:
     build: unbound
     enrollment:

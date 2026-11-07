@@ -97,7 +97,7 @@ state_backends:
 The live configuration carries the same file with every line commented out:
 a placeholder for the day the GCE roots move, which is a decision, not a
 declaration. A file of comments loads as no declaration at all
-([tests/test_v2_state_locations.py](../../tests/test_v2_state_locations.py)
+([tests/test_state_locations.py](../../tests/test_state_locations.py)
 proves both shapes).
 
 A root would bind with `state_configuration: gcs-east1` on the builder
@@ -322,9 +322,9 @@ other plugins, decide whether any of it is used:
   never a value, the model's trimming and registration, and a `gcs`
   location as a third kind of place beside `s3` and `local` in the
   collision rule) and the fixture-level test in
-  [tests/test_v2_state_locations.py](../../tests/test_v2_state_locations.py)
+  [tests/test_state_locations.py](../../tests/test_state_locations.py)
   (declared, bound to nothing, moves nothing in the golden; its commented
-  twin loads as nothing). [tests/test_v2_state_encryption.py](../../tests/test_v2_state_encryption.py)
+  twin loads as nothing). [tests/test_state_encryption.py](../../tests/test_state_encryption.py)
   requires every declared and emitted `s3` backend to encrypt and counts
   `s3` and `local` files; it asks nothing of `gcs`, and no `gcs` file is
   emitted.

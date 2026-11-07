@@ -770,7 +770,7 @@ itself and names the package on stderr (`package vim is not installed`),
 because POSIX suppresses `set -e` inside an AND-OR list
 (`a || { b && c; }`), so an assertion written in that shape lets Packer's
 shell provisioner run on;
-[test_v2_in_bake_tests_enforce.py](../../tests/test_v2_in_bake_tests_enforce.py)
+[test_in_bake_tests_enforce.py](../../tests/test_in_bake_tests_enforce.py)
 runs each form under `sh -e` with a sentinel. Read the build log for the
 verification provisioner's output and compare the assertion count in the
 `# in-bake verification` comment with the lineage record; an assertion

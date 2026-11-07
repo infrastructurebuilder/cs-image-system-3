@@ -1,0 +1,15 @@
+image: imgfile-container
+mods:
+- content_hash: 111ba8202c9a604417659017d2697a22a45ff8bb8b9829a21f431b602f9ef758
+  dir: 01-container-shell
+  idempotent: unknown
+  name: container-shell
+  operation: bash
+  type: bash-remote
+- content_hash: 71695582eb1325ce563389fdbcfc2f8a0e85a2eddc854c74e39c462a8174d555
+  dir: 02-container-ansible
+  idempotent: ansible
+  name: container-ansible
+  operation: ansible
+  type: ansible-default
+run: 2026_08_26t12_00_00

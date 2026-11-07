@@ -2181,19 +2181,19 @@ plugin registration, field helpers and kinds, resolution stages, template
 utilities, item kinds, display names, `email_as_username`, group gids,
 provider-specific images and the finalization executor. The workspace
 suite pins the rest of what this section describes; among them
-[`tests/test_v2_hygiene_five.py`](../../tests/test_v2_hygiene_five.py),
-[`tests/test_v2_power_state.py`](../../tests/test_v2_power_state.py),
-[`tests/test_v2_canonical_names.py`](../../tests/test_v2_canonical_names.py),
-[`tests/test_v2_hostname_claims.py`](../../tests/test_v2_hostname_claims.py),
-[`tests/test_v2_provider_aliases.py`](../../tests/test_v2_provider_aliases.py),
-[`tests/test_v2_generations.py`](../../tests/test_v2_generations.py),
-[`tests/test_v2_alias_pool.py`](../../tests/test_v2_alias_pool.py),
-[`tests/test_v2_defects_dead.py`](../../tests/test_v2_defects_dead.py)
+[`tests/test_stale_attachments.py`](../../tests/test_stale_attachments.py),
+[`tests/test_power_state.py`](../../tests/test_power_state.py),
+[`tests/test_canonical_names.py`](../../tests/test_canonical_names.py),
+[`tests/test_hostname_claims.py`](../../tests/test_hostname_claims.py),
+[`tests/test_provider_aliases.py`](../../tests/test_provider_aliases.py),
+[`tests/test_generations.py`](../../tests/test_generations.py),
+[`tests/test_alias_pool.py`](../../tests/test_alias_pool.py),
+[`tests/test_state_backends.py`](../../tests/test_state_backends.py)
 (the single `dateformat` default, the command built once, a
 zero-minute session is expired),
-[`tests/test_v2_login_proof.py`](../../tests/test_v2_login_proof.py),
-[`tests/test_v2_workload_access.py`](../../tests/test_v2_workload_access.py)
-and [`tests/test_v2_identity_plan_in_mirror.py`](../../tests/test_v2_identity_plan_in_mirror.py).
+[`tests/test_login_proof.py`](../../tests/test_login_proof.py),
+[`tests/test_workload_access.py`](../../tests/test_workload_access.py)
+and [`tests/test_identity_plan_in_mirror.py`](../../tests/test_identity_plan_in_mirror.py).
 `just test` is the acceptance bar.
 
 ## When it fails

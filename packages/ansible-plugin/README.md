@@ -451,9 +451,9 @@ Python side: Python 3.13 or later, `pydantic>=2.13`, and
   refused with a `FileNotFoundError` naming the modification and the path
   (see Variations). The strings written into the provisioner are
   escaped, so no configured value can break the build file's syntax. The emitted text is
-  pinned by the golden fixture and by `tests/test_v2_gate8_modifications.py`
+  pinned by the golden fixture and by `tests/test_modifications.py`
   (one `provisioner "ansible"` per item, correct `only`, `playbook_file`)
-  and `tests/test_v2_explore_gcp.py` (the GCE label), so a change in the
+  and `tests/test_gcp_runtime.py` (the GCE label), so a change in the
   emission fails `just test`.
 - **At apply**: packer runs the provisioners; a failing task fails the
   bake. This plugin adds no check; the image's own `tests:` (base's

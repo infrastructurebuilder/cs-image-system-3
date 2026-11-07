@@ -24,3 +24,13 @@ instance_builders:
     runtime: gcloud-east1
     executable: open-tofu-1
     state_configuration: s3-east2 # decision: GCP roots keep the S3 backend for now
+  # Stage 128 (item 4): containers on the fixture's docker runtime. No
+  # state_configuration: the root inherits the runtime's (local-dev).
+  - name: tofu-docker
+    type: tofu-docker
+    runtime: docker-fixture
+    executable: open-tofu-1
+    required_plugins:
+      - name: docker
+        source: kreuzwerker/docker
+        version: '>= 3.0.0'

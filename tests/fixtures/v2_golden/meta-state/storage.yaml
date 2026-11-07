@@ -1,5 +1,21 @@
 run: 2026_08_26t12_00_00
 storages:
+  container_data:
+    allowed_groups:
+    - pxgroup
+    attachment_cardinality: many
+    attachments:
+    - container-test
+    builder: docker-volume
+    current_state: null
+    generation: 1
+    lifecycle: {}
+    plugin: tf-docker-volume
+    posix: true
+    public_read: false
+    requested_state: active
+    share_mode: '2770'
+    type: volume
   default-bucket:
     allowed_groups: []
     attachment_cardinality: many

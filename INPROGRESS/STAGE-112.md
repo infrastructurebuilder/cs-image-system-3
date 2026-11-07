@@ -124,7 +124,7 @@ the gate that makes the fewer boxes as safe as the many.
 reference's `main` push by default; the release gate's legs; a
 release from a maintenance branch (unchanged).
 
-**Acceptance**: in the take harness (`tests/test_v2_take_recipe.py`),
+**Acceptance**: in the take harness (`tests/test_take_recipe.py`),
 a release whose changed files are all `refresh` is taken in one box
 with the files named in the commit, a release with an `edited` file
 stops naming it alone and commits nothing, and a `validate` failure
@@ -132,7 +132,7 @@ after `--force` leaves the pin at `HEAD`'s; `init-config
 --changes-since` has a test per class in its porcelain form; `just
 release patch test yes` from `develop` prints the branch moves and the
 push it would make and changes nothing; the Justfile text tests
-(`tests/test_v2_release_probes.py`, `tests/test_v2_hygiene_xxi.py`)
+(`tests/test_release_probes.py`, `tests/test_hygiene_xxi.py`)
 cover the new recipes' presence and the five Justfiles' identity; the
 docs tests are green. The live proof is the next release walked in two
 boxes and a login: `just release <part> <index>`, `just take

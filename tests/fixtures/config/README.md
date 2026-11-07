@@ -5,11 +5,17 @@ layout is that of a real configuration root; nothing here changes because
 a cloud changed, and no run ever commits into it.
 
 - It carries **no `meta-state/`** (records of live cloud resources) and no
-  generated output; `tests/v2_support.py:copy_config` copies it into a
+  generated output; `tests/harness.py:copy_config` copies it into a
   temporary directory for every test. Its instance subjects (`test`,
-  `test2`, `gce-test`) are declared in `instances/instances.yaml`;
-  `gce-test` is not ephemeral here, and a test that wants ephemerality
-  declares it.
+  `test2`, `gce-test`, and since stage 128 `container-test`) are declared in
+  `instances/instances.yaml`; `gce-test` is not ephemeral here, and a test
+  that wants ephemerality declares it.
+- Its container runtime (`docker-fixture`, `cfg/runtime-builders.yml`) names
+  a daemon that exists nowhere (`context: csis-fixture-daemon`); the
+  harness stubs every daemon call, so the golden pins the docker emission
+  (the `pckr-docker` bake, the `tofu-docker` and `docker-volume` roots)
+  without a daemon. Its files are `images/image5.yaml` and
+  `storages/container.yaml`.
 - `tests/fixtures/v2_golden/` is exactly what `run --all` emits over it
   (see [GOLDEN.md](../../../GOLDEN.md)); a change here moves the golden.
 - Its `module_source_base: ../tfmodules` resolves relative to the copied

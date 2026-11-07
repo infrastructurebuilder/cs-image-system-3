@@ -1630,8 +1630,7 @@ There is no looser recipe: the contract test asserts that a
 `ci` recipe with a non-blocking type-check stays gone.
 
 The tests run over private copies of the fixture with every cloud, Okta
-and tool execution stubbed; `just v2-test` runs the gate tests alone
-(`tests/test_v2_*.py`).
+and tool execution stubbed.
 
 ### `just full-test`
 
@@ -1835,13 +1834,13 @@ the installed plugins' modules under `tfmodules/`), its `README.md` and
 `CI_SETUP.md` included, and holds the built wheel equal to the source;
 `tests/test_docs_image_sources.py` reads every runtime plugin's
 `README.md` image-query table and the contract README against the
-code; `tests/test_v2_ci_runner.py` reads [CI_RUNNER.md](CI_RUNNER.md)'s
+code; `tests/test_ci_runner.py` reads [CI_RUNNER.md](CI_RUNNER.md)'s
 tool table against the runner image's Dockerfile and probe and the
 starters' `executables.yml`. Others pin a phrase or a count in this
 page, [CONFIGURATION.md](CONFIGURATION.md) and the daily driver
-(`tests/test_v2_stage_103.py`, `test_v2_stage_105.py`,
-`test_v2_stage_107.py`, `test_v2_hygiene_xii_decisions.py`,
-`test_v2_hygiene_xx.py`, `test_v2_dev_pin_install.py`), so a change to
+(`tests/test_container_runtime.py`, `test_output_image_name.py`,
+`test_release_on_main.py`, `test_bootstrap_coverage.py`,
+`test_committed_files.py`, `test_dev_pin_install.py`), so a change to
 one of those three pages runs them too; `grep -l '<page>.md' tests/*.py`
 names the set.
 
@@ -2058,7 +2057,7 @@ one thing that changes them (`uv version` bumps the lines but never a
 pin, so it is not used). The scheme is `MAJOR.MINOR.PATCH[.devN]`; every
 version goes to TestPyPI first, and versions there are deleted as
 development goes on, so an increment must be cheap: `just release dev`
-is one. `tests/test_v2_package_metadata.py` bumps a copy of the tree and
+is one. `tests/test_package_metadata.py` bumps a copy of the tree and
 asserts nothing of the old version is left.
 
 ### Installing a release
@@ -2265,7 +2264,7 @@ repository's, which the release ships.
 | `reuse-live` | the REUSE lint over the reference configuration | reference configuration |
 | `typecheck` | pyright | nothing |
 | `pytest` | the unit tests alone | nothing |
-| `test-one *ARGS` / `v2-test` | one pytest expression / `tests/test_v2_*.py` alone | nothing |
+| `test-one *ARGS` | one pytest expression | nothing |
 | `test-mods *ARGS` | the modification tests in a container over the reference configuration | docker, reference configuration |
 | `test-posix-accounts *ARGS` | the posix accounts script on AlmaLinux 10 and Debian 12 under docker, run twice: against an equal and a differing pre-existing group, a member with no account yet, sudo through visudo; a leg of `full-test`, skipped under `just test` | docker |
 | `test-bake-steps *ARGS` | a bake's settle step and step runner on AlmaLinux 10 and Debian 12 under docker, with the package database REALLY held by another process (rpm's transaction lock, dpkg's frontend lock); a leg of `full-test`, skipped under `just test` | docker |
@@ -2355,9 +2354,9 @@ out, records it or performs on it: that is the reference configuration's
 own workflow, which is the starter's with the team's values. Every
 command in any of them is a `just` target of its
 repository, so CI and a person's shell run the same thing.
-`tests/test_v2_ci_workflow.py` pins this repository's workflow;
+`tests/test_ci_workflow.py` pins this repository's workflow;
 `tests/test_docs_examples.py` pins the starter's, jobs and perform
-sequence included; `tests/test_v2_ci_runner.py` holds the image, the
+sequence included; `tests/test_ci_runner.py` holds the image, the
 from-scratch workflow and CI_RUNNER.md to one list of tools.
 
 ### The bootstrap: what CI needs, as terraform from an interview
@@ -2615,17 +2614,17 @@ line (`docker version` against its daemon).
 The
 modules ship inside their plugin's package like every module
 (`cs-image-system modules` lists them; `init-config` writes them into
-the tree); `tests/test_v2_bootstrap_gcp.py` holds the GCP section (the
+the tree); `tests/test_bootstrap_gcp.py` holds the GCP section (the
 tree-derived gates across both clouds, the probes and refusals, a fresh
 project and a shared provider, the by-hand note, the additive-only
 module held to the guide's mapping, a real `tofu validate`),
-`tests/test_v2_bootstrap_aws.py` holds the AWS section (the
+`tests/test_bootstrap_aws.py` holds the AWS section (the
 probes, the refusals, the forks, the imports, the backend, the guide's
 statements, a real `tofu validate` of both sections together) and
-`tests/test_v2_bootstrap.py` holds the question model, the quiet
+`tests/test_bootstrap.py` holds the question model, the quiet
 interview, the root (a real `tofu validate`), the regeneration inside a
 run, the commit, `config-drift`, the secrets script, the starters' parts
-and the command; `tests/test_v2_hygiene_xx.py` holds the other S3
+and the command; `tests/test_bootstrap_coverage.py` holds the other S3
 backends' buckets, the GCS bucket, the audit table and the two validate
 lines.
 

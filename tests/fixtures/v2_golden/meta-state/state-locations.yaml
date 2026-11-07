@@ -32,6 +32,12 @@ workspaces:
     run: 2026_08_26t12_00_00
     type: s3
     use_lockfile: true
+  docker-volume:
+    backend: local-dev
+    location: local://state/docker_volume.tfstate
+    path: ../../../../state/docker_volume.tfstate
+    run: 2026_08_26t12_00_00
+    type: local
   gcp-gcs:
     backend: s3-east1
     bucket: my-east1-tfstate-bucket
@@ -83,6 +89,12 @@ workspaces:
     run: 2026_08_26t12_00_00
     type: s3
     use_lockfile: true
+  tofu-docker:
+    backend: local-dev
+    location: local://state/tofu_docker.tfstate
+    path: ../../../../state/tofu_docker.tfstate
+    run: 2026_08_26t12_00_00
+    type: local
   tofu-gce:
     backend: s3-east2
     bucket: noaa-ioos-cloud-sandbox-tfstate

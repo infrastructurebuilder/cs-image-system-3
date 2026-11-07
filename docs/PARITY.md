@@ -14,12 +14,13 @@ code in a specific way, listed here with its check.
 
 | Where | How it can drift | The check today | What could automate it |
 | --- | --- | --- | --- |
-| [docs/CONFIGURATION.md](CONFIGURATION.md), the field tables | A field added to or removed from a model without a doc change; a default or validator changed. | For a model, compare its dataclass fields with the table: `grep -n 'field\|:' packages/<pkg>/src/**/models*.py`. | A test that walks every registered model's fields and asserts each appears in the reference. |
+| [docs/CONFIGURATION.md](CONFIGURATION.md), the field tables | A field added to or removed from a model without a doc change; a default or validator changed. | `tests/test_docs_parity.py` walks every registered model's dataclass fields after `load_plugins()` and asserts each is named in the reference (a short allow-list names the discovered facts and the example plugin's setting, each with its reason). | Done: the test. A default or validator that changes is still read by hand. |
 | [docs/CONFIGURATION.md](CONFIGURATION.md), the examples | An example copied from the fixture that the fixture later changes, or that stops validating. | `just cli validate` over the frozen fixture: `uv run cs-image-system --root-dir tests/fixtures/config validate`. | Examples extracted from the fixture at documentation-build time. |
+| The root [README](../README.md), the package list | A package added under `packages/` without a line in the list. | `tests/test_docs_parity.py`: every package under `packages/` with a `pyproject.toml` is linked from the list. | Done: the test. |
 | The package READMEs ([docs/PLUGINS.md](PLUGINS.md)) | A plugin registers a new classification, model or `type:` key, or changes an entry point, and its README does not follow. | `grep -n plugins packages/<pkg>/pyproject.toml` against the README's "What it registers"; the registry's view: `uv run cs-image-system --root-dir tests/fixtures/config validate` logs every registration. | A test that every entry point has a README naming it, and every registered `type:` key appears in the README. |
-| [docs/OPERATIONS.md](OPERATIONS.md), the recipe catalogue | A recipe added, renamed or changed in the Justfile. | `just --list` against the catalogue table. | A test that every recipe name in `just --list` appears in the manual. |
-| [docs/OPERATIONS.md](OPERATIONS.md), CI | A step, a secret or a trigger changed in the workflow. | `.github/workflows/ci.yml` against the CI section; `tests/test_v2_ci_workflow.py` pins the commands and the secrets list, not the prose. | Extend the workflow test to assert each pinned name appears in the manual. |
-| [docs/OPERATIONS.md](OPERATIONS.md), the CLI | A subcommand or option added or changed. | `uv run cs-image-system --help` and `<subcommand> --help` against the text. | The CLI's help is the reference; a test that every subcommand is named in the manual. |
+| [docs/OPERATIONS.md](OPERATIONS.md), the recipe catalogue | A recipe added, renamed or changed in the Justfile. | `tests/test_docs_parity.py`: every recipe `just --summary` prints is named in the catalogue's table. | Done: the test. What a recipe does is still read by hand. |
+| [docs/OPERATIONS.md](OPERATIONS.md), CI | A step, a secret or a trigger changed in the workflow. | `.github/workflows/ci.yml` against the CI section; `tests/test_ci_workflow.py` pins the commands and the secrets list, not the prose. | Extend the workflow test to assert each pinned name appears in the manual. |
+| [docs/OPERATIONS.md](OPERATIONS.md), the CLI | A subcommand or option added or changed. | `tests/test_docs_parity.py`: every command and sub-command the Typer app registers is named in a table of the manual; `<subcommand> --help` against the text for the options. | Done for the names: the test. The options are still read by hand. |
 | [docs/DESIGN.md](DESIGN.md) | The design record describes a rule the code no longer keeps, or a mechanism that changed shape. | The golden ([GOLDEN.md](../GOLDEN.md)) is the executable description of the emission: what the design says about the emission is checked against `tests/fixtures/v2_golden/`. | None planned; design prose is reviewed by hand. |
 | [GOLDEN.md](../GOLDEN.md), the file counts | The golden gains or loses files. | `find tests/fixtures/v2_golden -type f \| wc -l` and per lifecycle. | Trivial to assert in `tests/test_v2_golden.py`. |
 | [DESCRIPTION.md](DESCRIPTION.md) "Known limits" | A limit is lifted and the list is not updated. | Each limit names its evidence (a file, a record, a command); re-check it when the area changes. | None. |
@@ -35,24 +36,26 @@ trust first:
 - The emission: every file under `tests/fixtures/v2_golden/` equals what
   the run emits (`tests/test_v2_golden.py`).
 - The runner scripts are self-contained and name no absolute path
-  (`tests/test_v2_portable_run_scripts.py`).
+  (`tests/test_portable_run_scripts.py`).
 - The fixture's people are synthetic and its rosters encrypted
-  (`tests/test_fixture_personas.py`, `tests/test_v2_encrypted_values.py`).
+  (`tests/test_fixture_personas.py`, `tests/test_encrypted_values.py`).
 - The public-safe gate's rules, exemptions and allowances
-  (`tests/test_v2_public_safe.py`); the tree scans clean (`just
+  (`tests/test_public_safe.py`); the tree scans clean (`just
   public-safe`, CI).
 - The CI workflow's commands, secrets and the read-only `live` job
-  (`tests/test_v2_ci_workflow.py`).
+  (`tests/test_ci_workflow.py`).
 - The Justfile contract, the guard on the live root, the config-drift
-  recipe, the publish-tree recipe (`tests/test_v2_justfile_contract.py`,
-  `tests/test_v2_publish_tree.py`).
+  recipe, the publish-tree recipe (`tests/test_justfile_contract.py`,
+  `tests/test_publish_tree.py`).
 - The suite never reads the live configuration
   (`tests/test_fixture_independence.py`).
+- The documents name what the code declares: model fields, recipes,
+  packages, CLI commands and the starter count (`tests/test_docs_parity.py`).
 - Every package declares exactly the third-party distributions it imports
   and pins its siblings at the shared version; the root is the core with
   each provider as an extra, and the two private plugins are workspace-only;
   one bump moves every version line and pin, the extras' and the dev
-  group's included (`tests/test_v2_package_metadata.py`); the extras'
+  group's included (`tests/test_package_metadata.py`); the extras'
   table, the starters' `extras` recipe and what `validate` says of an
   absent plugin (`tests/test_extras.py`).
 
@@ -77,9 +80,10 @@ recipe, a CLI option, a CI step or a secret, the matching document changes
 in the same commit. The checks above take minutes; run the ones that match
 what you touched.
 
-The tests the "What could automate it" column proposes are
-[a planned stage](../INPROGRESS/STAGE-128.md): every
-registered model's fields appear in CONFIGURATION, every recipe in
-OPERATIONS, every plugin package in the root README's list, every CLI
-command in OPERATIONS's table, and the starter count is one constant the
-docs tests read. Once they exist, that column points at them.
+The rows whose check is `tests/test_docs_parity.py` are held by that
+test: every registered model's fields appear in CONFIGURATION, every
+recipe in OPERATIONS's catalogue, every package in the root README's
+list, every CLI command in a table of OPERATIONS, and the starter count
+the documents state in words is `cs_image_system.system.starters.STARTERS`
+-- the one constant the docs tests read (`tests/test_docs_examples.py`,
+`tests/test_starter_tree.py`).

@@ -36,3 +36,17 @@ instances:
     storages:
       - name: gce_data
         mount_point: /mnt/gce-data
+  # Stage 128 (item 4): the fourth subject, a container on the fixture's docker
+  # runtime (the first three keep their positions). Its hostname is the
+  # platform's `<name>-NNN`; nothing here reaches a daemon.
+  - name: container-test
+    image: imgfile-container
+    runtime: docker-fixture
+    type: tofu-docker
+    machine_type: small
+    description: The fixture's container instance (stage 128; the docker emission)
+    tags:
+      purpose: proof
+    storages:
+      - name: container_data
+        mount_point: /mnt/data

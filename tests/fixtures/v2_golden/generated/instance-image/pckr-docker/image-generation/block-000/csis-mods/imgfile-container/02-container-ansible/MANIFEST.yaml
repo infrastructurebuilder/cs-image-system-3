@@ -1,0 +1,9 @@
+content_hash: 71695582eb1325ce563389fdbcfc2f8a0e85a2eddc854c74e39c462a8174d555
+files:
+- setup_dask.yml
+idempotent: ansible
+image: imgfile-container
+name: container-ansible
+operation: ansible
+run: 2026_08_26t12_00_00
+type: ansible-default

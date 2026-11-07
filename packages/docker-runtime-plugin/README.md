@@ -345,7 +345,7 @@ digest reference. `output_image_name` is the tag prefix.
 - The unit tests ([tests/](tests/)) pin the names module (tags, repository
   names, movable tags), the query translation, the model's environment and
   the packer source and post-processor shapes without a daemon; the
-  system's [tests/test_v2_stage_103.py](../../tests/test_v2_stage_103.py)
+  system's [tests/test_container_runtime.py](../../tests/test_container_runtime.py)
   drives a dry `run --all` over an overlay of the frozen fixture and
   checks the emitted docker sources.
 - `just test-docker-bake`, a leg of `just full-test`, bakes an AlmaLinux 10

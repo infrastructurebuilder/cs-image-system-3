@@ -204,7 +204,7 @@ A posix group or user that declares `attributes:` is refused: the ids are
   creates).
 - **Its tests**: [`tests/test_posix_accounts.py`](tests/test_posix_accounts.py)
   holds the script's parts as text and checks the whole script parses;
-  the system's `tests/test_v2_posix_identity.py` holds the builders, the
+  the system's `tests/test_posix_identity.py` holds the builders, the
   id resolution and the generated IaC; the container leg of `just
   full-test` runs the script on AlmaLinux 10 and Debian, twice, against an
   equal and a differing pre-existing group.
