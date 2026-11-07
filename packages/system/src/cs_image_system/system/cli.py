@@ -257,7 +257,7 @@ def run_command(
         except ValueError as e:
             typer.secho(f"--only-runtime: {e}", fg=typer.colors.RED, err=True)
             raise typer.Exit(code=2)
-        # ledger 70: a run scoped to one runtime's images plans no OTHER
+        # a run scoped to one runtime's images plans no OTHER
         # runtime's terraform roots either (their plans can only fail or waste
         # time -- one cloud's instance root looked its image family up and got a
         # 404 during a bake scoped to the other cloud, after a cycle had

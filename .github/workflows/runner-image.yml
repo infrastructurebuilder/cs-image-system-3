@@ -4,7 +4,7 @@
 
 name: Runner image
 
-# Builds the CI runner image (stage 92; ci/runner-image/Dockerfile, docs/CI_RUNNER.md),
+# Builds the CI runner image (ci/runner-image/Dockerfile, docs/CI_RUNNER.md),
 # runs its probe, and publishes it to ghcr.io as csis-ci:alma10-<YYYYMMDD>. A push that
 # changes ci/runner-image/ (or a dispatch) publishes the tag the tree pins, the content
 # of ci/runner-image/TAG, which every workflow names and a test holds equal; the monthly

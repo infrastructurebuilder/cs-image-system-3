@@ -231,7 +231,7 @@ def compute_launch_params(ctx: "RunContext", instance: "Instance") -> dict[str, 
         "hostname": hostname,
         **({"alias": alias} if alias else {}),
         "ephemeral": bool(getattr(instance, "ephemeral", False)),
-        # the instance's own startup lines (ledger 68): part of what the machine
+        # the instance's own startup lines: part of what the machine
         # booted with, hence immutable like every other launch parameter
         # (present only when declared, so records from before it stay comparable)
         **({"userdata": ud} if (ud := str(getattr(instance, "userdata", "") or "").strip()) else {}),

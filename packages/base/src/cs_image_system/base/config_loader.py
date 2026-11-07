@@ -308,7 +308,7 @@ def apply_overlays(ctx: Any, spec: ItemKind, read_dict: dict[str, Any]) -> None:
         for item in data.get(key) or []:
             name = item.get("name")
             if item.get("undeclare"):
-                # ledger 68: an overlay can also UNDECLARE a tree entry for one
+                # an overlay can also UNDECLARE a tree entry for one
                 # invocation -- the instance decommissions / the storage is
                 # destroyed exactly as if its entry had left the YAML
                 if read_dict.pop(name, None) is not None:

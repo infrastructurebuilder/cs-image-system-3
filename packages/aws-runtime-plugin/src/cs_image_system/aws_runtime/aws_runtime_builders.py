@@ -433,7 +433,7 @@ class AwsCloudBuilder(CloudBuilderBase[AwsCloudBuilderModel], PluginArtifactProt
                 inv = ssm.get_command_invocation(CommandId=command_id, InstanceId=ids[0])
             except Exception as e:  # noqa: BLE001
                 # the invocation record appears a moment AFTER send_command
-                # returns (found live, ledger 72: the unmount had already run
+                # returns (found live: the unmount had already run
                 # on the instance when this raised, so no receipt was written)
                 code = str(getattr(e, "response", {}).get("Error", {}).get("Code", "")) if hasattr(e, "response") else ""
                 if code == "InvocationDoesNotExist" and time.time() < deadline:

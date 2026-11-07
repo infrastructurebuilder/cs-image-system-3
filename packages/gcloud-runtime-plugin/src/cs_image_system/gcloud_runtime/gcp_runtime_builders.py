@@ -471,8 +471,8 @@ class GCPCloudBuilder(CloudBuilderBase[GCPCloudBuilderModel], PluginArtifactProt
         return True
 
     def retag_image(self, image_id: str, tags: dict[str, str]) -> bool:
-        """``setLabels`` on one of our own GCE images (zero-drift-report,
-        ledger 66): the labels packer wrote at generation time are merged
+        """``setLabels`` on one of our own GCE images (zero drift
+        report): the labels packer wrote at generation time are merged
         with the lineage truth, through the same ``gce_label`` sanitizer the
         packer source used, so the state query compares like with like."""
         from google.cloud import compute_v1  # noqa: PLC0415

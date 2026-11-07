@@ -44,7 +44,7 @@ instances:
     runtime: docker-fixture
     type: tofu-docker
     machine_type: small
-    description: The fixture's container instance (stage 128; the docker emission)
+    description: The fixture's container instance
     tags:
       purpose: proof
     storages:

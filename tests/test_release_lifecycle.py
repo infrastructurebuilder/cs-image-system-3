@@ -83,7 +83,7 @@ def test_release_requires_evidence_and_records(v2):
 def test_release_lifecycle_is_registered_and_gated(v2):
     from cs_image_system.base.commands.run_lifecycles import load_hook_plugins
     from cs_image_system.base.lifecycles import all_lifecycles
-    load_hook_plugins()          # as the CLI does before names resolve (ledger 62); alone, this test ran first
+    load_hook_plugins()          # as the CLI does before names resolve; alone, this test ran first
     names = [lc.value for lc in all_lifecycles()]
     assert names == ["identity", "storage", "base-image", "instance-image", "release", "retention"]
     summary = v2.run(["release"], apply=True)

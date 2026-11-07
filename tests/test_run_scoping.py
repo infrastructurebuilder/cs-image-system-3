@@ -200,7 +200,7 @@ def test_an_expired_session_does_not_stop_the_load_and_the_loaded_tree_reports_i
     assert not expired and blocking and "SHORTER" in blocking[0] and "100000 min" in blocking[0]
 
 
-# ------------------------------------------------ ledger 70: roots and follow
+# ------------------------------------------------------- roots and follow
 
 def test_only_runtime_scopes_the_terraform_roots_too(tmp_path, monkeypatch):
     """A run scoped to one runtime's images generates and plans no OTHER

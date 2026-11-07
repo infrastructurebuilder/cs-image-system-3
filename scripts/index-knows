@@ -2,7 +2,7 @@
 # SPDX-FileCopyrightText: 2026 Mykel Alvis <mykelalvis@infrastructurebuilder.org>
 #
 # SPDX-License-Identifier: Apache-2.0
-"""Does an index already know a version of a project? (stage 41.5)
+"""Does an index already know a version of a project?
 
     uv run python scripts/index-knows <simple-url> <project> <version>
 
@@ -70,7 +70,7 @@ def main(argv: list[str]) -> int:
         return 2
     simple_url, project, version = argv[1:]
     if not simple_url.startswith(("https://", "http://")):
-        # hygiene XXII item 4: a label ("test") where the simple URL belongs ended in a ValueError traceback
+        # a label ("test") where the simple URL belongs ended in a ValueError traceback
         print(f"index-knows: {simple_url!r} is not a simple-index URL (for example https://test.pypi.org/simple/)", file=sys.stderr)
         print(__doc__.strip().splitlines()[2].strip(), file=sys.stderr)
         return 2

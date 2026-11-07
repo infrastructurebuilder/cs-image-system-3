@@ -262,7 +262,7 @@ def render_executable_line(executable: Any, base: Path | None = None, root: Path
     directory under ``base`` (the lifecycle's directory) is rendered
     RELATIVE to it -- the runner header promises "paths are relative to
     this lifecycle's directory", and an absolute workspace path would tie
-    the script (and the golden) to one checkout (ledger 71). An argument
+    the script (and the golden) to one checkout. An argument
     that is ``root`` (the configuration root: ``--root-dir``) or a path under
     it (``--overlay``) is rendered as ``"$CSIS_ROOT"`` / ``"$CSIS_ROOT/<rel>"``
     -- the header defines the variable relative to the script, so

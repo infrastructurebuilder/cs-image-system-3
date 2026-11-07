@@ -226,7 +226,7 @@ def test_teardown_policy_records_the_verdict_tears_down_and_fails_afterwards(pre
     verify = next(i for i, ln in enumerate(lines) if "verify instance gce-test --record-only" in ln)
     teardown_apply = [i for i, ln in enumerate(lines) if "apply -input=false tfplan" in ln][-1]
     assert verify < teardown_apply
-    # ledger 68: the failed verdict fails the run from the after-apply hook
+    # the failed verdict fails the run from the after-apply hook
     # (after the records are forgotten), never from the script's last step
     assert not any("verify assert" in ln for ln in lines)
 

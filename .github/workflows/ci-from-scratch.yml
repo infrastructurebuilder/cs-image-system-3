@@ -5,7 +5,7 @@
 name: CI from scratch
 
 # The same bar and the same live proof as ci.yml, on GitHub's own runner image with
-# every tool installed by a step -- the path every job ran until stage 92, kept here
+# every tool installed by a step -- the path every job ran before the runner image, kept here
 # so that a reader with no image of their own can see what a runner needs, step by
 # step (docs/CI_RUNNER.md is the same list as a requirements document). It is moved
 # forward with ci.yml by the daily driver's section 9.1 and runs on `develop`, on a
@@ -20,8 +20,8 @@ on:
 
 jobs:
   verify:
-    # The bar: lint, type-check (blocking since pyright reached 0 errors, stage 23)
-    # and the fast suite over the frozen fixture (stage 28). Every push and PR.
+    # The bar: lint, type-check (blocking: pyright holds 0 errors)
+    # and the fast suite over the frozen fixture. Every push and PR.
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v5
@@ -41,11 +41,11 @@ jobs:
         run: just verify
 
       - name: Public-safe
-        # stage 35: nothing in the checkout may be material that must never be public
+        # nothing in the checkout may be material that must never be public
         run: just public-safe
 
   live:
-    # The system's live proof over the frozen fixture (stage 64): the fixture
+    # The system's live proof over the frozen fixture: the fixture
     # names the real account's networks and project and the real OPA team, so
     # with the read-only identities `just fixture-live` validates it, dry-runs
     # every lifecycle over a private copy (state query off: the fixture's
@@ -72,7 +72,7 @@ jobs:
           HAVE_TF_VAR_NOS_SECRET: ${{ secrets.TF_VAR_NOS_SECRET != '' }}
         run: |
           # A secret that is MISSING and one that is EMPTY read the same here ('' either
-          # way), so the distinction is made on the SET (stage 43): none configured is an
+          # way), so the distinction is made on the SET: none configured is an
           # unconfigured repository -- SKIPPED, and said so in the job summary, because a
           # green conclusion is not proof that a step ran; some configured and some not
           # is configured-and-broken -- a FAILURE that names them. The fixture's age

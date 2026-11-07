@@ -1,6 +1,6 @@
 image: imgfile-basic-dask
 mods:
-- content_hash: f69207b82321c53a4944d6cba1940d6a4b8e051fa26c8c30c733c7f7c0faea3d
+- content_hash: d9434c2f2907c2a08c3c1baa74f1cf30088ded4220eec41d8128fdfb58d47079
   dir: 01-dask-setup-jeffy
   idempotent: ansible
   name: dask-setup-jeffy

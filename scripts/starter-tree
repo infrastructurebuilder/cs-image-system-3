@@ -2,7 +2,7 @@
 # SPDX-FileCopyrightText: 2026 Mykel Alvis <mykelalvis@infrastructurebuilder.org>
 #
 # SPDX-License-Identifier: Apache-2.0
-"""Build one starter's template-repository tree (stage 66)
+"""Build one starter's template-repository tree
 
     uv run python scripts/starter-tree <name> <version> <dest>
     uv run python scripts/starter-tree --list      # each starter and its template repository

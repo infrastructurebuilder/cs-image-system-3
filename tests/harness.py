@@ -312,7 +312,7 @@ def stub_environment(monkeypatch) -> list[str]:
         return _run
     monkeypatch.setattr(AwsCloudBuilder, "run_session_command", _session_stub(_real_aws_session))
     monkeypatch.setattr(GCPCloudBuilder, "run_session_command", _session_stub(_real_gcp_session))
-    monkeypatch.setattr(GCPCloudBuilder, "retag_image",                    # ledger 66: GCE relabels too
+    monkeypatch.setattr(GCPCloudBuilder, "retag_image",                    # GCE relabels too
                         lambda self, image_id, tags: retags.append((image_id, dict(tags))) or True)
     _real_docker_session = DockerContainerBuilder.run_session_command
     monkeypatch.setattr(DockerContainerBuilder, "run_session_command", _session_stub(_real_docker_session))

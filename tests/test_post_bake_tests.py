@@ -163,7 +163,7 @@ def test_released_builds_survive_retention_and_count_as_declared(run, monkeypatc
     assert emptiness(run.ctx, GCE)["leftovers"]["images"] == [BASE]
 
 
-# ---------------------------------------------- declared releases (ledger 71)
+# ---------------------------------------------------- declared releases
 
 def test_declared_release_targets_the_verified_head_only(run):
     """`release: {model}` on an image: the release lifecycle releases each

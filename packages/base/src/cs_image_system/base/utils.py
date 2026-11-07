@@ -227,8 +227,8 @@ def module_source(ctx: ModuleSourceScope, module_dirname: str, workspace_dir: Pa
 
 
 def root_in_runtime_scope(ctx: "RunContext", runtime: str | None) -> bool:
-    """Whether a terraform root bound to ``runtime`` takes part in THIS run
-    (ledger 70): under ``--only-runtime <rt>`` (explicit, or implied by
+    """Whether a terraform root bound to ``runtime`` takes part in THIS run:
+    under ``--only-runtime <rt>`` (explicit, or implied by
     ``--apply-runtime``) only that runtime's roots are generated and
     planned; without it every root does, as before. List-valued
     ``apply_*`` flags are NOT a scope here -- by the per-root scoping

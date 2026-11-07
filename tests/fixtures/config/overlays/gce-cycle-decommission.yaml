@@ -1,8 +1,8 @@
 # Decommission overlay (`just gce-decommission`): the GCE instance root may
 # apply, and gce-test is UNDECLARED for this invocation -- the overlay
-# `undeclare` form (ledger 68), so a standing gce-test is destroyed through
+# `undeclare` form, so a standing gce-test is destroyed through
 # the gate whether it lives in the tree (declared ephemeral) or only in the
-# records. Found live (ledger 71): with gce-test declared in the tree, the
+# records. Found live: with gce-test declared in the tree, the
 # previous config-only form RESUMED the ephemeral sequence (verify again)
 # instead of decommissioning.
 config:

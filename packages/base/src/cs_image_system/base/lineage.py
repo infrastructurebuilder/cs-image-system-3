@@ -659,7 +659,7 @@ def _bake_reason(ctx: "RunContext", image: Any, runtime: str | None) -> str | No
     build, superseded = effective_parent_build(ctx, image, runtime)
     if superseded:
         return f"parent moved {superseded} -> {build} (parent_policy: follow)"
-    # ledger 70: under `follow` a parent that BAKES IN THIS RUN is a move too
+    # under `follow` a parent that BAKES IN THIS RUN is a move too
     # (its new head is not recorded yet at plan time, so the pin/head
     # comparison above sees nothing): the child bakes from the series and
     # its pin follows when the bake is recorded. Kept out of

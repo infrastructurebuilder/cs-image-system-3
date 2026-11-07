@@ -406,7 +406,7 @@ def test_gcs_state_lookup_goes_through_gcloud(tmp_path, monkeypatch):
         run.restore_cwd()
 
 
-# ---------------------------------------------------- relabel (ledger 66)
+# ---------------------------------------------------------------- relabel
 
 def test_gce_retag_merges_lineage_truth_into_the_image_labels(tmp_path, monkeypatch):
     """A follow image baked in the same run as its parent carries
@@ -457,7 +457,7 @@ def test_gce_retag_merges_lineage_truth_into_the_image_labels(tmp_path, monkeypa
         run.restore_cwd()
 
 
-# ------------------------------------------------ overlay undeclare (ledger 68)
+# ------------------------------------------------------ overlay undeclare
 
 def test_an_overlay_can_undeclare_a_tree_entry_for_one_invocation(prepared, tmp_path):
     """`{name: X, undeclare: true}` removes the tree's entry for this run only:

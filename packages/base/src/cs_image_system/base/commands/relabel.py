@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""Re-label cloud images from their lineage records (ledger 66).
+"""Re-label cloud images from their lineage records.
 
 The state query's ``changed`` drift means a cloud image's lineage tags
 disagree with its record. The record is the truth (it was written after
