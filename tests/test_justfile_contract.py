@@ -242,7 +242,9 @@ def test_preflight_reports_absent_sessions_and_exits_2(monkeypatch):
     assert result.exit_code == 2, result.output
     assert "aws-east2-runtime" in result.output and "gcloud-east1" in result.output and "docker-fixture" in result.output
     assert "not in" in result.output or "no SSO token" in result.output      # the aws line's reason
-    assert "does not answer" in result.output                               # the synthetic daemon's (stage 128)
+    # the synthetic daemon's line: the context exists nowhere, the CLI may be absent (a bare runner), or
+    # a probe may time out; any of the three is "absent"
+    assert any(w in result.output for w in ("does not answer", "is not an executable", "no answer within")), result.output
     assert "Application Default Credentials" in result.output
     assert "EXPIRED" in result.output and "renew" in result.output
     assert not (FIXTURE_CONFIG / "meta-state").exists()                     # the load wrote nothing into the frozen fixture

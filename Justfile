@@ -658,6 +658,15 @@ fixture-live:
 	mkdir -p "$copy/x"
 	cp -R tests/fixtures/config "$copy/x/config"
 	uv run cs-image-system modules --write "$copy/x/tfmodules" || { echo "fixture-live: FAILED modules --write"; status=1; }
+	# the fixture's docker runtime names a context that exists on no machine (csis-fixture-daemon); for the
+	# dry run it is bound to THIS machine's daemon, the one the modification tests use, and removed again after
+	made_context=0
+	if docker info >/dev/null 2>&1 && ! docker context inspect csis-fixture-daemon >/dev/null 2>&1; then
+		host="${DOCKER_HOST:-$(docker context inspect --format '{{{{.Endpoints.docker.Host}}' 2>/dev/null)}"
+		docker context create csis-fixture-daemon --docker "host=$host" >/dev/null \
+			&& { made_context=1; echo "fixture-live: docker context csis-fixture-daemon -> $host (for this run)"; } \
+			|| echo "fixture-live: could not create the docker context csis-fixture-daemon; the docker roots will fail"
+	fi
 	echo "fixture-live: headless dry run --all over a private copy ($copy), state query off"
 	uv run cs-image-system --root-dir "$copy/x/config" run --all --no-state-query || { echo "fixture-live: FAILED dry run --all"; status=1; }
 	if docker info >/dev/null 2>&1; then
@@ -666,6 +675,7 @@ fixture-live:
 	else
 		echo "fixture-live: SKIPPED test-mods -- docker is not available"
 	fi
+	[ "$made_context" -eq 1 ] && docker context rm -f csis-fixture-daemon >/dev/null
 	rm -rf "$copy"
 	# the frozen fixture carries no meta-state: the record validate --online wrote goes again
 	[ "$had_meta_state" -eq 0 ] && rm -rf tests/fixtures/config/meta-state
