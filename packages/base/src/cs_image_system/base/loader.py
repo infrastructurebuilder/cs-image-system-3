@@ -12,6 +12,7 @@ from cs_image_system.contract.constants import VCT, PLUGIN_TYPES
 from cs_image_system.contract.core import PluginArtifactProtocol, PluginMetadataProtocol
 from cs_image_system.contract.testing import conformance_problems, protocol_for
 from cs_image_system.base import registry
+from cs_image_system.base.orchestrator import Orchestrator
 
 
 log = logging.getLogger(__name__)
@@ -289,5 +290,4 @@ def load_plugins(reg: "registry.Registry | None" = None) -> None:
 
     # All plugin model/builder classes are now registered; drop any cached cattrs
     # Converter so it rebuilds against the full plugin set on next use.
-    from cs_image_system.base.orchestrator import Orchestrator
     Orchestrator().invalidate_converter()

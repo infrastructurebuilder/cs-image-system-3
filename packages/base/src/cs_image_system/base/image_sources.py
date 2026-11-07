@@ -48,6 +48,8 @@ from cs_image_system.contract.image_sources import (  # noqa: F401 - re-exported
 from cs_image_system.contract.model_config import CSIS_MODEL_CONFIG
 from cs_image_system.contract.names import safe_name
 
+from .loader import load_plugins
+from .registry import current_registry
 from .singleton import singleton
 
 log = logging.getLogger(__name__)
@@ -132,8 +134,6 @@ def _runtime_classes() -> dict[str, type]:
     """Every registered runtime builder class by name, the plugins loaded
     first (idempotent), so the catalog is the INSTALLED runtimes' and never
     depends on which a tree declares."""
-    from .loader import load_plugins
-    from .registry import current_registry
     load_plugins()
     return dict(current_registry().runtime_builder_classes())
 

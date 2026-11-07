@@ -88,13 +88,12 @@ class SetEncoder(json.JSONEncoder):
 
 
 from cs_image_system.contract.constants import SYSTEM_CLI  # noqa: E402 - re-exported: the name every caller imports from here
+from .models.executable import ExecutableModel  # noqa: E402
 
 
 def system_cli_executable(args: list[str], working_directory: Path | None = None):
     """An ExecutableModel invoking this system's own CLI (e.g. the apply gate
     or the identity gid shim) from inside a runner script."""
-    # lazy: models.builder_model imports this module (via models.executable)
-    from .models.executable import ExecutableModel
     e = ExecutableModel(name=SYSTEM_CLI, type_="executable", binary=SYSTEM_CLI)
     e.args = list(args)
     e.working_directory = working_directory
