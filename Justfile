@@ -645,17 +645,21 @@ clean-all: clean clean-venv
 
 # The system's live proof over the FROZEN FIXTURE (stage 64: what this repository's CI `live` job runs; the
 # reference configuration's own CI proves the live tree). With real sessions -- the fixture names the real
-# account's networks and project -- and the fixture's committed TEST identity: validate, then a headless dry
-# run --all over a private copy (the installed modules written beside it, as the fixture's module_source_base expects) with the
-# state query off (the fixture's declarations are synthetic; reality would read as drift), then the
-# modification tests under docker over the copy. Exit 0 when every leg passed.
+# account's networks and project -- and the fixture's committed TEST identity: `validate --online` (the one
+# check that asks the clouds: each runtime's networking against its account, recorded in the fixture's
+# meta-state/runtime-facts.yaml for this run and removed again afterwards, since the frozen fixture carries
+# no meta-state), then a headless dry run --all over a private copy (the record copied along; the installed
+# modules written beside it, as the fixture's module_source_base expects) with the state query off (the
+# fixture's declarations are synthetic; reality would read as drift), then the modification tests under
+# docker over the copy. Exit 0 when every leg passed.
 fixture-live:
 	#!/usr/bin/env bash
 	set -uo pipefail
 	export CSIS_CONFIG_IDENTITY="{{justfile_directory()}}/tests/fixtures/config/.age-identity"
 	status=0
-	echo "fixture-live: validate the frozen fixture"
-	uv run cs-image-system --root-dir tests/fixtures/config validate || { echo "fixture-live: FAILED validate"; status=1; }
+	had_meta_state=0; [ -d tests/fixtures/config/meta-state ] && had_meta_state=1
+	echo "fixture-live: validate the frozen fixture against the clouds (validate --online records its network facts)"
+	uv run cs-image-system --root-dir tests/fixtures/config validate --online || { echo "fixture-live: FAILED validate"; status=1; }
 	copy=$(mktemp -d "${TMPDIR:-/tmp}/csis-fixture-live.XXXXXX")
 	mkdir -p "$copy/x"
 	cp -R tests/fixtures/config "$copy/x/config"
@@ -669,6 +673,8 @@ fixture-live:
 		echo "fixture-live: SKIPPED test-mods -- docker is not available"
 	fi
 	rm -rf "$copy"
+	# the frozen fixture carries no meta-state: the record validate --online wrote goes again
+	[ "$had_meta_state" -eq 0 ] && rm -rf tests/fixtures/config/meta-state
 	if [ "$status" -eq 0 ]; then echo "fixture-live: passed"; else echo "fixture-live: FAILED"; fi
 	exit $status
 
