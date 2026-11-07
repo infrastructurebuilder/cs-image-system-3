@@ -430,9 +430,9 @@ def test_gce_state_query_hooks_exist(gce3, monkeypatch):
     gcp = ctx.runtime_builders[GCE_RUNTIME]
     assert isinstance(gcp, GCPCloudBuilder)
     assert gcp.session_mechanism() == "iap"
-    assert callable(getattr(gcp, "query_images"))
+    assert callable(gcp.query_images)
     pd = ctx.storage_builders["gcp-pd"]
-    assert callable(getattr(pd, "_lookup"))
+    assert callable(pd._lookup)
     # Filestore has a lookup (it once raised NotImplementedError
     # and the query dropped it); gcloud is stubbed, answering not found
     fs = ctx.storage_builders["gcp-filestore"]

@@ -290,7 +290,7 @@ def test_the_template_models_keep_org_and_team_and_refuse_credentials():
     from cs_image_system.dummy_plugin.dummy_models import DummyGroupBuilderModel
     cast(Any, DummyGroupBuilderModel)(name="g", type="dummy", org="o", team="t")
     for key in ("key", "secret", "api_host"):
-        with pytest.raises(Exception):
+        with pytest.raises(ValueError):
             cast(Any, DummyGroupBuilderModel)(name="g", type="dummy", org="o", team="t", **{key: "x"})
 
 

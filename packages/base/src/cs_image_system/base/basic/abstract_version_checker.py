@@ -2,8 +2,6 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from abc import ABC
-
 from cs_image_system.contract.constants import VCT
 
 from ..models.executable import ExecutableModel
@@ -15,7 +13,7 @@ import subprocess
 log = logging.getLogger(__name__)
 
 
-class AbstractVersionChecker(ABC):
+class AbstractVersionChecker:
     """
     The base class for VersionCheckers (although a version checker really only
     needs to implement get_version, the other methods are provided for ease of

@@ -284,7 +284,7 @@ def run_mod_tests(ctx: "GlobalTypeContext", images: list[str] | None = None,
         records = mod_records(ctx, image)
         container_image = test_image_for(ctx, image)
         if container_image is None:
-            for mod, rec in zip(mods, records):
+            for mod, rec in zip(mods, records, strict=False):
                 results.append(ModTestResult(image=image.get_name(), mod=mod.get_name(), type=mod.get_type(),
                                              content_hash=rec["content_hash"], target="", status="unsupported",
                                              detail="no local test image for the root OS family", run=ctx.run_id))
@@ -296,7 +296,7 @@ def run_mod_tests(ctx: "GlobalTypeContext", images: list[str] | None = None,
             if offered is None:
                 offered = stand_in_target_factory()
             if offered is None:
-                for mod, rec in zip(mods, records):
+                for mod, rec in zip(mods, records, strict=False):
                     results.append(ModTestResult(image=image.get_name(), mod=mod.get_name(), type=mod.get_type(),
                                                  content_hash=rec["content_hash"], target=container_image,
                                                  status="skipped", detail="no installed runtime offers a local test target",
@@ -304,9 +304,9 @@ def run_mod_tests(ctx: "GlobalTypeContext", images: list[str] | None = None,
                 continue
             runtime_type, factory = offered
             make_target = functools.partial(factory, executables=ctx.executables)
-        pending = [(m, r) for m, r in zip(mods, records)
+        pending = [(m, r) for m, r in zip(mods, records, strict=False)
                    if force or previous.get(r["content_hash"], {}).get("status") != "pass"]
-        for mod, rec in zip(mods, records):
+        for mod, rec in zip(mods, records, strict=False):
             if (mod, rec) not in pending:
                 cached = dict(previous[rec["content_hash"]])
                 cached["detail"] = "cached: unchanged since last pass"

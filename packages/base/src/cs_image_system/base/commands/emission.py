@@ -386,7 +386,7 @@ def vendor_image_moves(lines: list[str]) -> list[str]:
         if current is not None:
             if len(olds) != len(news):
                 raise ValueError("unpaired")
-            for a, b in zip(olds, news):
+            for a, b in zip(olds, news, strict=True):
                 moves.append(f"{current}: {a} -> {b}")
     try:
         for ln in lines:

@@ -102,7 +102,7 @@ def transient_storage_teardown_command(ctx: "GlobalTypeContext", wd):
     gate; no state query (this run's already ran), no commit (this run
     commits at its end)."""
     head: list[str] = ["--root-dir", str(ctx.working_path), "--no-dry-run"]
-    for path, data in zip(getattr(ctx, "overlays", []), getattr(ctx, "_overlay_data", [])):
+    for path, data in zip(getattr(ctx, "overlays", []), getattr(ctx, "_overlay_data", []), strict=False):
         if not any(k != "config" for k in data):
             head += ["--overlay", str(path)]
     args = ["run", "storage", "--only", "none", "--no-state-query", "--no-commit"]

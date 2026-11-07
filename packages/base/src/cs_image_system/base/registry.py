@@ -269,7 +269,7 @@ class Registry:
         plugin's distribution; a caller with no distribution behind the
         metadata -- a test -- passes one, or the metadata names it)."""
         ns = self.namespace_of(metadata, namespace)
-        for service_group, artifacts in metadata.services.items():
+        for _service_group, artifacts in metadata.services.items():
             for artifact in artifacts:
                 classifier = artifact.csis_classifier()
                 
@@ -393,7 +393,7 @@ class Registry:
     def get_all_instances_by_classification(self, classifier: VCT) -> dict[str, Any]:
         """Get all registered instances under a specific classification."""
         res: dict[str, Any] = {}
-        for k,v  in self.instances.get(classifier, {}).items():
+        for _k, v in self.instances.get(classifier, {}).items():
             res[v.get_name()] = v           
         return res
     def get_instance_by_name_or_alias(self, classifier: VCT, name_or_alias: str) -> Any | None:

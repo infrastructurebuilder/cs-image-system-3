@@ -235,7 +235,7 @@ def test_a_foreign_key_written_none_is_refused_and_default_still_resolves(tmp_pa
     be recorded as naming nothing rather than slip through as unset."""
     for word in ("none", "default"):
         root = copy_config(tmp_path / word)
-        _edit_yaml(root / "instances" / "instances.yaml", lambda d: d["instances"][0].__setitem__("image", word))
+        _edit_yaml(root / "instances" / "instances.yaml", lambda d, word=word: d["instances"][0].__setitem__("image", word))
         errors = [e for e in _validation_errors(root, monkeypatch) if "field 'image'" in e]
         if word == "none":
             assert len(errors) == 1 and "names 'none'" in errors[0], errors

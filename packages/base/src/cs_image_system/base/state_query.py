@@ -48,6 +48,7 @@ human step (DESIGN §3H).
 """
 from __future__ import annotations
 
+import functools
 import json
 import logging
 from dataclasses import field
@@ -198,7 +199,7 @@ def query_images(ctx: "GlobalTypeContext", report: StateReport) -> dict[str, lis
     for name, rtb in sorted(ctx.runtime_builders.items()):
         if not isinstance(rtb, RuntimeBuilderBase):
             continue
-        images = _query(report, f"images/{name}", lambda: rtb.query_images(series))
+        images = _query(report, f"images/{name}", functools.partial(rtb.query_images, series))
         if images is not None:
             out[name] = sorted(images, key=lambda i: str(i.get("image_id")))
     return out
@@ -601,12 +602,12 @@ def standing_ephemeral_drift(ctx: "GlobalTypeContext", report: StateReport) -> l
         if rtb is None or not rtb.can_query_instance_boot_image():
             continue
         probe = rtb
-        booted = _query(report, f"instances/{name}", lambda: probe.query_instance_boot_image(name))
+        booted = _query(report, f"instances/{name}", functools.partial(probe.query_instance_boot_image, name))
         # a STOPPED ephemeral is still standing -- it exists and its disks
         # still cost -- but the boot-image probe filters on `running`, so
         # the one kind of leftover nobody could otherwise see is the kind
         # that has been switched off.
-        state = (_query(report, f"instances/{name}", lambda: probe.query_instance_power_state(name))
+        state = (_query(report, f"instances/{name}", functools.partial(probe.query_instance_power_state, name))
                  if probe.can_query_instance_power_state() else None)
         if booted or power_state.is_off(state):
             policy, after = failure_policy(ctx, inst) if inst is not None else ("keep", None)

@@ -170,7 +170,7 @@ def test_the_docker_runtime_bakes_from_nothing_to_nothing(tmp_path, monkeypatch)
         builds = [b for b in ctx.meta_state.builds() if b.get("runtime") == RUNTIME]
         by_series = {str(b["series"]): b for b in builds}
         assert set(by_series) == {ALMA, DEB, IMAGE}, by_series
-        for series, b in by_series.items():
+        for _series, b in by_series.items():
             bid = str(b["build_id"])
             assert bid.startswith("sha256:") and len(bid) == 71, bid
             built.append(bid)

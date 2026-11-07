@@ -174,11 +174,13 @@ class BuilderModel(NameTyped, BuilderModelProtocol):
                         extracted: dict[str, Any], 
                         extracted_originals: dict[str, Any],
                         classification: VCT | None = None,
-                        addl_config: dict[str, Any] = {},
-                        addl_this: dict[str, Any] = {}) -> dict[str, Any]:
+                        addl_config: dict[str, Any] | None = None,
+                        addl_this: dict[str, Any] | None = None) -> dict[str, Any]:
         """Hook for processing any extracted protected types after the YAML cycle.  By default, just returns the reloaded YAML as a dict.
         with any extracted values added back in.  This allows subclasses to do any necessary processing on the reloaded YAML before the 
         extracted values are added back in."""
+        addl_config = addl_config if addl_config is not None else {}
+        addl_this = addl_this if addl_this is not None else {}
         reloaded_dict = yaml.unsafe_load(reloaded_yaml_str)
         for k, v in extracted.items():
             reloaded_dict[k] = self.process_extracted_item(k,v, extracted_originals[k], reloaded_dict, classification, addl_config, addl_this)

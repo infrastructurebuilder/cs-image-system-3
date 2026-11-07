@@ -98,7 +98,7 @@ def test_the_model_declares_one_address_and_names_its_default_machine_type():
         _model(host="unix:///x", context="y")
     with pytest.raises(Exception, match="not one of its machine_types"):
         _model(default_machine_type="large", machine_types={"small": {}})
-    with pytest.raises(Exception):
+    with pytest.raises(ValueError):
         _model(machine_types={"small": {"cpu": 1}})          # an unknown key
     assert _model(machine_types={"small": {"cpus": 2, "memory": "4g"}}).get_machine_types()["small"] == \
         ContainerMachineType(cpus=2, memory="4g")

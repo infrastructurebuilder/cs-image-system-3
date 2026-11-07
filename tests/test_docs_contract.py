@@ -76,7 +76,7 @@ def test_the_daily_driver_has_its_chapters_and_names_every_package():
     driver = DRIVER.read_text()
     assert driver.strip(), "DAILY_DRIVER.md is empty"
     positions = [driver.find(h) for h in CHAPTERS]
-    missing = [h for h, i in zip(CHAPTERS, positions) if i < 0]
+    missing = [h for h, i in zip(CHAPTERS, positions, strict=True) if i < 0]
     assert not missing, f"DAILY_DRIVER.md lacks {missing}"
     assert positions == sorted(positions), "the chapters are out of order"
     for package in PACKAGES:

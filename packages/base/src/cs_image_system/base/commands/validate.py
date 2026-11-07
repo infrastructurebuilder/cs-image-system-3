@@ -163,7 +163,7 @@ def check_name_uniquness(ctx: GlobalTypeContext) -> list[Exception]:
             )
         else:
             seen_names.add(name)
-        for osrc_name, osrc in osbuilder.get_configs_for_image_builders().items():
+        for _osrc_name, osrc in osbuilder.get_configs_for_image_builders().items():
             name= osrc.global_id
             if name in seen_names:
                 log.warning(f"Duplicate OS runtime configuration name found: {name} in OS builder {osb_name}")

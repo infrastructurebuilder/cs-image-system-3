@@ -664,7 +664,7 @@ def test_the_docker_starters_reach_step_writes_what_ssh_needs_and_refuses_half_a
         base = {"PATH": f"{tmp_path / 'bin'}:{os.environ['PATH']}", "HOME": str(home), "GITHUB_ENV": str(ghenv),
                 "DOCKER_HOST_ADDRESS": "docker-host.example", "DOCKER_HOST_USER": "csis"}
 
-        def run(key: str, known: str):
+        def run(key: str, known: str, step=step, base=base):
             return subprocess.run(["bash", "-e", "-c", step["run"]], capture_output=True, text=True,
                                   env={**base, "DOCKER_HOST_SSH_KEY": key, "DOCKER_HOST_KNOWN_HOSTS": known})
         res = run("", "")

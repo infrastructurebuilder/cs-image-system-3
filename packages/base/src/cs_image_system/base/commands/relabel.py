@@ -114,7 +114,7 @@ def resource_relabel_plan(ctx: GlobalTypeContext, runtime: str) -> list[Relabel]
     if not owner:
         return []
     out: list[Relabel] = []
-    for name, sb in sorted(ctx.storage_builders.items()):
+    for _name, sb in sorted(ctx.storage_builders.items()):
         if not isinstance(sb, StorageBuilderBase):
             continue
         model = getattr(sb, "model", None)

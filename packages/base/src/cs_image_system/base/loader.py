@@ -196,7 +196,7 @@ def _discovered_plugins() -> tuple[DiscoveredPlugin, ...]:
     raises) is not a refusal but an absence: one ERROR line names the
     plugin and the error, and the rest load."""
     found: list[DiscoveredPlugin] = []
-    for plugin_type, plugin_key in PLUGIN_TYPES:
+    for plugin_type, _plugin_key in PLUGIN_TYPES:
         log.debug(f"Loading plugins of type: {plugin_type}")
         plugins = entry_points(group=f'cs_image_system.plugins.{plugin_type}')
         if not plugins:
@@ -258,7 +258,7 @@ def load_plugins(reg: "registry.Registry | None" = None) -> None:
         log.debug("Plugins already loaded; skipping discovery")
         return
     registered_by_namespace: dict[str, list[str]] = {}
-    for plugin_type, pname, derived, initialized in _discovered_plugins():
+    for _plugin_type, pname, derived, initialized in _discovered_plugins():
         log.debug(f"Loading plugin: {pname}")
         # In our case, this can return a single PluginMetadataProtocol instance or a list of them
         for md in _metadata_of(initialized):
@@ -268,7 +268,7 @@ def load_plugins(reg: "registry.Registry | None" = None) -> None:
             namespace = namespace_for(pname, md, derived)
             reg.register_plugin_metadata(md, namespace=namespace)
             words = registered_by_namespace.setdefault(namespace, [])
-            for service_name, services in md.services.items():
+            for _service_name, services in md.services.items():
                 for service in services:
                     reg.register_service(service, namespace=namespace)
                     words.append(f"{service.csis_classifier().value}:{service.csis_name()}")

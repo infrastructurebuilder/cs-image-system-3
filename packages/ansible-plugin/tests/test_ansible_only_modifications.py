@@ -64,7 +64,7 @@ def test_a_dry_generation_emits_an_ansible_item_per_modification_and_the_provisi
             assert all(m["type"] == ANSIBLE and m["operation"] == "ansible" and m["idempotent"] == "ansible"
                        for m in manifest["mods"]), manifest
             bundle = next(p.parent for p in run.generated.rglob(f"csis-mods/{image}/MANIFEST.yaml"))
-            for item, mod in zip(manifest["mods"], mods):
+            for item, mod in zip(manifest["mods"], mods, strict=True):
                 files = sorted(p.name for p in (bundle / item["dir"]).iterdir())
                 assert "run.sh" in files and all(Path(pb).name in files for pb in mod["playbooks"]), (item, files)
                 runner = (bundle / item["dir"] / "run.sh").read_text()        # the re-run on the image

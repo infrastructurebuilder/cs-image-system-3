@@ -20,7 +20,7 @@ from cs_image_system.contract.core import (
 
 
 from dataclasses import MISSING, fields, is_dataclass
-from typing import Any
+from typing import Any, cast
 import jinja2
 from cs_image_system.contract.constants import DEFAULT, DEFERRED_BUILDER_VCT, DEFERRED_ITEM_VCT, FK_ALSO_SET_ON_UPDATE, FK_TARGET, IS_DEFERRED_LIST_FK, IS_DEFERRED_LIST_GENERATED, IS_FK, IS_REPLACE, NONE, OOPS_DEFAULTS, STATE_BACKEND_FIELD, VCT, REPLACE_VALUE
 
@@ -435,7 +435,7 @@ class TemplateResolver:
         reg = registry.current_registry()   # the resolver holds no context; the registry is the run's
         for _ in range(5):  # Max depth to prevent infinite loops
             any_changed = False
-            for obj_id, obj in self.flattened_map.items():
+            for _obj_id, obj in self.flattened_map.items():
                 t = str(type(obj))
                 if hasattr(obj, "_already_resolved"):
                     if obj._already_resolved:
@@ -516,9 +516,9 @@ class TemplateResolver:
                                 any_changed = True
             if not any_changed:
                 break
-        for obj_id, obj in self.flattened_map.items():
+        for _obj_id, obj in self.flattened_map.items():
             if is_dataclass(obj):
-                setattr(obj, "_already_resolved", True)
+                cast(Any, obj)._already_resolved = True
         return list(self.unresolved_foreign_keys)
 
     def flatten_dataclass(self, obj):

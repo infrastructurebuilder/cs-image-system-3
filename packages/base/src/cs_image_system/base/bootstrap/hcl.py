@@ -103,7 +103,7 @@ def render_root(rendered: dict[str, Rendered], *, module_source: Callable[[str],
 
     # main.tf: one module call per section
     main = HEADER
-    for name, r in sections:
+    for _name, r in sections:
         if not r.module:
             continue
         pairs = [("source", json.dumps(module_source(r.module)))]

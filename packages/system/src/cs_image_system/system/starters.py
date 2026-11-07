@@ -193,7 +193,7 @@ def carry_team_values(release: str, tree: str) -> tuple[str, int, int]:
         elif tag == "replace" and any(_placeholder(x) for x in rel[i1:i2]):
             comment = all(_placeholder(x) or x.lstrip().startswith("#") for x in rel[i1:i2])
             if i2 - i1 == j2 - j1 and not comment:  # line for line: a placeholder line is the team's
-                for a, b in zip(rel[i1:i2], own[j1:j2]):
+                for a, b in zip(rel[i1:i2], own[j1:j2], strict=True):
                     if _placeholder(a):
                         out.append(b)
                         carried += 1

@@ -297,14 +297,14 @@ def test_the_contract_declares_the_new_hooks_and_the_core_answers_them():
     from cs_image_system.base.basic.builder_base_runtime import RuntimeBuilderBase
     from cs_image_system.base.models.container_builder import ContainerBuilderModel
     from typing import Any, cast
-    declared = getattr(cast(Any, rt.RuntimeBuilderProtocol), "__protocol_attrs__")
+    declared = cast(Any, rt.RuntimeBuilderProtocol).__protocol_attrs__
     for hook in ("packer_post_processor_blocks", "bake_ansible_vars", "tool_environment"):
         assert hook in declared and hasattr(RuntimeBuilderBase, hook)
     # the container model's fields are the kit's (ContainerBuilderModel);
     # the protocol keeps only what a plugin reads or overrides
     assert {"host", "context", "networking", "machine_types"} <= set(ContainerBuilderModel.__dataclass_fields__)
-    assert not getattr(cast(Any, rt.ContainerBuilderModelProtocol), "__protocol_attrs__") - \
-        getattr(cast(Any, rt.RuntimeBuilderModelProtocol), "__protocol_attrs__")
+    assert not cast(Any, rt.ContainerBuilderModelProtocol).__protocol_attrs__ - \
+        cast(Any, rt.RuntimeBuilderModelProtocol).__protocol_attrs__
     from cs_image_system.contract.constants import VCT
     assert ContainerBuilderModel.csis_classifier() == VCT.CONTAINER_BUILDER_MODEL
     from cs_image_system.base.models import container
@@ -673,8 +673,8 @@ def test_the_contract_declares_the_delivery_and_the_platform_mount():
     from cs_image_system.contract import runtime as rt, storage as st
     from cs_image_system.base.basic.builder_base_runtime import RuntimeBuilderBase
     from cs_image_system.base.basic.builder_base_storage import StorageBuilderBase
-    assert "launch_delivery" in getattr(cast(Any, rt.RuntimeBuilderProtocol), "__protocol_attrs__")
-    assert "platform_mounts" in getattr(cast(Any, st.StorageBuilderProtocol), "__protocol_attrs__")
+    assert "launch_delivery" in cast(Any, rt.RuntimeBuilderProtocol).__protocol_attrs__
+    assert "platform_mounts" in cast(Any, st.StorageBuilderProtocol).__protocol_attrs__
     assert RuntimeBuilderBase.launch_delivery(cast(Any, object())) == rt.LAUNCH_DELIVERY_BOOT == "boot"
     assert StorageBuilderBase.platform_mounts(cast(Any, object())) is False
     assert rt.LAUNCH_DELIVERY_SESSION == "session"

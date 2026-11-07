@@ -304,7 +304,7 @@ def apply_overlays(ctx: Any, spec: ItemKind, read_dict: dict[str, Any]) -> None:
     overlays = getattr(ctx, "overlays", None) or []
     data_list = getattr(ctx, "_overlay_data", None) or []
     key = spec.model_cls.klazz_yaml_key() if hasattr(spec.model_cls, "klazz_yaml_key") else spec.name
-    for path, data in zip(overlays, data_list):
+    for path, data in zip(overlays, data_list, strict=False):
         for item in data.get(key) or []:
             name = item.get("name")
             if item.get("undeclare"):
@@ -482,7 +482,7 @@ def read_config_and_transform(
         )
 
     original_yaml_dictionary_lists: dict[str, list[dict[str, Any]]] = {}
-    for plugin_name, plugin_key in PLUGIN_TYPES:
+    for _plugin_name, plugin_key in PLUGIN_TYPES:
         if plugin_key in generic_yaml:
             items = generic_yaml.pop(plugin_key)
             if not isinstance(items, list):
@@ -844,7 +844,7 @@ def process_and_register_builders(
             # the system does that for us when we instantiate them,
             # but for non-dataclass builders we need to call it manually
             if hasattr(prov, "__post_init__"):
-                if callable(getattr(prov, "__post_init__")):
+                if callable(prov.__post_init__):
                     prov.__post_init__()  # type: ignore
         prov.finalize()
         # the registry gates on the instance (NameTypedProtocol) and

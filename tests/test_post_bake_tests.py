@@ -186,7 +186,7 @@ def test_declared_release_targets_the_verified_head_only(run):
     assert "release --declared" in script and "--no-dry-run" in script
     # the deferred step, executed: released, then nothing more to do
     from cs_image_system.base.release import release
-    for name, rt, build_id, model in declared_release_targets(run.ctx):
+    for name, _rt, build_id, model in declared_release_targets(run.ctx):
         release(run.ctx, name, build_id, model=model)
     assert releases(ms)["current"]["default"][DASK] == BUILD
     assert declared_release_targets(run.ctx) == []

@@ -51,11 +51,11 @@ class QString(str):
 
 
 class TerraformGenerator(Protocol):
-    def generate_terraform(self, setup: dict[str, Any] = {}) -> list[str]:
+    def generate_terraform(self, setup: dict[str, Any] | None = None) -> list[str]:
         """Protocol for objects that can generate a good terraform.tf configuration."""
         ...
 
-    def generate_terraform_data(self, setup: dict[str, Any] = {}) -> list[str]:
+    def generate_terraform_data(self, setup: dict[str, Any] | None = None) -> list[str]:
         """Protocol for objects that can generate Terraform data source configuration."""
         return []
 
