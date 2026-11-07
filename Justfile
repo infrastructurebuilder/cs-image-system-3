@@ -272,6 +272,7 @@ _release-probes index who="release":
 # never be uploaded again, on either index: the next upload is a new version.
 # Can the index take an upload now? One line per endpoint (the upload endpoint and every
 # project's page); exit 0 ready, 75 not ready. `wait` probes every minute until it is, two hours at most.
+[doc("Can INDEX (test or pypi) take an upload now? exit 0 ready, 75 not; `wait` probes every minute, two hours at most")]
 index-ready index="test" wait="no":
 	@uv run --no-sync python scripts/publish-target-ready {{index}} {{ if wait == "wait" { "--wait 7200" } else { "" } }}
 
@@ -366,6 +367,7 @@ format:
 
 # Run linter (blocking) -- same command CI runs; then the licensing check: every file carries
 # copyright and licence information (an SPDX header, or a REUSE.toml declaration)
+[doc("The linter (ruff, blocking, as CI runs it), then the licensing check: an SPDX header or a REUSE.toml declaration on every file")]
 lint:
 	@uv run ruff check src packages tests
 	@uv run reuse lint
@@ -373,6 +375,7 @@ lint:
 # Licence headers (REUSE): the SPDX two-liner, holder and licence, on every source file that lacks one.
 # Never the fixtures (hashed modification content, the golden) nor prose: those are declared in
 # REUSE.toml. Idempotent (--skip-existing); ends with the lint.
+[doc("Add the SPDX header to every source file that lacks one (never the fixtures or prose: REUSE.toml declares those); then the lint")]
 headers:
 	#!/usr/bin/env bash
 	set -euo pipefail
@@ -391,6 +394,7 @@ reuse-live: config-guard
 lint-fix:
 	@uv run ruff check --fix src packages tests
 
+[doc("Fix linting issues automatically, unsafe fixes included; review the diff")]
 lint-unsafe-fix:
 	@uv run ruff check --fix --unsafe-fixes src packages tests
 
@@ -405,11 +409,13 @@ pytest:
 # One file, or any pytest expression, for iterating on a single change.
 # NOT the acceptance bar -- `just test` is, and a change is not done until
 # that passes. This exists so proving one file does not cost a full suite.
+[doc("One file, or any pytest expression, for iterating on one change; NOT the acceptance bar (`just test` is)")]
 test-one *ARGS:
 	@uv run pytest {{ARGS}}
 
 # Run every modification twice in a throwaway local container (apply +
 # idempotence); needs docker. Results: <config_root>/meta-state/mod-tests.yaml
+[doc("Run every modification twice in a throwaway container (apply + idempotence); needs docker; results in <config_root>/meta-state/mod-tests.yaml")]
 test-mods *ARGS: config-guard
 	@{{live_cli}} test-mods {{ARGS}}
 
@@ -417,6 +423,7 @@ test-mods *ARGS: config-guard
 # docker -- run twice, against an equal and a differing pre-existing group, a
 # member with no account yet, sudo through visudo. A leg of `full-test`; under
 # `just test` the same file is skipped.
+[doc("The posix accounts script on AlmaLinux 10 and Debian 12 under docker, run twice, with pre-existing groups and sudo; a leg of full-test")]
 test-posix-accounts *ARGS:
 	@CSIS_CONTAINER_TESTS=1 uv run pytest tests/test_posix_containers.py {{ARGS}}
 
@@ -424,6 +431,7 @@ test-posix-accounts *ARGS:
 # under docker, with the package database REALLY held by another process (rpm's
 # transaction lock, dpkg's frontend lock). A leg of `full-test`; under `just
 # test` the same file is skipped.
+[doc("A bake's settle step and step runner on AlmaLinux 10 and Debian 12 under docker, the package database held by another process; a leg of full-test")]
 test-bake-steps *ARGS:
 	@CSIS_CONTAINER_TESTS=1 uv run pytest tests/test_bake_steps_containers.py {{ARGS}}
 
@@ -435,6 +443,7 @@ test-bake-steps *ARGS:
 # docker and ansible plugins, and ansible-playbook; several minutes (pulls,
 # two package updates, the mods). A leg of `full-test`; under `just test` the
 # same file is skipped.
+[doc("The docker runtime bakes two base images and an instance image on the local daemon, from nothing to nothing; needs docker, packer and ansible; a leg of full-test")]
 test-docker-bake *ARGS:
 	@DOCKER_HOST="$(just docker-host)" CSIS_DOCKER_KEEP_HOST=1 CSIS_DOCKER_BAKE=1 uv run pytest tests/test_docker_bake_live.py {{ARGS}}
 
@@ -445,6 +454,7 @@ test-docker-bake *ARGS:
 # a new build (a new generation); both decommissioned, the volume destroyed, the
 # images disposed. Needs what test-docker-bake needs plus tofu; several minutes
 # more. A leg of `full-test`; under `just test` the same file is skipped.
+[doc("The docker runtime's change cycle on the local daemon: the bake, two containers launched through tofu, stopped, upgraded, decommissioned; a leg of full-test")]
 test-docker-cycle *ARGS:
 	@DOCKER_HOST="$(just docker-host)" CSIS_DOCKER_KEEP_HOST=1 CSIS_DOCKER_CYCLE=1 uv run pytest tests/test_docker_cycle_live.py tests/test_docker_starter_live.py {{ARGS}}
 
@@ -464,6 +474,7 @@ docker-host:
 # that has one); unset, the leg is SKIPPED, said so, and exits 0. The leg refuses to
 # pass on a daemon that does not say it is Podman. What differs from docker is what
 # it fails on, and is recorded in docs/OPERATIONS.md, "Container hosts".
+[doc("test-docker-cycle against Podman's API service at CSIS_PODMAN_HOST; unset, SKIPPED with exit 0; refuses a daemon that is not Podman")]
 test-podman-cycle *ARGS:
 	#!/usr/bin/env bash
 	set -euo pipefail
@@ -482,6 +493,7 @@ test-podman-cycle *ARGS:
 # SKIPPED, said so with the reason, and exits 0. A bare `docker` keeps answering from
 # whatever else is running (OrbStack): only the leg's own calls are aimed at Podman.
 # Podman 6 dropped Intel Macs: this leg proves Podman 5.8 there until June 2027.
+[doc("test-podman-cycle against Podman Desktop's machine on macOS (its address read from `podman machine`); no machine, or a stopped one, is SKIPPED")]
 test-podman-desktop-cycle *ARGS:
 	#!/usr/bin/env bash
 	set -uo pipefail
@@ -498,6 +510,7 @@ test-podman-desktop-cycle *ARGS:
 # Build the CI runner image (ci/runner-image: AlmaLinux 10, every tool pinned) for
 # amd64 and run its probe, which asks every tool its version from where cfg/executables.yml
 # pins it. A leg of `full-test`; the Runner image workflow builds and publishes the same.
+[doc("Build the CI runner image (ci/runner-image) for amd64 and run its probe: every pinned tool answers its version; a leg of full-test")]
 runner-image tag="csis-ci:alma10-local":
 	@docker build --platform linux/amd64 -t {{tag}} ci/runner-image
 	@docker run --rm --platform linux/amd64 {{tag}} csis-ci-probe
@@ -505,11 +518,13 @@ runner-image tag="csis-ci:alma10-local":
 # The credential sessions the reference configuration's runtimes need, read from the caches over the
 # loaded configuration -- a load reaches no cloud, so no session is needed to ask (exit 0: every one
 # present; 2: one absent or expired) -- full-test's gate
+[doc("The runtime sessions the reference configuration needs, read from the credential caches (exit 0 all present, 2 one absent or expired); full-test's gate")]
 preflight: config-guard
 	@{{live_cli}} preflight
 
 # Regenerate tests/fixtures/v2_golden (the pinned V2 emission) after an
 # INTENTIONAL emission change; review the resulting diff before committing.
+[doc("Regenerate tests/fixtures/v2_golden (the pinned emission) after an INTENTIONAL emission change; review the diff before committing")]
 golden-regen:
 	@uv run python tests/golden.py
 
@@ -517,6 +532,7 @@ golden-regen:
 # untracked files that are not ignored -- for material that must never be public (keys, tokens,
 # PEM bodies, an age identity, plans and state by name; addresses and long tokens outside prose
 # and tests). The allow list is the frozen fixture's cfg/_config.yml public_safe.allow. CI runs it.
+[doc("Scan what a commit could publish (tracked and unignored files) for material that must never be public, under the fixture's allow list; CI runs it")]
 public-safe *ARGS:
 	@uv run cs-image-system public-safe --tree . --config tests/fixtures/config/cfg/_config.yml {{ARGS}}
 
@@ -525,6 +541,7 @@ public-safe *ARGS:
 # the result with the root's own allow list, the ignore policy checked line by line, then ONE commit on
 # main (PUBLISH_MESSAGE, default "Initial public release"). Refuses a dirty root, a finding, a missing
 # ignore line or an existing DEST. Never pushes: the remote is the operator's act.
+[doc("Build a publishable tree of ROOT's tracked files at HEAD, gate it public-safe, and make ONE commit on main at DEST; never pushes")]
 publish-tree root dest:
 	#!/usr/bin/env bash
 	set -euo pipefail
@@ -612,6 +629,7 @@ hooks:
 
 # Alias of `test` (the contract's name for the blocking fast suite); kept
 # because notes and habits say `just verify`.
+[doc("Alias of `test`, the blocking fast suite; kept because notes and habits say `just verify`")]
 verify: test
 
 # Clean build artifacts and temporary files
@@ -645,6 +663,7 @@ clean-all: clean clean-venv
 # modules written beside it, as the fixture's module_source_base expects) with the state query off (the
 # fixture's declarations are synthetic; reality would read as drift), then the modification tests under
 # docker over the copy. Exit 0 when every leg passed.
+[doc("The live proof over the frozen fixture (CI's live job): validate --online, a headless dry run --all over a copy, the modification tests under docker")]
 fixture-live:
 	#!/usr/bin/env bash
 	set -uo pipefail
@@ -683,6 +702,7 @@ fixture-live:
 
 # Run the CLI against the reference configuration, e.g. `just cli validate`, `just cli config-drift`,
 # `just cli state query --strict`: the system's own live proofs. Its cycles run from ITS Justfile.
+[doc("Run the CLI against the reference configuration (`just cli validate`, `just cli state query --strict`): the system's own live proofs")]
 cli *ARGS: config-guard
 	@{{live_cli}} {{ARGS}}
 
