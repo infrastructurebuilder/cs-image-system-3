@@ -133,6 +133,7 @@ def test_the_volume_builder_answers_the_launch_hooks_as_platform_mounted():
     storage = SimpleNamespace(get_name=lambda: "docker_data")
     assert b.launch_mount(storage, None, 0) == {"platform_mounted": True}
     assert b.launch_variables() == ()
+    assert b.launch_bindings({"storage": "docker_data"}, None, "data.terraform_remote_state.v.outputs.storage_docker_data") == {}
     m = {"storage": "docker_data", "type": "volume", "builder": "docker-volumes", "mount_point": "/mnt/data",
          "group": "pxgroup", "share_mode": "2770", "public_read": False, "platform_mounted": True}
     assert b.launch_script_lines(m, "pxgroup") == [

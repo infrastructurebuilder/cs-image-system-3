@@ -497,9 +497,15 @@ mount record (a block store's device name, in declaration order among the
 mounts of its type), the mount's whole block of the launch script -- from
 its header to the group's subtree, or the comment that an object store is
 not mounted -- the mount's ansible tasks, and the names of the template
-variables those lines read by reference (`launch_mount`,
-`launch_script_lines`, `launch_tasks`, `launch_variables` on
-`StorageBuilderProtocol`). The core computes the universal keys of the
+variables those lines read by reference, and the values the instance
+root binds under them for each mount, every one a reference into the
+storage root's outputs (`launch_mount`, `launch_script_lines`,
+`launch_tasks`, `launch_variables` on `StorageBuilderProtocol`;
+`launch_bindings` on the base class). The instance roots build their
+`templatefile` map from those hooks alone: one map per variable any
+configured storage builder names -- the names the launch playbook takes
+as extra-vars -- each mount's values bound by its own storage builder; no
+storage kind is named in a root. The core computes the universal keys of the
 record, assembles the blocks in declaration order, and adds only what
 every instance shares: the hostname, the gid, the enrollment, the
 declared userdata, the completion marker. No storage kind is named in the

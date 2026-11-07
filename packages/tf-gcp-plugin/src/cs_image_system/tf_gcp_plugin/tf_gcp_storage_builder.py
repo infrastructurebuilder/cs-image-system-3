@@ -29,6 +29,7 @@ from cs_image_system.contract.names import super_safe_name
 from cs_image_system.contract.constants import OOPS_DEFAULTS
 from cs_image_system.contract.operating_system import PACKAGE_LOCK_TIMEOUT
 from cs_image_system.base.basic.builder_base_storage import CARDINALITY_MANY, CARDINALITY_SINGLE
+from cs_image_system.contract.hcl import HclRaw
 from cs_image_system.contract.lifecycle import ExecutionLifecyclePhase
 from cs_image_system.base.models.executable import ExecutableModel
 from cs_image_system.base.models.storage import STORAGE_STATE_ACTIVE, STORAGE_STATE_ARCHIVED, STORAGE_STATE_DESTROYED, Storage
@@ -367,6 +368,10 @@ class TofuFilestoreStorageBuilder(TofuGcpStorageBuilder[S]):
 
     def launch_variables(self) -> tuple[str, ...]:
         return ("filestore",)
+
+    def launch_bindings(self, mount: dict[str, Any], group: str | None, outputs: str) -> dict[str, dict[str, Any]]:
+        """The share's address and name, both by reference."""
+        return {"filestore": {"ip_address": HclRaw(f"{outputs}.ip_address"), "share_name": HclRaw(f"{outputs}.share_name")}}
 
     def module_dirname(self) -> str:
         return "gcp_storage_filestore"

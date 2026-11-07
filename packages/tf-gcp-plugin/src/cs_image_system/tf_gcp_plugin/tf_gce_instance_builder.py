@@ -110,39 +110,27 @@ class TofuGceInstanceBuilder(TofuInstanceBuilderBase[Q]):
         return args
 
     def _launch_args(self, ctx, label: str, params: dict[str, Any]) -> dict[str, Any]:
+        """The startup script (templatefile over the recorded launch
+        parameters, its map from the storage builders' hooks) and the disk
+        attachments, each by remote-state reference to the storage root."""
         out: dict[str, Any] = {}
-        group = params.get("group")
-        gid = self._gid_expression_for(group)          # the group builder writes it
-        template_vars: dict[str, Any] = {}
-        if gid is not None:
-            template_vars["group_gid"] = HclRaw(gid)
-        disks: dict[str, Any] = {}
-        filestore: dict[str, Any] = {}
-        for m in params.get("mounts", []):
-            sb = m.get("builder") or self._storage_builder_name(m["storage"])
-            if not sb:
-                continue
-            ref = (f"data.terraform_remote_state.{super_safe_name(sb)}"
-                   f".outputs.storage_{super_safe_name(m['storage'])}")
-            if m["type"] == "pd":
-                # finding 50 (found live on gce-test): the disk was attached as
-                # device_name "gce_data" while the launch params mount
-                # /dev/disk/by-id/google-gce-data (the by-id name is
-                # "google-<device_name>"), so the startup script died at the
-                # missing device and nothing was ever mounted. One
-                # sanitization for both: the by-id path's suffix IS the
-                # device name.
-                disks[m["storage"]] = {"disk_self_link": HclRaw(f"{ref}.self_link"),
-                                       "device_name": gce_name(m["storage"])}
-            elif m["type"] == "filestore":
-                filestore[m["storage"]] = {"ip_address": HclRaw(f"{ref}.ip_address"),
-                                           "share_name": HclRaw(f"{ref}.share_name")}
-        template_vars["efs"] = {}
-        template_vars["filestore"] = filestore
         enrollment = params.get("enrollment") or {}
-        template_vars[ENROLLMENT_TOKEN_VARIABLE] = (HclRaw(f"var.{ENROLLMENT_TOKEN_VARIABLE}") if enrollment else "")
+        token = HclRaw(f"var.{ENROLLMENT_TOKEN_VARIABLE}") if enrollment else ""
+        template_vars = self._launch_template_variables(ctx, params, token)
         tpl = self._user_data_template_name(label)
         out["startup_script"] = HclRaw(f'templatefile("${{path.module}}/{tpl}", {hcl_expr(template_vars, 2)})')
+        disks: dict[str, Any] = {}
+        for m in params.get("mounts", []):
+            sb = m.get("builder") or self._storage_builder_name(m["storage"])
+            if not sb or m["type"] != "pd":
+                continue
+            # the disk is attached under the sanitised name whose by-id path
+            # the launch parameters mount ("google-<device_name>"): one
+            # sanitisation for both, or the startup script dies at a missing
+            # device and nothing is mounted
+            ref = self._storage_outputs_reference(sb, m["storage"])
+            disks[m["storage"]] = {"disk_self_link": HclRaw(f"{ref}.self_link"),
+                                   "device_name": gce_name(m["storage"])}
         if disks:
             out["attached_disks"] = disks
         return out

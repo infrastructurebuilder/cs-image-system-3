@@ -220,49 +220,33 @@ class TofuInstanceBuilder(TofuInstanceBuilderBase[Q]):
             args.update(self._launch_args(ctx, label, params))
         return args
 
-    def _launch_args(self, ctx, label: str, params: dict[str, Any]) -> dict[str, Any]:
-        """user_data (templatefile over the recorded launch parameters) and
-        EBS attachments -- every runtime value by terraform reference."""
-        out: dict[str, Any] = {}
-        group = params.get("group")
-        gid = self._gid_expression_for(group)
-        template_vars: dict[str, Any] = {}
-        if gid is not None:
-            template_vars["group_gid"] = HclRaw(gid)
-        efs: dict[str, Any] = {}
-        ebs: dict[str, Any] = {}
-        for m in params.get("mounts", []):
-            sb = m.get("builder") or self._storage_builder_name(m["storage"])
-            if not sb:
-                continue
-            ref = (f"data.terraform_remote_state.{super_safe_name(sb)}"
-                   f".outputs.storage_{super_safe_name(m['storage'])}")
-            if m["type"] == "ebs":
-                ebs[m["storage"]] = {"volume_id": HclRaw(f"{ref}.volume_id"),
-                                     "device_name": m["device"]}
-            elif m["type"] == "efs":
-                ap = (f'{ref}.access_point_ids["{group}"]' if group and not m.get("public_read")
-                      else f"{ref}.public_read_access_point_id")
-                efs[m["storage"]] = {"file_system_id": HclRaw(f"{ref}.file_system_id"),
-                                     "access_point_id": HclRaw(ap)}
-        template_vars["efs"] = efs
-        # the template resolves Nitro device names from the volume id
-        template_vars["ebs"] = ebs
+    def _enrollment_token_expression(self, params: dict[str, Any]) -> Any:
+        """Empty without an enrollment; else the operator variable, with the
+        group's identity plugin's reference as the fallback when it supplies
+        the credential by IaC (the variable stays the explicit override)."""
         enrollment = params.get("enrollment") or {}
+        if not enrollment:
+            return ""
+        group = params.get("group")
         token_expr = f"var.{ENROLLMENT_TOKEN_VARIABLE}"
-        if enrollment and group:
-            # IaC-managed enrollment tokens: the group's identity plugin
-            # supplies the credential by reference; the operator var stays as
-            # explicit override and as the no-plugin fallback.
+        if group:
             gb = self._get_context().services.launch.group_builder_of(group)
             ref = gb.enrollment_token_reference(group) if gb else None
             if ref:
                 token_expr = (f'(var.{ENROLLMENT_TOKEN_VARIABLE} != "" '
                               f"? var.{ENROLLMENT_TOKEN_VARIABLE} : {ref})")
-        template_vars[ENROLLMENT_TOKEN_VARIABLE] = (
-            HclRaw(token_expr) if enrollment else "")
+        return HclRaw(token_expr)
+
+    def _launch_args(self, ctx, label: str, params: dict[str, Any]) -> dict[str, Any]:
+        """user_data (templatefile over the recorded launch parameters, its
+        map from the storage builders' hooks) and the EBS attachments --
+        every runtime value by terraform reference."""
+        out: dict[str, Any] = {}
+        template_vars = self._launch_template_variables(ctx, params, self._enrollment_token_expression(params))
         tpl = self._user_data_template_name(label)
         out["user_data"] = HclRaw(f'templatefile("${{path.module}}/{tpl}", {hcl_expr(template_vars, 2)})')
+        # the instance module attaches the same volumes the template mounts
+        ebs = template_vars.get("ebs") or {}
         if ebs:
             out["ebs_volumes"] = ebs
         return out

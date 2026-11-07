@@ -43,6 +43,8 @@ def test_the_pd_builder_owns_the_by_id_device_name_and_the_block_sequence():
     assert b.launch_mount(_storage("gce_data"), None, 3) == {"device": "/dev/disk/by-id/google-gce-data"}
     assert b.launch_variables() == ()
     m = _mount("gce_data", "/mnt/gce-data", "pd", device="/dev/disk/by-id/google-gce-data")
+    # the disk is a module attachment, not a template value: nothing bound
+    assert b.launch_bindings(m, "coops", "data.terraform_remote_state.gcp_pd.outputs.storage_gce_data") == {}
     assert b.launch_script_lines(m, "coops") == [
         "# mount storage gce_data (pd) at /mnt/gce-data",
         "mkdir -p '/mnt/gce-data'",
@@ -81,6 +83,9 @@ def test_the_filestore_builder_mounts_over_nfs_and_makes_the_subtree():
         "chmod 2770 '/mnt/share/coops'",
     ]
     assert [t["name"] for t in b.launch_tasks(m, "coops")] == ["mount point /mnt/share for storage share (filestore)"]
+    outputs = "data.terraform_remote_state.gcp_filestore.outputs.storage_share"
+    assert b.launch_bindings(m, "coops", outputs) == {
+        "filestore": {"ip_address": f"{outputs}.ip_address", "share_name": f"{outputs}.share_name"}}
 
 
 def test_the_gcs_builder_mounts_nothing_and_says_so():

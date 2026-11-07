@@ -165,6 +165,41 @@ class TofuInstanceBuilderBase(InstanceBuilderBase[Q], TerraformRootMixin):
                 return s.type_
         return None
 
+    @staticmethod
+    def _storage_outputs_reference(builder_name: str, storage_name: str) -> str:
+        """The storage root's output object for one storage, by remote state."""
+        return (f"data.terraform_remote_state.{super_safe_name(builder_name)}"
+                f".outputs.storage_{super_safe_name(storage_name)}")
+
+    def _launch_template_variables(self, ctx: Any, params: dict[str, Any], enrollment_token: Any) -> dict[str, Any]:
+        """The ``templatefile`` map over the recorded launch parameters,
+        built from the storage builders' hooks: ``group_gid`` by the group
+        builder's expression (when the instance has a group); one map per
+        launch variable the configured storage builders name
+        (``launch_variables``, empty until a mount binds into it) -- the same
+        names the launch playbook takes as extra-vars; each mount's values
+        under its storage's name, bound by its own storage builder
+        (``launch_bindings``) from the storage root's outputs; and the
+        enrollment token expression the root supplies."""
+        out: dict[str, Any] = {}
+        group = params.get("group")
+        gid = self._gid_expression_for(group)
+        if gid is not None:
+            out["group_gid"] = HclRaw(gid)
+        for storage_builder in ctx.storage_builders.values():
+            for name in storage_builder.launch_variables():
+                out.setdefault(str(name), {})
+        for m in params.get("mounts", []):
+            sb = m.get("builder") or self._storage_builder_name(m["storage"])
+            storage_builder = ctx.storage_builders.get(str(sb)) if sb else None
+            if storage_builder is None:
+                continue
+            outputs = self._storage_outputs_reference(str(sb), m["storage"])
+            for name, values in storage_builder.launch_bindings(m, group, outputs).items():
+                out.setdefault(str(name), {})[m["storage"]] = values
+        out[ENROLLMENT_TOKEN_VARIABLE] = enrollment_token
+        return out
+
     def _require_provider(self, col: TerraformCollector, ws: str, rtb: Any) -> None:
         """Provider requirements come from configuration (required_plugins);
         fall back to the provider's own bare requirement when none declared.

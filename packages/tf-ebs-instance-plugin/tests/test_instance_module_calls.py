@@ -149,3 +149,58 @@ def test_pre_finalize_writes_tfvars_for_resolved_psis(tmp_path):
     tfvars = tmp_path / "open-tofu/instance-generation/instances.auto.tfvars"
     assert tfvars.is_file()
     assert 'test2_ami_id = "ami-0bbb"' in tfvars.read_text()
+
+
+def _storage_builder(variables=(), bindings=None):
+    """A storage builder as the launch hooks see it: the variables it names
+    and what it binds for a mount under them."""
+    return SimpleNamespace(launch_variables=lambda: variables,
+                           launch_bindings=lambda mount, group, outputs: bindings(mount, group, outputs) if bindings else {})
+
+
+def _root(ctx):
+    """The instance root's launch pieces over a stand-in context: the map
+    builder and the token expression are the real ones."""
+    from cs_image_system.tofu_roots.tofu_instance_builder import TofuInstanceBuilderBase
+    stub = SimpleNamespace(_get_context=lambda: ctx, _gid_expression_for=lambda group: None,
+                           _storage_builder_name=lambda storage: None,
+                           _storage_outputs_reference=TofuInstanceBuilderBase._storage_outputs_reference,
+                           _user_data_template_name=TofuInstanceBuilder._user_data_template_name)
+    stub._launch_template_variables = lambda ctx, params, token: TofuInstanceBuilderBase._launch_template_variables(
+        cast(Any, stub), ctx, params, token)
+    stub._enrollment_token_expression = lambda params: TofuInstanceBuilder._enrollment_token_expression(cast(Any, stub), params)
+    return stub
+
+
+def test_the_templatefile_map_is_built_from_the_storage_builders_hooks():
+    """Every variable a configured storage builder names is in the map
+    (empty until a mount binds into it); a mount's values are what its own
+    builder binds, under the storage's name, from the storage root's
+    outputs; no storage kind is named in the root."""
+    from cs_image_system.contract.hcl import HclRaw
+
+    def bind(mount, group, outputs):
+        return {"zeta": {"key": HclRaw(f"{outputs}.key"), "group": group or ""}}
+    ctx = SimpleNamespace(storage_builders={"stub-kind": _storage_builder(("zeta",), bind),
+                                            "quiet-kind": _storage_builder(("alpha",))},
+                          services=_services())
+    params = {"hostname": "test2-001", "group": "coops",
+              "mounts": [{"storage": "s1", "type": "stub", "builder": "stub-kind", "mount_point": "/mnt/s1"},
+                         {"storage": "s2", "type": "stub", "builder": "stub-kind", "mount_point": "/mnt/s2"},
+                         {"storage": "none", "type": "x", "builder": "unconfigured", "mount_point": "/mnt/x"}]}
+    args = TofuInstanceBuilder._launch_args(cast(Any, _root(ctx)), ctx, "test2", params)
+    user_data = str(args["user_data"])
+    assert user_data.startswith('templatefile("${path.module}/user-data-test2.sh.tftpl", {')
+    assert '"alpha" = {}' in user_data, "a variable a builder names, with no mount bound into it"
+    assert '"key" = data.terraform_remote_state.stub_kind.outputs.storage_s1.key' in user_data
+    assert '"key" = data.terraform_remote_state.stub_kind.outputs.storage_s2.key' in user_data
+    assert '"group" = "coops"' in user_data
+    assert '"ebs"' not in user_data and '"efs"' not in user_data, "no storage kind is the root's own"
+    assert '"sft_enrollment_token" = ""' in user_data and "ebs_volumes" not in args
+    # the ebs attachments are the volumes the template mounts: what the ebs builder bound
+    ctx.storage_builders["aws-ebs"] = _storage_builder(("ebs",), lambda m, g, o: {"ebs": {"volume_id": HclRaw(f"{o}.volume_id"),
+                                                                                           "device_name": "/dev/xvdf"}})
+    params["mounts"].append({"storage": "mnt_data", "type": "ebs", "builder": "aws-ebs", "mount_point": "/mnt/data"})
+    args = TofuInstanceBuilder._launch_args(cast(Any, _root(ctx)), ctx, "test2", params)
+    assert args["ebs_volumes"] == {"mnt_data": {"volume_id": "data.terraform_remote_state.aws_ebs.outputs.storage_mnt_data.volume_id",
+                                                "device_name": "/dev/xvdf"}}

@@ -14,7 +14,6 @@ module "instance_container_test" {
   launch_script = templatefile("${path.module}/launch-container_test.sh.tftpl", {
     "ebs" = {}
     "efs" = {}
-    "filestore" = {}
     "group_gid" = 3101
     "sft_enrollment_token" = ""
   })

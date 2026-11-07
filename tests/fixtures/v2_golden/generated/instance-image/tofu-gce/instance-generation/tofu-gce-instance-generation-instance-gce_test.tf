@@ -12,8 +12,8 @@ module "instance_gce_test" {
   public_ip = false
   labels = { "csis_config" = "cs-image-action-test" }
   startup_script = templatefile("${path.module}/user-data-gce_test.sh.tftpl", {
+    "ebs" = {}
     "efs" = {}
-    "filestore" = {}
     "group_gid" = data.terraform_remote_state.oktagroups.outputs.group_gids["coops"]
     "sft_enrollment_token" = var.sft_enrollment_token
   })

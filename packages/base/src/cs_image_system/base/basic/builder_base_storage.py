@@ -183,6 +183,17 @@ class StorageBuilderBase(BuilderBase[TSTORAGE], StorageBuilderProtocol):
         values the instance root binds``. Default: none."""
         return ()
 
+    def launch_bindings(self, mount: dict[str, Any], group: str | None, outputs: str) -> dict[str, dict[str, Any]]:
+        """What the instance root binds for ``mount`` under each launch
+        variable this kind names: ``{variable: {key: value}}``, every
+        runtime value a terraform reference into ``outputs`` -- the storage
+        root's output object for the storage
+        (``data.terraform_remote_state.<builder>.outputs.storage_<name>``).
+        The root places the values under the storage's name in the
+        variable's map. Default: nothing, for a kind that names no launch
+        variable."""
+        return {}
+
     # ------------------------------------------- the shared launch pieces
     @staticmethod
     def mount_header_lines(mount: dict[str, Any]) -> list[str]:
