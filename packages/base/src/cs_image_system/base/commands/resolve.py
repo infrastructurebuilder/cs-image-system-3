@@ -81,7 +81,7 @@ def predefined_resolve(ctx: GlobalTypeContext,
                 # builder so packer builds it.
                 pinned_id = rt.get_image_id_for_runtime()
                 if pinned_id:
-                    # stage 63: the entry pins its vendor image; no query
+                    # the entry pins its vendor image; no query
                     x = rtb.query_provider_image_by_id(rt, str(pinned_id))
                     if x is None:
                         raise Exception(f"OS builder {osb_name}: image_id {pinned_id!r} on runtime "

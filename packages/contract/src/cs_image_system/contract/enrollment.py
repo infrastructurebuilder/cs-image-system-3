@@ -2,9 +2,8 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""Launch enrollment kinds (stage 75 step 2, the contract's since stage
-125): the identity plugin that issues an enrollment renders its own launch
-steps; the core names no agent.
+"""Launch enrollment kinds: the identity plugin that issues an
+enrollment renders its own launch steps; the core names no agent.
 
 A group builder's ``launch_parameters(group)`` returns an ``enrollment``
 kind (a name the plugin chooses), and the kind travels in the instance's

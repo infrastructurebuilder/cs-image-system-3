@@ -16,8 +16,8 @@ provider uses (``TF_VAR_<team>_key`` / ``TF_VAR_<team>_secret``, or
 group (``<name>_user``, the module's user group) is read through the OPA
 **Attributes API**, ``GET /v1/teams/{team}/groups/{group}/attributes``
 (https://developer.okta.com/docs/api/openapi/opa, tag Attributes), whose
-``unix_gid`` attribute is the gid OPA assigns on servers. Verified live
-2026-08-26: ``coops_user`` -> 180007 (unix_group_name ``sft_coops_user``).
+``unix_gid`` attribute is the gid OPA assigns on servers. Verified live:
+``coops_user`` -> 180007 (unix_group_name ``sft_coops_user``).
 The documented response is ``{"list": [{attribute_name, attribute_value,
 ..}]}``; the live service answers ``{"attributes": {"unix_gid": {..}}}`` --
 both shapes are accepted. A group without a ``unix_gid`` attribute is
@@ -188,7 +188,7 @@ class OpaGidResolver:
         project -- ``/v1/teams/{team}/resource_groups/{rg}/projects/{prj}``
         -- or ``None`` when either level is not there. Servers are reachable
         ONLY under this prefix: the team-level ``/projects/...`` path answers
-        ``401 Missing capability`` (found live 2026-09-21, stage 55), and the
+        ``401 Missing capability`` (found live), and the
         printed name ``coops_rg_login`` is not the project id."""
         rgs = (self.get(f"/v1/teams/{self.team}/resource_groups") or {}).get("list") or []
         rg = next((r for r in rgs if r.get("name") == f"{group_name}_rg"), None)
@@ -216,14 +216,14 @@ class OpaGidResolver:
             log.debug(f"OPA enrollment tokens for {group_name!r} unavailable: {e}")
             return None
 
-    # ----------------------------------------------- servers (stage 55)
+    # ---------------------------------------------------------------- servers
     def registered_servers(self, group_name: str) -> list[dict[str, Any]] | None:
         """Every server enrolled in ``group_name``'s login project, as
         ``{id, hostname, address}``, or ``None`` when the service could not
         be asked. None is NOT an empty list: a caller deciding whether a
-        hostname is free must not read silence as freedom (stage 57's rule,
-        applied here -- an unreachable OPA is exactly when a second
-        registration would otherwise slip through)."""
+        hostname is free must not read silence as freedom (an unreachable
+        OPA is exactly when a second registration would otherwise slip
+        through)."""
         try:
             prefix = self._login_project(group_name)
             if prefix is None:
@@ -239,7 +239,7 @@ class OpaGidResolver:
             out.append({"id": str(rec["id"]),
                         "hostname": str(rec.get("hostname") or rec.get("canonical_name") or ""),
                         "address": str(rec.get("access_address") or rec.get("bind_address") or ""),
-                        # stage 58: the names a record answers to besides its
+                        # the names a record answers to besides its
                         # hostname, and the provider id sftd read from IMDS --
                         # which is how a launch finds ITS OWN record among
                         # several bearing one name
@@ -250,7 +250,7 @@ class OpaGidResolver:
 
     def retire_server(self, group_name: str, server_id: str) -> bool:
         """``DELETE`` one server registration from ``group_name``'s login
-        project (204 live, 2026-09-21). True when it is gone at return; a
+        project (204 live). True when it is gone at return; a
         404 counts as gone. Anything else raises: a retirement that did not
         happen must not be recorded as one."""
         prefix = self._login_project(group_name)
@@ -260,15 +260,15 @@ class OpaGidResolver:
             self.transport("DELETE", self._url(f"{prefix}/servers/{server_id}"),
                            {"Authorization": f"Bearer {self.token()}", "Accept": "application/json"}, None)
         except Exception as e:
-            # stage 63: the status code, not the text (a 500 whose body happened
-            # to mention 404 used to count as a retirement)
+            # the status code, not the text (a 500 whose body happens to
+            # mention 404 is not a retirement)
             if getattr(e, "code", None) == 404:
                 log.info(f"OPA server {server_id} was already gone")
                 return True
             raise
         return True
 
-    # ------------------------------------ policies and workloads (stage 56)
+    # ------------------------------------------------- policies and workloads
     def _send(self, method: str, path: str, body: dict[str, Any] | None = None) -> Any:
         """One authenticated call with a JSON body; the transport raises on
         any non-2xx, so a write that did not happen never returns."""
@@ -281,7 +281,7 @@ class OpaGidResolver:
             return self.transport(method, self._url(path), headers, payload)
         except urllib.error.HTTPError as e:
             # the API explains a refusal in its body; keep it, or the first
-            # live write teaches nothing ("HTTP Error 400" alone did, 2026-09-22)
+            # live write teaches nothing ("HTTP Error 400" alone)
             try:
                 detail = e.read().decode(errors="replace")[:600]
             except Exception:  # noqa: BLE001 - a body that cannot be read is no body
@@ -292,10 +292,10 @@ class OpaGidResolver:
         """EVERY record under ``path`` (``{"list": [...]}``, the API's listing
         shape, or a bare list), following the ``Link: <...>; rel="next"``
         header page by page until there is none, or None when the service
-        could not be asked. Stage 63 item 12: until 2026-09-24 the first page
-        alone was read, so past one page of security policies the workload
-        reconcile would have seen no standing CI policy and created a
-        duplicate. A page that fails mid-way makes the whole listing None:
+        could not be asked. Were the first page alone read, past one page of
+        security policies the workload reconcile would see no standing CI
+        policy and create a duplicate. A page that fails mid-way makes the
+        whole listing None:
         a partial listing is the same lie as a first page."""
         out: list[dict[str, Any]] = []
         url: str | None = self._url(path)
@@ -322,7 +322,7 @@ class OpaGidResolver:
         return self._listing(f"/v1/teams/{self.team}/resource_groups", "resource groups")
 
     def resource_group(self, rg_id: str) -> dict[str, Any] | None:
-        """One resource group's full record (hygiene XIV item 6), or None."""
+        """One resource group's full record, or None."""
         try:
             return self.get(f"/v1/teams/{self.team}/resource_groups/{rg_id}") or {}
         except Exception as e:
@@ -348,7 +348,7 @@ class OpaGidResolver:
     def workload_roles(self) -> list[dict[str, Any]] | None:
         """The team's workload roles (``GET /v1/teams/{team}/workload-roles``
         -- a HYPHEN, unlike every older path; the underscore form answered
-        404 live on 2026-09-22, and the path is the one Okta's PAM SDK
+        404 live, and the path is the one Okta's PAM SDK
         v1.3.48 carries), or None when they could not be read. Roles are the
         operator's (CI_SETUP.md section 3.5, step 2); the system only reads
         them."""
@@ -363,7 +363,7 @@ class OpaGidResolver:
     def user_attributes(self, user_name: str) -> dict[str, Any]:
         """``{attribute_name: attribute_value}`` for one OPA user
         (``GET /v1/teams/{team}/users/{user}/attributes``; verified read-only
-        2026-08-27: unix_uid, unix_gid, unix_user_name, windows_user_name,
+        on the live team: unix_uid, unix_gid, unix_user_name, windows_user_name,
         active_directory_* -- each with OPA's own ``managed`` flag)."""
         data = self.get(f"/v1/teams/{self.team}/users/{user_name}/attributes") or {}
         out: dict[str, Any] = {}
@@ -376,8 +376,8 @@ class OpaGidResolver:
         return out
 
     def attribute_conflicts(self) -> list[dict[str, Any]]:
-        """``GET /v1/teams/{team}/attributes/conflicts`` (verified read-only
-        2026-08-27: ``{"list": []}`` on the live team)."""
+        """``GET /v1/teams/{team}/attributes/conflicts`` (verified read-only:
+        ``{"list": []}`` on the live team)."""
         data = self.get(f"/v1/teams/{self.team}/attributes/conflicts") or {}
         return [c for c in (data.get("list") or []) if isinstance(c, dict)]
 
@@ -394,7 +394,7 @@ class OpaGidResolver:
         return out
 
 
-#: How long the gid shim waits for OPA to give a group its gid (stage 84), and
+#: How long the gid shim waits for OPA to give a group its gid, and
 #: how often it asks. A group terraform has just created may not carry
 #: ``unix_gid`` in the instant after its creation; a group that stands answers
 #: at once, so nothing waits in the ordinary run. ``CSIS_GID_WAIT_SECONDS``

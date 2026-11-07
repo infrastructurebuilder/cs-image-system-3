@@ -2,9 +2,9 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""The proof of the plugin contract (stage 30, branch 2): the ``inmem``
-state backend, a plugin written against ``cs_image_system.contract`` and
-nothing else of the system.
+"""The proof of the plugin contract: the ``inmem`` state backend, a
+plugin written against ``cs_image_system.contract`` and nothing else of
+the system.
 
 OpenTofu's ``inmem`` backend keeps a workspace's state in the running
 process's memory: no bucket, no file, no credentials, gone when the

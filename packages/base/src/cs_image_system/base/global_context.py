@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""Compatibility module (stage 124): the names this module used to define
+"""Compatibility module: the names this module used to define
 stay importable from here for one release, re-exported from where they
 live now.
 
@@ -56,7 +56,7 @@ from .run_context import RunContext, bind_current, current_context  # noqa: F401
 
 
 class GlobalTypeContext(RunContext):
-    """The run context under its old name (one-release shim, stage 124).
+    """The run context under its old name (a one-release shim; see docs/CHANGES.md#s124).
 
     ``GlobalTypeContext()`` with no arguments answers with the context the
     loader made last (:func:`~.run_context.current_context`) -- the fetch
@@ -87,7 +87,7 @@ def read_config_and_transform(
     undeclare: list[str] | None = None,
     reg: Any = None,
 ) -> GlobalTypeContext:
-    """Shim (stage 124): :func:`~.config_loader.read_config_and_transform`,
+    """Shim: :func:`~.config_loader.read_config_and_transform`,
     typed as the old name so a caller annotated with ``GlobalTypeContext``
     keeps type-checking. The object is the loader's ``RunContext``."""
     return cast(GlobalTypeContext, _read_config_and_transform(

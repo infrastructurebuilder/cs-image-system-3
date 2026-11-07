@@ -36,9 +36,9 @@ import typer
 from .. import power_state
 from ..basic.builder_base_group import GroupBuilderBase
 from ..launch_params import canonical_hostname, group_builder_of
-from ..standing import standing_instances  # noqa: F401 - re-exported (stage 125)
+from ..standing import standing_instances  # noqa: F401 - re-exported
 
-if TYPE_CHECKING:          # annotations only (stage 125)
+if TYPE_CHECKING:          # annotations only
     from ..global_context import GlobalTypeContext
 
 log = logging.getLogger(__name__)

@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""The one place a bake's ssh user is decided (stage 63 items 22 and 23).
+"""The one place a bake's ssh user is decided.
 
 Before this module the user was chosen in five places that disagreed: the OS
 builder filled the base image's runtime entry with the entry's user or a
@@ -15,7 +15,7 @@ the runtime by an image-builder name and never found it, inside a
 ``finalize()`` nobody called). A chain on that cloud whose entry named a user and whose
 runtime named none baked as that user while ansible connected as ``packer``.
 
-The order, decided by the operator 2026-09-25 (the more specific setting
+The order, decided by the operator (the more specific setting
 wins, on every cloud alike):
 
 1. the IMAGE's own runtime entry ``ssh_username`` (``runtimes:`` on a base or

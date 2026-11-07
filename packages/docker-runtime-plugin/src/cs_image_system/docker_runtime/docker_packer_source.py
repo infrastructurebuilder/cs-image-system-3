@@ -2,8 +2,8 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""The ``docker`` packer source for an image baked on a docker runtime
-(stage 103), from HashiCorp's docker plugin.
+"""The ``docker`` packer source for an image baked on a docker runtime,
+from HashiCorp's docker plugin.
 
 A bake starts a container from the parent image, provisions it through the
 daemon (no SSH: the plugin's docker communicator runs ``docker exec`` and

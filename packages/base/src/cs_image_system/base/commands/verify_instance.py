@@ -2,12 +2,12 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""Instance verification (stage 10.1-2): the runtime's ``verify_instance``
+"""Instance verification: the runtime's ``verify_instance``
 hook run as a deferred step of the instance runner (after the launch apply,
 before an ephemeral's teardown), its verdict recorded in
 ``meta-state/verifications.yaml``. A failed verdict raises, which stops the
 runner: an ephemeral instance is then LEFT STANDING for inspection and the
-run fails (operator decision 2026-09-07).
+run fails (the operator's decision).
 """
 from __future__ import annotations
 
@@ -51,11 +51,11 @@ def verify_instance(ctx: "RunContext", name: str, expected_build: str | None = N
     ms = ctx.meta_state
     recorded = ms.instance_pin(name) or (ms.launch_params().get(name) or {}).get("build")
     build = expected_build or (recorded if recorded and recorded != "unbound" else None)
-    # hygiene XII item 22: the declared mount points by name (object storage
+    # the declared mount points by name (object storage
     # mounts nothing), and their count for a runtime that can only count
     mount_points = mounted_points(compute_launch_params(ctx, inst), ctx)
     mounts = len(mount_points)
-    # stage 57: verification is the archetypal task that NEEDS a running
+    # verification is the archetypal task that NEEDS a running
     # machine, so it is allowed to start one -- for this task alone, and
     # it puts it back. A machine that is off and cannot be started is a
     # SKIP: failing it would be the system calling the operator's own
@@ -92,7 +92,7 @@ def verify_instance(ctx: "RunContext", name: str, expected_build: str | None = N
                                    else f"booted {booted}, which lineage does not record for {inst.image} on {rt}")
             result["ok"] = all(c.get("ok") for c in result.get("checks", []))
             build = booted if ok else None
-        # stage 14: the image's declared post-bake tests run ON the instance over
+        # the image's declared post-bake tests run ON the instance over
         # the runtime's session command, as one more check; recorded per build
         image = ctx.images_map.get(str(inst.image))
         spec = post_bake_spec(image) if image is not None else {}

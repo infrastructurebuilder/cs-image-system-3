@@ -67,7 +67,7 @@ def register_secret_decoder(decoder: SecretDecoder | None) -> None:
 
 def open_marker(marker: str) -> str:
     """The plaintext of one ``ENC[age:...]`` marker, through the installed
-    decoder (stage 125): what a plugin calls where it holds a marker outside a
+    decoder: what a plugin calls where it holds a marker outside a
     model field -- a daemon address read from raw settings, say -- and no run
     context. Refused, never passed through in clear, when no decoder is
     installed."""

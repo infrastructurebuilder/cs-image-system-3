@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""The modification kind (stage 30): what an image's ``modifications:``
+"""The modification kind: what an image's ``modifications:``
 items become in a bake (a playbook, a script, an ensure item). The image,
 the modification item and the image builder passed to the hooks are the
 core's models and ``Any`` here."""

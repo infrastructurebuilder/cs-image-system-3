@@ -81,7 +81,7 @@ def test_provider_variables_okta_declares_none():
 
 def test_group_finalize_requires_tfvars():
     with _env():
-        with pytest.raises(ValueError, match=f"TF_VAR_{TEAM_VAR}_key"):   # stage 63: a real refusal
+        with pytest.raises(ValueError, match=f"TF_VAR_{TEAM_VAR}_key"):   # a real refusal
             _group().finalize()
 
 

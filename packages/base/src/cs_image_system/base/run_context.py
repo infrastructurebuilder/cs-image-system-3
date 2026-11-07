@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""The run context: what one run KNOWS (stage 124).
+"""The run context: what one run KNOWS.
 
 :class:`RunContext` is the read side of what ``GlobalTypeContext`` used to
 be: the merged configuration, the collections (read live from the
@@ -70,7 +70,7 @@ class RunContext(RunContextProtocol):
     """What one run knows: configuration, collections, paths, flags.
 
     The contract's :class:`~cs_image_system.contract.context.RunContextProtocol`
-    is a base (stage 125) so pyright compares every member a plugin may
+    is a base so pyright compares every member a plugin may
     read; the class has more than the protocol (the registry, the
     finalizer, the scoping flags), which is the engine's.
 
@@ -95,8 +95,8 @@ class RunContext(RunContextProtocol):
                  run_start_time: datetime | None = None,
                  reg: registry.Registry | None = None,
                  ) -> None:
-        # the run's registry (stage 124): the loader makes one per run and
-        # hands it in; without one, the process's current (the shim)
+        # the run's registry: the loader makes one per run and hands it in;
+        # without one, the process's current (the shim)
         self.reg: registry.Registry = reg if reg is not None else registry.current_registry()
         self._dry_run = dry_run
         self._verbose = verbose or False
@@ -112,30 +112,31 @@ class RunContext(RunContextProtocol):
         # No dupes, and the LAST occurrence keeps its place: gitignore reads
         # later rules as overriding earlier ones, so a configuration that
         # restates a default (`!.terraform.lock.hcl` after its own `.*`)
-        # means it there (found 2026-09-11: the first-wins rule dropped the
-        # restatement and the built-in negation stayed ahead of `.*`).
+        # means it there (a first-wins rule dropped the restatement and left
+        # the built-in negation ahead of `.*`).
         self._gitignore_entries: list[str] = [e for i, e in enumerate(lgie) if e not in lgie[i + 1:]]
         # per-run state that a library or plugin keeps beside this context (a
         # terraform collector, say), created on first ask and gone with the context
         self._plugin_state: dict[str, Any] = {}
-        # Transient declarations (stage 8): overlay files merged over the tree
+        # Transient declarations: overlay files merged over the tree
         # for THIS invocation only -- items by name, config keys by key. The
         # loader read them; the context only remembers what was read.
         self.overlays: list[Path] = list(overlays or [])
         self._overlay_data: list[dict[str, Any]] = list(overlay_data or [])
         self.overlay_declared: set[tuple[str, str]] = set()
-        # stage 28: `--undeclare <kind>:<name>` -- the overlay `undeclare` form
-        # as a flag, so a live configuration needs no overlay file to
-        # decommission a tree entry for one invocation (ledger 68, 71)
+        # `--undeclare <kind>:<name>` -- the overlay `undeclare` form as a
+        # flag, so a live configuration needs no overlay file to decommission
+        # a tree entry for one invocation
         self.undeclared: list[tuple[str, str]] = list(undeclared or [])
-        # stage 48.3: the foreign keys that named nothing at load -- (object
+        # the foreign keys that named nothing at load -- (object
         # class, object name, field, value, target) -- as the object stage
         # returned them; set by the loader as the item kinds are read, read by
         # `validate`, which refuses each entry
         self.unresolved_foreign_keys: list[tuple[str, str, str, str, str]] = []
-        self.apply_runtime: str | None = None      # `run --apply-runtime <rt>` (stage 11.5)
-        self.migrate_state: list[str] = []          # `run --migrate-state <ws>` (stage 46): the workspaces whose state MOVES this run
-        # stage 12: run scoping safe by construction
+        self.apply_runtime: str | None = None      # `run --apply-runtime <rt>`
+        # `run --migrate-state <ws>`: the workspaces whose state MOVES this run
+        self.migrate_state: list[str] = []
+        # run scoping safe by construction
         self.implied_scope: str | None = None      # --apply-runtime implied the bake filter to this runtime
         self.allow_unscoped_bakes: bool = False    # `run --allow-unscoped-bakes`
         self.explicit_bake_selection: bool = False # --only / --only-runtime given by the operator
@@ -143,7 +144,7 @@ class RunContext(RunContextProtocol):
         # scoped-runs: the run's --only image selection; None = everything.
         # Image builders filter their enumeration on it (get_images).
         self.only_images: set[str] | None = None
-        # convergent bakes (stage 9): forced images (None = none; FORCE_ALL = all)
+        # convergent bakes: forced images (None = none; FORCE_ALL = all)
         # and the per-run cache of bake decisions (`<series>@<runtime>` -> reason|None)
         self.force_bake: set[str] | None = None
         self.bake_decisions: dict[str, str | None] = {}
@@ -152,8 +153,8 @@ class RunContext(RunContextProtocol):
         self._meta_state: MetaState | None = None
         self._root_group: Group | None = None       # set by the groups kind's validator (the loader)
         self._finalizer: Finalizer | None = None    # bound by the loader
-        self._services: ServicesProtocol | None = None   # bound by the loader (stage 125)
-        # stage 127: what the adoption of meta-state/runtime-facts.yaml left
+        self._services: ServicesProtocol | None = None   # bound by the loader
+        # what the adoption of meta-state/runtime-facts.yaml left
         # unanswered (a `default` network nothing recorded, a subnet the record
         # never checked); set by the loader's adopt, reported by a validator
         self.network_facts_problems: list[str] = []
@@ -162,9 +163,8 @@ class RunContext(RunContextProtocol):
     # A model copy (`copy.deepcopy(executable)`, a builder's executable copy)
     # must share the run it belongs to. Without this, the copy walked from the
     # model's registry handle to the builders, from a builder to its bound
-    # context (stage 124) and from there to the whole run -- every builder,
-    # model and collector -- a copy that ran for hours and took tens of
-    # gigabytes (found 2026-11-05, the first acceptance run of this stage).
+    # context and from there to the whole run -- every builder, model and
+    # collector -- a copy that ran for hours and took tens of gigabytes.
     def __deepcopy__(self, memo: dict[int, Any]) -> RunContext:
         memo[id(self)] = self
         return self
@@ -184,7 +184,7 @@ class RunContext(RunContextProtocol):
     def bind_finalizer(self, finalizer: Finalizer) -> None:
         self._finalizer = finalizer
 
-    # --- the services behind the context (stage 125)
+    # --- the services behind the context
     @property
     def services(self) -> ServicesProtocol:
         """The engine's run-bound knowledge as a plugin reaches it
@@ -261,7 +261,7 @@ class RunContext(RunContextProtocol):
     @property
     def dateformat(self) -> str:
         """The tree's ``dateformat``: the timestamp format a build's final
-        name carries (stage 125: a plugin reads it here, not the model)."""
+        name carries (a plugin reads it here, not the model)."""
         return self._read_config.dateformat
 
     # --- paths
@@ -438,54 +438,54 @@ class RunContext(RunContextProtocol):
     def extend_finalization_phase(
         self, phase: ExecutionLifecyclePhase, executables: Sequence[ExecutableProtocol]
     ) -> None:
-        """Shim (stage 124): ``ctx.finalizer.extend_finalization_phase``.
-        Takes the contract's executables (stage 125): what a plugin queues
+        """Shim: ``ctx.finalizer.extend_finalization_phase``.
+        Takes the contract's executables: what a plugin queues
         comes from this run's ``executables`` map, the kit's models."""
         self.finalizer.extend_finalization_phase(phase, cast("list[ExecutableModel]", list(executables)))
 
     def get_finalization_executables_for_phase(
         self, phase: ExecutionLifecyclePhase, lifecycle: LifecycleLike | None | str = "current",
     ) -> list[ExecutableModel]:
-        """Shim (stage 124): ``ctx.finalizer.get_finalization_executables_for_phase``."""
+        """Shim: ``ctx.finalizer.get_finalization_executables_for_phase``."""
         return self.finalizer.get_finalization_executables_for_phase(phase, lifecycle)
 
     def finalization_phases_for(self, lifecycle: LifecycleLike | None) -> list[ExecutionLifecyclePhase]:
-        """Shim (stage 124): ``ctx.finalizer.finalization_phases_for``."""
+        """Shim: ``ctx.finalizer.finalization_phases_for``."""
         return self.finalizer.finalization_phases_for(lifecycle)
 
     @property
     def final_execution_path(self) -> Path:
-        """Shim (stage 124): ``ctx.finalizer.final_execution_path``."""
+        """Shim: ``ctx.finalizer.final_execution_path``."""
         return self.finalizer.final_execution_path
 
     @staticmethod
     def render_executable_line(executable: ExecutableModel) -> str:
-        """Shim (stage 124): :func:`~.finalizer.render_executable_line`."""
+        """Shim: :func:`~.finalizer.render_executable_line`."""
         return render_executable_line(executable)
 
     def write_final_execution_script(self) -> Path:
-        """Shim (stage 124): ``ctx.finalizer.write_final_execution_script``."""
+        """Shim: ``ctx.finalizer.write_final_execution_script``."""
         return self.finalizer.write_final_execution_script()
 
     def write_lifecycle_runner_script(self, lifecycle: LifecycleLike,
                                       extra_header: list[str] | None = None) -> Path | None:
-        """Shim (stage 124): ``ctx.finalizer.write_lifecycle_runner_script``."""
+        """Shim: ``ctx.finalizer.write_lifecycle_runner_script``."""
         return self.finalizer.write_lifecycle_runner_script(lifecycle, extra_header)
 
     def write_gating_script(self) -> Path:
-        """Shim (stage 124): ``ctx.finalizer.write_gating_script``."""
+        """Shim: ``ctx.finalizer.write_gating_script``."""
         return self.finalizer.write_gating_script()
 
     def after_failed_phase(self, phase: ExecutionLifecyclePhase) -> None:
-        """Shim (stage 124): ``ctx.finalizer.after_failed_phase``."""
+        """Shim: ``ctx.finalizer.after_failed_phase``."""
         self.finalizer.after_failed_phase(phase)
 
     def final_execute(self) -> bool:
-        """Shim (stage 124): ``ctx.finalizer.final_execute``."""
+        """Shim: ``ctx.finalizer.final_execute``."""
         return self.finalizer.final_execute()
 
 
-# --- the one context of this process (one-release shim, stage 124)
+# --- the one context of this process (a one-release shim; see docs/CHANGES.md#s124)
 _CURRENT: RunContext | None = None
 
 

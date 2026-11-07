@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""``public_safe:`` in ``cfg/_config.yml`` (stage 35): what the operator accepted
+"""``public_safe:`` in ``cfg/_config.yml``: what the operator accepted
 as public, by decision and with the reason beside each entry -- a substring
 the scanner's soft rules may match (an address domain whose addresses are
 public by construction, a service account's address, an identifier) or

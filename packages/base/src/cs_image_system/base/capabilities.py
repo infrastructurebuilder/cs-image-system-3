@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""Capability plumbing (DESIGN §3F1-F3, Q1, N4, N9-N12, N24).
+"""Capability plumbing (DESIGN §3F1, DESIGN §3F2, DESIGN §3F3, Q1, N4, N9-N12, N24).
 
 * A base image declares ``identity_types`` and ``storage_types``; for each
   declared type the owning plugin contributes prerequisites baked at build
@@ -23,7 +23,7 @@ from __future__ import annotations
 import re
 from dataclasses import field
 from cs_image_system.contract.model_config import CSIS_MODEL_CONFIG
-from pydantic.dataclasses import dataclass  # stage 23: validation at construction
+from pydantic.dataclasses import dataclass  # validation at construction
 from typing import TYPE_CHECKING, Any
 
 from .basic.builder_base_group import GroupBuilderBase
@@ -76,8 +76,8 @@ class EffectiveCapabilities:
 def group_builders_by_identity_type(ctx: "RunContext") -> dict[str, list[GroupBuilderBase]]:
     """``{identity type: [group builders]}``. Callers bake and verify with
     the FIRST builder of a type, so a builder that manages its groups comes
-    before a lookup-only one, then by name (stage 63 item 18: by name alone,
-    a read-only builder called ``<type>-groups-ro`` sorted before the managed
+    before a lookup-only one, then by name (by name alone, a read-only
+    builder called ``<type>-groups-ro`` sorted before the managed
     ``<type>groups`` and its name went into every base image's bake)."""
     out: dict[str, list[GroupBuilderBase]] = {}
     for name in sorted(ctx.group_builders):
@@ -154,10 +154,10 @@ def storage_builder_runtime(builder: Any) -> str | None:
 
 def storage_types_on_runtime(ctx: "RunContext", types: list[str], runtime: str | None) -> list[str]:
     """Of ``types``, those a bake on ``runtime`` prepares for: the ones with
-    a storage builder on that runtime (or on none). Hygiene XII item 21
-    (the walk's F49): `storage_types` is one list on the OS builder, and it
-    stamped and fingerprinted every bake whole, so a type added for one
-    cloud's disk re-baked the other cloud's base with nothing to change in it. With no
+    a storage builder on that runtime (or on none). `storage_types` is one
+    list on the OS builder, and unnarrowed it stamped and fingerprinted
+    every bake whole, so a type added for one cloud's disk re-baked the
+    other cloud's base with nothing to change in it. With no
     runtime named, every type (the declaration as written)."""
     if runtime is None:
         return sorted(types)
@@ -216,7 +216,7 @@ def admin_public_keys(ctx: "RunContext", base: "BaseImage | None" = None,
         override = base.admin_public_keys
     elif os_builder_name and os_builder_name in ctx.os_builders:
         override = ctx.os_builders[os_builder_name].model.get_admin_public_keys()
-    # `like` keeps a decrypted value's ciphertext across the strip (stage 49):
+    # `like` keeps a decrypted value's ciphertext across the strip:
     # str()/strip() on a str subclass returns a plain str, and the marker is
     # what tells the emission to write the ciphertext rather than the key.
     if override is not None:

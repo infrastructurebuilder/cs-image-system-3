@@ -24,8 +24,8 @@ A mount is one of three things:
   help the way any typer command's do;
 * a **command the core provides**, mounted by name: ``CommandMount(
   name="login", path=("verify",), kit_command=VERIFY_LOGIN)`` asks the
-  console script to mount the core's own login proof there (stage 125: a
-  plugin names the command, and imports nothing of the core to mount it).
+  console script to mount the core's own login proof there (a plugin
+  names the command, and imports nothing of the core to mount it).
   The names are the :data:`KIT_COMMANDS` below.
 
 The shared-command rule: two plugins may mount the SAME callback (the

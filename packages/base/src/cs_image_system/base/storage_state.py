@@ -13,7 +13,7 @@ transition; the storage plugin's transition actions are another.
 States: ``active`` (default on create) <-> ``archived`` -> ``destroyed``.
 Guards: leaving ``active`` requires the storage to be unattached.
 
-Operator semantics (stage 10.11-12, 2026-09-08): a storage EXISTS exactly as
+Operator semantics: a storage EXISTS exactly as
 long as its declaration. Deleting the entry is its demise -- the next
 storage run plans the whitelisted destroy of the *undeclared* storage and
 records the tombstone. A tombstone keeps history, not the name: a name that
@@ -30,7 +30,7 @@ if TYPE_CHECKING:
 
 
 from cs_image_system.contract.model_config import CSIS_MODEL_CONFIG
-from pydantic.dataclasses import dataclass  # stage 23: validation at construction
+from pydantic.dataclasses import dataclass  # validation at construction
 
 from .models.storage import (
     STORAGE_STATE_ACTIVE,
@@ -48,7 +48,7 @@ LEGAL_TRANSITIONS: set[tuple[str | None, str]] = {
     (STORAGE_STATE_ARCHIVED, STORAGE_STATE_ACTIVE),
     (STORAGE_STATE_ACTIVE, STORAGE_STATE_DESTROYED),
     (STORAGE_STATE_ARCHIVED, STORAGE_STATE_DESTROYED),
-    # regeneration (stage 10.12): a declared storage whose record is a
+    # regeneration: a declared storage whose record is a
     # tombstone is a new generation of the name
     (STORAGE_STATE_DESTROYED, STORAGE_STATE_ACTIVE),
 }
@@ -62,7 +62,7 @@ class Transition:
     storage: str
     from_state: str | None
     to_state: str
-    undeclared: bool = False          # stage 10.11: the entry left the YAML -> demise
+    undeclared: bool = False          # the entry left the YAML -> demise
     builder: str | None = None        # the root that owns an undeclared storage
 
     @property
@@ -99,7 +99,7 @@ def pending_transitions(ctx: "RunContext") -> list[Transition]:
 
 def undeclared_transitions(ctx: "RunContext") -> list[Transition]:
     """Recorded, not destroyed, no longer declared: each is a destroy the
-    next storage run plans (stage 10.11). The owning root comes from the
+    next storage run plans. The owning root comes from the
     record's facts (or the last read-model); a record that names no root
     cannot be planned and is reported instead."""
     declared = {s.get_name() for s in ctx.storages}
@@ -164,7 +164,7 @@ def validate_transitions(ctx: "RunContext") -> list[str]:
             if not getattr(builder, "supports_archive", lambda: False)():
                 errors.append(f"storage '{name}' ({storage.type_}) requests archived, which its builder does not "
                               "realize (snapshot + restore); only builders that support archiving may (stage 11.6)")
-    # stage 10.11 replaced N22: a managed storage that left the YAML is a
+    # the operator semantics replaced DESIGN N22: a managed storage that left the YAML is a
     # planned destroy, not an error -- unless nothing records which root
     # owns it, in which case the destroy cannot be planned.
     for t in undeclared_transitions(ctx):

@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""Read-model writers (DESIGN §3D/§3E, N6/N7/N10).
+"""Read-model writers (DESIGN §3D, DESIGN §3E, N6/N7/N10).
 
 After a lifecycle generates, its read-model is written to meta-state as a
 committed file carrying STRUCTURAL facts only -- never runtime values such
@@ -29,8 +29,8 @@ log = logging.getLogger(__name__)
 
 
 def _groups_seen(ctx: "GlobalTypeContext") -> set[str]:
-    """Groups the identity provider has been SEEN to carry (hygiene XII item
-    3): those the previous read-model already marked, and those the run's
+    """Groups the identity provider has been SEEN to carry: those the
+    previous read-model already marked, and those the run's
     own state query just found present. Observation, never inference: a
     group is not "seen" because an apply was requested."""
     previous = (ctx.meta_state.identity_read_model() or {}).get("groups", {}) or {}
@@ -61,7 +61,7 @@ def identity_read_model(ctx: "GlobalTypeContext") -> dict[str, Any]:
                 # absent until the provider is seen to carry the group; then
                 # its absence is hard drift (state_query.group_drift)
                 groups[g.get_name()]["seen"] = True
-            expected = builder.workload_access_expected(g.get_name())   # stage 56
+            expected = builder.workload_access_expected(g.get_name())
             if expected is not None:
                 groups[g.get_name()]["workload"] = expected
     users = sorted(u.get_name() for u in ctx.users)
@@ -120,7 +120,7 @@ def record_storage_transitions(ctx: "GlobalTypeContext", lifecycle: Lifecycle) -
         # zero applies executed and meta-state lied until the state query's
         # HARD drift caught it). Same guard as mark_launched.
         return
-    # Per-root scoping (stage 7): a transition became real only if the
+    # Per-root scoping: a transition became real only if the
     # storage's own root (its builder name / that builder's runtime) applied.
     by_name = {s.get_name(): s for s in ctx.storages}
 
@@ -132,7 +132,7 @@ def record_storage_transitions(ctx: "GlobalTypeContext", lifecycle: Lifecycle) -
         rt = str(get_rt()) if callable(get_rt) else None
         return apply_enabled(ctx, "storage", root, [rt] if rt else ())
 
-    # declared transitions AND the demise of undeclared storages (stage 10.11)
+    # declared transitions AND the demise of undeclared storages
     transitions = [t for t in all_transitions(ctx) if _root_applied(t)]
     record_applied_transitions(ctx, transitions)
     if transitions:

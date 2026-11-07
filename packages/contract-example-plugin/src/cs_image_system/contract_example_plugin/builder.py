@@ -12,8 +12,8 @@ registration at load. So every hook here returns its empty value. What
 the class shows is the whole surface the core drives on any builder:
 the names and the classification, the six universal lifecycle hooks, the
 three finalize-phase hooks, ``finalize``, and the paths the runner files
-output under. Since stage 125 it also shows the run context as a plugin
-sees it: ``bind`` receives the contract's ``RunContextProtocol`` and
+output under. It also shows the run context as a plugin sees it:
+``bind`` receives the contract's ``RunContextProtocol`` and
 the builder reads the run through it alone -- the run id, where the
 run generates, the declared backends and one service (the lineage's
 configuration tags) -- into ``observed``, which the proof's dry run
@@ -46,7 +46,7 @@ class InmemStateBuilder:
         #: what the builder read of the run through the protocol, at finalize
         self.observed: dict[str, Any] = {}
 
-    # --- the run context, passed by the loader (stage 125)
+    # --- the run context, passed by the loader
     def bind(self, ctx: RunContextProtocol) -> None:
         """The loader hands every builder the run context it made, before
         the domain items are read; the builder keeps it and reads the run

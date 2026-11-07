@@ -57,7 +57,7 @@ class DummyGroupBuilder(GroupBuilderBase[DummyGroupBuilderModel]):
         """Generate the items to create during a specific execution lifecycle
         event: none, as an ``AssetSet`` (the contract's type; the generators
         call ``sort_and_write`` on it, and a bare list broke the identity
-        lifecycle for any declared ``type: dummy`` builder -- stage 63 item 1)."""
+        lifecycle for any declared ``type: dummy`` builder)."""
         return AssetSet()
 
     def get_commands_to_run_during(
@@ -104,8 +104,8 @@ class DummyUserBuilder(UserBuilderBase[DummyUserBuilderModel]):
         event."""
         files: AssetSet = AssetSet()
         if phase == ExecutionLifecyclePhase.USER_GENERATION:
-            # stage 63: under the builder's own root like every other builder's
-            # (it wrote `Dummy-tf/dummy_users.tf` beside them)
+            # under the builder's own root like every other builder's
+            # (it used to write `Dummy-tf/dummy_users.tf` beside them)
             rpath = self.get_path_for_phase(phase, "users", suffix=".tf")
             files.append(
                 Asset((
@@ -127,7 +127,7 @@ class DummyUserBuilder(UserBuilderBase[DummyUserBuilderModel]):
         self, phase: ExecutionLifecyclePhase
     ) -> AssetSet:
         """Generate the items to create during a specific execution lifecycle
-        event: none, as an ``AssetSet`` (stage 63 item 1)."""
+        event: none, as an ``AssetSet``."""
         return AssetSet()
 
     def get_commands_to_run_during(

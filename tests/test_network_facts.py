@@ -314,7 +314,7 @@ def test_preflight_loads_the_configuration_offline_and_exits_as_documented(tmp_p
 
 
 def test_a_subnet_outside_the_vpc_is_refused(tmp_path: Path, monkeypatch):
-    """The check is the runtime's ONLINE network check (stage 127: run by a
+    """The check is the runtime's ONLINE network check (run by a
     real run and `validate --online` through `network_facts.discover`, never
     by a load), and the refusal keeps its words."""
     from cs_image_system.aws_runtime import aws_utils

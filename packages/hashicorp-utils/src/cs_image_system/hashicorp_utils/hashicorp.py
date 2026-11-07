@@ -41,8 +41,8 @@ class QString(str):
         )
 
     def __new__(cls, value: str, quoted: bool = True, quote_char: str = '"'):
-        # stage 63: the default agrees with the class (quoted); `value` is set,
-        # so __str__ -- which read an attribute nothing assigned -- works
+        # the default agrees with the class (quoted); `value` is set, so
+        # __str__ -- which used to read an attribute nothing assigned -- works
         instance = super().__new__(cls, value)
         instance.value = str(value)
         instance.quoted = quoted
@@ -78,8 +78,8 @@ def packer_variable(
         if isinstance(default, bool):
             default_value = str(default).lower()
         elif isinstance(default, str):
-            # a string default is an HCL string, quoted (stage 63 item 3: `default = 1.0.0`
-            # was emitted bare, invalid HCL; only env_var and bool defaults rendered right)
+            # a string default is an HCL string, quoted (`default = 1.0.0` used to be
+            # emitted bare, invalid HCL; only env_var and bool defaults rendered right)
             default_value = default if isinstance(default, QString) else QString(default)
         else:
             default_value = str(default)

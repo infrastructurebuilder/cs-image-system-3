@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""The unmount before a detach (stage 10.14).
+"""The unmount before a detach.
 
 Removing a storage from an instance's declaration detaches it; the detach
 is unsafe while the filesystem is mounted, so the instance runner first

@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""The bodies the contract's marker protocols used to carry (stage 30).
+"""The bodies the contract's marker protocols used to carry.
 
 The contract declares what the orchestrator dispatches on
 (``SelfInjectedNameProtocol``, ``SubItemOverrideProtocol``,
@@ -77,7 +77,7 @@ class ParentPropertyHolding(ParentPropertyHoldingProtocol):
             metadata = holder.metadata if hasattr(holder, "metadata") else {}
             if not metadata.get(FK_TARGET):
                 raise ValueError(f"No resolvable target type assigned for {self}")
-            model = registry.current_registry().get_instance_by_global_id(self._model_id)  # a model holds no context (stage 124 shim)
+            model = registry.current_registry().get_instance_by_global_id(self._model_id)  # a model holds no context
             if model is None:
                 raise ValueError(f"Model with name {self.model_id} not found in registry for {self}")
             return model
@@ -92,7 +92,7 @@ class ParentPropertyHolding(ParentPropertyHoldingProtocol):
         if not model_name:
             return
         if self._model_id and self._model_id != model_name:
-            # stage 48.2: a bare NAME is the placeholder the foreign-key fill writes
+            # a bare NAME is the placeholder the foreign-key fill writes
             # (`_model_id: default` resolved to the default builder's name); the
             # builder that wraps the model then assigns its global id, which ends in
             # that name -- a refinement, not a second parent. Two different global
@@ -105,7 +105,7 @@ class ParentPropertyHolding(ParentPropertyHoldingProtocol):
             else:
                 log.debug(f"{type(self).__name__} {getattr(self, 'name', '')}: parent {self._model_id!r} refined to {model_name!r}")
         self._model_id = model_name
-        reg = registry.current_registry()  # a model holds no context (stage 124 shim)
+        reg = registry.current_registry()  # a model holds no context; the current registry is the one
         try:
             reg.register_built_instance(self) # Register the child object in the global registry for resolution by other builders that depend on it
         except Exception:

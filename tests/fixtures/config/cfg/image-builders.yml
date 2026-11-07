@@ -10,7 +10,7 @@ image_builders:
     # Optional, but if the version is specified, it must actually match
     runtime: default
     executable: packer    
-    # stage 26: `parameters: [build, .]` removed -- argv the packer plugin assembles itself;
+    # `parameters: [build, .]` is not a field -- argv the packer plugin assembles itself;
     # the field is retired (a module call's inputs are a storage builder's `variables:`)
     required_plugins:
       - name: amazon
@@ -23,8 +23,8 @@ image_builders:
     type: packer-ebs
     # Optional, but if the version is specified, it must actually match
     runtime: default
-    executable: packer   # stage 48.1: the phantom packer-1.9.4 entry is gone; every declared executable must exist
-    # stage 26: `parameters: [build, .]` removed -- argv the packer plugin assembles itself;
+    executable: packer   # every declared executable must exist
+    # `parameters: [build, .]` is not a field -- argv the packer plugin assembles itself;
     # the field is retired (a module call's inputs are a storage builder's `variables:`)
     required_plugins:
       - name: amazon
@@ -33,12 +33,12 @@ image_builders:
       - name: ansible
         source: github.com/hashicorp/ansible
         version: '>= 1.0.0'
-  # GCP readiness (2026-09-02): GCE bakes via the googlecompute source
+  # GCP readiness: GCE bakes via the googlecompute source
   - name: pckr-gce-ans
     type: packer-gce
     runtime: gcloud-east1
     executable: packer
-    # stage 26: `parameters: [build, .]` removed -- argv the packer plugin assembles itself;
+    # `parameters: [build, .]` is not a field -- argv the packer plugin assembles itself;
     # the field is retired (a module call's inputs are a storage builder's `variables:`)
     required_plugins:
       - name: googlecompute
@@ -47,7 +47,7 @@ image_builders:
       - name: ansible
         source: github.com/hashicorp/ansible
         version: '>= 1.0.0'
-  # Stage 128 (item 4): bakes on the fixture's docker runtime (packer's docker
+  # Bakes on the fixture's docker runtime (packer's docker
   # source; the result committed and tagged on the daemon)
   - name: pckr-docker
     type: packer-docker

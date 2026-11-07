@@ -2,11 +2,11 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""Stage 39: every S3 state backend the fixture declares encrypts its state
+"""Every S3 state backend the fixture declares encrypts its state
 objects server-side, and the emission says so in every partial backend
-configuration (``encrypt = true``). The flag was accepted ``false`` on
-2026-09-15 and flipped on 2026-09-16; a root initialised before the flip
-re-initialises with ``-reconfigure`` (the real-run init carries it now).
+configuration (``encrypt = true``). The flag was accepted ``false`` for
+a day and then flipped; a root initialised before the flip
+re-initialises with ``-reconfigure`` (the real-run init carries it).
 """
 from __future__ import annotations
 
@@ -30,8 +30,8 @@ def test_every_declared_s3_backend_encrypts():
 
 
 def test_every_emitted_backend_configuration_encrypts():
-    """Every S3 backend configuration encrypts its state objects (stage 39). A
-    `local` backend (stage 47) is a file on disk with no such setting: its
+    """Every S3 backend configuration encrypts its state objects. A
+    `local` backend is a file on disk with no such setting: its
     file carries `path` alone, and the rule does not apply to it."""
     files = sorted(GOLDEN.rglob("*.tfbackend.hcl"))
     assert len(files) >= 9, "the golden carries a partial backend configuration per terraform root"

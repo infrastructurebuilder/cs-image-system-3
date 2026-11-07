@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""Stage 28: the suite is independent of any live configuration.
+"""The suite is independent of any live configuration.
 
 The tests own a frozen fixture (``tests/fixtures/config``); the live
 configuration is another repository that a run commits into. Nothing under

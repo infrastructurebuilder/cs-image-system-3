@@ -2,14 +2,14 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""Stage 91: CI names the machine it runs on and the actions it uses.
+"""CI names the machine it runs on and the actions it uses.
 
 Every workflow -- this repository's and each starter's -- runs on one named
 runner image and uses each action at a version, never a moving label or a
 branch, so a tree's CI changes only when the tree takes a release. The floor
 of majors is the first that runs on Node.js 24 (read from each action's
-``action.yml`` on 2026-10-14); moving the names forward is the daily driver's
-section 9.1, which moves this floor with them. Since stage 92 the jobs run
+``action.yml`` when the floor was set); moving the names forward is the daily
+driver's section 9.1, which moves this floor with them. The jobs run
 inside the system's own runner image on that machine, so the tool-installing
 actions are gone (tests/test_ci_runner.py holds the image's names).
 """
@@ -64,7 +64,7 @@ def test_every_job_runs_on_the_one_named_image(path: Path):
 def test_every_action_is_used_at_a_version_no_older_than_the_node24_floor(path: Path):
     doc = yaml.safe_load(path.read_text())
     used = [step["uses"] for _, step in _steps(doc) if "uses" in step]
-    assert used, f"{_rel(path)} uses no action"          # at least the checkout (stage 92: the tools are in the image)
+    assert used, f"{_rel(path)} uses no action"          # at least the checkout (the tools are in the image)
     for ref in used:
         action, _, version = ref.partition("@")
         m = VERSION.match(version)

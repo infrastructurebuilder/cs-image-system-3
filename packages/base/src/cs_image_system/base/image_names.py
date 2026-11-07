@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""How a build is named (stage 105).
+"""How a build is named.
 
 Every build of an image on a runtime is named ``<prefix>-<timestamp>``: the
 prefix is the image's ``output_image_name`` on that runtime when one is

@@ -30,8 +30,8 @@ C = TypeVar("C", bound=BuilderModel)
 # class BuilderBase(ABC, Generic[C, ItemT]):
 class BuilderBase(ABC, BuilderProtocol, Generic[C]):
     """Abstract base class for builders: the core's implementation of the
-    contract's ``BuilderProtocol`` (stage 30; a kind base adds its kind's
-    protocol), with a default for every hook."""
+    contract's ``BuilderProtocol`` (a kind base adds its kind's protocol),
+    with a default for every hook."""
 
     def __init__(self, model: C) -> None:
         """Initialize the image builder with the given configuration.
@@ -50,7 +50,7 @@ class BuilderBase(ABC, BuilderProtocol, Generic[C]):
     def name(self) -> str:
         return self.model.get_name()
     @property
-    def type_(self) -> str:                 # stage 20: one name for the field, model and builder alike
+    def type_(self) -> str:                 # one name for the field, model and builder alike
         return self.model.get_type()
     def get_name(self) -> str:
         return self.name
@@ -99,7 +99,7 @@ class BuilderBase(ABC, BuilderProtocol, Generic[C]):
     # deferred executables. pre fires before the phase's commands run (e.g.
     # write tfvars from now-resolved provider-specific images); post fires
     # after they succeed (e.g. parse packer build manifests); post_failed
-    # fires INSTEAD of post when one of them failed (hygiene X item 2): a
+    # fires INSTEAD of post when one of them failed: a
     # builder records there what demonstrably completed before the failure
     # (packer: the builds in a manifest this run wrote) and nothing else.
     # No-ops here.
@@ -110,18 +110,18 @@ class BuilderBase(ABC, BuilderProtocol, Generic[C]):
     def post_failed_phase(self, phase: ExecutionLifecyclePhase) -> None:
         return None
     def bind(self, ctx: RunContextProtocol) -> None:
-        """The context is passed (stage 124, DESIGN's phrase): the loader
-        binds every builder it registers to the run context it made, and
-        ``_get_context()`` answers with it. Typed by the contract's protocol
-        (stage 125): a builder needs nothing of the kit's class."""
+        """The context is passed (DESIGN's phrase): the loader binds every
+        builder it registers to the run context it made, and
+        ``_get_context()`` answers with it. Typed by the contract's protocol:
+        a builder needs nothing of the kit's class."""
         self._ctx = ctx
     def _get_context(self) -> RunContextProtocol:
         """The run context this builder was bound to at registration, as the
-        contract's :class:`~cs_image_system.contract.context.RunContextProtocol`
-        (stage 125): what a builder may read of the run, and the services it
-        reaches as ``ctx.services.<name>``.
+        contract's :class:`~cs_image_system.contract.context.RunContextProtocol`:
+        what a builder may read of the run, and the services it reaches as
+        ``ctx.services.<name>``.
 
-        One-release note (stage 124): a builder made outside the loader (a
+        One-release note: a builder made outside the loader (a
         unit test's, a plugin's own) has no bound context and falls back to
         the process's current one; that fallback goes with the next release,
         when every builder is bound and the shim retires.

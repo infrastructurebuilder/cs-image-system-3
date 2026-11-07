@@ -50,13 +50,13 @@ def test_a_python_tag_in_the_configuration_is_refused_not_constructed(tmp_path: 
         load_context(root)
     assert "python/object" in str(exc.value) or "could not determine a constructor" in str(exc.value), str(exc.value)
     reset_singletons()
-    from cs_image_system.base import config_loader       # stage 124: the reader lives in the loader
+    from cs_image_system.base import config_loader       # the reader lives in the loader
     src = Path(config_loader.__file__).read_text()
     assert "yaml.unsafe_load(stream)" not in src and "yaml.safe_load(stream)" in src
 
 
 def test_preflight_finds_a_runtime_declared_in_any_cfg_file(tmp_path: Path, monkeypatch):
-    """The sessions are read over the loaded configuration (stage 127), which
+    """The sessions are read over the loaded configuration, which
     reads every cfg file alike; a session that is absent never stops the load."""
     from cs_image_system.base.commands.preflight import session_infos
     stub_environment(monkeypatch)

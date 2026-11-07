@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""Stage 99: a development pin installs from TestPyPI again.
+"""A development pin installs from TestPyPI again.
 
 Once 0.1.1 was on PyPI, uv's default index strategy stopped at PyPI for
 `cs-image-system` and never looked for a `.dev` version on TestPyPI: every

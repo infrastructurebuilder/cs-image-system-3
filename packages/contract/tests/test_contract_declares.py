@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""The contract declares and generates nothing (stage 128, item 6): every
+"""The contract declares and generates nothing: every
 module imports on its own, the protocols are there to be satisfied, the
 package's version is read, and the example plugin written against the
 contract alone satisfies its protocols structurally."""

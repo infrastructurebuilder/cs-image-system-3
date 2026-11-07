@@ -34,7 +34,7 @@ def v2(tmp_path, monkeypatch):
 
 
 def _passed_post_bake(ms, build_id: str) -> None:
-    """stage 14: `release` requires a passing post-bake record where the image
+    """`release` requires a passing post-bake record where the image
     declares tests.post_bake (the fixture's dask image does); these tests are
     about the other refusals, so record one."""
     ms.record_image_test(build_id, {"ok": True, "run": "post-bake", "instance": "gce-test",
@@ -57,7 +57,7 @@ def test_release_requires_evidence_and_records(v2):
     with pytest.raises(ReleaseError, match="not recorded in lineage"):
         release(v2.ctx, "imgfile-basic-dask", "ami-0nope")
     _bake(v2, "instance-image", INST_BUILD.parent, {"imgfile-basic-dask": "ami-0dask0001"})
-    _passed_post_bake(v2.ctx.meta_state, "ami-0dask0001")   # stage 14: dask declares post-bake tests
+    _passed_post_bake(v2.ctx.meta_state, "ami-0dask0001")   # dask declares post-bake tests
     with pytest.raises(ReleaseError, match="belongs to series"):
         release(v2.ctx, "imgfile-data-science", "ami-0dask0001")
     # a failed mod test on one of the build's mods refuses the release
@@ -88,7 +88,7 @@ def test_release_lifecycle_is_registered_and_gated(v2):
     assert names == ["identity", "storage", "base-image", "instance-image", "release", "retention"]
     summary = v2.run(["release"], apply=True)
     assert summary.ok, summary.error
-    # stage 14: the dask image declares `release:`, so the runner carries the
+    # the dask image declares `release:`, so the runner carries the
     # deferred `release --declared` step (dry-run here); nothing is released yet
     assert summary.apply["release"] == "dry-run"
     rm = yaml.safe_load((v2.generated / "release" / "releases.yaml").read_text())
@@ -99,10 +99,10 @@ def test_release_lifecycle_defers_artifact_marking_only_when_enabled(v2):
     from cs_image_system.base.release import release
     assert v2.run(["instance-image"], apply=False).ok
     _bake(v2, "instance-image", INST_BUILD.parent, {"imgfile-basic-dask": "ami-0dask0001"})
-    _passed_post_bake(v2.ctx.meta_state, "ami-0dask0001")   # stage 14: dask declares post-bake tests
+    _passed_post_bake(v2.ctx.meta_state, "ami-0dask0001")   # dask declares post-bake tests
     release(v2.ctx, "imgfile-basic-dask", "ami-0dask0001", model="secofs")
     assert v2.run(["release"], apply=True).ok
-    # stage 14: the dask image declares `release:`, so the runner exists for the
+    # the dask image declares `release:`, so the runner exists for the
     # deferred `release --declared` step; artifact marking still needs apply_release
     script0 = (v2.generated / "release" / "run-release.sh").read_text()
     assert "release --declared" in script0 and "create-tags" not in script0   # apply_release off
@@ -117,7 +117,7 @@ def test_require_released_builds_gates_instance_pins(v2):
     from cs_image_system.base.release import release
     assert v2.run(["instance-image"], apply=False).ok
     _bake(v2, "instance-image", INST_BUILD.parent, {"imgfile-basic-dask": "ami-0dask0001"})
-    _passed_post_bake(v2.ctx.meta_state, "ami-0dask0001")   # stage 14: dask declares post-bake tests
+    _passed_post_bake(v2.ctx.meta_state, "ami-0dask0001")   # dask declares post-bake tests
     v2.ctx.meta_state.bind_instance("test2", "ami-0dask0001", v2.ctx.run_id)
     v2.ctx.config["require_released_builds"] = True
     summary = v2.run(["instance-image"], apply=False)

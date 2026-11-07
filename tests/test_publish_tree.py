@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""Stage 40 step 2: ``just publish-tree ROOT DEST`` builds a publishable tree.
+"""``just publish-tree ROOT DEST`` builds a publishable tree.
 
 The tracked files of ROOT at HEAD (nothing ignored can enter), a USER
 exclusion list, the public-safe gate over the result with the root's own
@@ -65,7 +65,7 @@ def test_the_tree_is_the_tracked_files_at_head_in_one_commit(source: Path, tmp_p
 
 
 def test_the_tree_carries_the_source_repositorys_identity(source: Path, tmp_path: Path):
-    """stage 43: `git init` in a fresh directory knows only the GLOBAL identity, and
+    """`git init` in a fresh directory knows only the GLOBAL identity, and
     the first publication push was refused for exactly that. The recipe reads
     user.name and user.email from the SOURCE repository (its local values, else
     the global ones) into the new repository before committing."""

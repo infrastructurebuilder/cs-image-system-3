@@ -4,7 +4,7 @@
 
 """cs-image-system command line interface.
 
-V2 (DESIGN §3A/§3C/§3G): the primary entry point is ``run``, which drives any
+V2 (DESIGN §3A, 3C and 3G): the primary entry point is ``run``, which drives any
 subset of the four lifecycles -- identity, storage, base-image,
 instance-image -- in declared order, headlessly. The V1 commands remain as
 aliases onto the same runner.
@@ -137,8 +137,8 @@ app = typer.Typer(help="CLI for managing cloud sandbox image actions.",
 
 
 def _loaded(typer_cntx: typer.Context) -> "GlobalTypeContext":
-    """The context the callback's load returned (stage 124: a command PASSES
-    the context to every base function; nothing fetches it)."""
+    """The context the callback's load returned (a command PASSES the
+    context to every base function; nothing fetches it)."""
     return typer_cntx.obj["ctx"]
 
 
@@ -236,21 +236,21 @@ def run_command(
         for key in ("apply_storage", "apply_instances"):
             gctx.config[key] = [apply_runtime]
         if not only_runtime:
-            # stage 12.1: the apply scope implies the bake filter -- an ad-hoc run
-            # without --only-runtime baked two images on the other cloud (ledger 68).
-            # Hygiene XII item 32 (the walk's F62): beside `--only` too. The
-            # decommission recipe says `--only none --apply-runtime <rt>`, and
-            # `--only` used to leave the scope unimplied, so the run planned every
-            # other runtime's instance root after it had applied this one, and a
-            # root with an ephemeral machine between cycles failed that plan
-            # after the destroy and before the record.
+            # the apply scope implies the bake filter -- an ad-hoc run without
+            # --only-runtime once baked two images on the other cloud. Beside
+            # `--only` too: the decommission recipe says `--only none
+            # --apply-runtime <rt>`, and `--only` used to leave the scope
+            # unimplied, so the run planned every other runtime's instance root
+            # after it had applied this one, and a root with an ephemeral
+            # machine between cycles failed that plan after the destroy and
+            # before the record.
             only_runtime = apply_runtime
             gctx.implied_scope = apply_runtime
     if only_runtime:
         if only_runtime not in gctx.runtime_builders:
             typer.secho(f"--only-runtime: unknown runtime {only_runtime!r}", fg=typer.colors.RED, err=True)
             raise typer.Exit(code=2)
-        # hygiene X item 1: beside --only it narrows the named images to the
+        # beside --only it narrows the named images to the
         # runtime; it never adds the runtime's other images to them
         try:
             only = runtime_bake_selection(gctx, only_runtime, only)
@@ -356,7 +356,7 @@ def preflight_command(
         colour = (typer.colors.RED if line in absent or line in expired
                   else typer.colors.YELLOW if line in blocking or line in unjudged else None)
         typer.secho(line, fg=colour)
-    # stage 43: a credential the environment sets but leaves EMPTY is a failure,
+    # a credential the environment sets but leaves EMPTY is a failure,
     # not an absence -- reported by name, never by value
     empty = empty_environment_credentials(ctx.reg)
     for name in empty:
@@ -376,7 +376,7 @@ def preflight_command(
                     "renew it or lower config.preflight.expected_run_minutes", fg=typer.colors.RED, err=True)
         raise typer.Exit(code=1)
     if unjudged:
-        # hygiene XII item 17: a session with no readable expiry is present
+        # a session with no readable expiry is present
         # and NOT JUDGED; the closing line says so and is never green over it
         typer.secho(f"preflight: {len(lines) - len(unjudged)} session(s) present; {len(unjudged)} {NOT_JUDGED} "
                     f"({NOT_JUDGED_WHY})", fg=typer.colors.YELLOW, err=True)
@@ -392,13 +392,13 @@ def encrypt_command(
     field: Annotated[list[str] | None, typer.Option("--field", help="a field NAME whose scalar values and list elements are encrypted in each --file (repeatable)")] = None,
 ) -> None:
     """Encrypt a value, or fields of files in place, to the configuration's
-    `encryption.recipients` (stage 33). Each value becomes its own
+    `encryption.recipients`. Each value becomes its own
     ENC[age:...] marker -- a list entry by entry -- and everything else in a
     file is preserved byte for byte. Needs no identity."""
     root: Path = typer_cntx.obj["config_root"]
     try:
         recipients = recipients_from_config(root)
-    except Exception as e:      # stage 63: a message, not a traceback
+    except Exception as e:      # a message, not a traceback
         typer.secho(f"encrypt: {e}", fg=typer.colors.RED, err=True)
         raise typer.Exit(code=1)
     if file:
@@ -471,7 +471,7 @@ def mask_command(
     minimum: Annotated[int, typer.Option("--min", help="the shortest plaintext to mask: a short common word masks unrelated log text")] = 8,
 ) -> None:
     """Print a ``::add-mask::`` line for every value the configuration carries
-    encrypted, so a CI log never shows one (stage 49).
+    encrypted, so a CI log never shows one.
 
     Masking is a blocklist and cannot be complete -- a value that is wrapped,
     quoted or split across lines evades it -- so it is the last line of
@@ -480,11 +480,11 @@ def mask_command(
     import yaml
     root = Path(typer_cntx.obj.get("config_root") or os.getcwd())
     reset_decrypted_plaintexts()
-    # Stage 63 item 2: a masking pass that skipped a file is a pass that may
-    # leak, so every per-file failure -- the identity that cannot open a marker,
-    # a file that does not parse, a marker that is malformed -- ends the command
-    # with exit 1 naming the file. Until 2026-09-23 each was swallowed, and a
-    # missing identity printed nothing and exited 0.
+    # a masking pass that skipped a file is a pass that may leak, so every
+    # per-file failure -- the identity that cannot open a marker, a file that
+    # does not parse, a marker that is malformed -- ends the command with
+    # exit 1 naming the file. Each used to be swallowed, and a missing
+    # identity printed nothing and exited 0.
     failures: list[str] = []
     for path in sorted(root.rglob("*.y*ml")):
         if ".git" in path.parts or "generated" in path.parts or PRIVATE_DIRNAME in path.parts:
@@ -514,7 +514,7 @@ def materialize_command(
         help="where to write it (default: the mirror of SOURCE under the root's _private/)")] = None,
 ) -> None:
     """Copy a generated root into the private mirror, substituting every
-    ENC[age:...] with its plaintext, and print where it landed (stage 49).
+    ENC[age:...] with its plaintext, and print where it landed.
 
     The committed emission carries the ciphertext; the tools cannot read that,
     so every deferred command runs from the mirror instead. The mirror is
@@ -536,7 +536,7 @@ def materialize_command(
 
 from cs_image_system.system.starters import DEFAULT_STARTER as _DEFAULT_STARTER, STARTERS as _STARTERS
 
-# hygiene XII item 29: the help is built from the list the command accepts, so it cannot fall behind it
+# the help is built from the list the command accepts, so it cannot fall behind it
 _STARTER_HELP = (f"the starter tree: {', '.join(_STARTERS)}; a new tree defaults to {_DEFAULT_STARTER}, "
                  "an existing one to the starter its workflow came from")
 
@@ -550,7 +550,7 @@ def init_config_command(
         "--changes-since", help="write nothing: list the release-owned files this release changed in the tree, "
         "given the PREVIOUS release's starters directory (its wheel's cs_image_system/system/starters)")] = None,
 ) -> None:
-    """Write a starter configuration repository from this release (stage 64).
+    """Write a starter configuration repository from this release.
 
     A destination that does not exist, is empty, or is a fresh clone holding
     only .git takes the WHOLE starter: the YAML, the Justfile, the workflow,
@@ -565,7 +565,7 @@ def init_config_command(
     is never moved backwards. Loads no configuration.
 
     With --changes-since PREVIOUS_STARTERS nothing is written: the command lists
-    which release-owned files this release changed in the tree (hygiene XXI),
+    which release-owned files this release changed in the tree,
     split into those the tree still holds as the previous release wrote them
     and those it has also edited, and exits 1 when there is any."""
     if changes_since is not None:
@@ -644,7 +644,7 @@ def bootstrap_command(
     answers: Annotated[Path | None, typer.Option("--answers", help="read earlier answers from this file instead of the tree's bootstrap.yaml")] = None,
     section: Annotated[list[str] | None, typer.Option("--section", help="interview only these sections (repeatable); the others keep their earlier answers")] = None,
 ) -> None:
-    """The one-time initialisation as terraform, from an interview (stage 70).
+    """The one-time initialisation as terraform, from an interview.
 
     Run in a configuration repository. Loads no configuration: the sessions
     and federation it makes may not exist yet. Reads the checkout (git
@@ -682,7 +682,7 @@ def bootstrap_command(
         typer.echo("bootstrap: by hand, still:")
         for line in by_hand:
             typer.echo(f"  - {line}")
-    # hygiene IX item 2: the apply acts as whoever these name -- the identities
+    # the apply acts as whoever these name -- the identities
     # the interview asked as -- so they are printed here, not left to a 403
     typer.echo("bootstrap: next: review generated/bootstrap/README.md, then, in this shell:")
     for name, value, _why in apply_env(rendered):
@@ -694,8 +694,7 @@ def bootstrap_command(
 
 @app.command(name="config-drift")
 def config_drift_command(typer_cntx: typer.Context) -> None:
-    """Is the committed emission current with the declarations? (stage 45;
-    a command since stage 64)
+    """Is the committed emission current with the declarations?
 
     A headless dry `run --all` in a process of its own over a private copy of
     the configuration (its .git, generated/, _private/ and provider cache
@@ -725,8 +724,7 @@ def runtime_unchanged_command(
     runtime: Annotated[str, typer.Argument(help="the runtime whose emission is compared")],
     ref: Annotated[str, typer.Option("--ref", help="the git ref to compare against (default HEAD)")] = "HEAD",
 ) -> None:
-    """Has a runtime's emission changed since REF? (stage 45; a command since
-    stage 64)
+    """Has a runtime's emission changed since REF?
 
     The runtime's builder directories (`runtime describe` -> `emission`) in
     the working tree, normalised like config-drift, against the same paths at
@@ -751,7 +749,7 @@ def public_safe_command(
     tree: Annotated[Path | None, typer.Option("--tree", help="the tree to scan (default: --root-dir or the current directory)")] = None,
     config: Annotated[Path | None, typer.Option("--config", help="the _config.yml whose public_safe.allow applies (default: the tree's, or the frozen fixture's in the system repository)")] = None,
 ) -> None:
-    """Public-safe by construction (stage 35): refuse material that must never
+    """Public-safe by construction: refuse material that must never
     be public -- keys, tokens, PEM bodies, an age identity, a service-account
     file, plans and state by name; addresses and long tokens outside prose and
     tests -- in a tree or in the index. Exit 1 with every finding; allow a
@@ -792,7 +790,7 @@ def reencrypt_command(
     try:
         recipients = recipients_from_config(root)
         identities = identities_from_env()
-    except Exception as e:      # stage 63: a message, not a traceback
+    except Exception as e:      # a message, not a traceback
         typer.secho(f"reencrypt: NOTHING written -- {e}", fg=typer.colors.RED, err=True)
         raise typer.Exit(code=1)
     files = sorted({p for pat in ("*.yml", "*.yaml") for p in root.rglob(pat) if p.is_file() and ".git" not in p.parts and "generated" not in p.parts})
@@ -834,7 +832,7 @@ def test_mods_command(
         typer.secho(f"FAIL {r.image}/{r.mod}: rc={r.first_run_rc}/{r.second_run_rc} idempotent={r.idempotent} "
                     f"{r.changes_on_rerun or r.detail[:200]}", fg=typer.colors.RED, err=True)
     for r in unstarted:
-        # hygiene XII item 26: nothing about the modification was tested; the daemon's words, not a traceback
+        # nothing about the modification was tested; the daemon's words, not a traceback
         typer.secho(f"CANNOT START {r.image}/{r.mod}: {r.detail}", fg=typer.colors.RED, err=True)
     if failed or unstarted or (strict and skipped):
         raise typer.Exit(code=1)
@@ -902,7 +900,7 @@ def state_migration_command(
     location: Annotated[str | None, typer.Option("--location",
         help="The new location as its type renders it (<type>://<container>/<key>); begin only")] = None,
 ) -> None:
-    """One step of a state migration (stage 46.4.3), emitted into a root's runner by
+    """One step of a state migration, emitted into a root's runner by
     `run --migrate-state <workspace>`; never a by-hand command."""
     gctx = _loaded(typer_cntx)
     # the root the runner entered, not the configuration root the load moved to
@@ -928,7 +926,7 @@ def prune_attachments_command(
     run: Annotated[str, typer.Option("--run", help="The id of the running run")],
     tofu: Annotated[str, typer.Option("--tofu", help="tofu/terraform binary")] = "tofu",
 ) -> None:
-    """Stage 61 item 3: one step of an identity root's runner, after its init
+    """One step of an identity root's runner, after its init
     and before its plan, in the initialised root -- drop from terraform state
     the membership attachments the declaration no longer has and the
     provider no longer holds, after a state backup. Never a by-hand command."""
@@ -961,7 +959,7 @@ def gate_plan_command(
              "unmount receipt in ./unmount-receipts (stage 10.14)")] = None,
 ) -> None:
     """Apply gate: fail unless every planned destroy is whitelisted (DESIGN N19)
-    and every detach was unmounted first (stage 10.14)."""
+    and every detach was unmounted first."""
     missing = []
     for pair in require_unmounted or []:
         inst, _, storage = pair.partition(":")
@@ -1021,7 +1019,7 @@ def apply_check_command(
     ``config: apply_<lifecycle>`` flag NOW and exits nonzero when it is off,
     so a runner script generated under yesterday's flags cannot apply under
     today's. Emitted by every gated apply sequence just before ``apply``.
-    Per-root scoping (stage 7): the flag may be a list of root/runtime
+    Per-root scoping: the flag may be a list of root/runtime
     names, in which case only a listed root passes."""
     import yaml as _yaml
     root = config_root
@@ -1043,7 +1041,7 @@ def apply_check_command(
         cfg.update((_yaml.safe_load(path.read_text()) or {}).get("config") or {})
     flag = cfg.get(f"apply_{lifecycle}", False)
     if apply_runtime and lifecycle in ("storage", "instances"):
-        flag = [apply_runtime]                      # the run's execution knob (stage 11.5)
+        flag = [apply_runtime]                      # the run's execution knob
     if not apply_flag_allows(flag, apply_root, root_alias or ()):
         scope = f" for root {apply_root!r}" if apply_root else ""
         shown = "false" if flag in (False, None) else repr(flag)
@@ -1119,7 +1117,7 @@ def empty_command(
         else:
             typer.echo(f"empty: no {kind}" + (" beyond the declared storages" if kind in ("disks", "buckets") else ""))
     for kind, by_owner in sorted((result.get("elsewhere") or {}).items()):
-        # stage 93: another configuration's things, counted and left alone
+        # another configuration's things, counted and left alone
         for owner, count in sorted(by_owner.items()):
             typer.echo(f"empty: left alone on {runtime}: {count} {kind} of configuration {owner!r}")
     if not result["empty"]:
@@ -1148,7 +1146,7 @@ def lineage_restamp_command(
         help="Commit the meta-state change in the configuration repository")] = False,
 ) -> None:
     """Record the CURRENT input fingerprint on series heads whose recorded
-    one predates a fingerprint-recipe change (§9), and re-tag the cloud
+    one predates a fingerprint-recipe change, and re-tag the cloud
     image to match -- an operator statement that those builds are current.
     Under the global --dry-run it reports the plan."""
     ctx = _loaded(typer_cntx)
@@ -1180,8 +1178,8 @@ def lineage_relabel_command(
 ) -> None:
     """Re-tag cloud images whose lineage tags disagree with their record
     (the state query's `changed` drift) from the record -- the tag side of
-    zero-drift-report; `restamp` is the record side -- and, since stage 93,
-    give the configuration's id (`csis_config`) to every declared storage
+    zero-drift-report; `restamp` is the record side -- and give the
+    configuration's id (`csis_config`) to every declared storage
     and launched machine on the runtime that stands without it. No
     meta-state change. Under the global --dry-run it reports the plan."""
     ctx = _loaded(typer_cntx)
@@ -1391,7 +1389,7 @@ def state_query_command(
     else:
         typer.echo(report.render())
     typer.secho(f"state report written to {path}", err=True)
-    # stage 12.3 / stage 127: the sessions are read over the loaded
+    # the sessions are read over the loaded
     # configuration (nothing reads them before the load any more) and
     # printed here; the strict verdict uses the same reading
     lines, blocking = session_lines(ctx)
@@ -1469,7 +1467,7 @@ def identity_attributes_command(
 
 # V1's `test`, `verify` and `cleanup` were placeholders for lifecycle phases V1
 # planned and never built. V2 built each of them somewhere else and under another
-# name, so the placeholders were retired on 2026-09-11: `verify` was deleted
+# name, so the placeholders were retired: `verify` was deleted
 # outright (the `verify` command GROUP above shadowed it -- it could never run),
 # and these two now name their replacement and exit 2 instead of printing a
 # warning and succeeding, which is what an old script needs.
@@ -1500,7 +1498,7 @@ def cleanup_command(ctx: typer.Context) -> None:
 
 
 def _version_callback(value: bool) -> None:
-    """``--version`` (hygiene XVIII item 1): the installed release, then exit.
+    """``--version``: the installed release, then exit.
 
     Eager, so it answers before the callback below runs and nothing loads: a
     starter's ``just init`` asks it for the line ``init: cs-image-system
@@ -1549,7 +1547,7 @@ KIT_COMMAND_CALLBACKS = {VERIFY_LOGIN: verify_login_command}
 
 def _callback_of(mount: CommandMount):
     """The function a command mount mounts: its own callback, or the core's
-    command its ``kit_command`` names (stage 125: a plugin names the core's
+    command its ``kit_command`` names (a plugin names the core's
     login proof and imports nothing of the core to mount it)."""
     if mount.kit_command is not None:
         return KIT_COMMAND_CALLBACKS[mount.kit_command]
@@ -1673,7 +1671,7 @@ def main(
         return
     setup_rich_logging(verbose)
     if locked:
-        # stage 64 item 2: what scripts/with-tofu-lock did, held until the
+        # what scripts/with-tofu-lock used to do, held until the
         # context closes, however the command ends
         try:
             release_lock = tofu_lock.acquire()
@@ -1691,36 +1689,35 @@ def main(
 
     typer_cntx.call_on_close(restore_dir)
     typer_cntx.ensure_object(dict)
-    # stage 61 item 3: loading the configuration below changes directory to
-    # its root, so a command that runs FROM a root (the runner's
-    # state-migration steps, in the private mirror) must be told where it
-    # was invoked -- found live 2026-09-23 when a state backup pulled from
-    # the configuration root instead of the mirror and kept nothing
+    # loading the configuration below changes directory to its root, so a
+    # command that runs FROM a root (the runner's state-migration steps, in
+    # the private mirror) must be told where it was invoked -- found live
+    # when a state backup pulled from the configuration root instead of the
+    # mirror and kept nothing
     typer_cntx.obj["invoked_cwd"] = Path(saved_dir)
     if any(arg in ("--help", "-h") for arg in sys.argv[1:]):
         return                      # a help request loads nothing: the command's own text answers it
     if typer_cntx.invoked_subcommand in ("test", "cleanup"):
         return                      # retired V1 names: refuse without loading anything
     if typer_cntx.invoked_subcommand == "bootstrap":
-        # stage 70: the interview reads the checkout and the raw cfg/*.yml;
+        # the interview reads the checkout and the raw cfg/*.yml;
         # the sessions and federation it makes may not exist yet, so nothing loads
         typer_cntx.obj["config_root"] = Path(root_dir or os.getcwd())
         return
     if typer_cntx.invoked_subcommand in ("gate-plan", "apply-check", "identity", "init-config", "modules"):
         # Utility commands invoked from runner scripts / terraform: no
         # configuration tree is loaded (plugins are loaded on demand;
-        # apply-check reads only cfg/_config.yml itself). init-config (stage
-        # 64) writes a tree; there is nothing to load yet. modules reads the
-        # installed plugins' entry points alone.
+        # apply-check reads only cfg/_config.yml itself). init-config writes
+        # a tree; there is nothing to load yet. modules reads the installed
+        # plugins' entry points alone.
         return
     if typer_cntx.invoked_subcommand in ("encrypt", "decrypt", "reencrypt", "public-safe", "materialize", "mask",
                                          "config-drift"):
-        # stage 33: value tools -- encrypt reads only cfg/_config.yml's
-        # recipients as text, so no identity and no load is needed.
-        # stage 49: materialize joins them -- it runs from a generated root,
-        # inside a run script, where there is no tree to load and no session.
-        # stage 64: config-drift runs the dry run in a process of its own over
-        # a private copy; this process loads nothing.
+        # value tools -- encrypt reads only cfg/_config.yml's recipients as
+        # text, so no identity and no load is needed. materialize runs from
+        # a generated root, inside a run script, where there is no tree to
+        # load and no session. config-drift runs the dry run in a process of
+        # its own over a private copy; this process loads nothing.
         typer_cntx.obj["config_root"] = Path(root_dir or os.getcwd())
         return
     if typer_cntx.invoked_subcommand in deferred_load_commands():
@@ -1745,7 +1742,7 @@ def main(
     load_plugins()
     if not root_dir:
         root_dir = Path(os.getcwd())
-    # stage 127: no session is read before the load any more -- the load
+    # no session is read before the load any more -- the load
     # reaches no cloud (the runtimes' networking is adopted from
     # meta-state/runtime-facts.yaml), so a run prints its sessions itself,
     # after the load (`session_lines`), and `preflight` reads the loaded tree
@@ -1758,16 +1755,16 @@ def main(
                                            dry_run=dry_run,
                                            overlays=[p.resolve() for p in (overlay or [])],
                                            undeclare=list(undeclare or []))
-        # stage 124: the context is PASSED -- every command reads it here
+        # the context is PASSED -- every command reads it here
         typer_cntx.obj["ctx"] = loaded
         typer_cntx.obj["base_only"] = base_only
         # the load above REPLACES the context object; the invocation directory
         # is set again so a runner step still knows where it was started
         typer_cntx.obj["invoked_cwd"] = Path(saved_dir)
     except Exception as e:
-        # hygiene XII (the walk's F10, F30, F41, F42): a known load-time
-        # failure is one line and an exit code, not a traceback; an unknown
-        # one keeps its traceback, and --verbose keeps every traceback
+        # a known load-time failure is one line and an exit code, not a
+        # traceback; an unknown one keeps its traceback, and --verbose keeps
+        # every traceback
         failure = classify_load_failure(e)
         if failure is None:
             typer.echo(f"Error reading config file : {e}", err=True)

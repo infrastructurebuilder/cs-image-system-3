@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""Declared ephemerality (stage 10.1-2): an instance with `ephemeral: true`
+"""Declared ephemerality: an instance with `ephemeral: true`
 is launched through the gate, verified through its runtime, and torn down
 by the same root in the same run; a failed verification stops the runner
 with the instance standing (operator decision), and the state query says
@@ -122,7 +122,7 @@ def test_gce_verification_reads_the_serial_console_and_records_the_verdict(prepa
     assert record["ok"] and record["ephemeral"] is True
     names = {c["name"]: c["ok"] for c in record["checks"]}
     assert names == {"startup scripts": True, "booted image": True, "data disks mounted": True,
-                     "declared tests": True}          # stage 14: the dask image declares post-bake tests
+                     "declared tests": True}          # the dask image declares post-bake tests
     assert run.ctx.meta_state.verifications()[-1]["instance"] == "gce-test"
     # an explicit failure line fails fast, and the record says which check
     monkeypatch.setattr(GCPCloudBuilder, "serial_console", lambda self, name: CONSOLE_FAIL)
@@ -141,7 +141,7 @@ def test_gce_verification_reads_the_serial_console_and_records_the_verdict(prepa
 
 def test_a_runtime_without_verification_refuses(prepared, monkeypatch):
     """A runtime that does not implement the hook refuses cleanly (AWS
-    implements it since stage 11.1, so the base behaviour is stubbed back)."""
+    implements it, so the base behaviour is stubbed back)."""
     from cs_image_system.aws_runtime.aws_runtime_builders import AwsCloudBuilder
     from cs_image_system.base.basic.builder_base_runtime import RuntimeBuilderBase
     from cs_image_system.base.commands.verify_instance import verify_instance
@@ -191,7 +191,7 @@ def test_verification_without_a_pin_accepts_a_recorded_build_of_the_series(prepa
         verify_instance(run.ctx, "gce-test", timeout=1)
 
 
-# --------------------------------------------- failure policy (stage 11.3)
+# ----------------------------------------------------------- failure policy
 
 def _set_instance(root: Path, name: str, **fields) -> None:
     p = root / "instances" / "instances.yaml"
@@ -232,7 +232,7 @@ def test_teardown_policy_records_the_verdict_tears_down_and_fails_afterwards(pre
 
 
 def test_teardown_policy_forgets_the_record_before_failing_the_run(prepared):
-    """Live 2026-09-09: a `verify assert` as the runner's last step failed the
+    """Seen live: a `verify assert` as the runner's last step failed the
     script before the after-apply hook ran, so a torn-down ephemeral kept its
     launch record. Now the hook forgets first, then raises the verdict."""
     from cs_image_system.base.commands.verify_instance import VerificationFailed
@@ -285,7 +285,7 @@ def test_teardown_after_tears_down_a_standing_instance_once_due(prepared):
     assert not teardown_due(run.ctx, inst, now=datetime(2026, 9, 8, 10, 30, tzinfo=timezone.utc))
     assert teardown_due(run.ctx, inst, now=datetime(2026, 9, 8, 11, 30, tzinfo=timezone.utc))
     # once due, the sequence tears down without re-verifying (the instance
-    # root asks ``ctx.services.launch``, which reads the policy module; stage 125)
+    # root asks ``ctx.services.launch``, which reads the policy module)
     import cs_image_system.base.ephemeral_policy as ep
     run2 = make()
     run2.ctx.config["apply_instances"] = ["gcloud-east1"]

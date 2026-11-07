@@ -5,7 +5,7 @@
 """Shared harness for the V2 gate tests.
 
 Every V2 test runs the real pipeline over a private COPY of the frozen
-fixture (``tests/fixtures/config``, stage 28: owned by the tests, never a
+fixture (``tests/fixtures/config``: owned by the tests, never a
 live configuration) with all external touchpoints stubbed:
 
 * no cloud: AWS networking discovery, vendor-AMI queries and GCP queries are
@@ -26,7 +26,7 @@ from pathlib import Path
 from typing import Any, Callable, cast
 
 REPO = Path(__file__).resolve().parents[1]
-FIXTURE_CONFIG = REPO / "tests" / "fixtures" / "config"     # frozen (stage 28); the live tree is elsewhere
+FIXTURE_CONFIG = REPO / "tests" / "fixtures" / "config"     # frozen; the live tree is elsewhere
 
 FIXED_NOW = datetime(2026, 8, 26, 12, 0, 0)
 FIXED_TIMESTAMP = "20260826_120000"          # per the fixture's dateformat
@@ -34,7 +34,7 @@ FIXED_RUN_ID = "2026_08_26t12_00_00"         # iso_sanitized
 
 VPCS = ["vpc-0c78d0d63b7a100df", "vpc-0381e9f82c9ae68e7", "default"]
 VENDOR_AMI = "ami-0feedfacecafebeef"
-# stage 128: what the fixture's docker runtime (docker-fixture) "pulls" -- a digest reference no registry holds
+# what the fixture's docker runtime (docker-fixture) "pulls" -- a digest reference no registry holds
 DOCKER_DIGEST = "almalinux@sha256:" + "f" * 64
 
 
@@ -68,13 +68,13 @@ def copy_config(tmp_path: Path, name: str = "config") -> Path:
                     ignore=shutil.ignore_patterns("generated", "meta-state", ".git", ".DS_Store"))
     cfg = dst / "cfg" / "_config.yml"
     cfg.write_text(re.sub(r"^(  apply_\w+:) \S+.*$", r"\1 false", cfg.read_text(), flags=re.M))
-    # The live GCE runtime declares `ephemeral: true` (stage 10.4, rule 58);
+    # The live GCE runtime declares `ephemeral: true` (rule 58);
     # copies start non-ephemeral and tests that want it declare it.
     rb = dst / "cfg" / "runtime-builders.yml"
     rb.write_text(re.sub(r"^(\s+ephemeral:) true.*$", r"\1 false", rb.read_text(), flags=re.M))
     # The suite's instance subjects (test, test2, gce-test) are declared in
-    # the fixture itself since stage 39; nothing is injected here.
-    # The one meta-state file a copy starts with (stage 127): the network
+    # the fixture itself; nothing is injected here.
+    # The one meta-state file a copy starts with: the network
     # facts record a real run would have written, saying exactly what the
     # harness's cloud stubs answer, so an offline load adopts the same
     # networks the stubs used to resolve at load and the emission stays put.
@@ -149,7 +149,7 @@ def modules_inside(config_root: Path) -> Path:
 def docker_binary() -> str:
     """The docker CLI the FIXTURE declares (``cfg/executables.yml``, entry
     ``docker``) when its binary exists on this machine, else ``docker``
-    from PATH (stage 103: the container legs read the declared executable
+    from PATH (the container legs read the declared executable
     instead of a literal; a CI runner's docker sits elsewhere)."""
     import yaml
     try:
@@ -165,8 +165,8 @@ def docker_binary() -> str:
 
 
 def plain(value: Any) -> Any:
-    """The plaintext of a fixture value that may be an ``ENC[age:...]`` marker
-    (stage 33), opened with the fixture's TEST identity -- for tests that
+    """The plaintext of a fixture value that may be an ``ENC[age:...]`` marker,
+    opened with the fixture's TEST identity -- for tests that
     address roster entries by name in the raw YAML."""
     from cs_image_system.base.encryption import _identities_for, decrypt_marker, is_marker
     if is_marker(value):
@@ -204,13 +204,13 @@ def bare_run(**attrs: Any) -> BareRun:
 
 def reset_singletons() -> None:
     """Fresh process-wide state between loads. The run context is NO
-    singleton since stage 124 (a new context per load; the loader binds the
+    singleton (a new context per load; the loader binds the
     one it makes as the process's current); only the process binding is
     dropped here so a test that forgets to load cannot see an earlier test's."""
     from cs_image_system.base.registry import bind_current_registry
     from cs_image_system.base.run_context import bind_current
     from cs_image_system.base.orchestrator import Orchestrator, TemplateResolver
-    # the registry is per run too (stage 124): the loader makes the next one;
+    # the registry is per run too: the loader makes the next one;
     # the process binding is dropped so `load_plugins()` below fills a fresh one
     bind_current_registry(None)
     from cs_image_system.base.image_sources import ImageSourceCatalog
@@ -229,7 +229,7 @@ def reset_singletons() -> None:
 def stub_environment(monkeypatch) -> list[str]:
     """Install every stub; returns the command journal."""
     # The installed plugins are held to the contract ONCE, as shipped, before
-    # any hook below is replaced (stage 125): a stub's parameter names are the
+    # any hook below is replaced: a stub's parameter names are the
     # test's, not the plugin's. tests/conftest.py does this at session start
     # for the root suite; a package's tests and `tests/golden.py` run without
     # that conftest, so the harness does it here too (memoised: free after
@@ -240,13 +240,13 @@ def stub_environment(monkeypatch) -> list[str]:
     monkeypatch.setenv("OKTA_API_PRIVATE_KEY", "dummy")
     monkeypatch.setenv("TF_VAR_nos_coastal_modeling_cloud_sandbox_key", "dummy")
     monkeypatch.setenv("TF_VAR_nos_coastal_modeling_cloud_sandbox_secret", "dummy")
-    # stage 33: the frozen fixture's TEST identity opens its encrypted values
+    # the frozen fixture's TEST identity opens its encrypted values
     monkeypatch.setenv("CSIS_CONFIG_IDENTITY", str(FIXTURE_CONFIG / ".age-identity"))
 
     from cs_image_system.base import config_loader
     monkeypatch.setattr(config_loader, "datetime", _FixedDT)     # the loader's clock is the run's
 
-    # The cloud discovery stubs (stage 127): a LOAD no longer calls them --
+    # The cloud discovery stubs: a LOAD never calls them --
     # the copy's meta-state/runtime-facts.yaml (record_network_facts) says
     # what they would answer -- but a real run's `discover` and a test's
     # `validate --online` do, and must get the same answers.
@@ -283,7 +283,7 @@ def stub_environment(monkeypatch) -> list[str]:
     from cs_image_system.tofu_roots.tofu_storage_builder import TofuStorageBuilderBase
     monkeypatch.setattr(AwsCloudBuilder, "query_images", lambda self, series: [])
     monkeypatch.setattr(GCPCloudBuilder, "query_images", lambda self, series: [])
-    # stage 128: the fixture's docker runtime names a daemon that exists nowhere
+    # the fixture's docker runtime names a daemon that exists nowhere
     # (context csis-fixture-daemon); its pull, its image listing, its retagging
     # and its session are answered here as the clouds' are, so no test reaches
     # a daemon and the golden pins the docker emission
@@ -296,7 +296,7 @@ def stub_environment(monkeypatch) -> list[str]:
     monkeypatch.setattr(AwsCloudBuilder, "retag_image",
                         lambda self, image_id, tags: retags.append((image_id, dict(tags))) or True)
     from cs_image_system.gcloud_runtime.gcp_runtime_builders import GCPCloudBuilder
-    # stage 14: the post-bake suite runs over the session command; the stub
+    # the post-bake suite runs over the session command; the stub
     # answers PASS for every assertion the script carries (tests that need a
     # failing or dead session override this per test)
     import re as _re
@@ -316,7 +316,7 @@ def stub_environment(monkeypatch) -> list[str]:
                         lambda self, image_id, tags: retags.append((image_id, dict(tags))) or True)
     _real_docker_session = DockerContainerBuilder.run_session_command
     monkeypatch.setattr(DockerContainerBuilder, "run_session_command", _session_stub(_real_docker_session))
-    monkeypatch.setattr(DockerContainerBuilder, "retag_image",            # stage 128: the daemon's tags too
+    monkeypatch.setattr(DockerContainerBuilder, "retag_image",            # the daemon's tags too
                         lambda self, image_id, tags: retags.append((image_id, dict(tags))) or True)
     stub_environment.retags = retags  # type: ignore[attr-defined]
     monkeypatch.setattr(TofuStorageBuilderBase, "query_state",
@@ -325,7 +325,7 @@ def stub_environment(monkeypatch) -> list[str]:
     monkeypatch.setattr(OktaTfGroupBuilder, "query_state",
                         lambda self: {g.get_name(): {"present": True, "gid": 1}
                                       for g in self.get_groups_for_builder()})
-    # stage 55: the server registry ANSWERS here -- an empty, free one -- and
+    # the server registry ANSWERS here -- an empty, free one -- and
     # retirements are journaled. Silence would be refused by design (a run
     # that can launch will not trust an unreachable registry), and the
     # harness models a reachable OPA, not an absent one.
@@ -372,8 +372,8 @@ def stub_environment(monkeypatch) -> list[str]:
 def load_context(config_root: Path, dry_run: bool = True, overlays: list[Path] | None = None,
                  undeclare: list[str] | None = None):
     """Fresh singletons + the loader's run context over ``config_root`` (plus
-    any transient ``--overlay`` files, stage 8, and ``--undeclare`` specs,
-    stage 28). A new context per load: the returned one is THE context of the
+    any transient ``--overlay`` files and ``--undeclare`` specs). A new
+    context per load: the returned one is THE context of the
     run the test drives (and the process's current one, for the shim)."""
     reset_singletons()
     from cs_image_system.base.global_context import read_config_and_transform
@@ -384,7 +384,7 @@ def load_context(config_root: Path, dry_run: bool = True, overlays: list[Path] |
 
 def cli_context(ctx) -> Any:
     """The typer context a console-script command reads the loaded context
-    from (``typer_cntx.obj["ctx"]``, stage 124), for calling a command
+    from (``typer_cntx.obj["ctx"]``), for calling a command
     function directly."""
     return cast(Any, types.SimpleNamespace(obj={"ctx": ctx}))
 
@@ -392,8 +392,8 @@ def cli_context(ctx) -> Any:
 def run_v2(ctx, lifecycles: list[str] | str = "all", *, apply: bool = True, commit: bool = False,
            state_query: bool = False, only: list[str] | None = None,
            force_bake: list[str] | None = None):
-    """``ctx`` is the context ``load_context`` returned (stage 124: passed,
-    never fetched). ``state_query`` is OFF here: the real hooks would reach AWS/OPA. Tests
+    """``ctx`` is the context ``load_context`` returned (passed, never
+    fetched). ``state_query`` is OFF here: the real hooks would reach AWS/OPA. Tests
     of the pre-run query stub the hooks and pass ``state_query=True``."""
     from cs_image_system.base.commands.run_lifecycles import run_lifecycles
     from cs_image_system.base.lifecycles import parse_lifecycles

@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""What the records say stands (stage 125): the terraform workspaces' state
+"""What the records say stands: the terraform workspaces' state
 bindings read from the models, what a workspace's state holds, and the
 launched instances a login proof can reach. Moved here from the command
 modules (``commands.validate``, ``commands.login_proof``, which re-export
@@ -48,7 +48,7 @@ def terraform_workspaces(ctx: RunContext) -> dict[str, tuple[str | None, str | N
 
 
 def deployed_in_workspace(ctx: RunContext, workspace: str) -> list[str]:
-    """What the records say stands in a workspace's state (stage 46.4.2):
+    """What the records say stands in a workspace's state:
     storages whose recorded state is not destroyed, the groups and users the
     identity read-model attributes to the root, and instances pinned to a
     build (a pin is a standing instance; a decommission removes it)."""

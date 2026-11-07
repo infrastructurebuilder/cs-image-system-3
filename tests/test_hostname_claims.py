@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""Stage 55, steps 1-3: a canonical hostname is claimed once in OPA.
+"""A canonical hostname is claimed once in OPA.
 
 Three rules. A decommission retires the OPA registration with the pin and
 the launch parameters (the third record of the same launch, and the one
@@ -56,7 +56,7 @@ def test_names_a_hostname_may_not_be_are_refused(name, fragment):
 
 @pytest.fixture
 def world(tmp_path: Path, monkeypatch):
-    run = V2Run(tmp_path, monkeypatch, dry_run=False)   # the check reads the dry-run flag since stage 63 item 10
+    run = V2Run(tmp_path, monkeypatch, dry_run=False)   # the check reads the dry-run flag
     try:
         yield run
     finally:
@@ -66,7 +66,7 @@ def world(tmp_path: Path, monkeypatch):
 def test_the_fixture_instances_all_pass_and_a_bad_one_is_named(world, monkeypatch):
     assert check_canonical_hostnames(world.ctx) == []
     # the seam: validate reads canonical_hostname (ctx, instance) since step 4
-    monkeypatch.setattr(validate_module, "canonical_hostname", lambda ctx, inst: f"{inst.get_name()}-{'x' * 70}")   # patched where it is read (stage 124)
+    monkeypatch.setattr(validate_module, "canonical_hostname", lambda ctx, inst: f"{inst.get_name()}-{'x' * 70}")   # patched where it is read
     errs = [str(e) for e in check_canonical_hostnames(world.ctx)]
     assert errs and all("over the 63" in e for e in errs)
     assert any("instance 'test'" in e for e in errs)
@@ -107,7 +107,7 @@ def test_a_free_registry_lets_every_instance_through(world, monkeypatch):
 
 def test_an_unlaunched_instance_whose_name_is_taken_is_refused_naming_the_record(world, monkeypatch):
     # since step 4 the new machine's name is test-001; a stale bare `test` is
-    # a different name (and would merely block the bare-name ALIAS, stage 58)
+    # a different name (and would merely block the bare-name ALIAS)
     _opa(monkeypatch, [{"id": "772d4058", "hostname": "test-001", "address": "10.26.35.236"}])
     errs = lp.validate_claimed_hostnames(world.ctx, _launchable(world.ctx))
     assert len(errs) == 1
@@ -129,7 +129,7 @@ def test_a_launched_instance_with_one_registration_is_fine_and_with_two_is_not(w
 
 
 def test_silence_is_a_refusal_not_a_free_name(world, monkeypatch):
-    """Stage 57's rule applied to the registry."""
+    """The power-state rule applied to the registry."""
     _opa(monkeypatch, None)
     errs = lp.validate_claimed_hostnames(world.ctx, _launchable(world.ctx))
     assert errs and all("could not check" in e and "not a free name" in e for e in errs)

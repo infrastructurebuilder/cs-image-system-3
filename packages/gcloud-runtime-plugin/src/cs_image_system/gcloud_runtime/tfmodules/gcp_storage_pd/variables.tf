@@ -30,7 +30,7 @@ variable "labels" {
 # V2 group access (N13/N15) happens at first mount: the launch parameters
 # create the per-group subtree and chgrp it to the gid by reference.
 variable "snapshot" {
-  description = "Create the disk FROM this snapshot (the archived state's data, stage 11.6); empty = a blank disk"
+  description = "Create the disk FROM this snapshot (the archived state's data); empty = a blank disk"
   type        = string
   default     = ""
 }

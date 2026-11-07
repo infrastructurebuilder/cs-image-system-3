@@ -5,7 +5,7 @@
 """A real run's generation-time `plan` of the identity roots runs in the
 private mirror, not in the committed emission.
 
-Found live 2026-09-22, the first real identity run after stage 51: the
+Found live, on the first real identity run over derived addresses: the
 Okta user lookups search by a derived address whose domain is ciphertext
 in `generated/` (`first.last@ENC[age:...]`), so a plan there fails with
 "no users found" for every derived user. The deferred runner already
@@ -22,7 +22,7 @@ from tests.harness import V2Run
 
 def _plans(journal: list[str]) -> list[str]:
     """The generation-time plans: a bare `plan`, or the group root's
-    `plan -refresh=false` preview (stage 61 item 3); the deferred one
+    `plan -refresh=false` preview; the deferred one
     carries -out=tfplan."""
     return [line for line in journal if line.endswith(" plan") or line.endswith(" plan -refresh=false")]
 

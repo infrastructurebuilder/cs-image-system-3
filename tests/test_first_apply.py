@@ -2,9 +2,9 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""Stage 85: the first identity apply of a new tree.
+"""The first identity apply of a new tree.
 
-Found walking the daily driver (stage 65, finding F24): the identity
+Found walking the daily driver: the identity
 runner's prune step lists the root's terraform state before the plan, and a
 root nothing was ever applied in has NO state -- `tofu state list` exits
 non-zero with "No state file was found". The step took that for a failure

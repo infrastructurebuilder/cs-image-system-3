@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""Stage 103 item 15: the container-host section of the bootstrap -- contributed
+"""The container-host section of the bootstrap -- contributed
 by the docker runtime plugin through the entry-point group; read from the raw
 ``cfg/``, never printing an address (a ``host`` may be an ENC marker); one
 question, whether CI can reach the daemon; the GitHub section stops assuming a

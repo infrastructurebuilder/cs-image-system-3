@@ -49,7 +49,7 @@ variable "public_read" {
   default     = false
 }
 
-# Data lifecycle (stage 15, DESIGN §3H): declared on the storage as
+# Data lifecycle (DESIGN §3H): declared on the storage as
 # {ia_days, archive_days}; realized as lifecycle policies on the filesystem
 # (only one the module creates; an existing filesystem keeps its own).
 variable "transition_to_ia" {
@@ -64,10 +64,10 @@ variable "transition_to_archive" {
   default     = ""
 }
 
-# Mount targets (stage 19). An EFS filesystem is only reachable through a mount
+# Mount targets. An EFS filesystem is only reachable through a mount
 # target: an ENI in one subnet per availability zone. Without them `mount.efs`
 # cannot even resolve the filesystem's DNS name, which is what this module
-# produced until 2026-09-20 -- a filesystem nothing could mount.
+# once produced -- a filesystem nothing could mount.
 variable "vpc_id" {
   type        = string
   description = "VPC the mount targets live in; empty creates none"

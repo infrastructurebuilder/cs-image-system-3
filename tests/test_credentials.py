@@ -2,10 +2,10 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""Stage 17: credentials are a declared object, not an opaque mapping.
+"""Credentials are a declared object, not an opaque mapping.
 
 The gap this closes was measured twice before it was fixed: forbidding
-unknown keys (stage 21) cannot reach inside a field typed as a plain
+unknown keys cannot reach inside a field typed as a plain
 mapping, so `profile_nme: noaa` stayed silent and the profile silently
 became None -- falling back to AWS_PROFILE, or to no profile at all.
 """

@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""Stage 26: a GCP storage builder's ``variables:`` (default labels) reach
+"""A GCP storage builder's ``variables:`` (default labels) reach
 the module call under the item's own labels and the csis_* ones."""
 from types import SimpleNamespace
 from typing import Any, cast

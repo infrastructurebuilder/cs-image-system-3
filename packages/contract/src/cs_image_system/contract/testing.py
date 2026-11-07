@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 """``assert_conforms``: does a class implement a protocol, member by member
-and signature by signature (stage 30)?
+and signature by signature?
 
 ``runtime_checkable`` checks names only, and only on instances. This looks
 at the class: every member the protocol declares exists on it (a method, a
@@ -12,7 +12,7 @@ the parameters the protocol's does, by name and kind, in order -- an
 implementation may add parameters with defaults, or take ``*args`` and
 ``**kwargs``, and may narrow nothing away. Annotations are not compared
 here: pyright does that where a class lists its protocol as a base (its
-override check is on in the bar since hygiene XIX). A protocol a
+override check is on in the bar). A protocol a
 class lists as a base is the question, not an answer: its stubs do not
 count as implementations. The core's tests run this over every base class
 and every built-in plugin; a plugin's own tests should run it over its
@@ -177,7 +177,7 @@ def assert_conforms(cls: type, protocol: type, *, abstract: Iterable[str] = ()) 
 
 def protocol_for(classifier: Any) -> type | None:
     """The protocol a class registered under ``classifier`` is held to at
-    load (stage 125): the kind's model protocol for a builder-model
+    load: the kind's model protocol for a builder-model
     classification, the kind's builder protocol for a builder
     classification, the cloud's and the container's own model protocols for
     theirs, and ``None`` for a classification the contract declares no

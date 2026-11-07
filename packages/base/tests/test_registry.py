@@ -10,7 +10,7 @@ from cs_image_system.contract.constants import VCT
 
 
 def test_a_registry_is_per_run_and_the_process_holds_the_bound_one():
-    # stage 124: two constructions are two registries; the shim answers with
+    # two constructions are two registries; the shim answers with
     # the one bound last, and makes one when none is
     assert _registry.Registry() is not _registry.Registry()
     previous = _registry.current_registry()

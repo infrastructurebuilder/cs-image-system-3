@@ -16,7 +16,7 @@ class AwsRuntimePluginMetadata(AbstractPluginMetadata):
                      {AWS_RUNTIME: [
                        AwsCloudBuilderModel,
                        AwsCloudBuilder,
-                       AwsCLIVersionChecker,     # stage 48.1: registered under its own name, aws-cli
+                       AwsCLIVersionChecker,     # registered under its own name, aws-cli
                      ]},
                      {AwsCloudBuilderModel: AwsCloudBuilder}
                      )

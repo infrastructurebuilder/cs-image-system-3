@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""Stage 35: a commit-time gate over everything staged.
+"""A commit-time gate over everything staged.
 
 Fake secrets below are built by concatenation so this module never carries
 one -- the gate scans test code for the hard shapes too.

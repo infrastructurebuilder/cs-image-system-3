@@ -4,7 +4,7 @@
 
 from dataclasses import field
 from cs_image_system.contract.model_config import CSIS_MODEL_CONFIG
-from pydantic.dataclasses import dataclass  # stage 23: validation at construction
+from pydantic.dataclasses import dataclass  # validation at construction
 from typing import Any
 
 import logging
@@ -49,7 +49,7 @@ class GCPCloudNetworkingModel(CloudNetworkingConfig):
 class GCPCloudBuilderModel(CloudBuilderModel):
     """GCP cloud provider configuration data object."""
     type = GCP
-    # stage 63 item 14: the cfg/executables.yml entry every gcloud call on
+    # the cfg/executables.yml entry every gcloud call on
     # this runtime runs through (the session command, the inventory, the
     # storage lookups and the generated archive/wipe scripts), as the tofu
     # builders name theirs. `validate` refuses a name that is not declared.
@@ -66,7 +66,7 @@ class GCPCloudBuilderModel(CloudBuilderModel):
     # forward) cost ~$8/month per instance. None = the image's own value.
     default_disk_size: int | None = None
     # Bake build VMs as preemptible (spot) instances: 60-90 % off bake minutes;
-    # a preempted bake simply re-runs (GCP-READINESS §6).
+    # a preempted bake simply re-runs.
     bake_preemptible: bool = False
     state_configuration: str = fk_field(target=VCT.STATE_BACKEND_MODEL,
                                         default = DEFAULT,
@@ -75,7 +75,7 @@ class GCPCloudBuilderModel(CloudBuilderModel):
                                             "required": True,
                                         })
     ssh_username: str = DEFAULT # Currently override when needed. (How do we get this?  From the image?)
-    # Debug session mechanism (V2 §3F1 parity): only "iap" is supported.
+    # Debug session mechanism (parity with the AWS runtime's): only "iap" is supported.
     session_mechanism: str | None = None
     networking: GCPCloudNetworkingModel | None = None # type: ignore #Overrides parent
     network_map: dict[str, dict[str, list[dict]]] | None = field(init=False, default=None)
@@ -86,7 +86,7 @@ class GCPCloudBuilderModel(CloudBuilderModel):
         super().__post_init__()
 
     def finalize(self):
-        # stage 127: pure -- the project is asked nothing at load. The
+        # pure -- the project is asked nothing at load. The
         # networking check (`update_networking`) is the builder's ONLINE
         # `network_facts` hook, run by a real run and `validate --online`;
         # every load adopts its record instead.

@@ -300,7 +300,7 @@ def _render_scoped(node: Any, base_context: dict, jenv: Environment, ancestors: 
     if isinstance(node, dict):
         new_ancestors = ancestors + [node]
         if ancestors and isinstance(node.get("config"), dict):
-            # stage 63: a nested item's own `config` shadows the enclosing one
+            # a nested item's own `config` shadows the enclosing one
             # for its subtree, the rule the top-level item already follows
             # (an OS builder runtime entry's `config` was reachable by nothing)
             base_context = {**base_context, "config": {**(base_context.get("config") or {}), **node["config"]}}
@@ -415,7 +415,7 @@ def string_stage(tree: dict, cycles: int = 10, addl: dict | None = None) -> dict
     current = tree
     for _name, fn in resolution_stages.resolution_passes():
         current = fn(current, addl=addl, cycles=cycles)
-    # stage 48.2: a tag that remains after the string passes legitimately
+    # a tag that remains after the string passes legitimately
     # resolves at the object stage (`{{ group.name }}`, `{{ identified_model.name }}`);
     # it is not a warning. (A comment in the files never reaches the tree.)
     remaining = _tagged_leaves(current)
@@ -621,12 +621,12 @@ def read_and_preprocess_yaml_files(
             with open(yaml_file) as file:
                 ss = file.read()
                 file_data = yaml.safe_load(ss)  #  process_keys( yaml.safe_load(ss) )
-                # stage 49: any value may be an ENC[age:...] marker. The
+                # any value may be an ENC[age:...] marker. The
                 # rosters' markers are opened here, before structuring, and
                 # carry their ciphertext onward for the emission to write back.
                 file_data = decrypt_tree(file_data, source=str(yaml_file),
                                          collect=decrypted_plaintexts())
-                # stage 76: after decryption, so an encrypted name is checked as
+                # after decryption, so an encrypted name is checked as
                 # its plaintext; before structuring, so the message names the file
                 refuse_reserved_names(file_data, str(yaml_file))
                 if not (sub_key and isinstance(file_data, dict)):

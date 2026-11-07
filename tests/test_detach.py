@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""Detach with a required unmount (stage 10.14): removing a storage from a
+"""Detach with a required unmount: removing a storage from a
 launched instance's declaration is the one in-place launch-parameter
 change allowed. The runtime unmounts it ON the instance first (a receipt),
 `gate-plan --require-unmounted` refuses the detach without that receipt,
@@ -182,7 +182,7 @@ def test_gce_unmount_runs_over_the_iap_tunnel_and_writes_the_receipt(prepared, m
     result = unmount_storage(run.ctx, "gce-test", "gce_data", "/mnt/gce-data", root / "ws")
     assert result["ok"] and result["method"] == "session"
     cmd = calls[-1]
-    # stage 63 item 14: the runtime's declared gcloud, not a bare name from PATH
+    # the runtime's declared gcloud, not a bare name from PATH
     assert cmd[:4] == ["/usr/local/bin/gcloud", "compute", "ssh", "gce-test"] and "--tunnel-through-iap" in cmd
     assert "--project" in cmd and "csis-sandbox" in cmd and "us-east1-b" in cmd
     script = cmd[cmd.index("--command") + 1]

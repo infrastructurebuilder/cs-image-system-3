@@ -9,7 +9,7 @@ log = logging.getLogger(__name__)
 from dataclasses import field
 from cs_image_system.contract.model_config import CSIS_MODEL_CONFIG
 from pydantic import Field
-from pydantic.dataclasses import dataclass  # stage 23: validation at construction
+from pydantic.dataclasses import dataclass  # validation at construction
 from typing import Annotated, Any, ClassVar
 from .mixins import ParentPropertyHolding, SelfInjectedName
 
@@ -53,7 +53,7 @@ class Group(RootItem, SelfInjectedName, ParentPropertyHolding):
                         })
     is_default: bool = False # The 'default' group is the group all users are added to by default.
     is_root: bool = False # The single root/admin group; it becomes the delegated admin of every resource group.
-    members: set[EncryptedStr] = field(default_factory=set)   # stage 33: each entry may be ENC[age:...]
+    members: set[EncryptedStr] = field(default_factory=set)   # each entry may be ENC[age:...]
     admins: set[EncryptedStr] = field(default_factory=set)
     # Group Id is optional and has to be computed/realized at build time.
     # Accepts an int, a digit string, or the DEFAULT sentinel on the way in;

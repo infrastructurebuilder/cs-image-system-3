@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""The configuration loader: the engine side that MAKES a run context (stage 124).
+"""The configuration loader: the engine side that MAKES a run context.
 
 :func:`read_config_and_transform` reads the tree under ``<root>/cfg``,
 renders and structures it, builds and registers every builder, constructs
@@ -19,7 +19,7 @@ import copy
 from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import is_dataclass
 from cs_image_system.contract.model_config import CSIS_MODEL_CONFIG
-from pydantic.dataclasses import dataclass  # stage 23: validation at construction
+from pydantic.dataclasses import dataclass  # validation at construction
 import logging
 import os
 from pathlib import Path
@@ -48,7 +48,7 @@ from .encryption import decrypt_tree, decrypted_plaintexts, refuse_markers_at
 from .reserved_names import refuse_invalid_config_keys, refuse_reserved_names
 from .run_context import RunContext, bind_current
 from .finalizer import Finalizer
-# the services behind the context (stage 125): the modules the adapters at
+# the services behind the context: the modules the adapters at
 # the end of this file delegate to, imported here because the loader is
 # where the run is assembled and the one place already inside the import
 # web every one of them belongs to
@@ -199,8 +199,8 @@ def read_item_kind(ctx: RunContext, spec: ItemKind) -> list[Any]:
     ``spec.model_cls``, resolves templates, registers the item, resolves its
     owning builder from the registry (alias-aware) and attaches it, then runs
     the kind's optional cross-item validation. ``ctx`` is the context the
-    items are read INTO (its working path, registry and overlays); until
-    stage 124 this was the context's own ``_read_item_kind`` method.
+    items are read INTO (its working path, registry and overlays); it used
+    to be the context's own ``_read_item_kind`` method.
     """
     yaml_files = get_files_by_extensions(ctx.working_path / spec.source_dir)
     cvt = Orchestrator().get_converter()
@@ -221,7 +221,7 @@ def read_item_kind(ctx: RunContext, spec: ItemKind) -> list[Any]:
     except Exception as e:
         log.error(f"Error parsing {yaml_files}: {e}")
         raise
-    # stage 48.3: the object stage returns the foreign keys that named nothing,
+    # the object stage returns the foreign keys that named nothing,
     # for the whole load so far (the builder stage's included); the context
     # carries them and `validate` refuses them
     ctx.unresolved_foreign_keys = template_resolver.resolve_all()
@@ -301,7 +301,7 @@ def apply_overlays(ctx: Any, spec: ItemKind, read_dict: dict[str, Any]) -> None:
     """Merge every overlay's entries for this kind over the tree's: a named
     entry that exists is updated key by key (``state: destroyed`` on a
     declared storage), a new one is appended (a cycle's instance). The tree
-    on disk is never touched -- that is the point (stage 8). A context
+    on disk is never touched -- that is the point. A context
     without overlays (unit-test stand-ins included) is a no-op."""
     overlays = getattr(ctx, "overlays", None) or []
     data_list = getattr(ctx, "_overlay_data", None) or []
@@ -323,10 +323,10 @@ def apply_overlays(ctx: Any, spec: ItemKind, read_dict: dict[str, Any]) -> None:
                 log.info(f"Overlay {path.name}: {spec.name} '{name}' updated ({', '.join(k for k in item if k != 'name')})")
             else:
                 read_dict[name] = dict(item)
-                # transient: declared by an overlay, not by the tree (stage 10.15)
+                # transient: declared by an overlay, not by the tree
                 getattr(ctx, "overlay_declared", set()).add((key, name))
                 log.info(f"Overlay {path.name}: {spec.name} '{name}' declared (transient)")
-    # stage 28: the same undeclare, from `--undeclare <kind>:<name>` (no file)
+    # the same undeclare, from `--undeclare <kind>:<name>` (no file)
     for kind_key, name in getattr(ctx, "undeclared", None) or []:
         if kind_key != key:
             continue
@@ -337,7 +337,7 @@ def apply_overlays(ctx: Any, spec: ItemKind, read_dict: dict[str, Any]) -> None:
 
 
 def parse_undeclare(specs: list[str] | None) -> list[tuple[str, str]]:
-    """``--undeclare <kind>:<name>`` (stage 28) -> ``[(yaml key, name)]``.
+    """``--undeclare <kind>:<name>`` -> ``[(yaml key, name)]``.
     The kind is an overlay collection key (``instances``, ``storages``, ...);
     the singular is accepted. Refused up front, like a malformed overlay."""
     allowed = {
@@ -356,7 +356,7 @@ def parse_undeclare(specs: list[str] | None) -> list[tuple[str, str]]:
 
 
 def load_overlay(path: Path) -> dict[str, Any]:
-    """Read one overlay file (stage 8): a mapping whose keys are ``config``
+    """Read one overlay file: a mapping whose keys are ``config``
     and/or the domain-item collections (``instances``, ``storages``, ...),
     each a list of named entries. Anything else is refused up front."""
     allowed = {"config"} | {
@@ -377,7 +377,7 @@ def load_overlay(path: Path) -> dict[str, Any]:
             continue
         if not isinstance(value, list) or any(not isinstance(i, dict) or not i.get("name") for i in value):
             raise ValueError(f"Overlay {path}: '{key}' must be a list of named entries")
-    refuse_reserved_names(data, str(path))          # stage 76: an overlay names items too
+    refuse_reserved_names(data, str(path))          # an overlay names items too
     refuse_invalid_config_keys(data, str(path))     # and carries a `config:` mapping
     return data
 
@@ -402,7 +402,7 @@ def read_config_and_transform(
     reg : Registry, optional
         A prepared registry to load this run into (a test's); by default
         the run gets a registry of its own with the installed plugins
-        loaded into it (stage 124).
+        loaded into it.
 
     Returns
     -------
@@ -411,7 +411,7 @@ def read_config_and_transform(
     run_start_time = datetime.now()
     typer_cntx.obj = {"run_start_time": run_start_time}   # the CLI sets "base_only" itself
     env = os.environ.copy()
-    # the run's registry (stage 124): one per run, the plugins loaded into
+    # the run's registry: one per run, the plugins loaded into
     # it, and the process's current one from here on -- bound BEFORE any
     # model of this run is parsed, since a model holds no context and reads
     # the registry through the shim (current_registry)
@@ -426,7 +426,7 @@ def read_config_and_transform(
     if not orig:
         raise ValueError(f"Failed to read configuration from {_config_dir}")
     # Here, we know that none of the "name" elements collide
-    dtfmt = orig.get("dateformat", DEFAULT_DATEFORMAT)     # stage 63: the model's one default
+    dtfmt = orig.get("dateformat", DEFAULT_DATEFORMAT)     # the model's one default
     run_start_date = run_start_time.date()
     timestamp = run_start_time.strftime(dtfmt)
     # TODO: figure out some more runtime values to inject here, like git commit hash, branch, etc
@@ -459,7 +459,7 @@ def read_config_and_transform(
         with open("./YAML_DUMP.yaml", "w+") as f:
             yaml.safe_dump(generic_yaml, f, sort_keys=False)
 
-    # stage 49: any value in the base document may be an ENC[age:...] marker.
+    # any value in the base document may be an ENC[age:...] marker.
     # HERE, after the string stage, not in read_and_process: the passes render
     # every string leaf as template SOURCE, and a Decrypted leaf rendered that
     # way would feed its plaintext to Jinja; kept as its marker through the
@@ -514,7 +514,7 @@ def read_config_and_transform(
             raise ValueError(f"Expected single config, got {len(config_data)}")
         config_data = config_data[0]
 
-    # stage 106: the tree's image sources land on the release's before any OS
+    # the tree's image sources land on the release's before any OS
     # builder structures, so a missing `type` can be defaulted from what the
     # family IS and every family reader sees the catalog
     ImageSourceCatalog().set_tree(list(config_data.image_sources or []))
@@ -532,7 +532,7 @@ def read_config_and_transform(
                 name = item.get("name", None)
                 _type = item.get("type", None)
                 if name and not _type and plugin_key == "os_builders":
-                    # stage 106: an OS builder may leave `type` out when exactly
+                    # an OS builder may leave `type` out when exactly
                     # one registered type serves what its family IS
                     _type = default_os_type(str(item.get("family", "")), item.get("family_version"),
                                             reg.models_under(VCT.OS_BUILDER_MODEL))
@@ -705,9 +705,9 @@ def read_config_and_transform(
         if config_data.generation_directory
         else wpath / "generated"
     )
-    # Transient declarations (stage 8): overlay files merged over the tree for
-    # THIS invocation only -- their `config:` keys land on the merged config here,
-    # after the builders were built against the tree's own (as before stage 124);
+    # Transient declarations: overlay files merged over the tree for THIS
+    # invocation only -- their `config:` keys land on the merged config here,
+    # after the builders were built against the tree's own (as they always were);
     # their items are merged kind by kind as each kind is read (apply_overlays).
     overlay_paths = [Path(p).resolve() for p in (overlays or [])]
     overlay_data = [load_overlay(p) for p in overlay_paths]
@@ -743,7 +743,7 @@ def read_config_and_transform(
         if callable(bind):
             bind(ctx)
     bind_current(ctx)
-    # stage 127: the network facts a real run or `validate --online` recorded
+    # the network facts a real run or `validate --online` recorded
     # are adopted OFFLINE here (a `default` network becomes the recorded one);
     # what the record leaves unanswered waits on the context for `validate`.
     # The load itself reaches no cloud.
@@ -782,7 +782,7 @@ def process_and_register_builders(
     default_classifier: VCT | None = None
     names: set[str] = set()
     for name, model in builder_models.items():
-        # stage 30, branch 2: the contract's protocol, not the core's base class --
+        # the contract's protocol, not the core's base class --
         # a plugin's model that satisfies BuilderModelProtocol structurally (the
         # proof plugin's does) is a builder model
         if not isinstance(model, BuilderModelProtocol):
@@ -811,7 +811,7 @@ def process_and_register_builders(
                 )
             default = model.name
             default_classifier = model.csis_classifier()
-        if isinstance(model, RuntimeEnabledBuilderModelProtocol):   # the protocol check is the dispatch (stage 125)
+        if isinstance(model, RuntimeEnabledBuilderModelProtocol):   # the protocol check is the dispatch
             rt = reg.get_registered_name_by_name_or_alias(VCT.RUNTIME_BUILDER, model.runtime)
             assert rt, f"Runtime provider '{rt}' not found for builder '{model.name}'"
             model.runtime = rt
@@ -839,7 +839,7 @@ def process_and_register_builders(
                 if callable(getattr(prov, "__post_init__")):
                     prov.__post_init__()  # type: ignore
         prov.finalize()
-        # stage 30: the registry gates on the instance (NameTypedProtocol) and
+        # the registry gates on the instance (NameTypedProtocol) and
         # skips anything else. The class-level test here was
         # `issubclass(bc, PluginArtifactProtocol) or issubclass(bc, NameTypedProtocol)`,
         # whose second half would raise TypeError (a protocol with a property
@@ -875,17 +875,17 @@ def read_and_process(dir: Path) -> dict[str, Any] | None:
         try:
             with open(file, "r") as stream:
                 # safe_load: a PUBLIC configuration tree constructs no Python object
-                # (stage 63 item 13; unsafe_load stood here alone, every other
-                # reader of the tree is safe_load, and no tree carries a tag)
+                # (unsafe_load once stood here alone; every other reader of
+                # the tree is safe_load, and no tree carries a tag)
                 data = yaml.safe_load(stream)
                 if isinstance(data, dict):
-                    # stage 49: needs NO identity -- a structural check, so it
+                    # needs NO identity -- a structural check, so it
                     # still runs where nothing could be decrypted
                     refuse_markers_at(data, str(file))
-                    # stage 76: nothing may be named after a word that means "not
+                    # nothing may be named after a word that means "not
                     # set"; refused here so the message names the file and entry
                     refuse_reserved_names(data, str(file))
-                    # stage 76 step 6: the `config:` key guard, switched on as written
+                    # the `config:` key guard, switched on as written
                     refuse_invalid_config_keys(data, str(file))
                     ret = _extend_lists(ret, data)
         except Exception as e:
@@ -1003,7 +1003,7 @@ register_item_kind(ItemKind(
 ))
 
 
-# ------------------------------------------------------------------ the services (stage 125)
+# ------------------------------------------------------------------------- the services
 # The engine's run-bound knowledge as a plugin reaches it: ``ctx.services.<name>``
 # answers with one of these, each delegating to the module the functions
 # live in (the modules do not move; the functions keep their signatures,

@@ -2,10 +2,10 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""The image kind (stage 30): the builder that bakes base images and
-instance images (packer, in the built-in plugin), and the two enums a
+"""The image kind: the builder that bakes base images and instance
+images (packer, in the built-in plugin), and the two enums a
 provider-specific image carries. The image items themselves (``Image``,
-``BaseImage``) are the core's models and ``Any`` here. Stage 106 adds the
+``BaseImage``) are the core's models and ``Any`` here. Beside them the
 image query: the system's vocabulary for "which vendor image", which every
 runtime translates to its own."""
 from __future__ import annotations
@@ -39,7 +39,7 @@ def psi_key(source_name: str, runtime: str) -> str:
 
 
 class ProviderSpecificImageProtocol(NameTypedProtocol, Protocol):
-    """An image as one runtime knows it (stage 125): the source it was made
+    """An image as one runtime knows it: the source it was made
     from (an image's or an OS builder's name), the runtime, its state
     (resolved to an identifier, or deferred to a name pattern a build will
     satisfy), the owner and architecture when known, and the query inputs
@@ -77,7 +77,7 @@ class ImageBuilderProtocol(BuilderProtocol, Protocol):
     def add_image(self, image: Any, os_builder: Any = None) -> None: ...
 
 
-# ---------------------------------------------------------------- stage 106
+# ---------------------------------------------------------------------------
 # The image query: the system's own vocabulary for "which vendor image", which
 # every runtime translates to its own (``RuntimeBuilderProtocol
 # .translate_image_query``). The spellings are the system's; where the first
@@ -123,7 +123,7 @@ _SCALARS: tuple[str, ...] = ("name", "family", "version", "architecture", "state
 
 @dataclass
 class ImageQuery:
-    """A vendor-image query in the system's vocabulary (stage 106).
+    """A vendor-image query in the system's vocabulary.
 
     A key that is unset (None, an empty list, an empty mapping) is not part
     of the query: ``keys()`` names the set ones, ``to_mapping()`` writes

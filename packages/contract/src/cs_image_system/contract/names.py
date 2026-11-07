@@ -2,8 +2,8 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""The two name normalisations the system applies everywhere (stage 30:
-moved here from ``cs_image_system.base.utils``, which re-exports them). A
+"""The two name normalisations the system applies everywhere (moved
+here from ``cs_image_system.base.utils``, which re-exports them). A
 model's ``name`` is ``safe_name`` of what was written; a name that becomes a
 terraform label, a file name or a state key goes through
 ``super_safe_name``."""

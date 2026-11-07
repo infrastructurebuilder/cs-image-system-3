@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""Configuration-driven facts about a runtime (stage 11.5), so recipes need
+"""Configuration-driven facts about a runtime, so recipes need
 no hardcoded project names: ``runtime describe <rt>`` and the emptiness
 check ``empty --runtime <rt>`` (reality minus the declared storages must be
 nothing, and the strict state query must agree).
@@ -40,15 +40,14 @@ def images_on_runtime(ctx: GlobalTypeContext, runtime: str) -> list[str]:
 
 def runtime_bake_selection(ctx: GlobalTypeContext, runtime: str, only: list[str] | None) -> list[str]:
     """The bake surface of a run given ``--only-runtime <runtime>``, as the
-    ``--only`` entries the run takes (hygiene X item 1, operator decision
-    2026-10-04).
+    ``--only`` entries the run takes (the operator's decision).
 
     Alone, every series baked on the runtime, each as ``<series>@<runtime>``
     (a runtime that bakes nothing: ``none``). Beside ``--only`` it NARROWS:
     each named series must be baked on the runtime and is selected there
     alone, and nothing is ever added. ``none`` stays the empty surface. The
-    two flags used to make a union -- found preparing stage 75 step 9, when a
-    run naming two images also planned every due image of the runtime.
+    two flags used to make a union -- found when a run naming two images
+    also planned every due image of the runtime.
 
     Raises ``ValueError`` naming every entry it cannot honour."""
     baked = images_on_runtime(ctx, runtime)
@@ -121,7 +120,7 @@ def describe_runtime(ctx: GlobalTypeContext, runtime: str) -> dict[str, Any]:
 
 def builders_on_runtime(ctx: GlobalTypeContext, runtime: str) -> dict[str, list[str]]:
     """``{"image": [...], "storage": [...], "instance": [...]}`` -- the
-    builders bound to the runtime (stage 45). Each emits under
+    builders bound to the runtime. Each emits under
     ``generated/<lifecycle>/<builder name>/``, so this is also the map of
     which emission belongs to the runtime."""
     families = {"image": ctx.image_builders, "storage": ctx.storage_builders, "instance": ctx.instance_builders}
@@ -142,7 +141,7 @@ def builders_on_runtime(ctx: GlobalTypeContext, runtime: str) -> dict[str, list[
 
 def emission_dirs(ctx: GlobalTypeContext, runtime: str) -> list[str]:
     """The ``<lifecycle>/<builder>`` directories under ``generated/`` that
-    hold the runtime's emission and exist right now (stage 45): what a run
+    hold the runtime's emission and exist right now: what a run
     scoped to another runtime leaves untouched, and what the CI job compares
     across records to know whether the runtime's declarations changed."""
     names = {n for family in builders_on_runtime(ctx, runtime).values() for n in family}
@@ -164,7 +163,7 @@ def emptiness(ctx: GlobalTypeContext, runtime: str) -> dict[str, Any]:
         raise ValueError(f"unknown runtime {runtime!r}; known: {sorted(ctx.runtime_builders)}")
     inv = rtb.inventory()
     declared = {v["cloud_name"] for v in declared_storage_names(ctx, runtime).values()}
-    # stage 93: another configuration's things in the same project or account
+    # another configuration's things in the same project or account
     # are not leftovers of ours; they are counted and left alone. A thing with
     # no id at all is still ours to answer for, and named as unlabelled.
     owners: dict[str, dict[str, str]] = inv.get("owners") or {}
@@ -185,7 +184,7 @@ def emptiness(ctx: GlobalTypeContext, runtime: str) -> dict[str, Any]:
         return out
     leftovers = {
         "instances": ours("instances", list(inv.get("instances") or [])),
-        # stage 14.4: a RELEASED build is declared to stay (kept by decision)
+        # a RELEASED build is declared to stay (kept by decision)
         "images": ours("images", [i for i in (inv.get("images") or []) if i not in released_ids(ctx, runtime)]),
         "disks": ours("disks", [d for d in (inv.get("disks") or []) if d not in declared]),
         "buckets": ours("buckets", [b for b in (inv.get("buckets") or []) if b not in declared]),
@@ -197,8 +196,8 @@ def emptiness(ctx: GlobalTypeContext, runtime: str) -> dict[str, Any]:
 
 
 def released_ids(ctx: Any, runtime: str) -> set[str]:
-    """Build ids of released builds recorded on ``runtime`` (stage 14.4:
-    they are declared to stay, so `empty --runtime` does not list them)."""
+    """Build ids of released builds recorded on ``runtime`` (they are
+    declared to stay, so `empty --runtime` does not list them)."""
     ms = ctx.meta_state
     current = {str(b) for images in (releases(ms).get("current") or {}).values() for b in images.values()}
     return {str(b.get("build_id")) for b in ms.builds()

@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-# The AWS section of the bootstrap (cs-image-system stage 70 step 4; CI_SETUP.md 3.3):
+# The AWS section of the bootstrap (CI_SETUP.md 3.3):
 # the GitHub OIDC identity provider, the READ-ONLY role and the WRITE role with
 # their trust documents and permission policies, and -- only when the account
 # lacks them -- the state bucket and the Session Manager instance profile.
@@ -72,8 +72,8 @@ resource "aws_iam_role" "read" {
 
 # The read document: what a load, a dry run and the state query read. It is
 # held by the READ-ONLY role and, as a second policy, by the WRITE role too,
-# because a performing run reads reality before it applies (hygiene XII item
-# 33: without it, every perform's own state query reported the S3 storage
+# because a performing run reads reality before it applies (without it,
+# every perform's own state query reported the S3 storage
 # unavailable with AccessDenied on GetBucketTagging, and the storage's
 # reality went unread on exactly the run that applies).
 locals {
@@ -156,7 +156,7 @@ resource "aws_iam_role_policy" "write" {
         Sid    = "StatePrefix"
         Effect = "Allow"
         Action = ["s3:ListBucket", "s3:GetObject", "s3:PutObject", "s3:DeleteObject"]
-        # the default backend's bucket and prefix, and every other S3 backend this root makes (hygiene XX item 1)
+        # the default backend's bucket and prefix, and every other S3 backend this root makes
         Resource = concat(
           ["arn:aws:s3:::${var.state_bucket}", "arn:aws:s3:::${var.state_bucket}/${var.state_prefix}/*"],
           flatten([for bucket, prefix in var.other_state_buckets : ["arn:aws:s3:::${bucket}", "arn:aws:s3:::${bucket}/${trimsuffix(prefix, "/")}/*"]]),
@@ -204,7 +204,7 @@ resource "aws_iam_role_policy" "write" {
 # ------------------------------------------- the state bucket, when this root manages it
 # (absent at the first interview, so made here, and kept managed from then on: a
 # second interview observes that it stands and binds the backend to it, without
-# letting the four resources leave the plan -- hygiene XII item 5)
+# letting the four resources leave the plan)
 resource "aws_s3_bucket" "state" {
   count  = var.state_bucket_managed ? 1 : 0
   bucket = var.state_bucket
@@ -237,7 +237,7 @@ resource "aws_s3_bucket_public_access_block" "state" {
   restrict_public_buckets = true
 }
 
-# ------------------------------- the tree's other S3 backends' buckets (hygiene XX item 1)
+# ------------------------------- the tree's other S3 backends' buckets
 # One bucket set per backend the interview listed: declared, bound to a root,
 # absent at the interview, so made here and managed from then on (the answer is
 # a choice the second interview keeps, so they never leave the plan).

@@ -12,6 +12,7 @@ history: bundle VI item 2.
 """
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 from tests.harness import V2Run
@@ -22,7 +23,8 @@ def test_only_providers_is_gone_and_the_context_has_no_force(tmp_path: Path, mon
     from cs_image_system.system import cli as climod
     from cs_image_system.base.models.ia_config import IAConfig
     result = CliRunner().invoke(climod.app, ["--root-dir", str(tmp_path), "--only-providers", "aws", "validate"])
-    assert result.exit_code != 0 and "--only-providers" in result.output, result.output
+    plain = re.sub(r"\x1b\[[0-9;]*m", "", result.output)    # typer colours the option under GitHub Actions
+    assert result.exit_code != 0 and "No such option" in plain and "--only-providers" in plain, plain
     run = V2Run(tmp_path / "run", monkeypatch)
     try:
         assert not hasattr(run.ctx, "force") and not hasattr(run.ctx, "only_providers")

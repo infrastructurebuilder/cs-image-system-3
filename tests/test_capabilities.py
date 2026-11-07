@@ -91,7 +91,7 @@ def test_base_image_bakes_admin_user_and_declared_prerequisites_dormant(v2):
     build = _base_build(v2)
     # admin user with the public key, sudo, no password
     assert "useradd -m -s /bin/bash csisadmin" in build
-    # stage 49: the key is declared encrypted, so the EMISSION carries its
+    # the key is declared encrypted, so the EMISSION carries its
     # ciphertext; `materialize` puts the key itself in the private copy packer
     # builds from, and nothing in the committed tree holds it
     assert "ENC[age:" in build
@@ -149,7 +149,7 @@ def test_malformed_key_is_refused(tmp_path, monkeypatch):
 def test_no_key_and_no_session_is_a_dead_end(tmp_path, monkeypatch):
     def mutate(root):
         _set_config(root, admin_public_keys=[])
-        # the fixture now declares SSM on aws-east2 (2026-08-31); the dead
+        # the fixture declares SSM on aws-east2; the dead
         # end needs NO session mechanism anywhere
         for rt in ("aws-east2-runtime", "aws-east1", "west1"):
             _set_runtime(root, rt, session_mechanism=None, session_instance_profile=None)
@@ -191,7 +191,7 @@ def test_per_base_image_key_override(tmp_path, monkeypatch):
         build = _base_build(run)
         assert "useradd -m -s /bin/bash ops" in build
         assert "override@rhel8" in build          # an UNencrypted override is a literal
-        # the other base images keep the global list, which is encrypted (stage 49)
+        # the other base images keep the global list, which is encrypted
         assert "ENC[age:" in build
         assert "csis-admin-placeholder" not in build
     finally:
@@ -334,7 +334,7 @@ def test_launch_parameters_are_immutable_after_launch(tmp_path, monkeypatch):
         assert "-replace=module.instance_test2.aws_instance.this" in cmds
         assert "--allow-destroy module.instance_test2.aws_instance.this" in cmds
         # the attachment binds the volume to the instance's id, so the replace
-        # replaces it too; the gate refused exactly that live (2026-09-22)
+        # replaces it too; the gate refused exactly that live
         assert "--allow-destroy module.instance_test2.aws_volume_attachment.this" in cmds
         run2.restore_cwd()
     finally:
@@ -380,7 +380,7 @@ def test_decommissioned_instance_is_whitelisted_and_forgotten(tmp_path, monkeypa
 
 
 def test_instance_module_keeps_original_image(v2):
-    """Belt and braces (§3F5): the module ignores AMI drift."""
+    """Belt and braces (DESIGN §3F5): the module ignores AMI drift."""
     module = (module_path("aws_instance") / "main.tf").read_text()
     assert "ignore_changes = [ami, user_data]" in module
     assert 'resource "aws_volume_attachment"' in module

@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""Encrypted configuration values (stage 33).
+"""Encrypted configuration values.
 
 A value anywhere in the configuration may be the element-level marker
 
@@ -68,7 +68,7 @@ class InlineMarkerError(ValueError):
 #: itself is populated by the walk further down.
 _OPENED_KEYS: dict[str, set[str]] = {}
 
-#: Public by decision since stage 34: "no declared-encrypted value other than a
+#: Public by decision: "no declared-encrypted value other than a
 #: USERNAME in clear". A username is emitted as a quoted literal in the identity
 #: root's group module call and stands in the identity read-model, because it is the
 #: join key between a roster and an access grant. Every other decrypted value
@@ -78,7 +78,7 @@ PUBLIC_BY_DECISION_KEYS: frozenset[str] = frozenset({"name", "members", "admins"
 
 def _represent_decrypted(dumper, value):
     """PyYAML refuses a ``str`` subclass, so a decrypted value needs a
-    representer. It writes what it READ (stage 50): the ciphertext the value
+    representer. It writes what it READ: the ciphertext the value
     came from, so a record carries the same marker the configuration does and
     a rotation moves both together.
 
@@ -249,7 +249,7 @@ def encrypt_fields_in_text(text: str, field_names: Iterable[str], recipients: It
 
 def decrypt_fields_in_text(text: str, field_names: Iterable[str],
                            identities: Iterable | None = None) -> tuple[str, int]:
-    """The inverse of :func:`encrypt_fields_in_text` (stage 51): replace every
+    """The inverse of :func:`encrypt_fields_in_text`: replace every
     marker that is the value of a named key, or an element of a block list
     under one, with its plaintext. Comments, ordering and every other byte are
     preserved. Returns the new text and the count decrypted.
@@ -312,7 +312,7 @@ def rotate_text(text: str, identities: Iterable, recipients: Iterable[str]) -> t
     return INLINE_MARKER_RE.sub(_sub, text), count
 
 
-# ------------------------------------------------------- the tree (stage 49)
+# ------------------------------------------------------------------ the tree
 
 #: Keys whose values are read by the RAW readers -- the ones that run before
 #: the loader, or without it, and several of which must work with no identity
@@ -390,7 +390,7 @@ def substitute_markers(text: str, identities: Iterable | None = None) -> str:
 
 def mark_plaintexts(text: str) -> str:
     """``text`` with every decrypted value it contains put back as the
-    ciphertext it came from -- the marker form of a DERIVED value (stage 51).
+    ciphertext it came from -- the marker form of a DERIVED value.
 
     A value computed from an encrypted one is declared nowhere, so it has no
     ciphertext of its own: this builds one from the pieces, so an address
@@ -444,7 +444,7 @@ def _exempt_pattern(path: tuple[Any, ...]) -> str:
 
 
 def refuse_markers_at(doc: Any, source: str) -> None:
-    """Refuse a marker where one may never stand (stage 49). Needs NO identity:
+    """Refuse a marker where one may never stand. Needs NO identity:
     it is a structural check, so it still runs when nothing can be decrypted.
 
     Refused: any key in :data:`EXEMPT_PATHS`; the ``name`` or ``type`` of a
@@ -485,7 +485,7 @@ def decrypt_tree(data: Any, source: str = "<configuration>",
                  identities: Iterable | None = None,
                  collect: set[str] | None = None) -> Any:
     """``data`` with every whole-value marker replaced by its
-    :class:`Decrypted` (stage 49).
+    :class:`Decrypted`.
 
     Any value anywhere may be a marker -- not only the fields typed
     :data:`EncryptedStr` -- and the ``Decrypted`` remembers the ciphertext it

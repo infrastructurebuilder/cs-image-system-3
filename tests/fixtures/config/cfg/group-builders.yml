@@ -10,21 +10,22 @@ group_builders:
     is_default: true
     type: okta-tf
     executable: open-tofu-1
-    state_configuration: local-dev   # stage 47: the identity roots keep their state on disk
+    state_configuration: local-dev   # the identity roots keep their state on disk
     org: "noaa"
     team: "nos-coastal-modeling-cloud-sandbox"
-    # stage 75: REQUIRED -- the posix builder that makes these groups exist on
+    # REQUIRED -- the posix builder that makes these groups exist on
     # their machines (after apply, with OPA's gid; members join at login)
     posix: posix-local
     # key: "test-key"
     # secret: "test-secret"
-    # stage 22.5 REMOVED -- a field on the USER builder, not the group builder; group-builders.yml uses it correctly further down under user_builders
+    # not a field on the group builder: default_user_email_template is the USER builder's
+    # (declared under user_builders below)
     # default_user_email_template: "{{ this.name }}@example.invalid"
     required_providers:
       - name: oktapam
         source: okta/oktapam
         version: '>= 0.6.3'
-  # stage 63 item 18: a READ-ONLY group builder. It emits only
+  # A READ-ONLY group builder. It emits only
   # `data "okta_group"` lookups of groups made elsewhere, so its groups are
   # recorded `managed: false`, never queried in OPA, and carry no
   # enrollment token. One group sits on it (groups/group-lookup.yaml).
@@ -39,7 +40,7 @@ group_builders:
       - name: okta
         source: okta/okta
         version: '>= 6.0'
-  # posix (stage 75): groups as POSIX accounts on the machines, with the gid
+  # posix: groups as POSIX accounts on the machines, with the gid
   # declared on the group; no terraform root, no credentials. One group sits
   # on it (groups/group-pxgroup.yaml), owning one image (images/image4.yaml).
   # oktagroups names it as its `posix:` delegate: OPA's groups exist on their
@@ -55,13 +56,13 @@ user_builders:
     is_default: true
     type: okta-tf-ro
     executable: open-tofu-1
-    state_configuration: local-dev   # stage 47: the identity roots keep their state on disk
+    state_configuration: local-dev   # the identity roots keep their state on disk
     org: "noaa"
     team: "nos-coastal-modeling-cloud-sandbox"
     # user.name is the bare OPA username; email (explicit, or derived by this
     # template) is used ONLY for the org lookup (PLAN.md local-migration Q3).
     email_as_username: false
-    # stage 51: the domain is its own value, so it can be declared encrypted;
+    # the domain is its own value, so it can be declared encrypted;
     # a derived address inherits it and reaches the emission as ciphertext
     email_domain: ENC[age:YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSBMd3pHdFlPNlQ3UmpCNXF3R3prWEhwWlJVcWJoTVExdlJHNUVxZHZIUlZzCjZPRTIwZ1pNUVNIeTBrUGhabllPaGU2cFJTa0xFVWZuMmxSNTAxcnZ6MDgKLS0tIHU1dHUvOFFtR0RJSDZkR280Q1ZQY2h2M3RHYzR4OW0xTXdWT0ozOHBiVGMKZfcyCqflNN+CE4oPpyTAtEiOjdfaXEuxzxv7D6cRTNjHGTTr8GmHFq1Xk2BGfkw=]
     default_user_email_template: "{{ user.name }}@{{ builder.email_domain }}"
@@ -71,7 +72,7 @@ user_builders:
       - name: okta
         source: okta/okta
         version: '>= 6.0'
-  # posix (stage 75): users as POSIX accounts, each with a declared uid, a
+  # posix: users as POSIX accounts, each with a declared uid, a
   # user-private group of the same name and id, and its public keys. Two
   # personas sit on it (the end of groups/users.yaml).
   - name: posix-users

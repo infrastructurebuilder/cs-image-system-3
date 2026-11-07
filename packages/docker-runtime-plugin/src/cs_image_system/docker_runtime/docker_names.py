@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""The spellings a container daemon accepts (stage 103), mapped ONCE here.
+"""The spellings a container daemon accepts, mapped ONCE here.
 
 * a **repository** name is lowercase: ``[a-z0-9]`` with single ``.``, ``_``,
   ``__`` or ``-`` separators, path components joined by ``/``;
@@ -80,7 +80,7 @@ def is_digest_reference(value: str) -> bool:
 #: The registry a daemon may put in front of a repository it was given
 #: unqualified: Podman's API spells ``csis/x:t`` as ``docker.io/csis/x:t``
 #: (or ``localhost/csis/x:t``) in ``RepoTags``, where Docker keeps it as
-#: written. Found by the Podman leg (stage 103, 2026-11-01).
+#: written. Found by the Podman leg of the container-runtime cycle.
 IMPLIED_REGISTRIES = ("docker.io/", "index.docker.io/", "localhost/")
 
 
@@ -105,9 +105,9 @@ def full_id(image_id: str) -> str:
     return v if v.startswith("sha256:") else f"sha256:{v}"
 
 
-# tags that carry what a label cannot change after the build (stage 103,
-# decision 4: labels are fixed when an image is built, so release and
-# relabel MOVE TAGS): `<repository>:<short id>--<key>--<value as tag>`
+# tags that carry what a label cannot change after the build (labels are
+# fixed when an image is built, so release and relabel MOVE TAGS):
+# `<repository>:<short id>--<key>--<value as tag>`
 MOVABLE_SEP = "--"
 
 

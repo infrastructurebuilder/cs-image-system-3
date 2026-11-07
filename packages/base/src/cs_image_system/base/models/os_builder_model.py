@@ -8,7 +8,7 @@ import logging
 from dataclasses import field
 from cs_image_system.contract.model_config import CSIS_MODEL_CONFIG
 from cs_image_system.contract.operating_system import OsBuilderModelProtocol
-from pydantic.dataclasses import dataclass  # stage 23: validation at construction
+from pydantic.dataclasses import dataclass  # validation at construction
 from typing import  Any, Sequence
 from packaging.version import Version, parse
 
@@ -31,7 +31,7 @@ class OsBuilderModel(BuilderModel, OsBuilderModelProtocol):
     """
     family: str
     family_version: str 
-    # stage 105: the declared PREFIX of this base image's build names on
+    # the declared PREFIX of this base image's build names on
     # every runtime whose entry names none (a template: `this` is this
     # builder); the run's timestamp is always appended, never excluded.
     # Unset: `<name>-<runtime>`, the shape every build carried before.
@@ -91,13 +91,13 @@ class OsBuilderModel(BuilderModel, OsBuilderModelProtocol):
                     f"{r.get_image_builder()}; one entry per image builder"
                 )
             nameset.add(r.get_image_builder())
-            # stage 48.2: the runtime subconfigs are parented ONCE, by the OS builder
+            # the runtime subconfigs are parented ONCE, by the OS builder
             # that wraps this model (OsBuilderBase.__post_init__, "self-registers");
-            # the model's own claim here was overwritten there on every load
+            # a claim of the model's own here used to be overwritten there on every load
         if self.default_primary_disk_size == DEFAULT:
             self.default_primary_disk_size = 200
         self.family = str(self.family).strip().lower()
-        # stage 106: a type that does not serve what the family IS is a
+        # a type that does not serve what the family IS is a
         # contradiction between the entry and the catalog; refused when the
         # family is one some registered type serves (a token nobody serves
         # is only a token)
@@ -123,7 +123,7 @@ class OsBuilderModel(BuilderModel, OsBuilderModelProtocol):
     def get_owners(self) -> Sequence[str]:
         return self.owners
     def get_family(self) -> str:
-        """What the declared family IS (stage 106): the image-source
+        """What the declared family IS: the image-source
         catalog's ``is`` for it, else the token itself. Everything that
         branches on a family reads this one."""
         return ImageSourceCatalog().effective_family(self.family, self.family_version)
@@ -134,7 +134,7 @@ class OsBuilderModel(BuilderModel, OsBuilderModelProtocol):
         return self.family_version
     @classmethod
     def families(cls) -> tuple[str, ...]:
-        """The families this type serves (stage 106): its own key, unless a
+        """The families this type serves: its own key, unless a
         subclass names more (the rhel type serves the rebuilds)."""
         return (cls.csis_name(),)
     def get_output_image_name(self) -> str | None:
@@ -162,7 +162,7 @@ class OsBuilderModel(BuilderModel, OsBuilderModelProtocol):
         return None
     def get_command_to_update(self) -> list[str]:
         """The full update for a family without a package-manager policy
-        model: alpine's one path (stage 67; every family with a policy
+        model: alpine's one path (every family with a policy
         model answers through ``commands_for_policy`` and never reaches
         this)."""
         return []

@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""The ``local`` state backend type (stage 47.3): a state file on disk.
+"""The ``local`` state backend type: a state file on disk.
 
 The type that needs nothing -- no bucket, no cloud, no credentials -- so a
 developer or a test can run a real ``tofu init`` against it. An entry
@@ -18,7 +18,7 @@ from __future__ import annotations
 import re
 from typing import Any, Mapping
 
-from pydantic.dataclasses import dataclass  # stage 23: validation at construction
+from pydantic.dataclasses import dataclass  # validation at construction
 
 from cs_image_system.contract.constants import VCT
 from cs_image_system.contract.model_config import CSIS_MODEL_CONFIG
@@ -76,7 +76,7 @@ class LocalStateBuilderModel(StateBuilderModel):
     path: str = "state"
     type = LOCAL_STATE
     # the executables entry these roots run; None = unspecified (no version
-    # check), a declared name is checked like every builder's (stage 63)
+    # check), a declared name is checked like every builder's
     executable: str | None = None
 
     @classmethod
@@ -91,8 +91,8 @@ class LocalStateBuilderModel(StateBuilderModel):
         if not self.path or not self.path.strip():
             raise ValueError("Terraform state backend 'path' cannot be empty for 'local' type.")
         self.path = self.path.strip()
-        # stage 63: one directory has one spelling. `a/../b` and `b` were two
-        # locations to the collision check, and a bare `/` rendered
+        # one directory has one spelling: `a/../b` and `b` would otherwise be
+        # two locations to the collision check, and a bare `/` would render
         # `//<ws>.tfstate` (state files in the filesystem root)
         normalised = LOCAL_KIND.directory({"path": self.path})
         parts = [s for s in normalised.split("/") if s]

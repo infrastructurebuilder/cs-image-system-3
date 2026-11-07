@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""Stage 109 item 3: the resolver behind ``just test-podman-desktop-cycle``.
+"""The resolver behind ``just test-podman-desktop-cycle``.
 
 ``scripts/podman-machine-host`` turns ``podman machine`` into the DOCKER_HOST URL of
 Podman Desktop's machine, or into one sentence saying why the leg is skipped. Here

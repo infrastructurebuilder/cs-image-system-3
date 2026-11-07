@@ -167,8 +167,8 @@ class AssetSet(list[Asset]):
                        temp_loc: Path = Path("./temp_assets"),
                        skip_remote: bool = False,
                        skip_writes: bool = False) -> dict[Path, Path]:
-      """Write every asset under ``gen_path`` (stage 30: the caller names the
-      generation path; until then an omitted path was read from the run
+      """Write every asset under ``gen_path`` (the caller names the
+      generation path; an omitted path used to be read from the run
       context, the one reach into the core this module had). Local assets
       land at ``gen_path / asset.path``, remote ones in temporary files
       under ``gen_path / temp_loc``; the mapping returned is remote path to

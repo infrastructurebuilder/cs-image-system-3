@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""Post-bake image tests and a release that means "known correct" (stage 14).
+"""Post-bake image tests and a release that means "known correct".
 
 * `tests.post_bake` (the in-bake vocabulary plus `mounts`) is validated at
   generation and run ON the launched instance by `verify instance` over the
@@ -12,7 +12,7 @@
   passing record (config.require_image_tests, default on);
 * released builds are exempt from retention and an ephemeral runtime's
   disposal (kept, reported as debt), and `empty --runtime` treats them as
-  declared -- the operator's §14.4 decision.
+  declared -- the operator's decision.
 """
 from __future__ import annotations
 

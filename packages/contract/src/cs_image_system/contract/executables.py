@@ -3,8 +3,8 @@
 # SPDX-License-Identifier: Apache-2.0
 
 """What a ``get_commands_to_run_*`` hook returns: two lists of executables,
-one run during the phase and one deferred to finalization. In the contract
-since stage 30. The executable itself is the core's ``ExecutableModel`` (it
+one run during the phase and one deferred to finalization. The
+executable itself is the core's ``ExecutableModel`` (it
 runs subprocesses, which is behaviour, not contract); a hook's lists hold
 anything that satisfies :class:`ExecutableProtocol`."""
 

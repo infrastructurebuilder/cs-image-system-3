@@ -95,7 +95,7 @@ def system_cli_executable_with_config(ctx: "RunContext", args: list[str],
 
 def apply_flag_allows(value: Any, root: str | None = None, aliases: Iterable[str] = ()) -> bool:
     """The one rule behind ``config: apply_<lifecycle>`` (per-root apply
-    scoping, stage 7): ``true`` enables every root of the lifecycle,
+    scoping): ``true`` enables every root of the lifecycle,
     ``false``/unset none, and a LIST of names enables exactly the roots whose
     builder name or runtime is listed -- so one runtime's root can apply
     while the others only plan and gate, with no transient undeclaring.
@@ -218,7 +218,7 @@ def root_in_runtime_scope(ctx: "RunContext", runtime: str | None) -> bool:
     (ledger 70): under ``--only-runtime <rt>`` (explicit, or implied by
     ``--apply-runtime``) only that runtime's roots are generated and
     planned; without it every root does, as before. List-valued
-    ``apply_*`` flags are NOT a scope here -- by the stage 7 decision the
-    other roots still plan and gate under them."""
+    ``apply_*`` flags are NOT a scope here -- by the per-root scoping
+    decision the other roots still plan and gate under them."""
     scope = getattr(ctx, "only_runtime_scope", None)
     return not scope or not runtime or str(runtime) == str(scope)

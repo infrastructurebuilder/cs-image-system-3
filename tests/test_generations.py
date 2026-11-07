@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""Stage 60: an instance has generations, and each one is a machine.
+"""An instance has generations, and each one is a machine.
 
 The ledger (``meta-state/instance-state.yaml``) mirrors storage-state: a
 counter per kind, an open generation carrying the launch parameters it
@@ -140,13 +140,13 @@ def test_mark_launched_opens_the_generation_and_forgetting_closes_it(world):
 
 def test_an_ephemeral_opens_and_closes_within_its_run(world, monkeypatch):
     """It existed: it booted and enrolled. The record of that is what lets
-    stage 55 deregister it honestly."""
+    the hostname claim deregister it honestly."""
     ctx = world.ctx
     ms = ctx.meta_state
     from cs_image_system.base.commands import verify_instance as vi
     monkeypatch.setattr(vi, "failure_policy", lambda ctx, inst: ("keep", None))
     monkeypatch.setattr(vi, "last_verification", lambda ctx, name: {"ok": True})
-    # the frozen fixture declares no ephemeral instance (stage 39); make one
+    # the frozen fixture declares no ephemeral instance; make one
     inst = next(i for i in ctx.instances if i.get_name() == "test")
     monkeypatch.setattr(inst, "ephemeral", True)
     eph = ["test"]

@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 from cs_image_system.contract.model_config import CSIS_MODEL_CONFIG
-from pydantic.dataclasses import dataclass  # stage 23: validation at construction
+from pydantic.dataclasses import dataclass  # validation at construction
 
 
 
@@ -19,9 +19,9 @@ class DummyGroupBuilderModel(GroupBuilderModel):
     Attributes:
         org, team: two required example fields, validated at load and read
             by nothing -- they show a plugin author how a builder declares
-            what its provider needs. (Stage 63: the credential-shaped `key`,
-            `secret` and `api_host` were removed, so the template never
-            suggests putting a credential in the tree.)
+            what its provider needs. (The credential-shaped `key`, `secret`
+            and `api_host` were removed, so the template never suggests
+            putting a credential in the tree.)
     """
 
     org: str

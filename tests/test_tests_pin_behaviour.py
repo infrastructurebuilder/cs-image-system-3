@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""The test suite pins behaviour, not prose (stage 128 item 2).
+"""The test suite pins behaviour, not prose.
 
 Every constant here is a ceiling that only moves DOWN. A test that compares an
 English sentence against a command's output breaks on every rewording and
@@ -47,7 +47,7 @@ import pytest
 
 REPO = Path(__file__).resolve().parents[1]
 
-# measured at the end of stage 128's rewrite (the root suite and the packages' tests together)
+# measured at the end of the behaviour-naming rewrite (the root suite and the packages' tests together)
 SENTENCE_PINS_MAX = 37
 DOC_PINS_MAX = 27
 SLACK = 8                                # a fall larger than this asks for the constant to come down

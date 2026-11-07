@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""Stage 49: any value may be an ``ENC[age:…]`` marker, the emission carries
+"""Any value may be an ``ENC[age:…]`` marker, the emission carries
 the ciphertext, and the execution materialises it into a private mirror.
 
 The load side is proven here against the fixture's own test identity; the
@@ -195,7 +195,7 @@ def test_the_mirror_stands_where_generated_stands_at_the_same_depth(tmp_path):
     (`../../../../../cs-image-system-3/tfmodules/...`) and the `local` state
     type's `../../../../<dir>/<ws>.tfstate` both break if the mirror is one
     level deeper -- `tofu init` in the mirror could not read its module
-    (found 2026-09-19)."""
+    (found live)."""
     root = tmp_path.resolve()
     src = root / "generated" / "storage" / "aws-ebs" / "storage-generation"
     src.mkdir(parents=True)
@@ -313,7 +313,7 @@ def test_the_provider_lock_file_comes_back_out_and_nothing_else(tmp_path):
     assert sync_back(src, dst) == [], "an unchanged lock file is not copied again"
 
 
-# -------------------------------------------- derived values (stage 51)
+# ------------------------------------------------------- derived values
 
 def test_a_derived_value_inherits_its_inputs_encryption():
     """The stage-51 rule: a value computed from a decrypted one is declared
@@ -379,7 +379,7 @@ def is_marker_str(v) -> bool:
     return is_marker(v)
 
 
-# ----------------------------------------- meta-state records (stage 50)
+# --------------------------------------------------- meta-state records
 
 def test_a_record_carries_the_ciphertext_it_was_written_from(tmp_path):
     """A meta-state write says what it READ, so a record and the configuration
@@ -432,10 +432,10 @@ def test_a_record_with_no_markers_needs_no_identity(tmp_path, monkeypatch):
 
 
 def test_the_run_can_still_commit_once_the_mirror_is_ignored(tmp_path):
-    """stage 54 gave the configuration root a .gitignore naming `_private/`;
-    stage 49 had also excluded it by PATHSPEC. Together they broke every run's
+    """The configuration root's .gitignore names `_private/`, and the run
+    once also excluded it by PATHSPEC. Together they broke every run's
     commit: an `:(exclude)` pathspec makes git consider the path, and
-    `git add -A` then exits 1 because it is ignored. Found when stage 19's
+    `git add -A` then exits 1 because it is ignored. Found when a live
     launch succeeded and its commit did not."""
     import subprocess
     from cs_image_system.base.materialize import ensure_ignored

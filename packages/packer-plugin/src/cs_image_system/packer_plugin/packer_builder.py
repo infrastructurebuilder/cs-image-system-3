@@ -78,9 +78,9 @@ class PackerImageBuilderBase(ImageBuilderBase[T]):
                 name="base_image_version", type="string",
                 env_var="BASE_IMAGE_VERSION",
                 description="The version of the base image to build on top of, used for tagging and versioning the image. Read from the BASE_IMAGE_VERSION environment variable at build time; empty when it is not set."))
-            # stage 63 (decided 2026-09-25): an image's `variables:` become packer
-            # variables of this builder's roots, each with its declared value as
-            # the default (they were read by nothing but a dead generator). The
+            # an image's `variables:` become packer variables of this builder's
+            # roots, each with its declared value as the default (they used to
+            # be read by nothing but a dead generator). The
             # collector refuses one name declared twice with different values.
             for image in self.get_images(os_builder=True) + self.get_images():
                 for key, value in sorted((getattr(image, "variables", None) or {}).items()):
@@ -218,8 +218,8 @@ _VARIABLE_NAME = re.compile(r"^[A-Za-z_][A-Za-z0-9_-]*$")
 
 
 def image_packer_variable(image: str, key: str, value: Any) -> PackerVariableDecl:
-    """One `variables:` entry of an image as a packer variable (stage 63):
-    a string, number or bool, whose type follows the value; a list, a mapping
+    """One `variables:` entry of an image as a packer variable: a string,
+    number or bool, whose type follows the value; a list, a mapping
     or a name packer cannot take is refused naming the image and the key."""
     name = str(key)
     if not _VARIABLE_NAME.match(name):

@@ -2,10 +2,10 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""Stage 58: an instance answers to its provider's names too.
+"""An instance answers to its provider's names too.
 
-The instance id and the address already resolve natively (settled live,
-2026-09-21); the provider's own hostname does not, because the boot script
+The instance id and the address already resolve natively (settled live);
+the provider's own hostname does not, because the boot script
 overwrites it. These tests hold the rules for giving it back: only after
 launch, only to a running machine, never on a collision, never on silence,
 and idempotently -- the same names twice touch nothing.
@@ -46,7 +46,7 @@ def test_ec2_gives_back_the_ip_name_and_gce_has_nothing_to_give():
 
 
 def test_a_suffixed_canonical_name_gives_the_bare_name_back_too():
-    """Stage 55 step 4: coops-model-003 is the canonical name; coops-model is
+    """coops-model-003 is the canonical name; coops-model is
     what a person types, so it rides along as an alias."""
     assert pa.wanted_aliases(EC2, "coops-model-003", "coops-model") == ["coops-model", "ip-10-26-34-156"]
     assert pa.wanted_aliases(None, "coops-model-003", "coops-model") == ["coops-model"]
@@ -62,7 +62,7 @@ def test_every_name_a_record_answers_to_is_a_claim():
 
 
 def test_own_record_is_found_by_the_provider_id_not_the_name():
-    """Three records bore one hostname on 2026-09-21; only the instance id
+    """Three live records once bore one hostname; only the instance id
     told the live one from the stale ones."""
     servers = [{"id": "stale", "hostname": "coops-model", "instance_id": "i-dead"},
                {"id": "live", "hostname": "coops-model", "instance_id": EC2["instance_id"]}]
@@ -150,7 +150,7 @@ def test_nothing_happens_for_an_unlaunched_instance_or_without_applies(world, mo
 
 
 def test_a_machine_that_is_off_is_left_off(world, monkeypatch, caplog):
-    """Stage 57: an alias is not worth starting a machine for."""
+    """An alias is not worth starting a machine for."""
     f = Fakes(monkeypatch, state=ps.STOPPED, servers=[OWN])
     _launched(world.ctx)
     with caplog.at_level("INFO"):
@@ -241,7 +241,7 @@ def _fresh(ctx, name="test") -> None:
 
 
 def test_a_machine_launched_this_run_is_waited_for_before_its_aliases_are_written(world, monkeypatch):
-    """The first live replacement (2026-09-22) wrote nothing: the pass ran
+    """The first live replacement wrote nothing: the pass ran
     within a minute of the apply, before the session agent and sftd's
     enrollment. Now it waits for the machine to answer and for its
     registration to appear, then writes once."""

@@ -46,7 +46,7 @@ def hcl_value(v: Any) -> Any:
     if isinstance(v, (Raw, QString)):
         return v
     if isinstance(v, str):
-        # stage 49: a decrypted value is emitted as the ciphertext it was read
+        # a decrypted value is emitted as the ciphertext it was read
         # from; `materialize` substitutes the text into the private copy the
         # tools run from, so the committed HCL never carries the plaintext.
         v = emit(v)

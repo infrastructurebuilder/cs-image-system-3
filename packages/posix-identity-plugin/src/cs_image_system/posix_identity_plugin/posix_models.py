@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""The posix identity plugin's builder models (stage 75): a group builder and
+"""The posix identity plugin's builder models: a group builder and
 a user builder, both ``type: posix``, both without a terraform root -- the
 accounts they describe live on the machines, written there by the bake (a
 group) and by the accounts script after launch (users, memberships, keys,
@@ -10,7 +10,7 @@ sudo)."""
 
 from __future__ import annotations
 
-from pydantic.dataclasses import dataclass  # stage 23: validation at construction
+from pydantic.dataclasses import dataclass  # validation at construction
 
 from cs_image_system.base.models.group_builder import GroupBuilderModel
 from cs_image_system.contract.model_config import CSIS_MODEL_CONFIG

@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""Stage 70 step 4: the AWS section of the bootstrap -- contributed by the AWS
+"""The AWS section of the bootstrap -- contributed by the AWS
 plugin through the entry-point group; every "existing" question a fork whose
 default is a probe of the account (refused by name under --quiet when the
 account cannot be asked, and a starter's placeholders are no defaults); roles
@@ -141,7 +141,7 @@ def test_the_forks_follow_the_account_and_the_subject_forms_follow_the_ids(tmp_p
 
 
 def test_the_defaults_look_in_every_cfg_file_as_the_loader_does(tmp_path: Path):
-    """Found live on 2026-10-01: the reference configuration keeps its DEFAULT
+    """Found live: the reference configuration keeps its DEFAULT
     state backend in cfg/state-backends-2.yml beside a non-default one in
     cfg/state-backends.yml; reading the canonical file alone named the wrong
     bucket, absent, and the root would have created it."""
@@ -161,7 +161,7 @@ def test_the_defaults_look_in_every_cfg_file_as_the_loader_does(tmp_path: Path):
 
 
 def test_adopting_a_role_keeps_the_other_subjects_it_already_trusted(tmp_path: Path):
-    """Found by the first live plan of an adoption (2026-10-01): the reference
+    """Found by the first live plan of an adoption: the reference
     account's READ-ONLY role also serves the system's own repository, and a
     module that trusts one repository would have removed it and broken that
     repository's CI. Adoption never narrows a role silently."""
@@ -182,7 +182,7 @@ def test_adopting_a_role_keeps_the_other_subjects_it_already_trusted(tmp_path: P
     assert all(f'"{s}"' in tfvars for s in theirs) and re.search(r"aws_write_extra_subjects\s*=\s*\[\]", tfvars)
     readme = (out / "README.md").read_text()
     assert "`repo:acme/other:*`" in readme                                      # the other repository's subject, kept
-    # hygiene XII item 23: an adopted role is the root's to destroy, and the README says so before the plan does
+    # an adopted role is the root's to destroy, and the README says so before the plan does
     assert "## What a destroy would take" in readme
     assert "`csis-github-readonly`, adopted by import" in readme and "`repo:acme@4242/other@111:*`" in readme
     assert "`csis-github-apply`, adopted by import" in readme

@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""Links in a starter that lead out of it (hygiene XV item 1; stage 66).
+"""Links in a starter that lead out of it.
 
 A starter's Markdown is written where it lives, under ``docs/examples/<name>``
 in the system repository, and links into that repository by relative path

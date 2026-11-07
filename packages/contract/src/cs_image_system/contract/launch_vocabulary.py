@@ -44,7 +44,7 @@ _HOSTNAME_LABEL = re.compile(r"^[A-Za-z0-9]([A-Za-z0-9-]*[A-Za-z0-9])?$")
 def hostname_problems(name: str) -> list[str]:
     """Why ``name`` cannot be an OS hostname / a directory provider's
     canonical name; empty when it can. Each reason is a clause that follows
-    the name in a sentence. The contract's (stage 125): a rule over a string
+    the name in a sentence. The contract's: a rule over a string
     and the constant above, read by the core and by the identity plugin that
     writes a machine's aliases."""
     out: list[str] = []

@@ -2,13 +2,13 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""Stage 56 steps 4 and 5: the login proof logs into each standing instance
+"""The login proof logs into each standing instance
 over `sft ssh` through the managed CI policy and records the verdict. A
 stopped machine is a skip and is never started; a silent registry, a
 duplicate hostname, a name the client cannot resolve and a refused login
 are each a named failed check; a group without workload names has nothing
 to prove. The client is stubbed at `run_sft` (in the Okta plugin's
-`sft_login` since stage 75); the registry and the power state at the
+`sft_login`); the registry and the power state at the
 builder seams.
 """
 from __future__ import annotations
@@ -50,7 +50,7 @@ def world(tmp_path: Path, monkeypatch):
         world["calls"].append(list(args))
         world.setdefault("envs", []).append(dict(env or {}))
         return world["sft"].get(args[0], (0, "uid=1001(cs-image-system-ci) gid=1001 groups=1001\ntest-001\n"))
-    monkeypatch.setattr(sft_login, "run_sft", fake_sft)   # stage 75 step 2: the client seam moved to the plugin
+    monkeypatch.setattr(sft_login, "run_sft", fake_sft)   # the client seam is the plugin's
     monkeypatch.setenv("OPA_TOKEN", "opa-token")
     try:
         yield run, world
@@ -100,7 +100,7 @@ def test_a_silent_registry_is_a_failed_check_not_one_server(world):
 
 def test_an_expired_client_session_is_named_not_silent(world):
     run, w = world
-    w["sft"]["resolve"] = (126, "")            # --quiet forbade the browser step (live 2026-09-22)
+    w["sft"]["resolve"] = (126, "")            # --quiet forbade the browser step (seen live)
     records = lp.login_proof(run.ctx, ["test"], record_only=True)
     resolves = records[0]["checks"][1]
     assert not resolves["ok"] and "sft login" in resolves["detail"] and "OPA_TOKEN" in resolves["detail"]
@@ -147,7 +147,7 @@ def test_workload_facts_come_from_the_builder(world):
 
 
 def test_as_the_workload_the_client_is_handed_the_team_and_the_address(world, monkeypatch):
-    """Hygiene VIII item 1: the client reads SFT_TEAM and OPA_ADDR from its
+    """The client reads SFT_TEAM and OPA_ADDR from its
     environment for every command; as the workload nothing else sets them."""
     run, w = world
     monkeypatch.delenv("SFT_TEAM", raising=False)

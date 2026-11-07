@@ -2,12 +2,12 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""Stage 124: the run context and the registry are identity objects. A model
+"""The run context and the registry are identity objects. A model
 copy shares them; it never clones the run.
 
-Found on this stage's first acceptance run (2026-11-05): a builder's
+Found on the first acceptance run of the passed run context: a builder's
 ``get_executable_copy`` deep-copies the executable, the executable holds the
-registry, the registry holds the builders, and since stage 124 a builder holds
+registry, the registry holds the builders, and a builder holds
 its bound context -- so the copy cloned the whole run, for hours and tens of
 gigabytes. The two ``__deepcopy__`` hooks below are what stop that; this test
 is their guard."""

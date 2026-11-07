@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""AWS parity for the sanctioned paths (stage 11.1): the AWS runtime answers
+"""AWS parity for the sanctioned paths: the AWS runtime answers
 the booted-image query, disposes of an AMI (deregister + snapshots) and
 verifies a launched instance over SSM, so `dispose image` works for AMIs
 and an AWS instance may be declared ephemeral.
@@ -147,7 +147,7 @@ def test_an_aws_instance_may_be_ephemeral(tmp_path, monkeypatch):
         run.restore_cwd()
 
 
-# ------------------------------------------------------ restamp (stage 11.2)
+# ------------------------------------------------------------------ restamp
 
 def test_restamp_records_the_current_fingerprint_on_heads_and_retags(tmp_path, monkeypatch):
     from cs_image_system.base.commands.restamp import restamp, restamp_plan
@@ -225,7 +225,7 @@ def _real_images(dask_parent="series-basic-rh-10", dask_fp="293d6de5ab5f3b4f"):
 
 
 def test_relabel_retags_only_the_images_whose_tags_disagree_with_their_record(tmp_path, monkeypatch):
-    """The live 2026-09-08 case: a follow image baked in the same run as its
+    """The live case: a follow image baked in the same run as its
     parent kept packer's generation-time labels (`series-…` parent, a
     placeholder fingerprint); its record is the truth, so relabel re-tags it
     and leaves the consistent base image alone."""
@@ -246,7 +246,7 @@ def test_relabel_retags_only_the_images_whose_tags_disagree_with_their_record(tm
         assert retags[-1] == ("dask-1", {"csis_series": "imgfile-basic-dask", "csis_parent": "base-1",
                                          "csis_run": "2026_09_08t12_48_23_888542",
                                          "csis_fingerprint": "1733b718d8c52101",
-                                         "csis_config": "cs-image-action-test"})    # stage 82
+                                         "csis_config": "cs-image-action-test"})    # the owning configuration
         monkeypatch.setattr(GCPCloudBuilder, "query_images",
                             lambda self, series: _real_images("base-1", "1733b718d8c52101"))
         assert relabel_plan(run.ctx, "gcloud-east1") == []                 # reality now matches

@@ -5,7 +5,7 @@
 import re
 from dataclasses import field
 from cs_image_system.contract.model_config import CSIS_MODEL_CONFIG
-from pydantic.dataclasses import dataclass  # stage 23: validation at construction
+from pydantic.dataclasses import dataclass  # validation at construction
 from pathlib import Path
 from typing import Any
 
@@ -31,8 +31,8 @@ def _mode_text(mode: Any) -> str:
     """A file mode as the four-digit octal text ``install -m`` takes.
 
     YAML reads an unquoted ``0644`` as the integer 420, so an integer is
-    rendered back in octal (stage 63 item 16, decided 2026-09-25); a
-    string must already be three or four octal digits."""
+    rendered back in octal; a string must already be three or four octal
+    digits."""
     if isinstance(mode, bool):
         raise ValueError(f"mode {mode!r} is not a file mode")
     if isinstance(mode, int):
@@ -74,8 +74,8 @@ def _entries(label: str, kind: str, value: Any, allowed: set[str], required: str
 
 
 def validate_ensure(label: str, ensure: Any) -> dict[str, Any]:
-    """Every ``ensure`` entry checked at load, one rule per kind (stage 63
-    item 16). A valid mapping comes back UNCHANGED except that an integer
+    """Every ``ensure`` entry checked at load, one rule per kind. A valid
+    mapping comes back UNCHANGED except that an integer
     file mode becomes its octal text: the lineage fingerprint hashes this
     mapping, so a tree that was already valid keeps every fingerprint.
 
@@ -171,7 +171,7 @@ class BashModItemModel(ModItemModel):
         pkgs = [str(p) for p in self.ensure.get("packages", []) or []]
         if pkgs:
             joined = " ".join(pkgs)
-            # stage 63 item 16: the FIRST package manager that exists installs,
+            # the FIRST package manager that exists installs,
             # and its failure is the failure (the old chain fell through dnf,
             # yum and apt-get, so an EL host showed `apt-get: command not found`)
             out.append(f"for p in {joined}; do rpm -q \"$p\" >/dev/null 2>&1 || dpkg -s \"$p\" >/dev/null 2>&1 || "
@@ -202,7 +202,7 @@ class BashBuilderModel(ModBuilderModel):
     """Dataclass representing a Bash script modification.
     """
     type = BASH_BUILDER
-    # stage 63: when set, every item's lines run as this user -- the shell
+    # when set, every item's lines run as this user -- the shell
     # provisioner's execute_command becomes `sudo su - <user> -c '...'`, so the
     # bake user only launches them. Declaring it with execute_command is
     # refused (one of the two decides how the script runs).

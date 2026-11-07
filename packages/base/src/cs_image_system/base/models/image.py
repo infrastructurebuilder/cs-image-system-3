@@ -8,7 +8,7 @@ import copy
 from dataclasses import field
 from cs_image_system.contract.model_config import CSIS_MODEL_CONFIG
 from pydantic import Field
-from pydantic.dataclasses import dataclass  # stage 23: validation at construction
+from pydantic.dataclasses import dataclass  # validation at construction
 import logging
 from typing import Annotated, Any
 
@@ -68,7 +68,7 @@ class ImageImageBuilderSubconfig(NameTyped, ParentPropertyHolding):
 
     owners: list[str] = field(default_factory=list)
 
-    # stage 105: the declared PREFIX of this image's build names on this
+    # the declared PREFIX of this image's build names on this
     # runtime; the timestamp below is always appended. Declared before
     # `_final_name` so the resolver renders it first.
     output_image_name: str | None = None
@@ -94,7 +94,7 @@ class ImageImageBuilderSubconfig(NameTyped, ParentPropertyHolding):
         if self.image_builder in OOPS_DEFAULTS:
             # No image_builder given: fall back to the registered default so the
             # subconfig gets a real identity (name/type derive from it below).
-            dflt = current_registry().get_default_for(VCT.IMAGE_BUILDER_MODEL)  # a model holds no context (stage 124 shim)
+            dflt = current_registry().get_default_for(VCT.IMAGE_BUILDER_MODEL)  # a model holds no context
             if dflt:
                 self.image_builder = dflt
         self.type_ = self.image_builder # There maybe needs to be a type specified
@@ -199,17 +199,17 @@ class Image(RootItem, SelfInjectedName):
     # source image is either SELF, as a base image, some some other Image that eventually is source_image == SELF
     source_image: str| None  = None
     auto_update: bool | None = None
-    # Convergent bakes (stage 9): how this image follows its parent series.
+    # Convergent bakes: how this image follows its parent series.
     # pinned (N17, default): bakes FROM the pinned parent build until an explicit
     # `upgrade image`; follow: a newer parent head re-bakes this image from it and
     # moves the pin (recorded as op: follow).
     parent_policy: str = "pinned"
-    # Image retention (stage 10.3): {keep: N} = the newest N builds of this series
+    # Image retention: {keep: N} = the newest N builds of this series
     # on a runtime survive; older ones are disposed by the closing `retention`
     # lifecycle (never a build an instance is pinned to or launched from -- those
     # are retention debt). None = the runtime's retention_keep, else keep all.
     retention: dict[str, Any] | None = None
-    # Declared release intent (stage 14, ledger 71): {model: <m>} -- a build of
+    # Declared release intent: {model: <m>} -- a build of
     # this image whose post-bake tests PASSED in a run is released for the
     # model by the `release` lifecycle of that same run (between the
     # instance-image lifecycle that verified it and the closing `retention`,
@@ -232,7 +232,7 @@ class Image(RootItem, SelfInjectedName):
     modifications: list[dict[str,Any]] = deferred_list_field(builder_vct=VCT.MOD_BUILDER_MODEL,
                                                              item_vct=VCT.MOD_BUILDER_ITEM_MODEL)
     tags: dict[str, str] = field(default_factory=dict)
-    # V2 (Q4, §3F2): an instance image belongs to exactly ONE group. The
+    # V2 (Q4, DESIGN §3F): an instance image belongs to exactly ONE group. The
     # group name is system-unique, so it alone identifies the backing
     # identity-manager type; every instance of this image shares the group.
     group: str | None = None
@@ -313,7 +313,7 @@ class Image(RootItem, SelfInjectedName):
         if not self._image_builder:
             if self.source_image:
                 log.debug(f"Image {self.name} has source image {self.source_image} specified, using this to determine image builder.")
-                reg = current_registry()  # a model holds no context (stage 124 shim)
+                reg = current_registry()  # a model holds no context; the current registry is the one
                 inst = reg.get_all_instances_by_classification(VCT.IMAGE_MODEL)
                 if self.source_image in inst:
                     source_image = inst[self.source_image]
@@ -326,7 +326,7 @@ class Image(RootItem, SelfInjectedName):
                     log.warning(f"Source image {self.source_image} for image {self.name} not found in registry. Cannot determine image builder for {self.name}.")
 
             if self._osbuilder:
-                # a model holds no context (stage 124): the process's current one, through the shim
+                # a model holds no context: the process's current one is the one
                 ctx = current_context().image_builders
                 ib = ctx.get(self._osbuilder.model.get_image_builder(), None)
                 if not ib:

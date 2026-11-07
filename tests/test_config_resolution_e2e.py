@@ -3,9 +3,9 @@
 # SPDX-License-Identifier: Apache-2.0
 
 """End-to-end characterization of the config-load pipeline over the frozen
-fixture's cfg/ (``tests/fixtures/config``, stage 28).
+fixture's cfg/ (``tests/fixtures/config``).
 
-Stage 32 retired the loader's base-only mode (it read no item kinds and no
+The loader has no base-only mode (it read no item kinds and no
 command could request it); these tests load the whole tree.
 """
 import os
@@ -22,7 +22,7 @@ REPO = Path(__file__).resolve().parents[1]
 
 
 def _reset_gtc_singleton():
-    """Drop the process's current run context (stage 124: the context is no
+    """Drop the process's current run context (the context is no
     singleton -- every load makes a new one -- but the one-release shim
     ``current_context()`` still remembers the last, and a test must not see
     an earlier test's)."""
@@ -55,11 +55,11 @@ def no_cloud(monkeypatch):
     # The Okta workspace's finalization asserts its TF_VAR_* credentials exist
     # (okta_tf_workspace._require_tfvar); the V2 harness stubs them, and so
     # must these tests -- they had inherited them from the developer's shell,
-    # which is why CI never passed (stage 18).
+    # which is why CI never passed.
     monkeypatch.setenv("OKTA_API_PRIVATE_KEY", "dummy")
     monkeypatch.setenv("TF_VAR_nos_coastal_modeling_cloud_sandbox_key", "dummy")
     monkeypatch.setenv("TF_VAR_nos_coastal_modeling_cloud_sandbox_secret", "dummy")
-    monkeypatch.setenv("CSIS_CONFIG_IDENTITY", str(FIXTURE_CONFIG / ".age-identity"))   # stage 33
+    monkeypatch.setenv("CSIS_CONFIG_IDENTITY", str(FIXTURE_CONFIG / ".age-identity"))   # the fixture's TEST identity
     from cs_image_system.aws_runtime import aws_utils
     vpcs = ["vpc-0c78d0d63b7a100df", "vpc-0381e9f82c9ae68e7", "default"]
     monkeypatch.setattr(aws_utils, "get_vpc_map_and_default_vpc_id",
@@ -89,7 +89,7 @@ def test_pipeline_loads_and_resolves_builders(monkeypatch, cwd_guard, tmp_path):
     monkeypatch.setenv("USER", "testuser")
     from cs_image_system.base.loader import load_plugins
     from cs_image_system.base.orchestrator import Orchestrator, TemplateResolver
-    # stage 124: the loader makes the run's registry; the resolver's map is
+    # the loader makes the run's registry; the resolver's map is
     # still process-wide, so an earlier test's load must not be in it
     TemplateResolver().flattened_map = {}
     Orchestrator().invalidate_converter()
@@ -97,7 +97,7 @@ def test_pipeline_loads_and_resolves_builders(monkeypatch, cwd_guard, tmp_path):
     from cs_image_system.base.global_context import read_config_and_transform
 
     # over a COPY: loading creates the generation directories where it runs,
-    # and the frozen fixture must never be written into (stage 28)
+    # and the frozen fixture must never be written into
     cntx = types.SimpleNamespace(obj={})
     ctx = read_config_and_transform(cast(Any, cntx), copy_config(tmp_path), False)
 
@@ -137,9 +137,9 @@ def test_string_stage_resolves_config_document(monkeypatch):
     # stage carries a ciphertext through as the text it is, never a plaintext
     keys = out["config"]["admin_public_keys"]
     assert keys and all(isinstance(k, str) and k.startswith("ENC[age:") for k in keys), keys
-    # stage 22.6: these assertions used to ride on the fixture's
-    # `output_image_name`, which stage 22.3 commented out (stage 105 made it
-    # real, without the timestamp). Template scoping is a property of the
+    # these assertions used to ride on the fixture's `output_image_name`,
+    # which was commented out for a while (it is real now, without the
+    # timestamp). Template scoping is a property of the
     # engine, not of any one configuration key, so the test owns its input
     # and cannot be broken again by a fixture edit.
     probe = string_stage({
@@ -171,7 +171,7 @@ def test_image_to_source_emits_psi_backed_data_block(monkeypatch, cwd_guard, tmp
     from cs_image_system.base.registry import bind_current_registry
     from cs_image_system.base.orchestrator import Orchestrator, TemplateResolver
 
-    bind_current_registry(None)          # stage 124: the loader makes the run's registry
+    bind_current_registry(None)          # the loader makes the run's registry
     TemplateResolver().flattened_map = {}
     Orchestrator().invalidate_converter()
 
@@ -190,11 +190,11 @@ def test_image_to_source_emits_psi_backed_data_block(monkeypatch, cwd_guard, tmp
 
     # This test's premise is a base image that still NEEDS a bake (an
     # os-resolved base attached to the image builder). Since convergent bakes
-    # (stage 9) a current series head is skipped, and the live meta-state
-    # records real AWS heads for every base (the last one, basic-rh-10@aws,
-    # baked 2026-09-09) -- work on a copy with the lineage/pins stripped,
+    # a current series head is skipped, and the live meta-state
+    # records real AWS heads for every base (the last one, basic-rh-10@aws)
+    # -- work on a copy with the lineage/pins stripped,
     # like the execution-run test below. (The frozen fixture carries no
-    # meta-state at all since stage 28; the strip is kept as the guard.)
+    # meta-state at all; the strip is kept as the guard.)
     import shutil
     import types
     root = tmp_path / "config"
@@ -246,7 +246,7 @@ def test_execution_run_defers_base_images_no_query_no_build(monkeypatch, cwd_gua
     from cs_image_system.base.registry import bind_current_registry
     from cs_image_system.base.orchestrator import Orchestrator, TemplateResolver
 
-    bind_current_registry(None)          # stage 124: the loader makes the run's registry
+    bind_current_registry(None)          # the loader makes the run's registry
     TemplateResolver().flattened_map = {}
     Orchestrator().invalidate_converter()
     _reset_gtc_singleton()
@@ -266,11 +266,11 @@ def test_execution_run_defers_base_images_no_query_no_build(monkeypatch, cwd_gua
     monkeypatch.setattr(DockerContainerBuilder, "query_provider_image", _no_query)
 
     # This test's premise is a FRESH system (no pins): since the first live
-    # bake (2026-08-31), the live tree's committed meta-state recorded real
+    # bake, the live tree's committed meta-state recorded real
     # builds, and a chained image would correctly pin to the series head
     # (N17) instead of emitting the deferred name-pattern lookup. Work on a
-    # copy with the lineage/pins stripped (the frozen fixture carries none
-    # since stage 28; the strip is kept as the guard).
+    # copy with the lineage/pins stripped (the frozen fixture carries none;
+    # the strip is kept as the guard).
     import shutil
     root = tmp_path / "config"
     shutil.copytree(FIXTURE_CONFIG, root,

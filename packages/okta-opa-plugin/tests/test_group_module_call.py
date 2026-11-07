@@ -81,7 +81,7 @@ def _bare_model(gateway_selector):
 
 def test_effective_gateway_selector_falls_back_to_config(monkeypatch):
     import cs_image_system.okta_opa_plugin.okta_tf_models as otm
-    monkeypatch.setattr(otm, "current_context",   # stage 124: the model reads the current context
+    monkeypatch.setattr(otm, "current_context",   # the model reads the current context
                         lambda: SimpleNamespace(config={"okta_gateway_selector": "environment=staging"}))
     assert _bare_model(None).effective_gateway_selector == "environment=staging"
     # An explicit model value always wins over config.
@@ -96,7 +96,7 @@ def test_effective_gateway_selector_none_when_config_unset(monkeypatch):
 
 
 def test_model_account_discovery_defaults_true():
-    """Pins the OktaGroupBuilderModel field default (changed 2026-07-10)."""
+    """Pins the OktaGroupBuilderModel field default."""
     import dataclasses
     from cs_image_system.okta_opa_plugin.okta_tf_models import OktaGroupBuilderModel
     fields = {f.name: f for f in dataclasses.fields(OktaGroupBuilderModel)}

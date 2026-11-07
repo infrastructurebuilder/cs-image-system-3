@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""The docker runtime's builder (stage 103): every hook the core asks a
+"""The docker runtime's builder: every hook the core asks a
 runtime for, answered against a daemon that speaks the Docker Engine API
 through the ``docker`` CLI. Images live in the daemon's own store; a build
 is its image id, its names are tags, and what a label cannot say after the
@@ -206,7 +206,7 @@ class DockerContainerBuilder(ContainerBuilderBase[DockerContainerBuilderModel], 
                 "Architecture": info.get("Architecture"), "Os": info.get("Os"),
                 "Labels": dict(cfg.get("Labels") or {}), "Size": info.get("Size")}
 
-    # ------------------------------------------------- the image query (stage 106)
+    # ------------------------------------------------------------- the image query
     def supported_query_keys(self) -> frozenset[str]:
         return DOCKER_QUERY_KEYS
 
@@ -215,7 +215,7 @@ class DockerContainerBuilder(ContainerBuilderBase[DockerContainerBuilderModel], 
 
     #: This runtime's part of the release-owned image-source catalog: the
     #: `docker` blocks, shipped as this package's ``data/image-sources.yml``
-    #: (the core reads the file; stage 125); the local modification tests
+    #: (the core reads the file); the local modification tests
     #: read their stand-in container from them.
     image_source_package = "cs_image_system.docker_runtime"
 
@@ -435,7 +435,7 @@ class DockerContainerBuilder(ContainerBuilderBase[DockerContainerBuilderModel], 
         """``docker inspect`` of the container bearing the instance's name
         (a container's name is unique on a daemon), None when none stands;
         a container of our name that another configuration labelled as its
-        own is not ours (stage 93) and reads as absent."""
+        own is not ours and reads as absent."""
         res = self._docker("container", "inspect", instance_name, check=False)
         if res.returncode != 0:
             err = (res.stderr or "").lower()
@@ -455,7 +455,7 @@ class DockerContainerBuilder(ContainerBuilderBase[DockerContainerBuilderModel], 
     def launch_delivery(self) -> str:
         """A container has no first boot: the instance root uploads the
         launch script at creation and the system runs it by exec after the
-        apply (decision 2 of stage 103)."""
+        apply."""
         return LAUNCH_DELIVERY_SESSION
 
     def instance_tags(self, instance_name: str) -> dict[str, str] | None:
@@ -537,7 +537,7 @@ class DockerContainerBuilder(ContainerBuilderBase[DockerContainerBuilderModel], 
 
     def run_session_command(self, instance_name: str, script: str, timeout: int = 300) -> tuple[int, str]:
         """``docker exec`` as root, the script on stdin (``bash -s``): the
-        session mechanism of a container (decision 3 of stage 103)."""
+        session mechanism of a container."""
         cmd = [self.docker_binary(), "exec", "-i", "-u", "root", instance_name, "bash", "-s"]
         try:
             res = subprocess.run(cmd, input=script, capture_output=True, text=True, check=False, timeout=timeout,

@@ -1,6 +1,6 @@
-# GCE change cycle, launch leg (stage 8): the cycle's instance, declared for
+# GCE change cycle, launch leg: the cycle's instance, declared for
 # this invocation only, and the GCE instance root allowed to apply. Nothing
-# else applies (per-root scoping, stage 7): the AWS root plans and gates.
+# else applies (per-root scoping): the AWS root plans and gates.
 config:
   apply_instances: [gcloud-east1]
 instances:

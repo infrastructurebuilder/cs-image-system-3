@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""The closing ``retention`` lifecycle (stage 10.3-6).
+"""The closing ``retention`` lifecycle.
 
 Registered after ``release``, so it runs last: its one deferred step applies
 the declared retention -- ``dispose image --retention`` -- which at EXECUTION
@@ -13,10 +13,10 @@ on an ``ephemeral: true`` runtime. Builds an instance is pinned to or was
 launched from are never disposed (retention debt, reported). A dry run
 enumerates the step; a failed earlier lifecycle stops the run before it.
 
-Declared storages are never touched here (operator rule, stage 10.15). A
-storage a test declared through an overlay is transient: its destroy is
-planned by the next run that omits the overlay (stage 10.11); this lifecycle
-only reports such storages standing on an ephemeral runtime.
+Declared storages are never touched here (an operator rule). A storage a
+test declared through an overlay is transient: its destroy is planned by
+the next run that omits the overlay; this lifecycle only reports such
+storages standing on an ephemeral runtime.
 """
 from __future__ import annotations
 
@@ -46,7 +46,7 @@ def ephemeral_runtimes(ctx: "GlobalTypeContext") -> list[str]:
 def after_generate(ctx: "GlobalTypeContext", lifecycle: LifecycleLike) -> None:
     if lifecycle.value != RETENTION_LIFECYCLE.name:
         return
-    # stage 45: a run scoped to one runtime (--only-runtime, or --apply-runtime
+    # a run scoped to one runtime (--only-runtime, or --apply-runtime
     # implying it) disposes within that runtime alone -- CI performs on the
     # perform runtime with an identity that must never write to the other one
     scope = getattr(ctx, "only_runtime_scope", None)
@@ -55,10 +55,10 @@ def after_generate(ctx: "GlobalTypeContext", lifecycle: LifecycleLike) -> None:
         log.warning(f"retention debt: {b.get('build_id')} ({b.get('series')}@{b.get('runtime')}) "
                     f"is beyond retention but {why}")
     # transient storages (declared by an overlay) standing on an ephemeral
-    # runtime are destroyed by THIS run's closing phase (stage 11.4): the
-    # storage lifecycle runs again as a deferred step WITHOUT the declaring
+    # runtime are destroyed by THIS run's closing phase: the storage
+    # lifecycle runs again as a deferred step WITHOUT the declaring
     # overlays, so they are undeclared there and planned as whitelisted
-    # destroys (§10.11); config-only overlays and --apply-runtime carry over
+    # destroys; config-only overlays and --apply-runtime carry over
     transient_on_ephemeral = transient_storages_on_ephemeral_runtimes(ctx)
     for name, rt in transient_on_ephemeral:
         log.info(f"retention: storage {name!r} was declared by an overlay on ephemeral runtime {rt}; "

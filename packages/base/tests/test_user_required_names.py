@@ -20,7 +20,7 @@ def test_user_with_both_names_constructs():
 
 
 def test_missing_names_raise_at_construction():
-    # stage 23: the contract is that construction FAILS, not which exception
+    # the contract is that construction FAILS, not which exception
     # class carries it. A dataclass raised TypeError for a missing argument;
     # pydantic raises its own ValidationError. Both are accepted so the test
     # asserts the behaviour rather than the framework.
@@ -58,8 +58,8 @@ def test_email_shaped_name_cannot_corrupt_last_name():
 
 
 def test_user_missing_names_fails_to_structure(converter_ready):
-    """YAML without first_name/last_name must fail structuring (stage 23: the
-    mapper is pydantic, so the refusal arrives as its ValidationError)."""
+    """YAML without first_name/last_name must fail structuring (the mapper
+    is pydantic, so the refusal arrives as its ValidationError)."""
     import pytest as _pytest
     from pydantic import ValidationError
 

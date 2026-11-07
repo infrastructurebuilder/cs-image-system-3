@@ -61,7 +61,7 @@ class UserBuilderBase(BuilderBase[TUSER], UserBuilderProtocol):
         """Get the users for a builder from the provider."""
         return self.local_users
 
-    # ------------------------------------------ POSIX ids (stage 75 step 3)
+    # ------------------------------------------------------------ POSIX ids
     def posix_id_claims(self) -> list[Any]:
         """What this builder knows about POSIX ids: ``posix_ids.Claim`` per
         group or user name (an id, the name only, or an id it will supply

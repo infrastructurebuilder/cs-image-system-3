@@ -6,7 +6,7 @@ from typing import Annotated, Any
 from dataclasses import field
 from pydantic import field_validator, Field
 from cs_image_system.contract.model_config import CSIS_MODEL_CONFIG
-from pydantic.dataclasses import dataclass  # stage 23: validation at construction
+from pydantic.dataclasses import dataclass  # validation at construction
 import logging
 
 from ..encryption import EncryptedStr
@@ -49,7 +49,7 @@ class User(RootItem, SelfInjectedName, ParentPropertyHolding):
     # Required (no default): a missing value fails structuring/construction.
     # Note the "required": True *metadata* used elsewhere is not enforcement --
     # it only back-fills defaults (see orchestrator.field_is_required).
-    # stage 33: a user's identifying fields may be declared encrypted (ENC[age:...]);
+    # a user's identifying fields may be declared encrypted (ENC[age:...]);
     # `name` re-declared from NameTyped so the username can be too
     name: EncryptedStr
     first_name: EncryptedStr
@@ -70,7 +70,7 @@ class User(RootItem, SelfInjectedName, ParentPropertyHolding):
     # Provider attributes to hold on the identity (e.g. OPA unix_uid,
     # unix_user_name); names/types validated by the user builder's plugin.
     attributes: dict[str, Any] | None = None
-    # stage 75: a POSIX uid the configuration declares (the posix user builder);
+    # a POSIX uid the configuration declares (the posix user builder);
     # the twin of Group.gid. None: no id declared here (another side may own it)
     uid: int | None = None
     public_keys: list[str] = field(default_factory=list)
@@ -85,7 +85,7 @@ class User(RootItem, SelfInjectedName, ParentPropertyHolding):
     @field_validator("first_name", "last_name", mode="before")
     @classmethod
     def _names_are_non_blank_strings(cls, val: Any, info: Any) -> Any:
-        """stage 23 step 2: keep this model's own wording for a None or a
+        """Keep this model's own wording for a None or a
         non-string. Pydantic validates types before __post_init__, so without
         this the domain message below is replaced by a generic type error."""
         if not isinstance(val, str) or not val.strip():
@@ -102,7 +102,7 @@ class User(RootItem, SelfInjectedName, ParentPropertyHolding):
                 f"Aliases are not allowed for User items. Found aliases: "
                 f"{self.aliases} in {self.name}."
             )
-        # stage 23 step 2: the blank check below still runs for "" and "  ",
+        # the blank check below still runs for "" and "  ",
         # which are valid strings. A None (or any non-string) is caught by the
         # field validator above instead, because pydantic's type check runs
         # BEFORE __post_init__ and would otherwise replace this wording with a

@@ -4,7 +4,7 @@
 
 from __future__ import annotations
 from cs_image_system.contract.model_config import CSIS_MODEL_CONFIG
-from pydantic.dataclasses import dataclass  # stage 23: validation at construction
+from pydantic.dataclasses import dataclass  # validation at construction
 import logging
 log = logging.getLogger(__name__)
 

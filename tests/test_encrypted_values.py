@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""Stage 33: encrypted configuration values.
+"""Encrypted configuration values.
 
 A value anywhere in the tree may be ENC[age:<base64>]; a field declared
 EncryptedStr decrypts it at load with the identity in CSIS_CONFIG_IDENTITY,

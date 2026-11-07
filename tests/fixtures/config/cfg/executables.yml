@@ -1,5 +1,5 @@
 ---
-# Every entry is checked by `validate` and by every run (stage 48.1): the binary must exist
+# Every entry is checked by `validate` and by every run: the binary must exist
 # (an absolute path, or a name on PATH) and, when `version` is given, the version its checker
 # reads must satisfy the PEP 440 specifier set. The checker is looked up under the entry's
 # name first (packer, tofu, gcloud, aws-cli, ansible-playbook and bash have their own), then

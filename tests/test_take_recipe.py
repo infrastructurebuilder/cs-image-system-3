@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""Hygiene XXI item 3: ``just take <version>``, the recipe every starter's Justfile carries.
+"""``just take <version>``, the recipe every starter's Justfile carries.
 
 The walk of moving a tree onto a release was five boxes; it is one. These tests run the
 recipe for real, with git and just, in a throwaway pair of repositories (a bare origin and a
@@ -169,7 +169,7 @@ def test_refusals_come_before_any_change(world: World):
 
 
 def test_a_stale_venv_in_a_checkout_names_the_checkout_and_just_init(world: World, tmp_path: Path):
-    """Hygiene XXII item 1: CSIS points at <checkout>/.venv/bin/cs-image-system, whose venv answers
+    """CSIS points at <checkout>/.venv/bin/cs-image-system, whose venv answers
     with the version it was last synced to; the refusal says where, and which command."""
     venv_bin = tmp_path / "system-checkout" / ".venv" / "bin"
     venv_bin.mkdir(parents=True)
@@ -184,7 +184,7 @@ def test_a_stale_venv_in_a_checkout_names_the_checkout_and_just_init(world: Worl
 
 
 def test_a_failure_after_the_pin_is_written_puts_the_pin_back(world: World):
-    """Hygiene XXII item 2: the Google 503 of 2026-11-02 left .csis-version changed and the tree
+    """A Google 503 mid-take once left .csis-version changed and the tree
     dirty, and only `patched` got past the dirty tree. Now the same command runs again."""
     broken = world.take("0.1.6", STUB_VALIDATE_RC="1")
     assert broken.returncode == 1

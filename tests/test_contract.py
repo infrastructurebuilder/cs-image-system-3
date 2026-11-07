@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""Stage 30: the plugin contract is a package of protocols.
+"""The plugin contract is a package of protocols.
 
 The contract (``cs_image_system.contract``) imports nothing from the core
 and its kind modules import only what they declare; the core's base classes
@@ -31,24 +31,24 @@ from harness import FIXTURE_CONFIG, REPO, load_context, reset_singletons
 CONTRACT = REPO / "packages/contract/src/cs_image_system/contract"
 LEAVES = {"constants", "model_config", "fields", "field_kinds", "lifecycle", "lifecycles", "assets", "executables",
           "names", "hcl", "session", "commands",
-          # the vocabulary (stage 125): constants and types a plugin reads, importing nothing from the package
+          # the vocabulary: constants and types a plugin reads, importing nothing from the package
           "lineage_vocabulary", "launch_vocabulary", "storage_vocabulary", "identity_vocabulary", "power_state",
           "secrets", "bootstrap", "errors",
-          # the second wave (stage 125): the enrollment-kind registry a plugin fills when it loads
+          # the enrollment-kind registry a plugin fills when it loads
           "enrollment",
-          # the modules declaration (stage 126): one constant, importing nothing
+          # the modules declaration: one constant, importing nothing
           "modules"}
 # what each non-leaf module may import from the package, beside the leaves
 ALLOWED = {
     "core": set(),
     "metadata": {"core"},
     "testing": {"core", "runtime", "operating_system", "storage", "image", "instance", "modification", "group",
-                "user", "state"},          # protocol_for: the protocol each classification is held to (stage 125)
+                "user", "state"},          # protocol_for: the protocol each classification is held to
     "state": {"core"},
     "context": {"core", "runtime", "operating_system", "storage", "image", "instance", "modification", "group",
-                "user", "state"},          # the run context's protocol types the builder collections (stage 125)
-    "hooks": {"context"},                  # a hook is handed the run context (stage 125)
-    "image_sources": {"image"},            # the container reference is a rule over an ImageQuery (stage 125)
+                "user", "state"},          # the run context's protocol types the builder collections
+    "hooks": {"context"},                  # a hook is handed the run context
+    "image_sources": {"image"},            # the container reference is a rule over an ImageQuery
     "runtime": {"core", "image"},          # the provider-specific image's enums
     "operating_system": {"core"},
     "storage": {"core"},
@@ -112,10 +112,10 @@ def test_the_library_imports_only_the_contract():
 
 
 #: Sources outside the core that still name the kit's context class or
-#: import its module (stage 125): each entry says why, and goes when the
+#: import its module: each entry says why, and goes when the
 #: reason does. The two model methods fetch the process's current context
-#: because a model holds none (stage 124's shim); hygiene XXIV item 19
-#: empties this list.
+#: because a model holds none (the one-release shim); the open hygiene
+#: bundle empties this list.
 KIT_CONTEXT_EXCEPTIONS: tuple[tuple[str, str], ...] = (
     ("packages/docker-runtime-plugin/src/cs_image_system/docker_runtime/docker_provider_specific_image.py",
      "a model holds no context: the floating tag fetches the current one (stage 124 shim)"),
@@ -126,7 +126,7 @@ KIT_CONTEXT_EXCEPTIONS: tuple[tuple[str, str], ...] = (
 
 def test_no_plugin_names_the_kits_context():
     """A plugin, the terraform library and the terraform roots know the run
-    context as the contract's ``RunContextProtocol`` (stage 125): no source
+    context as the contract's ``RunContextProtocol``: no source
     of theirs names ``GlobalTypeContext`` or ``RunContext``, and none imports
     ``cs_image_system.base.run_context`` or ``.global_context``, beyond the
     committed exceptions (each the fetch a model makes because it holds no
@@ -246,7 +246,7 @@ def _core_pairs() -> list[tuple[type, type, set[str]]]:
         (Image, core.SelfInjectedNameProtocol, set()), (Instance, core.SubItemOverrideProtocol, set()),
         (RuntimeBuilderModel, runtime.RuntimeBuilderModelProtocol, MODEL),
         (CloudBuilderModel, runtime.CloudBuilderModelProtocol, MODEL),
-        (ContainerBuilderModel, runtime.ContainerBuilderModelProtocol, MODEL),      # stage 103
+        (ContainerBuilderModel, runtime.ContainerBuilderModelProtocol, MODEL),      # the container runtime's
         (RuntimeBuilderBase, runtime.RuntimeBuilderProtocol, set()),
         (OsBuilderModel, operating_system.OsBuilderModelProtocol, MODEL),
         (OsBuilderBase, operating_system.OsBuilderProtocol, set()),
@@ -265,7 +265,7 @@ def _core_pairs() -> list[tuple[type, type, set[str]]]:
 
 def _context_pairs() -> list[tuple[type, type, set[str]]]:
     """The run context, the meta-state, the provider-specific image and the
-    service adapters against the contract's context protocols (stage 125)."""
+    service adapters against the contract's context protocols."""
     from cs_image_system.base.config_loader import SERVICE_PAIRS
     from cs_image_system.base.meta_state import MetaState
     from cs_image_system.base.models.provider_specific_image import ProviderSpecificImage

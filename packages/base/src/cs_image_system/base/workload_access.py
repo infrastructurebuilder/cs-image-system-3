@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""Stage 56 step 3: after the identity lifecycle applied for real, every
+"""After the identity lifecycle applied for real, every
 managed group whose builder names the team's workload connection and role
 gets its CI login policy reconciled -- a copy of the group's user policy
 with the workload role as the only principal, created, updated or left

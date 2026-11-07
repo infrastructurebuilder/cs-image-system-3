@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""The Okta and OPA section of the bootstrap (stage 70 step 6; CI_SETUP.md 3.5).
+"""The Okta and OPA section of the bootstrap (CI_SETUP.md 3.5).
 
 A read-and-verify section with no terraform module, because by decision
 nothing in it is created: the OPA workload connection and role are made in

@@ -40,7 +40,7 @@ from typing import Annotated, Any
 
 import yaml
 from pydantic import Field, TypeAdapter
-from pydantic.dataclasses import dataclass  # stage 23: validation at construction
+from pydantic.dataclasses import dataclass  # validation at construction
 
 from cs_image_system.contract.image import ImageQuery
 from cs_image_system.contract.image_sources import (  # noqa: F401 - re-exported: the words are the contract's

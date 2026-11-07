@@ -152,6 +152,16 @@ commit on the bundle's branch.
     as a child process, because it needs a context loaded under other
     overlays; loading that second context in-process (the loader is
     offline now) would retire the last spawn (found by §127).
+28. Narration the §129 rule does not reach: `.github/workflows/*.yml`
+    and `scripts/*` (36 stage, bundle and date tokens between them, not
+    in §129's list); "ledger NN" references (21 in the sources and
+    tests, a numbering the rule's pattern does not name); the fixture
+    value `instances.yaml: description: ... (stage 128; ...)`, a value
+    the golden holds; and the comments of the fixture's four
+    modification files (`setup_dask.yml` and its kin), which the
+    emission copies and hashes, so cleaning them is a golden
+    regeneration. Extend the rule's areas and pattern, regenerate the
+    golden once (found by §129).
 
 **Acceptance**: each item its own commit; `just test` green after
 each; one squash, branch kept. Records: the squash; this section goes

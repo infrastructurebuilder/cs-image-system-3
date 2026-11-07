@@ -2,16 +2,16 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""One tofu process at a time (stage 43; a command of the CLI since stage 64).
+"""One tofu process at a time (a command of the CLI).
 
 OpenTofu's provider plugin cache (``TF_PLUGIN_CACHE_DIR``) is not safe under
 concurrent ``init``: a cycle that overlapped the bar's tests failed on it. So
 every invocation that may execute tofu takes ``cs-image-system --locked``,
 which holds a lock DIRECTORY under the cache (``mkdir`` is atomic) for the
 whole command and releases it however the command ends. A second holder is
-refused, loudly, with exit 75 (``EX_TEMPFAIL``) and the holder's pid. Until
-stage 64 this was ``scripts/with-tofu-lock``, a shell wrapper the recipes
-called; the exit code, the message and the lock's shape are unchanged.
+refused, loudly, with exit 75 (``EX_TEMPFAIL``) and the holder's pid. This
+used to be ``scripts/with-tofu-lock``, a shell wrapper the recipes called;
+the exit code, the message and the lock's shape are unchanged.
 """
 from __future__ import annotations
 

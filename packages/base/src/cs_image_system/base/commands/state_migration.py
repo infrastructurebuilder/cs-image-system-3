@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""The state migration operation (stage 46.4.3): ``run --no-dry-run
+"""The state migration operation: ``run --no-dry-run
 --migrate-state <workspace>``.
 
 Moving a deployed workspace's state is the one destructive thing in this
@@ -43,7 +43,7 @@ import logging
 import re
 from pathlib import Path
 from typing import Any
-from ..state_backup import (  # noqa: F401 - re-exported: the backup is the kit's own module (stage 125)
+from ..state_backup import (  # noqa: F401 - re-exported: the backup is the kit's own module
     STATE_BACKUP_DIRNAME, backup, pull_state, state_backup_dir, tofu_run)
 
 
@@ -77,8 +77,8 @@ def parse_backend_config(path: Path) -> dict[str, Any]:
 
 #: Keys of a state-location record that are the RECORD's, not the backend's:
 #: a backend file carries only what the backend type takes. ``location`` is the
-#: rendered form every record has carried since stage 47 (stage 63 item 6: it
-#: reached the previous-location file, which no backend could initialise).
+#: rendered form every record carries (it once reached the previous-location
+#: file, which no backend could initialise).
 RECORD_ONLY_KEYS = ("backend", "type", "run", "location")
 
 

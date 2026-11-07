@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""V2 bake-time provisioners for packer builds (DESIGN §3F1-F3, N9, N23).
+"""V2 bake-time provisioners for packer builds (DESIGN §3F1 to 3F3, N9, N23).
 
 Base images bake, in this order after the OS update: the mandatory local
 admin user with the operator-supplied public keys; every declared identity
@@ -39,8 +39,8 @@ def _quote(cmd: str) -> str:
 def shell_provisioner(ctx: "RunContextProtocol", source_label: str, comment: str, commands: Iterable[str],
                       indent: str = "  ", runner: bool = True) -> list[str]:
     """One ``provisioner "shell"`` block. Its script runs through the bake's
-    step runner (stage 86: a step that fails on a held package database is
-    run again; the line is the commands service's), which the settle step
+    step runner (a step that fails on a held package database is run
+    again; the line is the commands service's), which the settle step
     writes -- and so does not use itself."""
     cmds = [c for c in commands if c is not None]
     if not cmds:
@@ -58,8 +58,8 @@ def shell_provisioner(ctx: "RunContextProtocol", source_label: str, comment: str
 
 def settle_provisioner(ctx: "RunContextProtocol", source_label: str, runtime_name: str,
                        os_family: str | None = None) -> list[str]:
-    """The FIRST provisioner of every bake, base and instance image alike
-    (stage 86): the machine's own first-boot script has ended, whatever the
+    """The FIRST provisioner of every bake, base and instance image alike:
+    the machine's own first-boot script has ended, whatever the
     runtime says acts on a new machine has gone quiet, and the step runner
     is written. A build machine is not the bake's alone: the account's fleet
     management may be using the package database the next step needs."""
@@ -87,7 +87,7 @@ def admin_user_commands(user: str, keys: list[str]) -> list[str]:
         f"sudo rm -f /home/{user}/.ssh/authorized_keys",
     ]
     for key in keys:
-        # stage 49: emit() writes the ENC[age:...] the key was read from, when
+        # emit() writes the ENC[age:...] the key was read from, when
         # it was encrypted; materialize substitutes the key into the private
         # copy packer actually builds from, so the committed HCL has no key.
         cmds.append(f"echo '{emit(key)}' | sudo tee -a /home/{user}/.ssh/authorized_keys >/dev/null")

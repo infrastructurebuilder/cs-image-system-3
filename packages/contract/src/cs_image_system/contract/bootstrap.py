@@ -19,7 +19,7 @@ sets, and what remains by hand.
 
 The facts a default or a gate reads (the repository, the declared
 runtimes, a probe of an account) are gathered by the core from the checkout
-and reach these callables as a :class:`FactsProtocol` (stage 125): the
+and reach these callables as a :class:`FactsProtocol`: the
 members a section reads, and the questions it asks of them as methods on
 the object it is handed. Two rules over a value need no facts at all and
 are functions here: :func:`real` (a starter placeholder is no value) and
@@ -40,13 +40,13 @@ ENTRY_POINT_GROUP = "cs_image_system.bootstrap"
 Answers = dict[str, Any]
 KINDS = ("text", "bool", "choice", "path", "secret-path")
 
-#: The words the coverage audit speaks (hygiene XX item 3).
+#: The words the coverage audit speaks.
 MADE, READ, ADOPTED, BY_HAND = "MADE", "READ", "ADOPTED", "BY HAND"
 COVERAGE_STATUSES = (MADE, READ, ADOPTED, BY_HAND)
 
 
 #: The answer that means "nothing" for a question whose answer may be
-#: empty (hygiene XII item 23): an empty line takes the default, so where a
+#: empty: an empty line takes the default, so where a
 #: default exists -- the roles an account holds, the subjects a role keeps
 #: trusting, the labels -- the word is the only way to decline it. The
 #: prompt says so.
@@ -262,12 +262,12 @@ class Rendered:
     #: interview asked as, and nobody discovers it from a 403.
     apply_env: tuple[tuple[str, str, str], ...] = ()
     #: What a ``tofu destroy`` of the root would take that the root did not
-    #: make (hygiene XII item 23): a grant added to an account that already
+    #: make: a grant added to an account that already
     #: existed, which every tree reading the account relied on; a role
     #: adopted by import, which the destroy deletes outright. Listed in the
     #: README so nobody learns it from the plan.
     destroy_takes: tuple[str, ...] = ()
-    #: The audit (hygiene XX item 3): for every underlying resource the
+    #: The audit: for every underlying resource the
     #: tree's declarations imply, what this section does about it --
     #: ``(resource, status, why)`` with status one of MADE, READ, ADOPTED,
     #: BY HAND -- so a gap is a line, never a silence. The README tabulates

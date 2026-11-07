@@ -5,7 +5,7 @@
 from dataclasses import field
 from cs_image_system.base.models.credentials import CredentialsBase
 from cs_image_system.contract.model_config import CSIS_MODEL_CONFIG
-from pydantic.dataclasses import dataclass  # stage 23: validation at construction
+from pydantic.dataclasses import dataclass  # validation at construction
 from typing import Any
 
 import logging
@@ -25,9 +25,9 @@ AWS_CLI: str = "aws-cli"
 @dataclass(config=CSIS_MODEL_CONFIG)
 class AwsCloudNetworkingModel(CloudNetworkingConfig):
     """AWS-specific networking configuration data object."""
-    # stage 63: `security_group_ids` was validated and counted but never
-    # emitted; `addl_security_groups` is the list that reaches the roots, so
-    # the other is refused at load (by the base model's unknown-key rule)
+    # `addl_security_groups` is the list that reaches the roots; a
+    # `security_group_ids` key (which nothing would emit) is refused at load
+    # (by the base model's unknown-key rule)
     addl_security_groups: list[str]  = field(default_factory=list)
     # Security groups whose members may SSH into launched instances (e.g.
     # the Okta gateway relay). When set, the instance SG's port-22 ingress
@@ -64,8 +64,9 @@ class AwsCredentials(CredentialsBase):
     `self_to_aws_client_config` can pass them straight through.
 
     Values belong in the environment, not here: `profile_name` names a profile
-    and the key fields carry `{{ ENV[...] }}` templates. Stage 17 makes the
-    SHAPE checkable -- `profile_nme` is now an error instead of a silent None.
+    and the key fields carry `{{ ENV[...] }}` templates. A declared object
+    makes the SHAPE checkable -- `profile_nme` is an error instead of a silent
+    None.
     """
     profile_name: str | None = None
     aws_access_key_id: str | None = None
@@ -103,7 +104,7 @@ class AwsCloudBuilderModel(CloudBuilderModel):
         super().__post_init__()        
 
     def finalize(self):
-        # stage 127: pure -- the account is asked nothing at load. The
+        # pure -- the account is asked nothing at load. The
         # networking check (`update_networking`) is the builder's ONLINE
         # `network_facts` hook, run by a real run and `validate --online`;
         # every load adopts its record instead.
@@ -150,9 +151,9 @@ class AwsCloudBuilderModel(CloudBuilderModel):
             errstr = f"VPC ID {self.networking.network} specified in networking configuration for AWS cloud builder {self.name} not found in AWS account."
             log.error(errstr)
             raise ValueError(errstr)
-        # stage 63: every declared subnet must be in the declared VPC (a
-        # subnet id from another VPC used to pass the load and fail at the
-        # first bake or apply). The check runs when the account answered with
+        # every declared subnet must be in the declared VPC (a subnet id from
+        # another VPC would otherwise pass the load and fail at the first
+        # bake or apply). The check runs when the account answered with
         # the VPC's subnets; a VPC listed without any makes no claim.
         vpc_entry: Any = self.vpc_map.get(self.networking.network) or {}
         known = {str(s.get("subnet_id")) for s in vpc_entry.get("subnets", [])}

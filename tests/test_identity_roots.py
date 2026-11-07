@@ -77,7 +77,7 @@ def test_identity_read_model_is_structural(v2):
     assert coops["identity_type"] == "okta"
     assert coops["gid_policy"] == "creation-only"
     assert coops["builder"] == "oktagroups"
-    assert coops["members"] == ["avery.alpha", "casey.charlie"]   # mirrors live OPA (2026-08-31)
+    assert coops["members"] == ["avery.alpha", "casey.charlie"]   # mirrors live OPA
     assert "avery.alpha" in coops["admins"]
     assert coops["managed"] is True
     assert model["groups"]["basic"]["is_root"] is True
@@ -92,7 +92,7 @@ def test_identity_runner_script_is_gated_and_never_applies_unless_configured(v2)
     assert any("tofu plan -input=false -out=tfplan" in c for c in cmds)
     assert any("cs-image-system gate-plan --planfile tfplan" in c for c in cmds)
     assert not any(" apply " in c for c in cmds), "apply_identity is off in the fixture"
-    assert "# state: workspace oktagroups -> local://state/oktagroups.tfstate" in script   # stage 47: on disk
+    assert "# state: workspace oktagroups -> local://state/oktagroups.tfstate" in script   # on disk
 
 
 def test_group_disappearance_is_a_hard_failure(tmp_path, monkeypatch):
@@ -125,7 +125,7 @@ def test_unmanaged_group_is_state_rm_never_destroyed(tmp_path, monkeypatch):
         assert 'module "group_tcmet"' not in gen["oktagroups-group-generation-group-tcmet.tf"]
         assert "UNMANAGED" in gen["oktagroups-group-generation-group-tcmet.tf"]
         cmds = command_lines((run.generated / "identity" / "run-identity.sh").read_text())
-        # stage 90: the removal is the runner's pre-plan step's, decided by what the state
+        # the removal is the runner's pre-plan step's, decided by what the state
         # holds when it runs (tests/test_group_release.py); generation writes no
         # `state rm`, because what generation knows is a record a dry run rewrites
         assert not any("state rm" in c for c in cmds)
@@ -133,7 +133,7 @@ def test_unmanaged_group_is_state_rm_never_destroyed(tmp_path, monkeypatch):
         plan = next(i for i, c in enumerate(cmds) if "tofu plan -input=false -out=tfplan" in c)
         assert step < plan, "the step that releases runs before the plan the gate reads"
         # nothing destroys, and no operation's allowance is on the gate; the file
-        # the gate reads (stage 88) names dropped MEMBERSHIPS of managed groups only
+        # the gate reads names dropped MEMBERSHIPS of managed groups only
         assert not any("tofu destroy" in c or " -destroy" in c or "--allow-destroy " in c for c in cmds)
         model = yaml.safe_load((run.meta_state / "identity.yaml").read_text())
         assert model["groups"]["tcmet"]["managed"] is False
@@ -261,7 +261,7 @@ def test_the_dummy_builders_return_an_asset_set_and_a_declared_dummy_builder_run
     for cls in (DummyGroupBuilder, DummyUserBuilder):
         out = cls.generate_items_during(SimpleNamespace(), ExecutionLifecyclePhase.GROUP_GENERATION)  # type: ignore[arg-type]
         assert isinstance(out, AssetSet) and len(out) == 0, cls.__name__
-    # the reproduction of 2026-09-23: a declared `type: dummy` group builder and a group on it
+    # the live reproduction: a declared `type: dummy` group builder and a group on it
     root = copy_config(tmp_path)
     gb = root / "cfg" / "group-builders.yml"
     data = yaml.safe_load(gb.read_text())
@@ -285,7 +285,7 @@ def _edit(path: Path, fn) -> None:
 
 
     # (--only-providers, which this test once saw splitting a comma list, was
-    # retired in stage 67; tests/test_hygiene_vi.py refuses it)
+    # retired; tests/test_retired_surfaces.py refuses it)
 def test_the_template_models_keep_org_and_team_and_refuse_credentials():
     from cs_image_system.dummy_plugin.dummy_models import DummyGroupBuilderModel
     cast(Any, DummyGroupBuilderModel)(name="g", type="dummy", org="o", team="t")

@@ -10,8 +10,7 @@ Providers are faked at the plugin hook seam (``query_images`` /
 lookup a builder cannot answer is reported unavailable, never dropped; a
 booted image differing from the pin is changed drift.
 
-History: EXPLORE "Using Systemic State" / "Existing Systemic State
-Migration", finding 49, stage 63 item 17.
+History: EXPLORE "Using Systemic State" / "Existing Systemic State Migration", finding 49, stage 63 item 17.
 """
 from __future__ import annotations
 
@@ -159,7 +158,7 @@ def test_storage_drift_classes(world):
 
 
 def _all_seen(ctx) -> None:
-    """Mark every recorded group as SEEN in the provider (hygiene XII item 3):
+    """Mark every recorded group as SEEN in the provider:
     only then is its absence hard drift rather than "not created yet"."""
     model = ctx.meta_state.identity_read_model()
     for rec in model["groups"].values():
@@ -174,9 +173,9 @@ def test_group_drift(world):
     ctx.meta_state.write_identity_read_model(identity_read_model(ctx))
     _all_seen(ctx)
     model = ctx.meta_state.identity_read_model()["groups"]
-    # managed groups only: a lookup-only group (the fixture's `readers`,
-    # stage 63 item 18) never drifts, whatever the provider says
-    names = sorted(n for n, rec in model.items() if rec["managed"] and rec["identity_type"] == "okta")   # stage 75: not posix
+    # managed groups only: a lookup-only group (the fixture's `readers`)
+    # never drifts, whatever the provider says
+    names = sorted(n for n, rec in model.items() if rec["managed"] and rec["identity_type"] == "okta")   # not posix
     root_admins = {a for rec in model.values() if rec["is_root"] for a in rec["admins"]}
     reality["groups"] = {
         names[0]: {"present": False},
@@ -279,7 +278,7 @@ def test_booted_image_differing_from_the_pin_is_changed_drift(world, monkeypatch
     ctx.meta_state.add_build(_build("img-old", "imgfile-basic-dask", rt))
     ctx.meta_state.add_build(_build("img-new", "imgfile-basic-dask", rt))
     ctx.meta_state.bind_instance("gce-test", "img-new", "run-x")
-    ctx.meta_state.record_launch_params("gce-test", {"launched": True})   # hygiene XII item 13: a machine never launched is not asked
+    ctx.meta_state.record_launch_params("gce-test", {"launched": True})   # a machine never launched is not asked
     monkeypatch.setattr(GCPCloudBuilder, "query_instance_boot_image", lambda self, name: "img-old")
     report = sq.query_state(ctx)
     hits = [d for d in report.drift if d.kind == "instance" and d.name == "gce-test"]
@@ -294,7 +293,7 @@ def test_booted_image_matching_the_pin_is_clean_and_unanswered_is_unavailable(wo
     rt = _gce_runtime(ctx)
     ctx.meta_state.add_build(_build("img-new", "imgfile-basic-dask", rt))
     ctx.meta_state.bind_instance("gce-test", "img-new", "run-x")
-    ctx.meta_state.record_launch_params("gce-test", {"launched": True})   # hygiene XII item 13: a machine never launched is not asked
+    ctx.meta_state.record_launch_params("gce-test", {"launched": True})   # a machine never launched is not asked
     monkeypatch.setattr(GCPCloudBuilder, "query_instance_boot_image", lambda self, name: "img-new")
     report = sq.query_state(ctx)
     assert not [d for d in report.drift if d.kind == "instance"]
@@ -307,7 +306,7 @@ def test_booted_image_matching_the_pin_is_clean_and_unanswered_is_unavailable(wo
 def test_runtimes_without_the_boot_query_make_no_claim(world, monkeypatch):
     run, _ = world
     ctx = run.ctx
-    # AWS implements the boot query since stage 11.1; the no-claim path is
+    # AWS implements the boot query; the no-claim path is
     # proven by stubbing the capability back off
     from cs_image_system.aws_runtime.aws_runtime_builders import AwsCloudBuilder
     monkeypatch.setattr(AwsCloudBuilder, "can_query_instance_boot_image", lambda self: False)

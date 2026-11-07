@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""Stage 121 item 2: the core names no runtime. The preflight prints what a
+"""The core names no runtime. The preflight prints what a
 runtime class answers the contract's ``session_status`` hook with, the
 credential prefixes are the union of what the runtimes declare, and the
 load-failure classifier asks every registered builder class -- so a runtime
@@ -68,8 +68,8 @@ def test_preflight_prints_the_session_a_stub_runtime_class_answers(tmp_path):
     reg.models[registry.RegistrationKey(VCT.RUNTIME_BUILDER, "test", "stub")] = StubRuntime
     reg.builders[StubModel] = StubRuntime
     try:
-        # the sessions are read over the LOADED configuration (stage 127: nothing
-        # reads the raw tree before a load any more): a context whose runtime
+        # the sessions are read over the LOADED configuration (nothing
+        # reads the raw tree before a load): a context whose runtime
         # builders are two stub instances on one ticket, each over its model
         from types import SimpleNamespace
 

@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""The `gcs` backend type (stage 47.4): its renderings, its per-root prefix,
+"""The `gcs` backend type: its renderings, its per-root prefix,
 and its place beside S3 and local in the collision rule."""
 from __future__ import annotations
 

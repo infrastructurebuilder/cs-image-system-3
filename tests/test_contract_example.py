@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""Stage 30, branch 2: the proof of the contract.
+"""The proof of the contract.
 
 ``packages/contract-example-plugin`` is a state backend plugin (OpenTofu's
 ``inmem``) written against ``cs_image_system.contract`` alone: its sources
@@ -144,7 +144,7 @@ def test_a_dry_run_emits_the_backend_for_every_root_that_names_it(tmp_path, monk
 
 
 def test_the_builder_reads_the_run_and_a_service_through_the_protocols_alone(tmp_path, monkeypatch):
-    """Stage 125: the loader binds the run context to the builder as the
+    """The loader binds the run context to the builder as the
     contract's ``RunContextProtocol``; the builder reads the run id, the
     generation path, the declared backends and one service (the lineage's
     configuration tags, ``ctx.services.lineage``) through the protocol and

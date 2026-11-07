@@ -2,9 +2,9 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""Stage 88: a membership the YAML dropped is removed by the run.
+"""A membership the YAML dropped is removed by the run.
 
-Found walking the daily driver (stage 65, finding F38). A person added to a
+Found walking the daily driver. A person added to a
 group through the YAML could not be taken out of it the same way: the plan
 showed the destroy of their attachment, the gate whitelisted no membership
 destroy, and the run failed until someone removed them in the OPA console.

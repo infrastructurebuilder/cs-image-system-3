@@ -182,7 +182,7 @@ def build_filter_expression(terms: Mapping[str, Any]) -> str:
     return " AND ".join(parts)
 
 
-#: stage 106: the keys of the system's image-query vocabulary Compute
+#: the keys of the system's image-query vocabulary Compute
 #: Engine's images.list can answer, and the field each becomes.
 GCP_QUERY_KEYS: frozenset[str] = frozenset({"name", "family", "architecture", "publisher", "state", "tags",
                                             "newest", "native"})
@@ -190,7 +190,7 @@ GCP_FIELD_NAMES: dict[str, str] = {"name": "name", "family": "family", "architec
 
 
 def translate_image_query(query: ImageQuery) -> dict[str, Any]:
-    """The system's query in Compute Engine's words (stage 106):
+    """The system's query in Compute Engine's words:
     ``{"projects": [...], "terms": {<image field>: value}, "filter": <the
     list() expression>, "most_recent": bool}``; ``query_image`` takes it.
     ``state`` defaults to ``available`` (READY); ``architecture`` and

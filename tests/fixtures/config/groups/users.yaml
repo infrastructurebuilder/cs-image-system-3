@@ -1,7 +1,7 @@
 users:
   # Names are the bare OPA usernames (PLAN.md local-migration Q3) — exactly what
   # oktapam_user_group_attachment and group members/admins lists use, matching
-  # the OPA team's user list (verified 2026-08-21). Email is used ONLY to look
+  # the OPA team's user list (verified). Email is used ONLY to look
   # the user up in the parent Okta org: explicit `email:` when given, otherwise
   # derived from the builder's default_user_email_template (name@example.invalid).
   # first_name/last_name are required data (never derived from 'name').
@@ -52,7 +52,7 @@ users:
     first_name: Kendall
     last_name: Kilo
     email: ENC[age:YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSBBaVBwNzV5dmk1ekUwMTcvR0VEZDhBYTZkNEVaaGRnL2NnaFM1QklKaUdnCkxWaFR0OGV6LzZzRG0vcTVSZkp1TkNpVjZKYlFrTnd6T0NTV0pCaFpCTW8KLS0tIDhOSkNwTjM0azF0d0crd2JVbFd3WUpmNkVBd1hZSUNidDNXcktrRHUwaUkK+jBFOt0RLVYg1YqpqcLRDtmbWEceZaMi09yhYiDEz+NR/MsX2frAtk9IgSkOxPNq2KX0kJJoh98=]
-  # Added 2026-08-31 (TODO stage 1.4): live OPA secofs membership; details
+  # Live OPA secofs membership; details
   # from the OPA user records, read-only.
   - name: ENC[age:YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSBZWitQNWl3OWJBOUhJWk9HQzhzN2VCamxET3VPYitpNmRrVTdVZ0lwT2o0Ckg5ZTdpWUZnRGNlWm0za2hCTHZXWXBDQU8wVWtlamNDTzQxODA4NmRnNDgKLS0tIFBZWVdMZDhwY2RQR08xS1BDUkQzMUhZZFNIVXh6K0NKRkVtVUh0U3RUMncKgwrOp0CE6Xytjw/4rVPbWbBD9CLWkVUzTEzdv4tlwOmuw0s4NPp34yj8AA==]
     first_name: Lennox
@@ -69,7 +69,7 @@ users:
     first_name: Oakley
     last_name: Oscar
     email: ENC[age:YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSBGTktqVnVsaHI4bG84SGhZS1RDMDFya20raDVqSDhjMGdQU0NCL245bWhRCi81aUhhdUEvWkRyTnpDTFFIV2VydXVBM21VRnk0ZGZnd1NBbXpoSS9OSUUKLS0tIGN3cjdqZmRpc2FSZ2RYMmJmdTNLTzNJdEtxd3M4enViMWl0bm5lRnRUZmcKt9lMEBu9GpPu8FCCUJxxtnrFvgrUUAahOHEnpPLh5eheec33te6lX9H68vFQJ1h5LSE=]
-  # Added 2026-09-05 (tcmet reconciliation): live OPA tcmet membership;
+  # Live OPA tcmet membership (the tcmet reconciliation);
   # details read from the OPA user records
   # (GET /v1/teams/{team}/users/{user}, read-only).
   - name: ENC[age:YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSBaK252RW9SNlY5OFk3VzhKcXFQWXh3clRuT29EaU02NnA5YjcveGdJSVMwCndvaWk5K2N2MW1YcjhKWTZDMXdBUzB4SnZ2SWN0bWl6MTVZbHFBZVBSb0EKLS0tIDNmWVRsN0FFR0h1TkxURFZqRlQvOTV4VXFUbWFybkNxZlZNTlFZYzJ5QVkKw5KQW8//qgzwyC5NiTJiIUtWe5oERHqc8HtzkmIh71grAUhgIts=]
@@ -88,7 +88,7 @@ users:
     first_name: Sawyer
     last_name: Sierra
     email: ENC[age:YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSBuRXVCTEpqVGRZU3NrWXd4UjBFMVJYNFViREtGeGp5a2IxenZGY0I4emg0CmxrRU5BM3ZxZElqdzF3TzIwK1k1eCtEMEkzdHVjV0dHd2htOFoyQWE4WEUKLS0tIHZqVjJnRFRSU3hQeXVjM0VRZC9LRXY4WjUrUVQ1anlxaXkzMUpwU2ZNQ2cK+dsRK5Rw/gY6a0LKodqmLIJIWRdP1/1+tJuYnjsJsMQTdYxNu181LR+AqPKuBiHZEnM=]
-  # stage 75: two posix personas -- POSIX accounts with a declared uid and
+  # Two posix personas -- POSIX accounts with a declared uid and
   # their keys (synthetic: these keys open nothing)
   - name: taylor_tango
     type: posix-users

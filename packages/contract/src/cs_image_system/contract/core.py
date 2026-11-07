@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""What every model and every builder is to the system (stage 30).
+"""What every model and every builder is to the system.
 
 The protocols here carry NO implementation: a default body lives in the
 core's base classes (``cs_image_system.base``), which implement these
@@ -18,7 +18,7 @@ are ``runtime_checkable``; those with a property or data member
 (``NameTypedProtocol``, ``PluginMetadataProtocol``, ``BuilderModelProtocol``,
 ``RuntimeEnabledBuilderModelProtocol``, ``BuilderProtocol``,
 ``ParentPropertyHoldingProtocol``) support ``isinstance`` but not
-``issubclass``. Stage 125: the loader, the registry and the orchestrator
+``issubclass``. The loader, the registry and the orchestrator
 decide what kind of thing they hold by ``isinstance`` against these and
 nothing else (no ``hasattr`` on a member's name), and the loader runs
 ``assert_conforms`` against the protocol of each registered class's

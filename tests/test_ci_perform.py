@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""Stage 45: CI performs on `main`.
+"""CI performs on `main`.
 
 The prerequisite: a run scoped to one runtime (`--only-runtime`, or
 `--apply-runtime` implying it) emits nothing for the other runtimes, and it
@@ -139,7 +139,7 @@ def test_a_scoped_retention_disposes_within_its_runtime_alone(repo, monkeypatch)
     captured: list[list[str]] = []
     monkeypatch.setattr(retention, "ephemeral_runtimes", lambda ctx: [GCE])
     monkeypatch.setattr(retention, "transient_storages_on_ephemeral_runtimes", lambda ctx: [])
-    # the consuming module's name (retention imports it at top level since stage 124)
+    # the consuming module's name (retention imports it at top level: patch where it is read)
     monkeypatch.setattr(retention, "system_cli_executable_with_config", lambda ctx, args, wd: captured.append(list(args)) or ["true"])
     monkeypatch.setattr(run.ctx, "extend_finalization_phase", lambda phase, steps: None)
 

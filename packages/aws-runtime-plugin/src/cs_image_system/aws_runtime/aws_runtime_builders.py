@@ -64,7 +64,7 @@ class AwsCloudBuilder(CloudBuilderBase[AwsCloudBuilderModel], PluginArtifactProt
     def classify_failure(cls, exc: BaseException) -> LoadFailureReport | None:
         return session.classify_failure(exc)
 
-    # --- the network facts (stage 127): online by a real run and `validate
+    # --- the network facts: online by a real run and `validate
     # --online`, adopted offline by every load from meta-state/runtime-facts.yaml
     def network_facts(self) -> dict[str, Any]:
         """ONLINE: the model's networking check against the account (a
@@ -93,7 +93,7 @@ class AwsCloudBuilder(CloudBuilderBase[AwsCloudBuilderModel], PluginArtifactProt
                                  subnets=[s.get_subnet_id() for s in networking.subnets],
                                  security_groups=list(networking.addl_security_groups))
 
-    # --- the image query (stage 106)
+    # --- the image query
     def supported_query_keys(self) -> frozenset[str]:
         return AWS_QUERY_KEYS
 
@@ -108,7 +108,7 @@ class AwsCloudBuilder(CloudBuilderBase[AwsCloudBuilderModel], PluginArtifactProt
 
     #: This runtime's part of the release-owned image-source catalog: the
     #: `aws` blocks, shipped as this package's ``data/image-sources.yml``
-    #: (the core reads the file; stage 125).
+    #: (the core reads the file).
     image_source_package = "cs_image_system.aws_runtime"
 
     def query_provider_image(self, os_builder: OSBuilderBaseImageBuilderSubconfig) -> tuple[str, str, Mapping[str,Any]] | None:
@@ -137,7 +137,7 @@ class AwsCloudBuilder(CloudBuilderBase[AwsCloudBuilderModel], PluginArtifactProt
 
     def query_provider_image_by_id(self, os_builder: OSBuilderBaseImageBuilderSubconfig,
                                    image_id: str) -> tuple[str, str, Mapping[str, Any]] | None:
-        """The AMI an entry pins by ``image_id`` (stage 63), looked up with
+        """The AMI an entry pins by ``image_id``, looked up with
         DescribeImages by id; its owner is the alias when AWS gives one."""
         kv = aws_utils._query_by_ami_id(aws_utils.ec2_client(self.model.self_to_aws_client_config()), image_id)
         if not kv:
@@ -160,7 +160,7 @@ class AwsCloudBuilder(CloudBuilderBase[AwsCloudBuilderModel], PluginArtifactProt
 
     #     kv = os_builder.get_runtime_config_query_results(self)
     #     if kv:
-    #         ret = image_from_query_result(   # stage 24: that function is gone; see aws_utilskv, os_builder, self)
+    #         ret = image_from_query_result(   # that function is gone; see aws_utilskv, os_builder, self)
     #     return ret
 
     def query_images(self, series: list[str]) -> list[dict[str, Any]]:
@@ -177,18 +177,18 @@ class AwsCloudBuilder(CloudBuilderBase[AwsCloudBuilderModel], PluginArtifactProt
                             "tags": tags})
         return out
 
-    # ----------------------------------------------- AWS parity (stage 11.1)
+    # ------------------------------------------------------------ AWS parity
     def _ours(self, instances: list[dict[str, Any]]) -> list[dict[str, Any]]:
-        """Stage 93: of the machines found by Name, the ones this
-        configuration may take for its own -- tagged with its id, or with no
-        id at all (launched before the stage). Another configuration's
+        """Of the machines found by Name, the ones this configuration may
+        take for its own -- tagged with its id, or with no id at all
+        (launched before machines carried one). Another configuration's
         machine of the same name is not ours to read, stop or log into."""
         lineage = self._get_context().services.lineage
         return [i for i in instances
                 if lineage.ours_or_unlabelled({t["Key"]: t["Value"] for t in i.get("Tags", []) if "Key" in t})]
 
     def instance_tags(self, instance_name: str) -> dict[str, str] | None:
-        """The tags the named machine carries (stage 93's relabel reads them);
+        """The tags the named machine carries (the relabel reads them);
         None when no such machine stands."""
         inst = self._named_instance(instance_name)
         if inst is None:
@@ -196,7 +196,7 @@ class AwsCloudBuilder(CloudBuilderBase[AwsCloudBuilderModel], PluginArtifactProt
         return {t["Key"]: t["Value"] for t in inst.get("Tags", []) if "Key" in t}
 
     def retag_instance(self, instance_name: str, tags: dict[str, str]) -> bool:
-        """``create-tags`` on the named machine (stage 93: the id, in place)."""
+        """``create-tags`` on the named machine (the id, in place)."""
         inst = self._named_instance(instance_name)
         if inst is None or not inst.get("InstanceId"):
             return False
@@ -224,7 +224,7 @@ class AwsCloudBuilder(CloudBuilderBase[AwsCloudBuilderModel], PluginArtifactProt
             log.debug(f"AWS runtime {self.get_name()}: boot image of {instance_name!r} unavailable: {e}")
             return None
 
-    # ------------------------------------------------ power state (stage 57)
+    # ------------------------------------------------------------ power state
     #: EC2 ``State.Name`` mapped onto the system's vocabulary. The mapping
     #: lives here because this is where the cloud knowledge belongs; nothing
     #: outside this plugin sees an EC2 spelling. Note ``terminated``: the
@@ -282,7 +282,7 @@ class AwsCloudBuilder(CloudBuilderBase[AwsCloudBuilderModel], PluginArtifactProt
 
     def query_instance_identity(self, instance_name: str) -> dict[str, str] | None:
         """``InstanceId`` and ``PrivateDnsName`` of the named instance,
-        whatever its power state (stage 58) -- ``_named_instance`` sees a
+        whatever its power state -- ``_named_instance`` sees a
         stopped machine, ``_running_instance`` does not."""
         try:
             inst = self._named_instance(instance_name)
@@ -320,8 +320,8 @@ class AwsCloudBuilder(CloudBuilderBase[AwsCloudBuilderModel], PluginArtifactProt
         return True
 
     def dispose_image(self, build_id: str) -> bool:
-        """Deregister the AMI and delete the EBS snapshots it was made of --
-        the finding-46 shape done by hand for two AMIs on 2026-09-05.
+        """Deregister the AMI and delete the EBS snapshots it was made of
+        (what an operator otherwise does by hand, snapshot by snapshot).
         Not found = already gone (the record is still dropped)."""
         ec2 = aws_utils.ec2_client(self.model.self_to_aws_client_config())
         try:
@@ -349,7 +349,7 @@ class AwsCloudBuilder(CloudBuilderBase[AwsCloudBuilderModel], PluginArtifactProt
         (/var/lib/csis/launch-applied, written as the user-data script's
         last act), the mounts under /mnt, and the AMI the instance runs.
         ``mount_points`` is accepted for the contract; the count over SSM is
-        this runtime's reading (hygiene XII item 22 was GCE's console)."""
+        this runtime's reading (the GCE runtime reads its serial console)."""
         import time  # noqa: PLC0415
         checks: list[dict[str, Any]] = []
         deadline = time.time() + timeout
@@ -409,7 +409,7 @@ class AwsCloudBuilder(CloudBuilderBase[AwsCloudBuilderModel], PluginArtifactProt
 
     def run_session_command(self, instance_name: str, script: str, timeout: int = 300) -> tuple[int, str]:
         """SSM ``AWS-RunShellScript`` on the instance named by its Name tag
-        (the session mechanism instances are reached by, stage 1)."""
+        (the session mechanism instances are reached by)."""
         import time  # noqa: PLC0415
         cfg = self.model.self_to_aws_client_config()
         ec2 = aws_utils.ec2_client(cfg)
@@ -417,7 +417,7 @@ class AwsCloudBuilder(CloudBuilderBase[AwsCloudBuilderModel], PluginArtifactProt
                                               {"Name": "instance-state-name", "Values": ["running"]}])
         ids = [i["InstanceId"] for i in self._ours([i for r in res.get("Reservations", []) for i in r.get("Instances", [])])]
         if not ids:
-            # stage 57: say WHICH failure this is. A machine the operator
+            # say WHICH failure this is. A machine the operator
             # switched off is not a machine that was never there, and
             # "no running instance" read as the latter for both.
             state = self.query_instance_power_state(instance_name)
@@ -507,7 +507,7 @@ class AwsCloudBuilder(CloudBuilderBase[AwsCloudBuilderModel], PluginArtifactProt
         return [f"# session mechanism 'ssm' ({self.get_name()}): SSM agent for debug sessions"] + install + [
             os_type.service_enable_command("amazon-ssm-agent")]
 
-    #: stage 86: how long a bake waits for Systems Manager to leave a new
+    #: how long a bake waits for Systems Manager to leave a new
     #: machine alone -- quiet for QUIET checks in a row, STEP seconds apart;
     #: never judged before the machine is MIN_AGE seconds old (the
     #: associations start about forty seconds after launch); LIMIT at most.
@@ -523,7 +523,7 @@ class AwsCloudBuilder(CloudBuilderBase[AwsCloudBuilderModel], PluginArtifactProt
         agent registers, as documents under ``ssm-document-worker`` and, for
         the agent's own update, a detached updater -- and they use the
         package database while the bake does (found walking the daily
-        driver, stage 65, finding F29). The brackets keep the search from
+        driver). The brackets keep the search from
         finding itself in the process list."""
         if self.session_mechanism() != self.SSM:
             return []
@@ -554,7 +554,7 @@ class AwsCloudBuilder(CloudBuilderBase[AwsCloudBuilderModel], PluginArtifactProt
         config.apply_release)."""
         args = ["ec2", "create-tags", "--region", str(self.model.get_region()), "--resources", build_id, "--tags"]
         args += [f"Key={k},Value={v}" for k, v in sorted(tags.items())]
-        creds = self.model.get_credentials()        # stage 17
+        creds = self.model.get_credentials()
         if creds.get("profile_name"):
             args += ["--profile", str(creds["profile_name"])]
         e = ExecutableModel(name="aws", type_="executable", binary="aws")
@@ -568,7 +568,7 @@ class AwsCloudBuilder(CloudBuilderBase[AwsCloudBuilderModel], PluginArtifactProt
         return {"debian": "admin", "ubuntu": "ubuntu"}.get((family or "").lower(), "ec2-user")
 
     def image_name_problem(self, name: str) -> str | None:
-        """Why ``name`` cannot be an AMI name (stage 105): 3 to 128
+        """Why ``name`` cannot be an AMI name: 3 to 128
         characters from letters, digits, parentheses, square brackets,
         spaces, periods, slashes, dashes, single quotes, at-signs and
         underscores (RegisterImage's constraint), or None."""

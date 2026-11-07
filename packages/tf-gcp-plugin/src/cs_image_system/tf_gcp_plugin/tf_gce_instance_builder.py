@@ -83,8 +83,8 @@ class TofuGceInstanceBuilder(TofuInstanceBuilderBase[Q]):
                         f"{instance.get_name()}; the module call will not resolve an image")
         if rtb:
             # the instance's own type when declared, else the runtime's default
-            # (the AWS builder's rule; hygiene VIII item 2 found this one
-            # ignoring a declared machine_type)
+            # (the AWS builder's rule; a declared machine_type is never
+            # ignored)
             mt = getattr(instance, "machine_type", None)
             args["machine_type"] = mt if mt else rtb.get_default_machine_type()
             zone = getattr(rtb.model, "zone", None)
@@ -102,7 +102,7 @@ class TofuGceInstanceBuilder(TofuInstanceBuilderBase[Q]):
                 # firewall rule from 35.235.240.0/20 to tcp:22)
                 args["public_ip"] = False
         labels = {k: str(v) for k, v in {**(instance.get_tags() or {}),
-                                         **ctx.services.lineage.config_tags()}.items()}   # stage 93
+                                         **ctx.services.lineage.config_tags()}.items()}   # the machine carries the id
         if labels:
             args["labels"] = {gce_label(k): gce_label(v) for k, v in labels.items()}
         if params is not None:
@@ -112,7 +112,7 @@ class TofuGceInstanceBuilder(TofuInstanceBuilderBase[Q]):
     def _launch_args(self, ctx, label: str, params: dict[str, Any]) -> dict[str, Any]:
         out: dict[str, Any] = {}
         group = params.get("group")
-        gid = self._gid_expression_for(group)          # stage 75 step 3: the group builder writes it
+        gid = self._gid_expression_for(group)          # the group builder writes it
         template_vars: dict[str, Any] = {}
         if gid is not None:
             template_vars["group_gid"] = HclRaw(gid)

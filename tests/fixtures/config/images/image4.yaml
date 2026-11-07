@@ -1,5 +1,5 @@
 images:
-  # stage 75: an instance image owned by a posix group -- its bake creates
+  # An instance image owned by a posix group -- its bake creates
   # pxgroup with its declared gid (adopted if the base already has it equal,
   # refused if the base has it different)
   - name: imgfile-posix

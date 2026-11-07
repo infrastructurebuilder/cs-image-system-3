@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""Reserved names (stage 76): nothing in a configuration may be NAMED after a
+"""Reserved names: nothing in a configuration may be NAMED after a
 word of :data:`~cs_image_system.contract.constants.OOPS_DEFAULTS`.
 
 Those words -- ``default``, ``self``, ``none``, the empty string and a YAML
@@ -100,9 +100,9 @@ class InvalidConfigKeyError(ValueError):
 def invalid_config_key_problems(doc: Any, source: str) -> list[str]:
     """The keys of ``doc``'s top-level ``config:`` mapping that are in
     :data:`~cs_image_system.contract.constants.INVALID_CONFIG_KEYS`, folded the
-    same way as names. The guard was written on 2026-07-03 and never switched
-    on; the operator switched it on as written in stage 76 (a probe that
-    day found none of its words collides with the template context today)."""
+    same way as names. The guard was written long before it was switched
+    on; the operator switched it on as written (a probe found none of its
+    words collides with the template context)."""
     config = doc.get("config") if isinstance(doc, dict) else None
     if config is None:
         return []

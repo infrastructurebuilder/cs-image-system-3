@@ -2,11 +2,10 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""The OPA login proof (stage 56 steps 4 and 5; moved here in stage 75 step
-2): log into a standing machine the way a scientist does -- ``sft ssh``, a
-short-lived OPA certificate -- as the WORKLOAD (``OPA_TOKEN`` in the
-environment, minted by ``cs-image-system workload token``) or, by hand
-without one, as the enrolled client.
+"""The OPA login proof: log into a standing machine the way a scientist
+does -- ``sft ssh``, a short-lived OPA certificate -- as the WORKLOAD
+(``OPA_TOKEN`` in the environment, minted by ``cs-image-system workload
+token``) or, by hand without one, as the enrolled client.
 
 The core's ``verify login`` keeps what is the same for every identity
 plugin -- which instances are targets, the skips (nothing to prove; a
@@ -30,8 +29,7 @@ def run_sft(args: list[str], timeout: int = 120, env: Mapping[str, str] | None =
     streams, so a refusal's reason reaches the record. ``env`` is laid over
     the process environment: as the workload the client needs the team and
     the OPA address there for EVERY command, not only for minting the token
-    (hygiene VIII item 1, 2026-09-30: `sft resolve` exited 1 in silence once
-    the perform job stopped carrying them)."""
+    (`sft resolve` exits 1 in silence when a job stops carrying them)."""
     proc = subprocess.run(["sft", *args], capture_output=True, text=True, timeout=timeout,  # noqa: S603,S607 - the client by name, arguments from the configuration
                           env={**os.environ, **(env or {})})
     return proc.returncode, (proc.stdout or "") + (proc.stderr or "")
@@ -73,7 +71,7 @@ def login_checks(gb: Any, group: str, hostname: str, *, timeout: int = 120) -> t
         rc, out = run_sft(["resolve", "--quiet", hostname], timeout=timeout, env=client_env)
         why = out.strip()[:300]
         if rc == 126 and not why:
-            # the client wanted a browser and --quiet forbade it (live 2026-09-22):
+            # the client wanted a browser and --quiet forbade it (seen live):
             # by hand that is an expired client session; as the workload, no token
             why = ("the client has no session (as the enrolled client: run `sft login`; as the "
                    "workload: OPA_TOKEN is missing or was refused)")

@@ -2,11 +2,11 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""Hygiene XIV item 6: a group's resource group and policies read back against
-what the identity module makes.
+"""A group's resource group and policies read back against what the
+identity module makes.
 
-Records in the live API's shape (read 2026-10-23): the module's own objects
-match; the 2026-10-19 rewrite of `basic` (delegated admin, rule name,
+Records in the live API's shape: the module's own objects
+match; the reference's rewrite of `basic` (delegated admin, rule name,
 descriptions) is named field by field; an added label is a difference; a
 reference that carries an id alone is not guessed; absent objects say so;
 and the expectations are held to the plugin's okta_opa_module/main.tf.

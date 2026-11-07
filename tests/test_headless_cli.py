@@ -127,7 +127,7 @@ def test_export_gids_stdout_is_pure_json(monkeypatch):
     log line (plugin discovery warnings included) must go to stderr."""
     from cs_image_system.system import cli as climod
     from cs_image_system.system.cli import app
-    monkeypatch.setattr(climod, "export_gids", lambda q: {"coops": "180007"})   # patched where it is read (a top-level import since stage 124)
+    monkeypatch.setattr(climod, "export_gids", lambda q: {"coops": "180007"})   # patched where it is read (a top-level import)
     result = runner.invoke(app, ["identity", "export-gids"], input='{"identity_type": "okta", "groups": "coops"}')
     assert result.exit_code == 0, result.output
     assert json.loads(result.stdout) == {"coops": "180007"}

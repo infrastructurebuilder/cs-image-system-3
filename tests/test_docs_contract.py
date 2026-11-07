@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""Stage 62: the documentation contract.
+"""The documentation contract.
 
 Every package README ends with the same four sections in the same order,
 so a reader finds prerequisites, configuration, tests and failures in the

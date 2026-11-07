@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""Stage 92: the CI runner image, the requirements document and the
+"""The CI runner image, the requirements document and the
 workflows that run inside the image.
 
 docs/CI_RUNNER.md is the one list: every tool the Dockerfile pins is in
@@ -28,10 +28,10 @@ TREES = ("complete", "standard-aws", "standard-gce", "standard-aws-posix", "stan
 DOCKERFILE = REPO / "ci" / "runner-image" / "Dockerfile"
 DOC = REPO / "docs" / "CI_RUNNER.md"
 IMAGE = re.compile(r"^ghcr\.io/infrastructurebuilder/csis-ci:alma10-\d{8}(\.\d+)?$")   # a same-day rebuild is .2, .3
-# stage 66: every job names it as the default of a repository variable, so a team can run its own
+# every job names it as the default of a repository variable, so a team can run its own
 # (private) build with one setting that release refreshes never touch
 EXPR = re.compile(r"^\$\{\{ vars\.CSIS_RUNNER_IMAGE \|\| '(?P<image>[^']+)' \}\}$")
-# an empty credential is refused by GitHub before the job starts ("Unexpected value ''", 2026-10-24), so
+# an empty credential is refused by GitHub before the job starts ("Unexpected value ''"), so
 # each defaults to what the runner does by itself for ghcr.io: the actor and the job's token
 CREDENTIALS = {"username": "${{ vars.CSIS_RUNNER_IMAGE_USERNAME || github.actor }}",
                "password": "${{ secrets.CSIS_RUNNER_IMAGE_PASSWORD || github.token }}"}
@@ -111,7 +111,7 @@ def test_every_job_runs_inside_the_one_dated_image_with_the_docker_socket():
             assert IMAGE.match(expr["image"]), f"{path.relative_to(REPO)}: job {name} does not default to the dated image"
             assert container.get("credentials") == CREDENTIALS, f"{path.relative_to(REPO)}: job {name}'s credentials"
             assert container.get("options") == "-v /var/run/docker.sock:/var/run/docker.sock", f"{path.relative_to(REPO)}: {name}"
-            assert job.get("runs-on") == "ubuntu-24.04"                     # the machine the container runs on (stage 91)
+            assert job.get("runs-on") == "ubuntu-24.04"                     # the machine the container runs on
             if "permissions" in job:                                        # a block without packages: read pulls as nobody
                 assert job["permissions"].get("packages") in ("read", "write"), f"{path.relative_to(REPO)}: {name} has a permissions block without packages: read"
             images.add(expr["image"])

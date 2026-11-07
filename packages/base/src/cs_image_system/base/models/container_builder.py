@@ -2,10 +2,10 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""The container runtime's model (stage 103): a durable host running a
-daemon that speaks the container engine's API. Unlike a cloud it has no region,
-no subnets and no zones: its network is a name the daemon knows, referenced
-and never created or changed (the network rule of stage 1), and its machine
+"""The container runtime's model: a durable host running a daemon that
+speaks the container engine's API. Unlike a cloud it has no region, no
+subnets and no zones: its network is a name the daemon knows, referenced
+and never created or changed (the rule for every network), and its machine
 types are the limits a container runs under, declared here because no
 provider publishes a catalogue of them."""
 from __future__ import annotations
@@ -14,7 +14,7 @@ from dataclasses import field
 from typing import Any
 
 from cs_image_system.contract.runtime import ContainerBuilderModelProtocol
-from pydantic.dataclasses import dataclass  # stage 23: validation at construction
+from pydantic.dataclasses import dataclass  # validation at construction
 
 from cs_image_system.contract.constants import VCT
 from cs_image_system.base.encryption import EncryptedStr
@@ -29,7 +29,7 @@ DEFAULT_CONTAINER_NETWORK = "bridge"
 class ContainerNetworkingModel:
     """A container network, by name. It is not a ``RuntimeNetworkingModel``:
     that one demands a subnet list with a default subnet, which a container
-    network does not have (stage 103 fixed what stage 22 had inherited)."""
+    network does not have (an earlier model inherited that demand)."""
     name: str = ""                          # a label; defaults to the network's name
     network: str = DEFAULT_CONTAINER_NETWORK
 
@@ -68,8 +68,8 @@ class ContainerBuilderModel(RuntimeBuilderModel, ContainerBuilderModelProtocol):
     ENC marker. ``machine_types`` names the limits an instance's
     ``machine_type`` picks; ``default_machine_type`` (required of every
     runtime) must name one of them when any are declared."""
-    # an EncryptedStr (stage 33): a marker opens into a value that remembers
-    # its ciphertext, so the emission can write the marker back (stage 49)
+    # an EncryptedStr: a marker opens into a value that remembers its
+    # ciphertext, so the emission can write the marker back
     host: EncryptedStr | None = None
     context: str | None = None
     networking: ContainerNetworkingModel | None = None

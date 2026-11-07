@@ -96,7 +96,7 @@ def release(ctx: "GlobalTypeContext", image: str, build_id: str, model: str = DE
         if r.get("status") != "pass" or r.get("idempotent") is False:
             raise ReleaseError(f"modification {m.get('name')!r} of build {build_id!r} failed its local "
                                f"mod test (status={r.get('status')}, idempotent={r.get('idempotent')})")
-    # stage 14.3: an image that declares post-bake tests releases only a build
+    # an image that declares post-bake tests releases only a build
     # with a PASSING record (config.require_image_tests, default on)
     img = ctx.images_map.get(image)
     if post_bake_spec(img) if img is not None else False:
@@ -126,7 +126,7 @@ def declared_release_targets(ctx: "GlobalTypeContext") -> list[tuple[str, str, s
     """``[(image, runtime, build_id, model)]`` -- for every image declaring
     ``release: {model}``, each runtime's series head that has a PASSING
     post-bake record and is not already the model's current release
-    (stage 14; recomputed at execution by the deferred `release` step)."""
+    (recomputed at execution by the deferred `release` step)."""
     ms = ctx.meta_state
     tests = ms.image_tests()
     current = releases(ms).get("current") or {}
@@ -151,7 +151,7 @@ def declared_release_targets(ctx: "GlobalTypeContext") -> list[tuple[str, str, s
 def after_generate(ctx: "GlobalTypeContext", lifecycle: LifecycleLike) -> None:
     if lifecycle.value != RELEASE_LIFECYCLE.name:
         return
-    # stage 14: declared releases -- a deferred step per image that declares
+    # declared releases -- a deferred step per image that declares
     # `release:`; it recomputes the target at execution (after this run's
     # bakes and verifications were recorded) and releases the head whose
     # post-bake tests passed. Runs only in a real run (the executable carries
@@ -186,12 +186,12 @@ def after_generate(ctx: "GlobalTypeContext", lifecycle: LifecycleLike) -> None:
 
 
 def release_grace(ctx: "GlobalTypeContext", instance: Any, pin: str) -> tuple[str | None, str]:
-    """Stage 61 item 4: why an UNRELEASED pin is allowed for now, or why not.
+    """Why an UNRELEASED pin is allowed for now, or why not.
 
     A durable instance whose volume allows one attachment can only prove a
     new build on itself, after ``upgrade instance`` pinned it to that build
     -- which ``require_released_builds`` refused, so every second release
-    needed the flag switched off by hand (2026-09-20 and 2026-09-22). The
+    used to need the flag switched off by hand. The
     grace makes the sanctioned sequence legal without the switch: the pin
     is the head of the image's series on its runtime, its in-bake tests
     passed (lineage records a build only then), and the instance is either
@@ -225,8 +225,8 @@ def release_grace(ctx: "GlobalTypeContext", instance: Any, pin: str) -> tuple[st
 
 def validate_released_pins(ctx: "GlobalTypeContext", requested: list[LifecycleLike]) -> list[str]:
     """config.require_released_builds: an instance's pinned build must be a
-    released build of its image (for any model) -- or, since stage 61 item
-    4, the series head in the middle of its own proof (:func:`release_grace`)."""
+    released build of its image (for any model) -- or the series head in the
+    middle of its own proof (:func:`release_grace`)."""
     if not ctx.config.get("require_released_builds", False):
         return []
     errors: list[str] = []

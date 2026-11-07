@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""The finalizer: the deferred-command queue and its executor (stage 124).
+"""The finalizer: the deferred-command queue and its executor.
 
 During generation a builder defers the commands that must run later (a
 bake, a plan, an apply) into the queue, bucketed by the lifecycle that was
@@ -50,7 +50,7 @@ if TYPE_CHECKING:
 
 log = logging.getLogger(__name__)
 
-ROOT_VARIABLE = "CSIS_ROOT"     # the runner scripts' name for the configuration root (stage 38)
+ROOT_VARIABLE = "CSIS_ROOT"     # the runner scripts' name for the configuration root
 
 
 class Finalizer:
@@ -171,7 +171,7 @@ class Finalizer:
     # --- the executor
     def after_failed_phase(self, phase: ExecutionLifecyclePhase) -> None:
         """A command of ``phase`` failed: every builder's ``post_failed_phase``
-        records what completed before it (hygiene X item 2). Each hook runs
+        records what completed before it. Each hook runs
         on its own; one that fails is logged and never hides the failure that
         stopped the phase."""
         for builder in self.ctx.all_sorted_builders:
@@ -237,7 +237,7 @@ class Finalizer:
                 except Exception as e:
                     log.error(f"[{label}] command failed: {e}")
                     os.chdir(pwd)
-                    self.after_failed_phase(phase)     # hygiene X item 2: keep what completed
+                    self.after_failed_phase(phase)     # keep what completed
                     return False
                 finally:
                     os.chdir(pwd)
@@ -271,7 +271,7 @@ def render_executable_line(executable: Any, base: Path | None = None, root: Path
     the script (and the golden) to one checkout (ledger 71). An argument
     that is ``root`` (the configuration root: ``--root-dir``) or a path under
     it (``--overlay``) is rendered as ``"$CSIS_ROOT"`` / ``"$CSIS_ROOT/<rel>"``
-    -- the header defines the variable relative to the script (stage 38), so
+    -- the header defines the variable relative to the script, so
     a committed script names no machine's absolute path, while the
     executable itself keeps the absolute argument for in-process execution."""
     def portable(arg: str) -> str:
@@ -284,7 +284,7 @@ def render_executable_line(executable: Any, base: Path | None = None, root: Path
         return f'"${ROOT_VARIABLE}"' if str(rel) == "." else f'"${ROOT_VARIABLE}/{rel}"'
     cmd_parts: list[str] = []
     for k, v in sorted((getattr(executable, "environment", None) or {}).items()):
-        # stage 103 branch 2: a runtime's tool environment (a container daemon's
+        # a runtime's tool environment (a container daemon's
         # address, a client context) rides on the line as an assignment prefix; a value that is
         # an ENC marker stays a marker here (the committed script carries only
         # ciphertext) and opens where the line runs
@@ -304,7 +304,7 @@ def render_executable_line(executable: Any, base: Path | None = None, root: Path
                 wd = Path(wd).resolve().relative_to(Path(base).resolve())
             except ValueError:
                 pass
-        # stage 49: the committed emission carries the ENC[age:...] ciphertext,
+        # the committed emission carries the ENC[age:...] ciphertext,
         # so the command runs in the PRIVATE MIRROR of its root. Entering the
         # emitted root first keeps the line saying which root it is (and keeps
         # the directory the first quoted token), then `materialize` writes the
@@ -326,7 +326,7 @@ def script_lines(queue: Any, header: list[str], lifecycle: LifecycleLike | None,
     defaults to ``queue`` itself. With ``script_dir`` (where the script will
     live) and a known ``working_path``, the header defines ``CSIS_ROOT`` as
     the configuration root RELATIVE to the script and every root-based
-    argument is rendered through it (stage 38): the committed script runs
+    argument is rendered through it: the committed script runs
     from any checkout."""
     paths = queue if paths is None else paths
     root = getattr(paths, "working_path", None) if script_dir is not None else None

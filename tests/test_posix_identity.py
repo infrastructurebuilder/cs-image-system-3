@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""Stage 75: a POSIX identity plugin, alone and beside Okta.
+"""A POSIX identity plugin, alone and beside Okta.
 
 Step 2, the decoupling: the core's launch renderers and its login proof
 name no identity agent. The group builder's enrollment KIND (recorded in the
@@ -543,7 +543,7 @@ def _member_list(script: str, group: str = "coops") -> list[str]:
 
 
 def test_the_member_list_is_written_in_account_names_read_from_opa(monkeypatch):
-    """Stage 87 (the walk's finding F37): the login hook compares the ACCOUNT
+    """Found walking the daily driver: the login hook compares the ACCOUNT
     that logs in with the list, name for name, and OPA makes each account
     under the person's `unix_user_name` attribute -- which need not be their
     username. The list carries the attribute's value as OPA gives it."""
@@ -568,7 +568,7 @@ def test_the_member_list_is_written_in_account_names_read_from_opa(monkeypatch):
 @pytest.mark.parametrize("username, account", [("pat.papa", "pat_papa"), ("pat_papa", "pat.papa"),
                                                ("pat.papa", "ppapa"), ("pat.papa", "pat.papa")])
 def test_no_account_name_is_ever_derived_from_a_username(monkeypatch, username, account):
-    """Operator, 2026-10-08: "You cannot depend on translating _ to . and
+    """The operator's ruling: "You cannot depend on translating _ to . and
     vice versa." Whatever the two names look like beside each other, the one
     written is the one OPA answered with, untouched."""
     from cs_image_system.okta_opa_plugin.okta_opa_tf_group_builder import OktaTfGroupBuilder

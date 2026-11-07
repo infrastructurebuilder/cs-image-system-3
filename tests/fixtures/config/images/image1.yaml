@@ -24,7 +24,7 @@ images:
     group: coops # owning group (V2 Q4): identifies the identity type via the group's builder
     runtimes:
       - image_builder: pckr-ebs-ans
-      - image_builder: pckr-gce-ans # GCP readiness (2026-09-02)
+      - image_builder: pckr-gce-ans # GCP readiness
         # bake size (finding 41): the dask mods OOM a 1-2 GB machine -- the
         # AWS lesson (t3.medium) in GCE form; e2-medium = 4 GB
         machine_type: e2-medium
@@ -32,12 +32,12 @@ images:
     tags:
       dask: "true"
     type: pckr-ebs-ans
-    source_image: basic-rh-10 # renamed from basic-rhel-8 (2026-09-04)
-    # convergent bakes (stage 9): a newer basic-rh-10 head re-bakes this image
+    source_image: basic-rh-10 # renamed from basic-rhel-8
+    # convergent bakes: a newer basic-rh-10 head re-bakes this image
     # from it in the same run and moves the parent pin (op: follow) -- the
     # explicit `upgrade image` step is no longer needed between the two bakes
     parent_policy: follow
-    # stage 22.5 REMOVED -- valid inside a runtime subconfig (as above), not at image level, where no field accepts it
+    # valid inside a runtime subconfig (as above), not at image level, where no field accepts it
     # machine_type: t2.medium
     description: "Basic Dask head node with essential tools and configurations."
     tests:
@@ -46,7 +46,7 @@ images:
           contains: "git version"
       packages: [git]
       users: [csisadmin]
-      # stage 14: post-bake tests run ON the launched (ephemeral) instance by
+      # post-bake tests run ON the launched (ephemeral) instance by
       # `verify instance`, recorded per build in meta-state/image-tests.yaml;
       # `release` refuses a build without a passing record
       post_bake:
@@ -55,7 +55,7 @@ images:
         files:
           - path: /var/lib/csis/launch-applied
         mounts: [/mnt/gce-data]
-    # stage 14: a build whose post-bake tests pass is released for `default`
+    # a build whose post-bake tests pass is released for `default`
     # by the same run's release lifecycle (before retention, which keeps it)
     release:
       model: default
@@ -67,7 +67,8 @@ images:
         config:
           dask_version: "2023.9.1AA"
           jupyterlab_extension: true
-        # stage 22.5 REMOVED -- the same key nested under the mod item's config is read; this bare one sits on the item itself, which has no such field
+        # the same key nested under the mod item's config is read; this bare one sits on
+        # the item itself, which has no such field
         # dask_version: Suck it trebek
       # A shell modification (DESIGN 3M2): inline lines and/or script files
       # (config-root-relative), emitted as one packer provisioner "shell".
@@ -90,7 +91,7 @@ images:
               unless: "test -d /opt/derivative/data"
         config:
           derivative_version: "1.0.0"
-    # stage 22.5 REMOVED -- not a field anywhere in the system; a stray value that has always been discarded
+    # not a field anywhere in the system; a stray value that is always discarded
     # jethro: bodine
   - name: imgfile-data-science
     group: stofs # owning group (V2 Q4): identifies the identity type via the group's builder
@@ -98,7 +99,8 @@ images:
       - ds-node
     tags:
       data_science: "true"
-    # stage 22.5 REMOVED -- the builder assigns this at load; valid on an OS base-image subconfig and as a runtime list entry (above), not at image level
+    # the builder assigns this at load; valid on an OS base-image subconfig and as a
+    # runtime list entry (above), not at image level
     # image_builder: default
     source_image: my-deb-12
     description: "Data Science node with pre-installed libraries and tools."

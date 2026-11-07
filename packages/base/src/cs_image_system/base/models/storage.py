@@ -5,7 +5,7 @@
 from dataclasses import field
 from cs_image_system.contract.model_config import CSIS_MODEL_CONFIG
 from pydantic import Field
-from pydantic.dataclasses import dataclass  # stage 23: validation at construction
+from pydantic.dataclasses import dataclass  # validation at construction
 from typing import Annotated, Any
 
 from cs_image_system.contract.fields import fk_field
@@ -67,8 +67,8 @@ class Storage(NameTyped, SelfInjectedName):
         The zone this lives in, when it is bound to one. Declared, never
         inferred: absent means "no constraint", and a set that is not
         compatible -- more than one distinct zone across an instance, its
-        zonal storages and its runtime's subnet -- is refused at validate
-        (stage 52). Changing a zone REPLACES a zonal resource, so the
+        zonal storages and its runtime's subnet -- is refused at validate.
+        Changing a zone REPLACES a zonal resource, so the
         refusal is cheaper than the plan that follows it.
     """
 
@@ -84,7 +84,7 @@ class Storage(NameTyped, SelfInjectedName):
         "required": True,
         })
     groups: list[str] = field(default_factory=list)
-    availability_zone: str | None = None      # stage 52; meaningful only for a ZONAL storage
+    availability_zone: str | None = None      # meaningful only for a ZONAL storage
     public_read: bool = False
     share_mode: str = SHARE_MODE_PRIVATE
     state: str = STORAGE_STATE_ACTIVE
@@ -97,7 +97,7 @@ class Storage(NameTyped, SelfInjectedName):
     bucket_name: str | None = None
     tags: dict[str, str] = field(default_factory=dict)
     config: dict[str, Any] = field(default_factory=dict)
-    # Systemic data lifecycle (stage 15, DESIGN §3H / N19): a declaration the
+    # Systemic data lifecycle (DESIGN §3H, DESIGN N19): a declaration the
     # storage's builder realizes on the resource itself -- an object store:
     # {transition_days, storage_class, expire_days, prefix}; a tiered shared
     # filesystem: {ia_days, archive_days}; each builder documents its keys. A

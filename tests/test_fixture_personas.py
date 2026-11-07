@@ -2,9 +2,9 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""Stage 36: the frozen fixture's rosters are synthetic people.
+"""The frozen fixture's rosters are synthetic people.
 
-The fixture's ``groups/`` are encrypted (stage 33) to a TEST identity that is
+The fixture's ``groups/`` are encrypted to a TEST identity that is
 committed on purpose, so the encryption protects nothing and the names
 themselves must be nobody's. These tests decrypt the rosters with that
 identity and pin the invariants: every first and last name is drawn from the
@@ -27,7 +27,7 @@ MARKER = re.compile(r"ENC\[age:[A-Za-z0-9+/=]+\]")
 # phonetic-alphabet surnames, gender-neutral first names: obviously nobody
 SURNAMES = {"Alpha", "Bravo", "Charlie", "Delta", "Echo", "Foxtrot", "Golf", "Hotel", "India", "Juliett",
             "Kilo", "Lima", "Mike", "November", "Oscar", "Papa", "Quebec", "Romeo", "Sierra",
-            "Tango", "Uniform"}                                            # stage 75: the posix personas
+            "Tango", "Uniform"}                                            # the posix personas
 FIRST_NAMES = {"Avery", "Blake", "Casey", "Dakota", "Emerson", "Finley", "Greer", "Harper", "Indigo", "Jordan",
                "Kendall", "Lennox", "Morgan", "Noel", "Oakley", "Parker", "Quinn", "Riley", "Sawyer",
                "Taylor", "Unity"}
@@ -42,7 +42,7 @@ def _fixture_identity(monkeypatch):
 def _plain(value: str) -> str:
     """The text of a roster value, whether or not it is encrypted.
 
-    Since stage 51 a first and last name stand in clear: encrypting them
+    A first and last name stand in clear: encrypting them
     bought nothing while the address derived from them named the person and
     the organisation both. What is hidden now is the address's domain."""
     if not MARKER.fullmatch(value):
@@ -76,7 +76,7 @@ def test_every_group_member_is_a_roster_user():
 def test_the_derived_address_cannot_be_delivered():
     builders = (FIXTURE_CONFIG / "cfg" / "group-builders.yml").read_text()
     templates = re.findall(r"^\s*default_user_email_template:\s*\"([^\"]+)\"", builders, flags=re.M)
-    # stage 51: the domain is its own declared value and is encrypted, so the
+    # the domain is its own declared value and is encrypted, so the
     # template names it rather than spelling it; it still decrypts to a domain
     # that cannot receive mail
     assert templates and all(t.endswith("@{{ builder.email_domain }}") for t in templates)

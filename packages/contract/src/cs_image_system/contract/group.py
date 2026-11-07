@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""The group kind (stage 30): who may log into which machines, as groups
+"""The group kind: who may log into which machines, as groups
 of users with an identity type (OPA, POSIX accounts), what an image bakes
 to honour them, what an instance carries at launch, and what the state
 query and the login proof ask. The group and user items are the core's

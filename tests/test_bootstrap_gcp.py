@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""Stage 70 step 5: the GCP section of the bootstrap -- contributed by the
+"""The GCP section of the bootstrap -- contributed by the
 gcloud plugin through the entry-point group; every "existing" question a probe
 through ``gcloud`` (refused by name under --quiet when the project cannot be
 asked; a starter's placeholders are no defaults); what exists READ, never
@@ -240,7 +240,7 @@ def test_the_root_validates_with_tofu(tmp_path: Path):
 
 
 def test_an_account_that_exists_is_granted_nothing_by_default_and_a_grant_is_a_destroy_warning(tmp_path: Path):
-    """Hygiene XII item 23 (the walk's F51): two trees reading one service
+    """Found walking the daily driver: two trees reading one service
     account each held `roles/compute.viewer` in their own state, and a
     destroy of either root would have taken it from both."""
     root, out = _root(tmp_path, None, True, number=True, pool=True, provider=True, read=True, write=True, bucket=True)

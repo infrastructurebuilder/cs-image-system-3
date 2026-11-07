@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""The power state of a machine, in the system's own words (stage 57).
+"""The power state of a machine, in the system's own words.
 
 An instance is CREATED running -- that is what applying the IaC means -- and
 after that the power state belongs to the operator. The system never forces a
@@ -16,7 +16,7 @@ which is where the cloud knowledge belongs).
 
 The distinction this module exists for: **"cannot answer" is not a state.**
 A runtime that does not implement the query, or that fails to reach its
-provider, returns ``None`` -- never ``STOPPED``. Before stage 57 the two were
+provider, returns ``None`` -- never ``STOPPED``. In an older build the two were
 the same answer, because the only probe available filtered on ``running`` and
 returned ``None`` for everything else, so a machine the operator had switched
 off was indistinguishable from a cloud that would not talk to us.
@@ -66,7 +66,7 @@ def running_for_task(rtb: Any, instance_name: str, *, why: str,
     Yields True when the work may proceed, False when the machine is off and
     this runtime cannot start it -- in which case the caller SKIPS the work
     rather than failing it, because a machine that is off is in the state its
-    operator chose (stage 57).
+    operator chose.
 
     Three rules this enforces, from the operator's own statement of them:
 

@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""Stage 76: the words of OOPS_DEFAULTS -- ``default``, ``self``, ``none``, the
+"""The words of OOPS_DEFAULTS -- ``default``, ``self``, ``none``, the
 empty string and null -- mean "not set" wherever a value is read, so nothing
 may be NAMED after one. Held three ways: where each configuration file is
 read (the file, the entry and the word named), by every model class when it
@@ -191,7 +191,7 @@ def test_every_named_model_class_refuses_every_word_as_a_name_and_an_alias(monke
         # plugin's user with its profile fields): the base class's name counts
         names = {base.__name__ for cls in models for base in cls.__mro__}
         assert {"Group", "User", "Storage", "Image", "Instance"} <= names, names
-        assert len(models) >= 30, names                     # 31 on 2026-10-03
+        assert len(models) >= 30, names                     # 31 when this was written
         accepted: list[str] = []
         for cls, model in models.items():
             for value in VARIANTS:

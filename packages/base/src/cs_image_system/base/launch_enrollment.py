@@ -2,8 +2,8 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""Launch enrollment kinds (stage 75 step 2): the registry is the contract's
-(:mod:`cs_image_system.contract.enrollment`, stage 125) -- a plugin registers
+"""Launch enrollment kinds: the registry is the contract's
+(:mod:`cs_image_system.contract.enrollment`) -- a plugin registers
 its kind when its module loads, before any run exists -- and this path keeps
 the names the core's renderers (``launch_params.user_data_template``,
 ``ansible_launch.launch_playbook``) and tests read them by. The table

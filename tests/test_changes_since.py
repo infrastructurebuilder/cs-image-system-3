@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""Hygiene XXI item 3: ``init-config TREE --changes-since PREVIOUS_STARTERS``.
+"""``init-config TREE --changes-since PREVIOUS_STARTERS``.
 
 A tree takes a release by refreshing the files the release owns, by hand. This
 read-only listing is what the person reads first: which of those files the release

@@ -5,9 +5,9 @@
 """``AbstractPluginMetadata``: the class-based convenience that satisfies
 the contract's ``PluginMetadataProtocol`` from constructor arguments (the
 contract's ``metadata.PluginMetadata`` is the data record that does the
-same). Stage 30: ``version`` is the plugin's own -- given explicitly, or
-read from the distribution that ships the subclass -- not the metadata
-version it returned until then."""
+same). ``version`` is the plugin's own -- given explicitly, or read from
+the distribution that ships the subclass -- never a version of the
+metadata format."""
 from __future__ import annotations
 
 import importlib.util

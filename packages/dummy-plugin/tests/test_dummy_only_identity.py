@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""A tree whose identity is this plugin's alone (stage 128, item 6): the
+"""A tree whose identity is this plugin's alone: the
 `dummy` group builder and the `dummy` user builder, one group on them and
 nothing of the fixture's Okta or posix identity. It loads, validates and
 runs the identity lifecycle dry: the group builder writes nothing, the user

@@ -63,7 +63,7 @@ resource "aws_efs_access_point" "public_read" {
   tags = merge({ Name = "${var.name}-public-read" }, var.tags)
 }
 
-# The mount targets and the group that reaches them (stage 19). The ingress is
+# The mount targets and the group that reaches them. The ingress is
 # group-to-group: the clients' own security groups are named as the source, so
 # nothing is opened to a CIDR and no existing group is modified.
 resource "aws_security_group" "mount_targets" {

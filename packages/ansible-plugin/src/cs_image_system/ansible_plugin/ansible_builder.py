@@ -70,8 +70,8 @@ class AnsiblePackerModBuilder(ModBuilderBase[Q]):
             src = Path(playbook)
             if not src.is_absolute():
                 if not src.is_file():
-                    # stage 63: a missing relative playbook used to be emitted
-                    # anyway and failed only when packer ran
+                    # a missing relative playbook used to be emitted anyway
+                    # and failed only when packer ran
                     raise FileNotFoundError(
                         f"modification {mod.name!r}: playbook {playbook!r} does not exist (a relative "
                         "path is read from the configuration root)")
@@ -87,7 +87,7 @@ class AnsiblePackerModBuilder(ModBuilderBase[Q]):
             # the docker mod-test harness).
             retval.add(path, 'provisioner "shell" {')
             retval.add(path, f'  only = ["{label}"]')
-            # stage 86: a held package database is waited out (the bake's step runner, the commands service's line)
+            # a held package database is waited out (the bake's step runner, the commands service's line)
             retval.add(path, self._get_context().services.commands.execute_command_line("  "))
             retval.add(path, '  inline = [')
             retval.add(path, '    "test -x /usr/local/bin/csis-ansible-python || { for v in 3.12 3.11 3.9; do command -v python$v >/dev/null 2>&1 && break; sudo dnf -y install python$v >/dev/null 2>&1 && break; done; P=$(ls /usr/bin/python3.[0-9]* 2>/dev/null | grep -v config | sort -V | tail -1); [ -n \\\"$P\\\" ] || P=$(command -v python3); sudo ln -sf \\\"$P\\\" /usr/local/bin/csis-ansible-python; }",')
@@ -107,14 +107,14 @@ class AnsiblePackerModBuilder(ModBuilderBase[Q]):
             bake_user = None
             rtb = ctx.runtime_builders.get(str(ibb.model.get_runtime_provider())) if ibb else None
             if rtb is not None:
-                bake_user = rtb.bake_ssh_username(image)   # stage 63 item 23: the source's own user
+                bake_user = rtb.bake_ssh_username(image)   # the source's own user
             if self.model.configuration_user:
-                bake_user = str(self.model.configuration_user)   # stage 63: the builder's override
+                bake_user = str(self.model.configuration_user)   # the builder's override
             if bake_user:
                 retval.add(path, f"  user = {_hcl(bake_user)}")
             extra = list(self.model.extra_arguments or [])
             extra += ["-e", "ansible_python_interpreter=/usr/local/bin/csis-ansible-python"]
-            # stage 103: the connection ansible uses is an ansible VARIABLE
+            # the connection ansible uses is an ansible VARIABLE
             # (packer's provisioner has no option for it; the former
             # `connection_type = ...` line was not one packer knew). The
             # runtime says how a bake on it is reached (docker: through the
@@ -142,8 +142,8 @@ class AnsiblePackerModBuilder(ModBuilderBase[Q]):
 
     def copy_external_assets(self, target_path: Path, mod=None) -> dict[str, Path]:
         """Nothing: an item's playbooks are copied beside the block when its
-        provisioners are emitted (stage 48.4: the builder-level playbooks that
-        were copied here and never referenced are gone)."""
+        provisioners are emitted (the builder-level playbooks that were copied
+        here and never referenced are gone)."""
         return {}
 
 
@@ -161,7 +161,7 @@ class AnsibleVersionChecker(AbstractVersionChecker):
 
 def _hcl(text: str) -> str:
     """An HCL string literal: backslashes and quotes escaped, and packer's
-    template openers doubled (stage 63: a `"` in `extra_arguments`,
-    `ansible_connection` or a path used to break the build file)."""
+    template openers doubled (a `"` in `extra_arguments`, `ansible_connection`
+    or a path used to break the build file)."""
     body = text.replace("\\", "\\\\").replace('"', '\\"').replace("${", "$${").replace("%{", "%%{")
     return f'"{body}"'

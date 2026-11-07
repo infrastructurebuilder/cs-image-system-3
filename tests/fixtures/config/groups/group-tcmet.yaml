@@ -1,11 +1,11 @@
 groups:
   # Membership mirrors the LIVE OPA state (state query drift, reconciled
-  # 2026-09-05 — the secofs/stage-1.4 shape): members and extra admins were
-  # added out-of-band via the ASA console during the 2026-09-03 sftd
+  # from the console — the secofs shape): members and extra admins were
+  # added out-of-band via the ASA console during the sftd
   # enrollment work. NOTE for the next identity apply: the live
   # oktapam_user_group_attachment records exist in OPA but not in tofu
-  # state — import them (the stage-1 six-import shape), never recreate.
-  # users.yaml carries the four principals' records, read 2026-09-05
+  # state — import them (the six-import shape), never recreate.
+  # users.yaml carries the four principals' records, read
   # from the OPA user API (note: the canonical host is
   # https://{org}.pam.okta.com — app.scaleft.com 401s on these reads).
   - name: tcmet

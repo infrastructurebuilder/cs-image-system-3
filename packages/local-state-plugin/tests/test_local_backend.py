@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""The `local` backend type (stage 47.3): its renderings, its place beside
+"""The `local` backend type: its renderings, its place beside
 S3 in the collision rule, and a real `tofu init` against it with no
 credentials at all."""
 from __future__ import annotations
@@ -62,8 +62,8 @@ def test_the_same_name_under_two_types_is_not_a_collision_but_two_roots_on_one_d
 
 @pytest.mark.skipif(shutil.which("tofu") is None, reason="tofu is not installed")
 def test_a_real_init_against_the_local_backend_needs_no_credentials(tmp_path: Path):
-    """Stage 47.6.2: what nothing in the suite could do before -- a real `tofu
-    init` with an empty environment, against the file the kind renders."""
+    """What nothing else in the suite can do -- a real `tofu init` with an
+    empty environment, against the file the kind renders."""
     root = tmp_path / "root"
     root.mkdir()
     state_dir = tmp_path / "state"

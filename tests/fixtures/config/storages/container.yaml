@@ -1,5 +1,5 @@
 storages:
-  # Stage 128 (item 4): a named docker volume on the fixture's docker runtime,
+  # A named docker volume on the fixture's docker runtime,
   # mounted by the platform into the container that attaches it.
   - name: container_data
     type: docker-volume

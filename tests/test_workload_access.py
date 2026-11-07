@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""Stage 56 step 3: with the team's workload connection and role named on
+"""With the team's workload connection and role named on
 the okta-tf group builder, the identity read-model records what each
 managed group expects (the CI policy's name and what it mirrors), the
 after-apply hook reconciles the policy through the builder and records the
@@ -50,7 +50,7 @@ def world(tmp_path: Path, monkeypatch):
 def _managed(ctx) -> list[str]:
     from cs_image_system.base.read_models import identity_read_model
     model = identity_read_model(ctx)["groups"]
-    # the OPA groups: a posix group (stage 75) is managed too, and has no CI login policy
+    # the OPA groups: a posix group is managed too, and has no CI login policy
     return sorted(n for n, r in model.items() if r.get("managed", True) and r.get("identity_type") == "okta")
 
 

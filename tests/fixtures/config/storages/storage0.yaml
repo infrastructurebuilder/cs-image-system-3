@@ -16,10 +16,10 @@ storages:
     runtime: default
     type: aws-s3
     singleton: true
-    # renamed 2026-09-01 (step 4): 'my-image-bucket' is globally taken
+    # renamed: 'my-image-bucket' is globally taken
     bucket_name: noscsb-csis-test-514190660293-default-bucket
     public_read: true
-    # data lifecycle (stage 15): objects untouched for 30 days move to
+    # data lifecycle: objects untouched for 30 days move to
     # Infrequent Access; nothing expires (a sandbox bucket, cents either way)
     lifecycle:
       transition_days: 30
@@ -29,13 +29,13 @@ storages:
       team: devops
   - name: efs-storage
     type: aws-efs # This is efs on AWS west 2 (default provider)
-    # file_system_id removed 2026-09-01 (TODO stage 1 step 4, decision):
+    # no file_system_id (decision):
     # the fake fs-12345678 cannot plan live; the module now CREATES the
     # filesystem, with coops/stofs access points (gids by reference).
     groups:
       - coops
       - stofs
     share_mode: "2775" # read-shared between the allowed groups (N15 override)
-    # data lifecycle (stage 15): files not read for 30 days move to EFS IA
+    # data lifecycle: files not read for 30 days move to EFS IA
     lifecycle:
       ia_days: 30

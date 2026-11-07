@@ -58,9 +58,9 @@ def launch_playbook(params: dict[str, Any], inventory_name: str | None = None,
     """The playbook equivalent of ``user_data_template(params)``.
     ``inventory_name`` is the instance's declared name -- the key
     ``launch_inventory`` uses -- and is what the play TARGETS;
-    ``params["hostname"]`` is the canonical name the machine is GIVEN (since
-    stage 55 step 4 the two differ: ``test`` versus ``test-001``). Without
-    it the play targets the hostname, as it did when they coincided.
+    ``params["hostname"]`` is the canonical name the machine is GIVEN (the
+    two differ: ``test`` versus ``test-001``). Without it the play targets
+    the hostname, as it did when they coincided.
     ``ctx`` is the configured context unless given (it names each mount's
     storage builder)."""
     host = params["hostname"]
@@ -71,7 +71,7 @@ def launch_playbook(params: dict[str, Any], inventory_name: str | None = None,
     ]
     for m in params.get("mounts", []):
         tasks += mount_tasks(m, group, ctx)        # the mount's whole task list is the storage's
-    # stage 75 step 2: the identity plugin that issued the enrollment renders its tasks
+    # the identity plugin that issued the enrollment renders its tasks
     kind = enrollment_kind_for(params)
     if kind is not None:
         tasks += kind.ansible_tasks(params)

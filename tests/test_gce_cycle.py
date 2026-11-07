@@ -2,11 +2,11 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""GCE change cycle (stage 8): transient declarations through ``--overlay``
+"""GCE change cycle: transient declarations through ``--overlay``
 and an explicitly empty bake surface (``--only none``), so a cycle can
 launch, verify and tear down on GCE without editing the live tree.
 
-The overlay files under test are the fixture's copies (stage 28: the live
+The overlay files under test are the fixture's copies (the live
 configuration carries no overlays; ``just gce-decommission`` passes
 ``--undeclare instance:gce-test`` instead, and the overlay ``undeclare`` form
 stays as the tests' device).
@@ -102,7 +102,7 @@ def test_launch_overlay_declares_the_instance_and_scopes_the_apply(prepared):
     assert 'module "instance_gce_test"' in tf
     ws = _by_workspace((run.generated / "instance-image" / "run-instance-image.sh").read_text())
     assert ws[GCE_ROOT]["apply"] is True and ws[GCE_ROOT]["root"] == "tofu-gce"
-    # the script names the overlay through the root reference (stage 38), never an absolute path
+    # the script names the overlay through the root reference, never an absolute path
     assert ws[GCE_ROOT]["overlays"] == ['"$CSIS_ROOT/overlays/gce-cycle-launch.yaml"']
     assert ws[AWS_ROOT]["apply"] is False            # plans and gates only
     # --only none: the terraform roots alone, no bake surface at all
@@ -126,7 +126,7 @@ def test_decommission_overlay_destroys_the_recorded_instance_only(prepared):
 
 
 def test_undeclare_flag_decommissions_like_the_overlay_form(prepared, tmp_path, monkeypatch):
-    """Stage 28: ``--undeclare instance:gce-test`` is the decommission overlay
+    """``--undeclare instance:gce-test`` is the decommission overlay
     without the file -- a live configuration needs no overlay to destroy a
     leftover standing instance through the gate."""
     root, _ = prepared
@@ -338,8 +338,8 @@ def test_dispose_refuses_unrecorded_and_in_use_builds(tmp_path, monkeypatch, stu
 
 
 def test_dispose_refuses_a_runtime_that_cannot_dispose(tmp_path, monkeypatch, stub_gce_delete):
-    """A runtime without the hook refuses (AWS implements it since TODO
-    §11.1, so the base behaviour is stubbed back for this proof)."""
+    """A runtime without the hook refuses (AWS implements it, so the base
+    behaviour is stubbed back for this proof)."""
     from cs_image_system.aws_runtime.aws_runtime_builders import AwsCloudBuilder
     from cs_image_system.base.basic.builder_base_runtime import RuntimeBuilderBase
     from cs_image_system.base.commands.dispose import dispose_images
@@ -358,7 +358,7 @@ def test_dispose_refuses_a_runtime_that_cannot_dispose(tmp_path, monkeypatch, st
 # --------------------------------------------------- step 6: readiness leftovers
 
 def test_gce_bakes_are_preemptible_when_the_runtime_says_so(tmp_path, monkeypatch):
-    """GCP-READINESS §6: the runtime's bake_preemptible lands on the
+    """GCP readiness: the runtime's bake_preemptible lands on the
     googlecompute source (spot build VMs; a preempted bake re-runs)."""
     run = V2Run(tmp_path, monkeypatch)
     try:
@@ -370,7 +370,7 @@ def test_gce_bakes_are_preemptible_when_the_runtime_says_so(tmp_path, monkeypatc
 
 
 def test_gcs_state_lookup_goes_through_gcloud(tmp_path, monkeypatch):
-    """GCP-READINESS §7 parity: the bucket is looked up with
+    """GCP readiness parity: the bucket is looked up with
     `gcloud storage buckets describe` -- present, absent (not found), or
     unavailable (any other failure raises, so the query reports it)."""
     import subprocess
@@ -394,7 +394,7 @@ def test_gcs_state_lookup_goes_through_gcloud(tmp_path, monkeypatch):
         assert rec == {"id": "csis-sandbox-86233086783-default-bucket", "state": "active",
                        "location": "US-EAST1", "storage_class": "STANDARD",
                        "tags": {"csis_storage": "gce-bucket"}}
-        # stage 63 item 14: the declared binary, not a bare name from PATH
+        # the declared binary, not a bare name from PATH
         assert calls[-1][:4] == ["/usr/local/bin/gcloud", "storage", "buckets", "describe"]
         assert calls[-1][4] == "gs://csis-sandbox-86233086783-default-bucket"
         fake_run.result = SimpleNamespace(returncode=1, stdout="", stderr="ERROR: ... 404 ... not found")
@@ -413,7 +413,7 @@ def test_gce_retag_merges_lineage_truth_into_the_image_labels(tmp_path, monkeypa
     generation-time labels (`csis_parent: series-…`, a placeholder
     fingerprint); after the bake the runtime relabels it from the record,
     keeping every other label and the label fingerprint GCE requires."""
-    from cs_image_system.gcloud_runtime import gcp_runtime_builders   # patched where it is read (a top-level import since stage 124)
+    from cs_image_system.gcloud_runtime import gcp_runtime_builders   # patched where it is read (a top-level import)
 
     class Image:
         labels = {"csis_parent": "series-basic-rh-10", "csis_fingerprint": "293d6de5ab5f3b4f",

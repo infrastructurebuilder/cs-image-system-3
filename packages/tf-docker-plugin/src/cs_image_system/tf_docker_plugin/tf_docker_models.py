@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""The container instance and volume builder models (stage 103 branch 2).
+"""The container instance and volume builder models.
 
 The shape of every tofu root: one terraform root per builder,
 a state manager by reference (the runtime's, else the default), and the
@@ -14,7 +14,7 @@ from __future__ import annotations
 from dataclasses import field
 
 from cs_image_system.contract.model_config import CSIS_MODEL_CONFIG
-from pydantic.dataclasses import dataclass  # stage 23: validation at construction
+from pydantic.dataclasses import dataclass  # validation at construction
 
 from cs_image_system.base.models.module_variables import ModuleVariables
 from cs_image_system.tofu_roots.tofu_models import TofuInstanceBuilderModelBase, TofuStorageBuilderModelBase

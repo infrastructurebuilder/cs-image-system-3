@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""Stage 57: the power state belongs to the operator.
+"""The power state belongs to the operator.
 
 An instance is created running; after that the system never forces it back.
 The tests here hold the three rules that make that true -- "cannot answer" is
@@ -92,7 +92,7 @@ def test_gce_terminated_means_stopped_not_gone():
 # ------------------------------------------------------- the bounded start
 
 class FakeRuntime:
-    """A runtime builder reduced to the hooks stage 57 added."""
+    """A runtime builder reduced to the power-state hooks."""
 
     def __init__(self, state, *, can_query=True, can_set=True, reachable=True):
         self.state = state
@@ -194,7 +194,7 @@ def _aws_runtime(ctx) -> str:
 
 
 def test_a_stopped_instance_is_a_note_not_unavailable(world, monkeypatch):
-    """Before stage 57 the boot-image probe answered None for a stopped
+    """The boot-image probe once answered None for a stopped
     machine exactly as it did for an unreachable cloud, so the report said
     'the provider could not answer' about a decision the operator had made
     deliberately."""
@@ -205,7 +205,7 @@ def test_a_stopped_instance_is_a_note_not_unavailable(world, monkeypatch):
                               "name": "n", "parent": "external", "input_fingerprint": "f", "run": "r",
                               "capabilities": {}, "mods": [], "chain": []})
     ctx.meta_state.bind_instance("test", "ami-x", "run-x")
-    ctx.meta_state.record_launch_params("test", {"launched": True})     # a machine that was launched (hygiene XII item 13)
+    ctx.meta_state.record_launch_params("test", {"launched": True})     # a machine that was launched
     monkeypatch.setattr(AwsCloudBuilder, "query_instance_boot_image", lambda self, n: None)
     monkeypatch.setattr(AwsCloudBuilder, "can_query_instance_power_state", lambda self: True)
     monkeypatch.setattr(AwsCloudBuilder, "query_instance_power_state", lambda self, n: ps.STOPPED)
@@ -245,7 +245,7 @@ def test_a_pending_replacement_is_a_note_not_drift_in_the_strict_query(world, mo
     image is behind the pin BY DESIGN until the next applies-on run replaces
     the machine. The strict query used to call that `changed` drift and so
     refused the very launch that finishes the procedure (cloud-launch's
-    preflight, live 2026-09-22). Without the marker it is drift again."""
+    preflight, seen live). Without the marker it is drift again."""
     from cs_image_system.aws_runtime.aws_runtime_builders import AwsCloudBuilder
     ctx = world.ctx
     ms = ctx.meta_state

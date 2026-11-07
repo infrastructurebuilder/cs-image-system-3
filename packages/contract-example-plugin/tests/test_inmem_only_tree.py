@@ -2,8 +2,8 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""A tree whose only state backend is this plugin's `inmem` (stage 128,
-item 6): every root of a dry `run --all` carries the inmem backend, every
+"""A tree whose only state backend is this plugin's `inmem`:
+every root of a dry `run --all` carries the inmem backend, every
 state location is in memory, and the one setting reaches every backend
 file. Over a copy of the frozen fixture with its backends replaced."""
 from __future__ import annotations

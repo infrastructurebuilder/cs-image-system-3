@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""The docker runtime without a daemon (stage 103): the spellings a daemon
+"""The docker runtime without a daemon: the spellings a daemon
 accepts, the query translation, the model's environment, and the shapes of
 the packer source and its post-processor."""
 from __future__ import annotations
@@ -204,7 +204,7 @@ def test_the_builder_answers_the_hooks_that_need_no_daemon():
 
 def test_a_registry_a_daemon_implied_is_still_our_repository():
     """Podman's API reports the unqualified ``csis/x:t`` as ``docker.io/csis/x:t``
-    (the Podman leg, 2026-11-01); the movable tags on such an image were
+    (the Podman leg); the movable tags on such an image were
     ignored, so a parent bound after a bake read as the series name."""
     from cs_image_system.docker_runtime.docker_names import same_repository
     assert same_repository("csis/x", "csis/x")

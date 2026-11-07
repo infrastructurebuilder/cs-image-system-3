@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-# The GitHub section of the bootstrap (cs-image-system stage 70; CI_SETUP.md 3.2):
+# The GitHub section of the bootstrap (CI_SETUP.md 3.2):
 # the repository's default branch, the Actions permissions, a ruleset on the
 # production branch that still lets github-actions[bot] push the records the
 # perform job writes, and the Actions variables that are not secret. The
@@ -46,7 +46,7 @@ resource "github_actions_repository_permissions" "this" {
 # an ordinary push, so the perform job's own token still pushes its records
 # (fast-forward, always) and no bypass actor is needed -- nor could one be named:
 # GitHub refuses the built-in Actions app as a bypass actor on a repository
-# ruleset (hygiene IX item 3, found by the first live apply).
+# ruleset (found by the first live apply).
 resource "github_repository_ruleset" "production" {
   count       = var.protect_production ? 1 : 0
   name        = "cs-image-system: ${var.production_branch}"

@@ -28,7 +28,7 @@ import logging
 import os
 from dataclasses import field
 from cs_image_system.contract.model_config import CSIS_MODEL_CONFIG
-from pydantic.dataclasses import dataclass  # stage 23: validation at construction
+from pydantic.dataclasses import dataclass  # validation at construction
 from typing import Any, Mapping
 
 from cs_image_system.contract.names import super_safe_name
@@ -70,7 +70,7 @@ class OktaTfWorkspaceModelMixin:
 
     org: str
     team: str
-    key: EncryptedStr = DEFAULT  # oktapam; becomes "var.<team>_key" at finalize; may be ENC[age:...] (stage 33)
+    key: EncryptedStr = DEFAULT  # oktapam; becomes "var.<team>_key" at finalize; may be ENC[age:...]
     secret: EncryptedStr = DEFAULT  # oktapam; becomes "var.<team>_secret" at finalize
     api_host: str = templated_field(replace_value='https://{{ this.org }}.pam.okta.com',
                                     default=DEFAULT, metadata={
@@ -145,7 +145,7 @@ class OktaTfWorkspaceModelMixin:
                 "oktapam_team": self.team,
             }
             for k, v in tcfg.items():
-                # stage 34: a declared-encrypted credential is emitted as the
+                # a declared-encrypted credential is emitted as the
                 # reference to its ciphertext, never quoted into HCL
                 if workspace and collector is not None:
                     v = collector.sensitive_ref(workspace, k, v)
@@ -184,7 +184,7 @@ class OktaTfWorkspaceModelMixin:
                                    dict(configured.config))
             for variable in self.provider_variables(provider):
                 col.declare_variable(workspace, variable)
-        col.bind_workspace(workspace, self.state_configuration)   # stage 46: own value, else the default (no runtime)
+        col.bind_workspace(workspace, self.state_configuration)   # own value, else the default (no runtime)
 
     # ------------------------------------------------------------------
     # Finalization
@@ -197,7 +197,7 @@ class OktaTfWorkspaceModelMixin:
         _tu = self._team_var()
         value = env.get(f"TF_VAR_{_tu}_{suffix}")
         if value is None:
-            # stage 63: a real refusal (a bare `assert` vanishes under `python -O`)
+            # a real refusal (a bare `assert` vanishes under `python -O`)
             raise ValueError(
                 f"Okta builder {getattr(self, 'name', '<unnamed>')} is missing a "
                 f"{suffix} value.  "

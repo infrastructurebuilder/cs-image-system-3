@@ -80,11 +80,11 @@ class BashModBuilder(ModBuilderBase[Q]):
         for body in parts:
             lines += ['provisioner "shell" {', f'  only = ["{build_target_label_of(ibb, image)}"]']
             lines += body
-            command = self.model.effective_execute_command()     # stage 63: configuration_user
+            command = self.model.effective_execute_command()     # configuration_user
             if command:
                 lines.append(f"  execute_command = {_hcl_string(command)}")
             else:
-                # stage 86: through the bake's step runner, so `ensure: packages`
+                # through the bake's step runner, so `ensure: packages`
                 # and a script's own installs wait out a held package database;
                 # a builder that says how its script runs keeps its own command
                 lines.append(self._get_context().services.commands.execute_command_line("  "))

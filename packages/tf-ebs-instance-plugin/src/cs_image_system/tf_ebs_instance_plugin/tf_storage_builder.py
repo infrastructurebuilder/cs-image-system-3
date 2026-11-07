@@ -136,7 +136,7 @@ class TofuEbsStorageBuilder(TofuStorageBuilder[R]):
         return "ebs"
 
     def is_zonal(self) -> bool:
-        return True     # stage 52: an EBS volume lives in one zone; changing it replaces the volume
+        return True     # an EBS volume lives in one zone; changing it replaces the volume
 
     def attachment_cardinality(self) -> str:
         # A volume attaches to one instance at a time (the forcing argument of N16).
@@ -182,7 +182,7 @@ class TofuEbsStorageBuilder(TofuStorageBuilder[R]):
     def _lookup(self, storage: Storage) -> dict[str, Any] | None:
         ec2 = self._aws_client("ec2")
         if self._get_context().meta_state.storage_state(storage.get_name()) == STORAGE_STATE_ARCHIVED:
-            # archived (stage 15): the volume is expected absent; the archive
+            # archived: the volume is expected absent; the archive
             # snapshot -- addressed by its Name tag -- is what must exist
             snaps = ec2.describe_snapshots(OwnerIds=["self"], Filters=[
                 {"Name": "tag:Name", "Values": [self.archive_name(storage)]}]).get("Snapshots", [])
@@ -194,7 +194,7 @@ class TofuEbsStorageBuilder(TofuStorageBuilder[R]):
                     "tags": {t["Key"]: t["Value"] for t in snap.get("Tags", []) if "Key" in t}}
         vols = ec2.describe_volumes(Filters=[{"Name": "tag:Name", "Values": [storage.get_name()]}]).get("Volumes", [])
         tags_of = lambda v: {t["Key"]: t["Value"] for t in v.get("Tags", []) if "Key" in t}  # noqa: E731
-        vols, elsewhere = self._owned(vols, tags_of)     # stage 93: another configuration's `data` is not ours
+        vols, elsewhere = self._owned(vols, tags_of)     # another configuration's `data` is not ours
         if not vols:
             return self._elsewhere(elsewhere, "an EBS volume") if elsewhere else None
         v = vols[0]
@@ -211,7 +211,7 @@ class TofuEbsStorageBuilder(TofuStorageBuilder[R]):
                                             Tags=[{"Key": k, "Value": str(v)} for k, v in tags.items()])
         return True
 
-    # ------------------------------------------------ archived (stage 15)
+    # --------------------------------------------------------------- archived
     def supports_archive(self) -> bool:
         return True
 
@@ -258,13 +258,13 @@ class TofuEbsStorageBuilder(TofuStorageBuilder[R]):
         return []
 
     def module_args(self, storage: Storage) -> dict[str, Any]:
-        # stage 26: declared `variables:` first, then what the item decides
+        # declared `variables:` first, then what the item decides
         args: dict[str, Any] = dict(self.model.variables.as_module_args())
         args.update({
             "name": storage.get_name(),
             "size": getattr(self.model, "size", 100),
         })
-        # restore (stage 15): recorded archived, declared active -> the volume is
+        # restore: recorded archived, declared active -> the volume is
         # created FROM the archive snapshot (looked up by its Name tag at plan
         # time); the module ignores later drift of snapshot_id
         if self._get_context().meta_state.storage_state(storage.get_name()) == STORAGE_STATE_ARCHIVED:
@@ -272,7 +272,7 @@ class TofuEbsStorageBuilder(TofuStorageBuilder[R]):
         ctx = self._get_context()
         rtb = ctx.runtime_builders.get(self.model.get_runtime_provider(), None)
         networking = getattr(rtb.model, "networking", None) if rtb else None
-        # stage 52: the storage's OWN zone wins, then the runtime's, and only
+        # the storage's OWN zone wins, then the runtime's, and only
         # then the subnet the module derives one from. A declared zone has to
         # pin, or declaring it would decorate the configuration without
         # changing where the volume goes -- and validate would be checking a
@@ -351,14 +351,14 @@ class TofuEfsStorageBuilder(TofuStorageBuilder[S]):
         tags_of = lambda fs: {t["Key"]: t["Value"] for t in fs.get("Tags", []) if "Key" in t}  # noqa: E731
         named = [fs for fs in efs.describe_file_systems().get("FileSystems", [])
                  if tags_of(fs).get("Name") == storage.get_name() or fs.get("Name") == storage.get_name()]
-        named, elsewhere = self._owned(named, tags_of)       # stage 93
+        named, elsewhere = self._owned(named, tags_of)       # another configuration's is not ours
         if not named and elsewhere:
             return self._elsewhere(elsewhere, "an EFS filesystem")
         for fs in named:
             tags = tags_of(fs)
             if True:
                 rec: dict[str, Any] = {"id": fs.get("FileSystemId"), "state": fs.get("LifeCycleState"), "tags": tags}
-                try:   # observed data lifecycle (stage 15); absent = no policy
+                try:   # observed data lifecycle; absent = no policy
                     pol = efs.describe_lifecycle_configuration(FileSystemId=fs.get("FileSystemId")).get("LifecyclePolicies", [])
                     rec["lifecycle"] = {k: v for p in pol for k, v in p.items()} if pol else {}
                 except Exception:  # noqa: BLE001 - informational; presence is the claim
@@ -377,8 +377,8 @@ class TofuEfsStorageBuilder(TofuStorageBuilder[S]):
                                              Tags=[{"Key": k, "Value": str(v)} for k, v in tags.items()])
         return True
 
-    # ------------------------------------------ data lifecycle (stage 15)
-    IA_DAYS = (1, 7, 14, 30, 60, 90, 180, 270, 365)
+    # --------------------------------------------------------- data lifecycle
+    IA_DAYS =(1, 7, 14, 30, 60, 90, 180, 270, 365)
     ARCHIVE_DAYS = (90, 180, 270, 365)
 
     def validate_lifecycle(self, storage: Storage) -> list[str]:
@@ -398,7 +398,7 @@ class TofuEfsStorageBuilder(TofuStorageBuilder[S]):
         return errors
 
     def module_args(self, storage: Storage) -> dict[str, Any]:
-        args: dict[str, Any] = dict(self.model.variables.as_module_args())   # stage 26
+        args: dict[str, Any] = dict(self.model.variables.as_module_args())   # declared `variables:` first
         args["name"] = storage.get_name()
         existing = storage.config.get("file_system_id")
         if existing:
@@ -413,7 +413,7 @@ class TofuEfsStorageBuilder(TofuStorageBuilder[S]):
             args["access_points"] = self.group_subtrees(storage)
         if storage_public_read(storage):
             args["public_read"] = True
-        # Mount targets (stage 19): an EFS filesystem is reachable only through
+        # Mount targets: an EFS filesystem is reachable only through
         # an ENI in the VPC, one per availability zone, and without them
         # `mount.efs` cannot resolve the filesystem at all. Only the PRIVATE
         # subnets are named: EFS permits one mount target per zone, and the
@@ -459,9 +459,9 @@ class TofuS3StorageBuilder(TofuStorageBuilder[B]):
 
     def _bucket_for(self, storage: Storage) -> str:
         """The bucket a storage lives in, one rule for the module call, the
-        state lookup and the wipe (stage 67): the storage's own `bucket_name`,
-        else the BUILDER's `bucket_name` (the default for storages that name
-        none; since stage 63 it was read by nothing), else the storage's name."""
+        state lookup and the wipe: the storage's own `bucket_name`, else the
+        BUILDER's `bucket_name` (the default for storages that name none),
+        else the storage's name."""
         return (getattr(storage, "bucket_name", None) or getattr(self.model, "bucket_name", None)
                 or storage.get_name())
 
@@ -498,9 +498,9 @@ class TofuS3StorageBuilder(TofuStorageBuilder[B]):
 
     def _lookup(self, storage: Storage) -> dict[str, Any] | None:
         s3 = self._aws_client("s3")
-        # stage 63: the STORAGE's bucket, the one its module call creates
-        # (bucket_name, else the storage's name); the builder's bucket_name
-        # made two S3 storages on one builder report the same bucket
+        # the STORAGE's bucket, the one its module call creates (bucket_name,
+        # else the storage's name); the builder's bucket_name alone would make
+        # two S3 storages on one builder report the same bucket
         bucket = self._bucket_for(storage)
         # The bucket_name binding already scopes this lookup to one bucket, so
         # presence = the bucket is reachable (found live: our own bucket read
@@ -519,9 +519,9 @@ class TofuS3StorageBuilder(TofuStorageBuilder[B]):
                 raise
         lineage = self._get_context().services.lineage
         if lineage.belongs_to_another_configuration(tags):
-            return self._elsewhere(lineage.owner_of(tags), "an S3 bucket")      # stage 93: the name is theirs
+            return self._elsewhere(lineage.owner_of(tags), "an S3 bucket")      # the name is theirs
         rec: dict[str, Any] = {"id": bucket, "state": "active", "tags": tags}
-        try:   # observed data lifecycle (stage 15); absent = no rules
+        try:   # observed data lifecycle; absent = no rules
             rules = s3.get_bucket_lifecycle_configuration(Bucket=bucket).get("Rules", [])
             rec["lifecycle"] = {"rules": [str(r.get("ID") or "") for r in rules]} if rules else {}
         except Exception as e:  # noqa: BLE001
@@ -542,8 +542,8 @@ class TofuS3StorageBuilder(TofuStorageBuilder[B]):
                                                   Tagging={"TagSet": [{"Key": k, "Value": v} for k, v in merged.items()]})
         return True
 
-    # ------------------------------------------ data lifecycle (stage 15)
-    STORAGE_CLASSES = ("STANDARD_IA", "ONEZONE_IA", "INTELLIGENT_TIERING", "GLACIER_IR", "GLACIER", "DEEP_ARCHIVE")
+    # --------------------------------------------------------- data lifecycle
+    STORAGE_CLASSES =("STANDARD_IA", "ONEZONE_IA", "INTELLIGENT_TIERING", "GLACIER_IR", "GLACIER", "DEEP_ARCHIVE")
 
     def validate_lifecycle(self, storage: Storage) -> list[str]:
         spec = getattr(storage, "lifecycle", None)
@@ -570,7 +570,7 @@ class TofuS3StorageBuilder(TofuStorageBuilder[B]):
         return errors
 
     def module_args(self, storage: Storage) -> dict[str, Any]:
-        args: dict[str, Any] = dict(self.model.variables.as_module_args())   # stage 26
+        args: dict[str, Any] = dict(self.model.variables.as_module_args())   # declared `variables:` first
         args["bucket_name"] = self._bucket_for(storage)
         spec = getattr(storage, "lifecycle", None) or {}
         if spec:

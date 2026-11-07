@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""The GCP section of the bootstrap (stage 70 step 5; CI_SETUP.md 3.4).
+"""The GCP section of the bootstrap (CI_SETUP.md 3.4).
 
 What terraform makes, per the guide: the workload identity pool and its
 GitHub provider (the attribute mapping and the condition that admits this
@@ -39,8 +39,7 @@ ISSUER = "https://token.actions.githubusercontent.com"
 ABSENT = ("NOT_FOUND", "not found", "404", "does not exist")
 READ_ROLES = "roles/compute.viewer"
 WRITE_ROLES = "roles/compute.instanceAdmin.v1,roles/compute.storageAdmin,roles/iam.serviceAccountUser"
-# hygiene XII item 23 (the walk's F51): an account that already exists is
-# granted NOTHING by default. What it holds was granted by whoever made it;
+# an account that already exists is granted NOTHING by default. What it holds was granted by whoever made it;
 # a grant this root adds sits in this root's state, so a destroy here would
 # take it from every tree that reads the account.
 SHARED_ACCOUNT = ("for an account that already exists the default is none: it keeps what whoever made it "
@@ -221,7 +220,7 @@ QUESTIONS: tuple[Question, ...] = (
              help="the default GCS backend's `prefix` in cfg/state-backends.yml"),
     Question("state_bucket_exists", "Does that bucket already exist?", kind="bool",
              when=lambda a: bool(a.get("state_bucket")), default=_bucket_exists, help=UNASKABLE, observed=True),
-    # hygiene XX item 2: the bucket is MADE when absent, as the AWS section
+    # the bucket is MADE when absent, as the AWS section
     # makes its own; whether this root manages it is a choice recorded once
     Question("state_bucket_managed", "Does this root MANAGE the state bucket: made by an apply of this root and kept "
              "here, so a destroy of the root removes it? (a bucket that stood before this root is read, never "

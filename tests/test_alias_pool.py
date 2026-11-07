@@ -2,15 +2,15 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""Stage 59: a pool of names, each spent once. The first free line of
+"""A pool of names, each spent once. The first free line of
 `meta-state/aliases.txt` becomes a new durable machine's alias, recorded in
 its launch parameters, and the line is commented out in place with what
 took it and when -- before the machine exists. A dry run draws nothing and
 says what it would take; a run that cannot launch draws nothing; an
 ephemeral instance draws nothing; an empty pool is a warning and the launch
 proceeds; a spent name never comes back. Validation refuses a free line a
-machine could not take and reports how many remain. Stage 58 gives the
-name to the machine as an AltNames entry.
+machine could not take and reports how many remain. The provider-alias
+hook gives the name to the machine as an AltNames entry.
 """
 from __future__ import annotations
 
@@ -133,7 +133,7 @@ def test_a_replacement_is_a_new_machine_and_draws(real, monkeypatch):
     rec = dict(ms.launch_params().get("test") or {})
     rec.update({"launched": True, "hostname": "test-001", "alias": "old-name"})
     ms.record_launch_params("test", rec)
-    monkeypatch.setattr(ap, "will_replace", lambda c, i: True)      # patched where it is read (a top-level import since stage 124)
+    monkeypatch.setattr(ap, "will_replace", lambda c, i: True)      # patched where it is read (a top-level import)
     params = lp.compute_launch_params(ctx, _inst(ctx))
     assert params["alias"] == "bright-otter" and ap.free_names(p) == ["quiet-heron", "red-cod"]
 

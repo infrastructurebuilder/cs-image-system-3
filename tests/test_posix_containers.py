@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""Stage 75 step 3: the posix accounts script on real systems -- AlmaLinux 10
+"""The posix accounts script on real systems -- AlmaLinux 10
 (the AWS chain's family) and Debian 12 -- under docker.
 
 Runs only from `just test-posix-accounts` (a leg of `just full-test`), which
@@ -25,7 +25,7 @@ from harness import docker_binary
 from cs_image_system.posix_identity_plugin import accounts
 
 IMAGES = {"el10": "almalinux:10", "debian12": "debian:12"}
-DOCKER = docker_binary()      # stage 103: the fixture's declared docker CLI
+DOCKER = docker_binary()      # the fixture's declared docker CLI
 SUDO = {"el10": "dnf -q -y install sudo >/dev/null 2>&1", "debian12": "apt-get -qq update >/dev/null && apt-get -qq install -y sudo >/dev/null"}
 
 def _docker_answers() -> bool:
@@ -143,7 +143,7 @@ def _login(user: str) -> str:
 @pytest.mark.parametrize("family", FAMILIES)
 def test_the_login_hook_survives_the_agents_delete_and_recreate(family):
     """sftd makes an account at a login and deletes it later, and userdel
-    drops it from every group (stage 75 step 1). The hook puts it back at
+    drops it from every group. The hook puts it back at
     the next login; a user the list does not name is never added."""
     groups = accounts.groups_script(groups={"coops": 60123}, members={"coops": ["avery.alpha"]})
     after = "\n".join([

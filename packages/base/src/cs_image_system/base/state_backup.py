@@ -2,11 +2,11 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""A terraform root's state, pulled and kept (stage 61 item 3): the backup
+"""A terraform root's state, pulled and kept: the backup
 a runner takes before its first ``state rm``, under ``_private/state-backups/``
 in the configuration root. The migration operation (``commands.state_migration``)
 takes the same backup before a move; a plugin reaches it as
-``ctx.services.workspaces.backup_state`` (stage 125).
+``ctx.services.workspaces.backup_state``.
 """
 from __future__ import annotations
 
@@ -54,7 +54,7 @@ def state_backup_dir(ctx: "RunContext | None", cwd: Path) -> Path:
 
 
 def backup(ctx: "RunContext | None", workspace: str, tofu: str, run_id: str, cwd: Path) -> int:
-    """Stage 61 item 3: the same-day state backup the operations rules ask of
+    """The same-day state backup the operations rules ask of
     a hand edit, taken by the runner itself before its first ``state rm``.
 
     ``cwd`` is the root the runner entered (the private mirror), already
@@ -63,9 +63,9 @@ def backup(ctx: "RunContext | None", workspace: str, tofu: str, run_id: str, cwd
     :func:`state_backup_dir`. A ``state rm`` is due, so there is no honest
     empty case: a directory that is not an initialised root, a pull that
     fails, or a location that holds no state each exit 1 and stop the
-    runner before anything leaves state. Found live 2026-09-23: invoked
-    with the configuration root as its directory, the first version pulled
-    nothing, said "nothing to keep" and let the removal run unbacked."""
+    runner before anything leaves state (invoked with the configuration
+    root as its directory, an older build pulled nothing, said "nothing to
+    keep" and let the removal run unbacked)."""
     if not (cwd / ".terraform").is_dir():
         log.error(f"state backup for workspace {workspace!r} REFUSED: {cwd} is not an initialised terraform root; "
                   "nothing is removed from state")

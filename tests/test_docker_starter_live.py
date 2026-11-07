@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""Stage 103, branch 3, the proof of the starter: ``docs/examples/standard-docker``
+"""The proof of the starter: ``docs/examples/standard-docker``
 AS IT STANDS (only an overlay that lets the storage and instance roots apply)
 goes from nothing to nothing on the local daemon. The runtime names no
 address, so the caller's environment's daemon is used, which is how a team

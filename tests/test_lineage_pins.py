@@ -59,7 +59,7 @@ def _build(build_id: str, series: str, caps=None, run="r0") -> dict:
     return {"build_id": build_id, "series": series, "runtime": "aws-east2-runtime",
             "name": f"{series}-{run}", "parent": "vendor", "run": run,
             "capabilities": caps or {"identity_types": ["okta"],
-                                     # pd/gcs joined the declaration (GCP readiness 2026-09-02);
+                                     # pd/gcs joined the declaration with GCP readiness;
                                      # gce-test resolves through these seeded pins (N11)
                                      "storage_types": ["ebs", "efs", "gcs", "pd", "s3"]}}
 
@@ -93,13 +93,13 @@ def _fake_manifest(v2, lifecycle: str, block: str, amis: dict[str, str]) -> None
 def test_every_build_is_uniquely_named_and_lineage_tagged(v2):
     assert v2.run(["base-image", "instance-image"], apply=False).ok
     base = _source(v2, "base-image", "block-000", "basic-rh-10")
-    assert f'ami_name = "NOSCSB-AWS-RH10-basic-rh-10-aws-my-rhel8-{FIXED_TIMESTAMP}"' in base   # stage 105: the fixture declares the prefix
+    assert f'ami_name = "NOSCSB-AWS-RH10-basic-rh-10-aws-my-rhel8-{FIXED_TIMESTAMP}"' in base   # the fixture declares the prefix
     assert "{{" not in base, "unique naming must resolve the run timestamp"
     assert _tag(base, "csis_series", "basic-rh-10")
     assert _tag(base, "csis_parent", "vendor")
     assert _tag(base, "csis_run", "2026_08_26t12_00_00")
     assert _tag(base, "csis_identity_types", "okta")
-    # hygiene XII item 21: the stamp is the bake's runtime's storage types (pd and gcs are GCE's)
+    # the stamp is the bake's runtime's storage types (pd and gcs are GCE's)
     assert _tag(base, "csis_storage_types", "ebs,efs,s3")
     assert re.search(r'csis_fingerprint\s+= "[0-9a-f]{16}"', base)
     dask = _source(v2, "instance-image", "block-000", "imgfile-basic-dask")
@@ -159,7 +159,7 @@ def test_bake_records_lineage_and_first_binds_the_base_edge(v2):
 
 
 def _set_parent_policy(root, image: str, policy: str) -> None:
-    """The live fixture's dask image declares parent_policy: follow (stage 9);
+    """The live fixture's dask image declares parent_policy: follow;
     N17's pinned behaviour is proven on a copy that declares pinned."""
     p = root / "images" / "image1.yaml"
     d = yaml.safe_load(p.read_text())

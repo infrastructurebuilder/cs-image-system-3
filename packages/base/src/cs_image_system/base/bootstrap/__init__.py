@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""Stage 70: the one-time initialisation, as terraform from an interview.
+"""The bootstrap: the one-time initialisation, as terraform from an interview.
 
 A configuration repository needs things made BEFORE its CI can run -- the
 federation trusts, the repository's own settings, the secrets -- and
@@ -19,7 +19,8 @@ reports a stale root, and a clone regenerates it without an interview.
 Sections: the framework and the GitHub section live here; the clouds'
 sections come from their plugins through the ``cs_image_system.bootstrap``
 entry-point group, each owning the questions and the module for its cloud.
-Iteration one (decision D1, 2026-09-28) is the framework and GitHub alone.
+The first iteration is the framework and GitHub alone, by decision (see
+docs/CHANGES.md#s70).
 """
 
 from .answers import ANSWERS_FILE, read_answers, write_answers

@@ -2,9 +2,9 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""Hygiene XIV item 6: what the identity module makes for a group, read back.
+"""What the identity module makes for a group, read back.
 
-On 2026-10-19 another configuration rewrote three of `basic`'s OPA objects in
+Another configuration once rewrote three of a group's OPA objects in
 place, keeping their ids: the resource group's delegated admin and the user
 and admin policies' rule name and descriptions. The strict state query saw
 only the side effect (the CI policy no longer mirroring the user policy); only
@@ -78,7 +78,7 @@ def _rule_facts(rule: dict[str, Any]) -> dict[str, Any]:
     gateway = next((c.get("condition_value") or {} for c in rule.get("conditions") or []
                     if isinstance(c, dict) and c.get("condition_type") == "gateway"), {})
     labels: dict[str, Any] = {}
-    # the live API keeps the list at resource_selector.selectors (2026-10-23); the documented
+    # the live API keeps the list at resource_selector.selectors; the documented
     # shape nests it under resource_selector.selector -- both are read
     rs = rule.get("resource_selector") or {}
     selectors = rs.get("selectors") or (rs.get("selector") or {}).get("selectors") or []

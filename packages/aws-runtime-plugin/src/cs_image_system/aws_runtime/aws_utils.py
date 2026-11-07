@@ -120,7 +120,7 @@ AWS_DI_MAP: dict[str, str] = {
 }
 
 
-#: stage 106: the keys of the system's image-query vocabulary EC2's
+#: the keys of the system's image-query vocabulary EC2's
 #: DescribeImages can answer, and the filter each becomes.
 AWS_QUERY_KEYS: frozenset[str] = frozenset({"name", "architecture", "publisher", "state", "virtualization",
                                             "root_device", "tags", "newest", "native"})
@@ -134,7 +134,7 @@ AWS_FILTER_NAMES: dict[str, str] = {              # in the order the filters are
 
 
 def translate_image_query(query: ImageQuery) -> dict[str, Any]:
-    """The system's query in EC2's words (stage 106): ``{"owners": [...],
+    """The system's query in EC2's words: ``{"owners": [...],
     "filters": {<DescribeImages filter name>: value}, "most_recent": bool}``,
     the shape packer's ``amazon-ami`` data source and ``describe_images``
     both take (``describe_images_request`` makes the boto call from it).
@@ -173,14 +173,14 @@ def query_image(
     query: dict[str, Any],
     session_config: dict[str, Any] | None = None,
 ) -> dict[str, Any] | None:
-    """The AMI matching an image query in EC2's words (stage 106:
-    ``translate_image_query``'s answer, ``owners``/``filters``/``most_recent``;
-    the boto-shaped request of before is accepted too). The newest by
+    """The AMI matching an image query in EC2's words
+    (``translate_image_query``'s answer, ``owners``/``filters``/``most_recent``;
+    a boto-shaped request is accepted too). The newest by
     ``CreationDate`` is returned, or None when nothing matches; with
     ``most_recent`` false, more than one match is refused as ambiguous.
     ``session_config`` is the runtime's boto3 session configuration and is
-    required. A pinned image id does not come through here (stage 63 reads
-    the entry's ``image_id`` through ``query_image_by_id``).
+    required. A pinned image id does not come through here (the entry's
+    ``image_id`` is read through ``query_image_by_id``).
     """
     if not query:
         raise ValueError("Query dictionary cannot be empty")

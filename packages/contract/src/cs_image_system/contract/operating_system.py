@@ -2,18 +2,18 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""The OS kind (stage 30): an OS family and version, the vendor image query
+"""The OS kind: an OS family and version, the vendor image query
 that finds it on each runtime, and the update policy a base image bakes
 with. A runtime subconfig (one per runtime the OS builder serves) and the
 resolved base image are the core's models and ``Any`` here.
 
-Stage 106: ``family`` is the token a tree writes (``get_vendor_family``);
+``family`` is the token a tree writes (``get_vendor_family``);
 what the token IS, as the image-source catalog says, is ``get_family``,
 which everything that branches on a family reads. A model class names the
 families it serves (``families``), so a type may be defaulted from a family
 and a contradiction between the two refused.
 
-Stage 105: ``output_image_name`` is the declared PREFIX of every build's
+``output_image_name`` is the declared PREFIX of every build's
 name (the run's timestamp is appended); unset, the core names a build
 ``<image>-<image builder>`` (a base image: ``<OS builder>-<runtime>``). A
 runtime entry's value overrides the OS builder's.

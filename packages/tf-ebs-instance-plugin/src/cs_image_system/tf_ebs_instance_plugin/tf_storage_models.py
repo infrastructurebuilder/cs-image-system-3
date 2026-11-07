@@ -54,7 +54,7 @@ class S3Variables(ModuleVariables):
 class TofuEbsStorageBuilderModel(TofuStorageBuilderModel):
     """OpenTofu IaC builder configuration data object for EBS."""
     type = TF_AWS_EBS
-    size: int = 100          # GB (a field since stage 26; was an untyped class attribute)
+    size: int = 100          # GB (a typed field, not a bare class attribute)
     variables: EbsVariables = field(default_factory=EbsVariables)
 
     @classmethod

@@ -30,9 +30,9 @@ class AwsProviderSpecificImage(ProviderSpecificImage):
                 ret["owners"] = [f'"{self.owner}"']
             return ret
         # Deferred: the image is produced by a build in this account; find the
-        # most recent image matching the output-name pattern. stage 106: the
-        # lookup is an ImageQuery in the system's vocabulary, translated like
-        # a vendor query, then quoted for the packer data source.
+        # most recent image matching the output-name pattern. The lookup is
+        # an ImageQuery in the system's vocabulary, translated like a vendor
+        # query, then quoted for the packer data source.
         native = translate_image_query(ImageQuery(
             name=f"{self.deferred_name_pattern}*", root_device="ebs", virtualization="hvm",
             architecture=self.architecture if self.architecture else "x86_64", publisher=("self",), newest=True))

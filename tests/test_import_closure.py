@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""The import graph held to its numbers (stage 124 item 4).
+"""The import graph held to its numbers.
 
 Every constant here is a ceiling that only moves DOWN: a floor that may only
 fall. A change that needs a larger number is a change that has grown the
@@ -24,7 +24,7 @@ import import_closure  # noqa: E402
 REPO = Path(__file__).resolve().parents[1]
 
 # packages/base + packages/system: function-local imports of our own modules
-# (the lazy-import web; 143 on develop before stage 124, 13 at its end).
+# (the lazy-import web; 143 before the run context was passed, 13 after).
 LAZY_EDGES_CORE_MAX = 13
 # the largest strongly connected component of ``base`` over the top-level
 # (runtime) import edges: 1 means no import cycle at all

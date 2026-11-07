@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""``encryption:`` in ``cfg/_config.yml`` (stage 33): the age recipients every
+"""``encryption:`` in ``cfg/_config.yml``: the age recipients every
 encrypted value is encrypted to. Public keys only; the identity that
 decrypts comes from the environment (``CSIS_CONFIG_IDENTITY``)."""
 from __future__ import annotations

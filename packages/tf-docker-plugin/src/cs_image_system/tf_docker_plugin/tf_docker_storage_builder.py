@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""The volume storage builder (stage 103 branch 2).
+"""The volume storage builder.
 
 One ``docker_volume`` per storage through tfmodules/docker_volume, on the
 ``kreuzwerker/docker`` provider, reusing the clouds' tofu storage machinery
@@ -110,7 +110,7 @@ class TofuDockerVolumeStorageBuilder(TofuStorageBuilderBase[Q]):
         labels["csis_storage"] = storage.get_name()
         get_ctx: Any = getattr(self, "_get_context", None)      # a stand-in without a context gets no id
         if callable(get_ctx):
-            labels.update(cast(Any, get_ctx()).services.lineage.config_tags())   # stage 93: the volume carries the id
+            labels.update(cast(Any, get_ctx()).services.lineage.config_tags())   # the volume carries the id
         for g in sorted(storage_groups(storage)):
             labels[f"csis_group_{g}"] = "true"
         return labels
@@ -125,7 +125,7 @@ class TofuDockerVolumeStorageBuilder(TofuStorageBuilderBase[Q]):
     def _lookup(self, storage: Storage) -> dict[str, Any] | None:
         """``docker volume inspect``: present with its driver, mountpoint and
         labels; absent when the daemon has no such volume; another
-        configuration's volume of our name reads as elsewhere (stage 93)."""
+        configuration's volume of our name reads as elsewhere."""
         name = volume_name(storage.get_name())
         res = self._docker("volume", "inspect", name)
         if res.returncode != 0:

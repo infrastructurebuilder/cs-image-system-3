@@ -129,7 +129,7 @@ def test_every_package_appears_in_the_readmes_list():
 
 def _cli_commands() -> list[str]:
     import typer
-    reset_singletons()                         # the plugins mount their commands at load (stage 122)
+    reset_singletons()                         # the plugins mount their commands at load
     from cs_image_system.system.cli import app
     group = typer.main.get_command(app)
     out: list[str] = []

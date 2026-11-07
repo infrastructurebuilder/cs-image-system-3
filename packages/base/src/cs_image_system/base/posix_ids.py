@@ -2,11 +2,11 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""POSIX ids across sides (stage 75): the operator's rule, in one pass.
+"""POSIX ids across sides: the operator's rule, in one pass.
 
 A POSIX name -- a group or a user -- can be known to several SIDES: an
 identity provider that assigns ids (OPA), the configuration, the machine.
-The rule (operator, 2026-10-03):
+The rule (the operator's):
 
 1. Two sides that each supply an id for one name and disagree: a
    CONFIGURATION ERROR, naming both sides and both ids.

@@ -2,11 +2,11 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""Stage 83: a release asks its publish target before it starts.
+"""A release asks its publish target before it starts.
 
 scripts/publish-target-ready against a local HTTP server answering by path:
-every endpoint up; the upload endpoint 503; one project page 503 (the night
-of 2026-10-05: most pages down, the one the release asked up); nothing
+every endpoint up; the upload endpoint 503; one project page 503 (one
+night's outage: most pages down, the one the release asked up); nothing
 listening; an unknown target; which projects hold a version; the wait form.
 """
 from __future__ import annotations
@@ -181,7 +181,7 @@ def test_the_wait_form_polls_until_ready_and_gives_up_at_its_limit(world, capsys
 
 
 def test_release_finish_asks_that_every_project_holds_the_version(world, capsys):
-    """Hygiene XIV items 1 and 5: --all-held is release-finish's form, and a count
+    """--all-held is release-finish's form, and a count
     says it may lag an upload (the index's pages are cached)."""
     index, root, _ = world
     index.versions["cs-image-system-a"].append("0.1.1.dev2")

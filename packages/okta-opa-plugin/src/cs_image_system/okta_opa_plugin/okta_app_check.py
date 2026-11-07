@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 """What the Okta API services app can show about itself, with its own
-credentials (stage 70 step 6, decision D5: the app is checked, never made).
+credentials (the app is checked, never made).
 
 The ``okta`` provider authenticates as that app by OAuth 2.0 client
 credentials with a private-key JWT, reading ``OKTA_API_CLIENT_ID``,

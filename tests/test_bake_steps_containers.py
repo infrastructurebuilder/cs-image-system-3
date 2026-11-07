@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""Stage 86: the bake's step runner against a package database that is
+"""The bake's step runner against a package database that is
 REALLY held -- AlmaLinux 10 (rpm's transaction lock) and Debian 12 (dpkg's
 frontend lock) -- under docker.
 
@@ -30,7 +30,7 @@ from harness import docker_binary
 from cs_image_system.base import bake_steps
 
 IMAGES = {"el10": "almalinux:10", "debian12": "debian:12"}
-DOCKER = docker_binary()      # stage 103: the fixture's declared docker CLI
+DOCKER = docker_binary()      # the fixture's declared docker CLI
 
 #: Takes the family's package-database lock the way its own tools do (an
 #: fcntl write lock) and keeps it for the seconds given.

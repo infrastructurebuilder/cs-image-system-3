@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""Stage 55: the OPA server registry, read and retired through the resolver
+"""The OPA server registry, read and retired through the resolver
 with an injected transport -- no network.
 
 The path is the one that answers live: servers live under the RESOURCE
@@ -74,7 +74,7 @@ def test_servers_are_read_under_the_resource_group_path():
 
 
 def test_an_unaskable_registry_is_none_not_empty():
-    """Stage 57's rule, here: silence is not a free name."""
+    """The power-state rule, here: silence is not a free name."""
     assert _r(FakeOpa(fail_servers=True)).registered_servers("coops") is None
     assert _r(FakeOpa(projects_missing=True)).registered_servers("coops") is None
     assert _r(FakeOpa([])).registered_servers("coops") == []

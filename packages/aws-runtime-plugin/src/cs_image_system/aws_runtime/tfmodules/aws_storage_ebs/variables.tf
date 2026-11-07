@@ -40,7 +40,7 @@ variable "tags" {
   default = {}
 }
 
-# archived (stage 15): a restore creates the volume FROM the archive snapshot,
+# archived: a restore creates the volume FROM the archive snapshot,
 # addressed by its Name tag (the snapshot is deleted after the restore and
 # the id is a creation-time fact, so later plans ignore it).
 variable "snapshot_name" {

@@ -13,8 +13,8 @@ This registry is an **extension point**: a plugin may ``register_field_kind`` wi
 new name + :class:`FieldKindHandler` and declare fields carrying that
 ``FIELD_KIND`` to add a late-binding method the base system does not know about.
 No kind is hard-coded into the dispatch sites; they all go through this registry.
-In the contract since stage 30 (``cs_image_system.base.helpers.field_kinds``
-re-exports it), so a plugin registers a kind without importing the core.
+In the contract (``cs_image_system.base.helpers.field_kinds`` re-exports
+it), so a plugin registers a kind without importing the core.
 """
 from __future__ import annotations
 

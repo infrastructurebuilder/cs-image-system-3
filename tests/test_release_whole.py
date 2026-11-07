@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""Stage 64: the release is the whole system.
+"""The release is the whole system.
 
 Item 1: the release carries the three starter configuration repositories
 (the source is ``docs/examples/``; the build hook ships them inside the
@@ -94,7 +94,7 @@ def test_init_config_writes_the_whole_starter_into_an_empty_destination(tmp_path
     assert written.pop(".csis-version") == version.encode() + b"\n"
     for module in installed_modules():                                  # each copy stamped
         assert written.pop(f"tfmodules/{module}/{STAMP_FILE}").startswith(b"plugin: "), module
-    # hygiene XV item 1: Markdown links that leave the starter now name the release's tag;
+    # Markdown links that leave the starter name the release's tag;
     # every other byte is the starter's
     tree = f"docs/examples/{name}"
     for rel, data in expected.items():
@@ -195,7 +195,7 @@ def _filled_complete(dest: Path) -> dict[str, str]:
 
 
 def test_refreshing_a_tree_keeps_its_starter_and_its_values(tmp_path):
-    """Hygiene IX item 1: taking releases dev7 and dev8 into the reference
+    """Taking two early development releases into the reference
     configuration, `init-config . --force` refreshed a `complete` workflow
     from `standard-aws` (every GCP step gone) and put REPLACE-ME back where
     the team's values were; both times the diff was undone by hand."""
@@ -247,7 +247,7 @@ def test_the_version_pin_is_never_moved_backwards(tmp_path):
 
 
 def test_init_config_takes_a_fresh_clone_holding_only_dot_git(tmp_path):
-    """Hygiene XII item 2 (the walk's F-finding): a team creates the repository
+    """Found walking the daily driver: a team creates the repository
     on GitHub and clones it, so the destination holds .git and nothing else."""
     dest = tmp_path / "clone"
     (dest / ".git").mkdir(parents=True)
@@ -260,7 +260,7 @@ def test_init_config_takes_a_fresh_clone_holding_only_dot_git(tmp_path):
 
 
 def test_init_config_refuses_a_directory_that_is_not_a_configuration_and_writes_nothing(tmp_path):
-    """Hygiene XII items 2 and 12: the release-owned form refreshes a
+    """The release-owned form refreshes a
     configuration repository and nothing else. Typed in the system
     repository's root it replaced its Justfile and workflow; in a clone with a
     README it wrote no cfg/ and read like success."""
@@ -278,7 +278,7 @@ def test_init_config_refuses_a_directory_that_is_not_a_configuration_and_writes_
 
 
 def test_init_config_help_names_every_starter():
-    """Hygiene XII item 29 (the walk's F59): the --from help is built from
+    """The --from help is built from
     the list the command accepts."""
     result = _invoke("--help")
     assert result.exit_code == 0
@@ -341,7 +341,7 @@ def test_locked_holds_the_lock_for_the_command_and_releases_it_however_it_ends(m
         seen["held"] = (tmp_path / "cache" / ".lock" / "pid").is_file()
         return real(*a, **k)
     from cs_image_system.system import cli as climod
-    monkeypatch.setattr(climod, "init_config", spy)   # patched where it is read (a top-level import since stage 124)
+    monkeypatch.setattr(climod, "init_config", spy)   # patched where it is read (a top-level import)
     result, cache = _locked(monkeypatch, tmp_path, "init-config", str(tmp_path / "t"))
     assert result.exit_code == 0, result.output
     assert seen["held"] is True                                  # held while the command ran
@@ -462,7 +462,7 @@ def test_config_drift_reads_current_then_behind_then_nothing_committed(tmp_path,
     said: list[str] = []
     code, lines = config_drift(root, dry_run=_copy_of_committed(v2), progress=said.append)
     assert code == 0 and "current with the configuration" in lines[0], lines
-    # hygiene XVI item 1: it says what it is doing as it goes, each part with its time
+    # it says what it is doing as it goes, each part with its time
     assert said[0].startswith(f"config-drift: copying {root.resolve()}"), said
     assert re.fullmatch(r"config-drift: copied \d+ files \([0-9.]+ MB\) in \d+s", said[1]), said
     assert "takes minutes" in said[2] and "comparing" in said[3] and said[-1].endswith(" in all"), said
@@ -497,7 +497,7 @@ def test_config_drift_reads_current_then_behind_then_nothing_committed(tmp_path,
 
 def test_config_drift_copies_a_relative_module_source_base_that_escapes_the_tree(tmp_path):
     """The reference configuration reached the system's modules at
-    ../cs-image-system-3/tfmodules until stage 64 item 3; a copy for a dry run
+    ../cs-image-system-3/tfmodules before the release shipped them; a copy for a dry run
     puts the modules at the same relative place beside it."""
     from cs_image_system.base.commands.emission import copy_tree_for_a_dry_run
     site = tmp_path / "site"
@@ -518,9 +518,9 @@ def test_config_drift_copies_a_relative_module_source_base_that_escapes_the_tree
 
 
 def test_config_drift_leaves_the_provider_cache_out_of_the_copy(tmp_path, monkeypatch):
-    """Hygiene XVI item 2: the copy took the starter's provider cache, every
+    """The copy once took the starter's provider cache, every
     provider version the tree ever fetched (5.7 GB in the reference
-    configuration on 2026-10-27, when it filled the disk), though the copy's
+    configuration, the day it filled the disk), though the copy's
     dry run reads the original's through TF_PLUGIN_CACHE_DIR. Left out by its
     starter name at any depth, and as TF_PLUGIN_CACHE_DIR names it inside the
     tree; a directory of the same name elsewhere is copied."""
@@ -544,7 +544,7 @@ def test_config_drift_leaves_the_provider_cache_out_of_the_copy(tmp_path, monkey
 
 
 def test_the_dry_run_is_logged_as_it_goes_and_says_where_it_is(tmp_path):
-    """Hygiene XVI item 1: the dry run's output reaches run.log line by line,
+    """The dry run's output reaches run.log line by line,
     and each lifecycle and each root's init is said as it happens -- read from
     the run's own INFO records, never from a captured step's indented output."""
     import sys
@@ -661,7 +661,7 @@ def test_workload_token_prints_the_token_alone_and_masks_both_on_stderr(monkeypa
 
 
 def test_the_client_is_handed_the_address_and_the_team_in_its_environment(monkeypatch):
-    """Hygiene VII item 4: `sft workload authenticate` reads OPA_ADDR (and the
+    """`sft workload authenticate` reads OPA_ADDR (and the
     team) from its environment; the first performing run from the reference
     configuration failed with `environment variable OPA_ADDR is not set`."""
     from cs_image_system.okta_opa_plugin import workload_token as wt

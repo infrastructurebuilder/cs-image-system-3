@@ -49,13 +49,13 @@ def test_base_image_bake_ends_with_capability_verification(v2):
     sect = _section(build, "base image basic-rh-10")
     assert '"set -e",' in sect
     assert "id -u csisadmin" in sect and "authorized_keys" in sect
-    # stage 49: the fixture's admin key is encrypted, so the emission carries
+    # the fixture's admin key is encrypted, so the emission carries
     # the ciphertext and the key body is taken in the shell, after materialize
     assert "ENC[age:" in sect and "awk '{print $2}'" in sect          # key body verified
     assert "AAAAC3NzaC1lZDI1NTE5AAAAIPlaceholderKey" not in sect
     assert "command -v sftd" in sect and "! systemctl is-enabled sftd" in sect   # dormant
     assert "mount.efs" in sect and "command -v aws" in sect
-    assert "rpm -q nfs-utils" in sect                                 # declared tests (fixture, 2026-08-31)
+    assert "rpm -q nfs-utils" in sect                                 # the fixture's declared tests
     assert "grep -q -- dist.scaleft.com /etc/yum.repos.d/oktapam-stable.repo" in sect
     # verification is the LAST provisioner for that source
     assert build.rindex('only   = ["amazon-ebs.basic-rh-10"]') == sect.index('only   = ["amazon-ebs.basic-rh-10"]') + build.index("in-bake verification for base image basic-rh-10")
@@ -68,9 +68,9 @@ def test_instance_image_bake_verifies_activation_and_declared_tests(v2):
     assert "grep -q 'tx.group: coops' /etc/sft/sftd.yaml" in sect
     assert "systemctl is-enabled sftd" in sect
     assert "( git --version ) 2>&1 | grep -q -- 'git version'" in sect
-    # the package assertion is still dpkg-guarded (2026-08-31), but it must also
+    # the package assertion is still dpkg-guarded, but it must also
     # be able to STOP the bake: the `|| { ... }` form it used to have could not,
-    # and this assertion pinned that form as correct until stage 53
+    # and this assertion once pinned that form as correct
     assert "rpm -q git" in sect and "dpkg -s git" in sect
     assert "exit 1" in sect, "a package assertion that cannot fail the bake is not an assertion"
     assert "id -u csisadmin" in sect

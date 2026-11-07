@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""An instance answers to its provider's names too (stage 58).
+"""An instance answers to its provider's names too.
 
 The instance id and the address already resolve natively in the identity
 provider's registry (the agent reads the id from the instance metadata
@@ -20,7 +20,7 @@ alias on any collision" and a booted machine holds an enrollment token and
 no API credentials: it cannot know what names are already claimed. Nothing
 in the boot script can honour the rule. Here everything needed already
 exists -- the values come back with the instance itself, the claimed set
-comes from the group's server registry (stage 55), and the write is the
+comes from the group's server registry, and the write is the
 runtime's session command.
 
 Three rules, in order of how much they matter:
@@ -32,11 +32,11 @@ Three rules, in order of how much they matter:
   or a name the configuration declares, skips the alias; the skip is
   logged with the record that claims the name.
 * **A machine that is off is left off.** The write needs the machine
-  running, and an alias is not work worth starting one for (stage 57). It
+  running, and an alias is not work worth starting one for. It
   is picked up by the next run that finds the machine on.
 * **Silence is not a free name.** A registry that could not be asked skips
-  every alias this run, rather than guessing (stage 57's rule, as stage 55
-  applied it).
+  every alias this run, rather than guessing (silence is not an answer,
+  as the hostname claim applies it).
 
 The aliases are never recorded in the launch parameters: those are what the
 machine booted with, and these are discovered afterwards. Reality is the
@@ -79,10 +79,10 @@ def wanted_aliases(identity: dict[str, Any] | None, canonical: str, declared: st
     a cloud whose default label IS the instance name, nothing; on one whose
     hostname is an address-derived ``ip-…`` name, the name the boot script
     took away). The bare DECLARED name, when
-    the canonical one carries a generation suffix (stage 55 step 4):
+    the canonical one carries a generation suffix:
     ``coops-model`` stays the name a person types, and resolves to the
     machine that stands once the previous generation's registration is
-    retired. And the machine's pool alias (stage 59), the memorable name
+    retired. And the machine's pool alias, the memorable name
     its launch parameters record."""
     out: list[str] = []
     if declared and declared != canonical and not hostname_problems(declared):
@@ -257,7 +257,7 @@ def instance_identity_notes(ctx: "GlobalTypeContext", report: "StateReport") -> 
         entry: dict[str, Any] = {"instance_id": identity.get("instance_id", ""),
                                  "provider_hostname": identity.get("provider_hostname", "")}
         cur = ctx.meta_state.current_generation(name)
-        if cur:   # stage 60: which machine of this name this is
+        if cur:   # which machine of this name this is
             entry["generation"] = {"number": cur.get("number"), "kind": cur.get("kind"), "how": cur.get("how")}
             booted_as = str((cur.get("launch_params") or {}).get("hostname") or "")
             entry["booted_as"] = booted_as
@@ -271,7 +271,7 @@ def instance_identity_notes(ctx: "GlobalTypeContext", report: "StateReport") -> 
             if own is not None:
                 entry["registered_as"] = own.get("hostname", "")
                 entry["alt_names"] = list(own.get("alt_names") or [])
-                # stage 55 step 4: the name in the registry must be the name
+                # the name in the registry must be the name
                 # the generation booted with. A difference is the silent
                 # `hostnamectl ... || true` failure made visible: the machine
                 # kept the hyperscaler's name and enrolled under it.

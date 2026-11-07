@@ -18,7 +18,7 @@ groups:
     is_default: false
     description: "CO-Ops  group"
     members:
-      # Mirrors live OPA coops_user (state query, 2026-08-31). Names MUST
+      # Mirrors live OPA coops_user (state query). Names MUST
       # match a corresponding user['name'] entry in SOME users section.
       - ENC[age:YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSAzc0FHckxjQlhxU3hhdE5oQndyMThiRFdaam9DVFdmN01sRDhzNFhReUhVClQyZCtHWjhWT0FTaDF1ZDYyRnA2dUx5a29IQ2hrd00zS24wc0JJdmlPdlkKLS0tIG4zNDUwd2xqdlJzV2hHWExYNURVSm91Ly80dXdOeCtrdUF3bkRtQUltdDgKDStS6WKCa1MdgygeyI+8HZVQ0ZISK7VWXmzsKvsPfAXbm7ejnNbO/AhaEg==]
       - ENC[age:YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSBldi90NSswangvWFNJSWFSK2RWdjB2TjJFdGQ5MTZEc014MzlrRlFTdUNZCnlpaC9zUmkzZFM2VlpPYUF5dENEVlZ3ZjBBM3Y0M2Z3aFdyV3F0dnlqRTgKLS0tIDRXS1FRWVlwRmVMZU44R3NXVkNWbG1wVi9SWWhMcGFUa1NkR3lIeGpCOHcKg7CJs4RbYYbgD/LQ82jATQnl9fxlYF1Szib5MYyh+L5hNsnlZdZVh7+Vh1xy]

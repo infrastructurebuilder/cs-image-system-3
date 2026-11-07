@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""Stage 103, branch 2, the proof: the docker runtime's CHANGE CYCLE on the
+"""The proof: the docker runtime's CHANGE CYCLE on the
 local daemon, from nothing to nothing. The bake leg's tree (one docker
 runtime, written from the frozen fixture's pieces) gains a container
 instance root, a volume root, one volume and two instances mounting it. In

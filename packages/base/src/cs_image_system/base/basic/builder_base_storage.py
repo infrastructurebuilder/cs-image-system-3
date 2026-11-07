@@ -68,14 +68,14 @@ class StorageBuilderBase(BuilderBase[TSTORAGE], StorageBuilderProtocol):
         name for its kind of store). Defaults to the plugin's canonical name."""
         try:
             return str(cls.csis_name())
-        except NotImplementedError:             # a base that names no type (stage 30)
+        except NotImplementedError:             # a base that names no type
             return cls.__name__
 
     def attachment_cardinality(self) -> str:
         return CARDINALITY_MANY
 
     def is_zonal(self) -> bool:
-        """Whether this storage type lives in ONE availability zone (stage 52).
+        """Whether this storage type lives in ONE availability zone.
 
         A zonal storage constrains where its instance may run, and changing its
         zone REPLACES it. A regional one (a shared filesystem, an object
@@ -93,8 +93,8 @@ class StorageBuilderBase(BuilderBase[TSTORAGE], StorageBuilderProtocol):
 
     def platform_mounts(self) -> bool:
         """Whether the platform attaches AND mounts this storage before the
-        machine's first command (stage 103 branch 2: a container's platform
-        mounts its storage at the declared path), so the launch script
+        machine's first command (a container's platform mounts its storage
+        at the declared path), so the launch script
         has nothing to format or mount and only makes the group's subtree.
         Default: no -- the launch script mounts a cloud's storage itself."""
         return False
@@ -117,7 +117,7 @@ class StorageBuilderBase(BuilderBase[TSTORAGE], StorageBuilderProtocol):
         return []
 
     def validate_lifecycle(self, storage: Storage) -> list[str]:
-        """Errors for a ``lifecycle:`` declaration (stage 15). Default: the
+        """Errors for a ``lifecycle:`` declaration. Default: the
         builder realizes no data lifecycle, so any declaration is refused;
         builders that do (an object store, a shared filesystem with tiers)
         validate their own keys."""
@@ -138,7 +138,7 @@ class StorageBuilderBase(BuilderBase[TSTORAGE], StorageBuilderProtocol):
         return []
 
     def retag_storage(self, storage: "Storage", tags: dict[str, str]) -> bool:
-        """Add ``tags`` to the storage's cloud resource in place (stage 93:
+        """Add ``tags`` to the storage's cloud resource in place (how
         `lineage relabel` gives a standing disk, filesystem or bucket
         the configuration's id). False when the resource is absent; a builder
         that cannot retag raises NotImplementedError and relabel says so."""

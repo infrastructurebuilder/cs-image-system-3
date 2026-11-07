@@ -8,7 +8,7 @@ import copy
 from dataclasses import field
 from cs_image_system.contract.model_config import CSIS_MODEL_CONFIG
 from pydantic import Field
-from pydantic.dataclasses import dataclass  # stage 23: validation at construction
+from pydantic.dataclasses import dataclass  # validation at construction
 import logging
 log = logging.getLogger(__name__)
 from typing import Annotated, Any
@@ -33,8 +33,8 @@ class BaseImageImageBuilderSubconfig(NameTyped, ParentPropertyHolding):
     #. self.runtime serves as the 'type' for ImageRuntimeSubconfig
     #. but we must set it to override the parent
     name: str = DEFAULT
-    # stage 48.3: a type TAG, not a reference -- it carried the runtime's name under
-    # an OS-builder foreign key and resolved only through the fallback
+    # a type TAG, not a reference -- it used to carry the runtime's name under
+    # an OS-builder foreign key and resolve only through the fallback
     type_: Annotated[str, Field(alias="type")] = DEFAULT
     runtime: str = fk_field(target=VCT.RUNTIME_BUILDER_MODEL, # FIXME: This should be image builder
                             default = DEFAULT,
@@ -65,7 +65,7 @@ class BaseImageImageBuilderSubconfig(NameTyped, ParentPropertyHolding):
 
     owners: list[str] = field(default_factory=list)
 
-    # stage 105: the declared PREFIX of this image's build names on this
+    # the declared PREFIX of this image's build names on this
     # runtime; the timestamp below is always appended. Declared before
     # `_final_name` so the resolver renders it first.
     output_image_name: str | None = None
@@ -191,7 +191,7 @@ class BaseImage(RootItem, SelfInjectedName):
     tags: dict[str, str] = field(default_factory=dict)
     runtimes: list[BaseImageImageBuilderSubconfig] = field(default_factory=list)
     description: str | None = None
-    # V2 capability declaration (§3F1) and the mandatory admin user (N9/N12),
+    # V2 capability declaration (DESIGN §3F) and the mandatory admin user (N9/N12),
     # carried over from the OS builder that synthesizes this base image; the
     # declared capabilities are stamped into each build's lineage (N11).
     identity_types: list[str] = field(default_factory=list)
@@ -276,7 +276,7 @@ class BaseImage(RootItem, SelfInjectedName):
         if not self._image_builder:
             if self.source_image:
                 log.debug(f"Image {self.name} has source image {self.source_image} specified, using this to determine image builder.")
-                reg = current_registry()  # a model holds no context (stage 124 shim)
+                reg = current_registry()  # a model holds no context; the current registry is the one
                 inst = reg.get_all_instances_by_classification(VCT.BASE_IMAGE_MODEL)
                 if self.source_image in inst:
                     source_image = inst[self.source_image]

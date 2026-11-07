@@ -10,7 +10,7 @@ from typing import Annotated, TYPE_CHECKING, Any, cast
 log = logging.getLogger(__name__)
 from cs_image_system.contract.model_config import CSIS_MODEL_CONFIG
 from pydantic import Field, model_validator
-from pydantic.dataclasses import dataclass  # stage 23: validation at construction
+from pydantic.dataclasses import dataclass  # validation at construction
 
 from cs_image_system.contract.fields import deferred_list_field, fk_field, parent_field
 from .mixins import SelfInjectedName, SubItemOverride
@@ -89,7 +89,7 @@ class Instance(RootItem, SubItemOverride, SelfInjectedName):
     Parameters
     ----------:
     image: str - The existing Image to base this Instance on. Group ownership
-        lives on the image (V2 Q4/§3F2): all instances of one image share its
+        lives on the image (V2 Q4, DESIGN §3F): all instances of one image share its
         owning group by construction, so there is no per-instance ``groups``.
     storages: list[StorageMapping]
         The named storages this instance mounts (per-instance attachment,
@@ -102,8 +102,8 @@ class Instance(RootItem, SubItemOverride, SelfInjectedName):
         The zone this lives in, when it is bound to one. Declared, never
         inferred: absent means "no constraint", and a set that is not
         compatible -- more than one distinct zone across an instance, its
-        zonal storages and its runtime's subnet -- is refused at validate
-        (stage 52). Changing a zone REPLACES a zonal resource, so the
+        zonal storages and its runtime's subnet -- is refused at validate.
+        Changing a zone REPLACES a zonal resource, so the
         refusal is cheaper than the plan that follows it.
     """
 
@@ -127,17 +127,17 @@ class Instance(RootItem, SubItemOverride, SelfInjectedName):
     storages: list[dict[str, Any]] = deferred_list_field(builder_vct = VCT.STORAGE_BUILDER_MODEL,
                                                         item_vct=VCT.STORAGE_MAPPING_ITEM_MODEL,
                                                         default_factory=list) # list of storage mappings
-    availability_zone: str | None = None      # stage 52
+    availability_zone: str | None = None
     userdata: str = ""
-    # Convergent bakes (stage 9.5): pinned (default) keeps the launched build until an
+    # Convergent bakes: pinned (default) keeps the launched build until an
     # explicit `upgrade instance`; follow plans the gated replacement whenever the
     # image's series head moves (recorded as op: follow).
     image_policy: str = "pinned"
-    # Declared ephemerality (stage 10.1): the instance-image lifecycle launches it,
+    # Declared ephemerality: the instance-image lifecycle launches it,
     # runs the runtime's verification, and destroys it in the same run; a failed
     # verification leaves it standing for inspection and fails the run.
     ephemeral: bool = False
-    # Ephemeral failure policy (stage 11.3; DESIGN §3H): what happens when the
+    # Ephemeral failure policy (DESIGN §3H): what happens when the
     # verification FAILS. on_failure: keep (default: left standing, the run
     # fails) | teardown (torn down anyway, the run still fails); teardown_after:
     # a duration ("2h", "30m", "1d") after a failed verification past which the
@@ -155,9 +155,9 @@ class Instance(RootItem, SubItemOverride, SelfInjectedName):
     def _per_instance_groups_are_retired(cls, data: Any) -> Any:
         """V1 declared `groups:` per instance (with an ALL magic value); V2
         moved ownership to the instance image (DESIGN §3F2, rev 12). The
-        field was kept after stage 21 only so a stale declaration got this
-        message rather than the generic unknown-key refusal; since
-        2026-09-14 the message comes from here and the field is gone."""
+        field was kept for a while only so a stale declaration got this
+        message rather than the generic unknown-key refusal; now the message
+        comes from here and the field is gone."""
         keys = data if isinstance(data, dict) else (getattr(data, "kwargs", None) or {})
         if "groups" in keys:
             raise ValueError(
@@ -180,7 +180,7 @@ class Instance(RootItem, SubItemOverride, SelfInjectedName):
         super().__post_init__() # validates name and aliases, sets name to safe_name, etc
         if not self.image:
             # This might blow up the default description
-            # stage 63: finalize() refuses it; the warning used to say it "will be
+            # finalize() refuses it; the warning used to say it "will be
             # ignored during generation", which never happened
             log.warning(f"Instance '{self.get_display_name()}' does not have an image specified; "
                         "the load refuses it when the configuration finalizes.")

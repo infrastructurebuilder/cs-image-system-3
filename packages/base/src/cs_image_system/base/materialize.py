@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""The private mirror an execution runs from (stage 49).
+"""The private mirror an execution runs from.
 
 The committed emission under ``generated/`` carries the ``ENC[age:...]``
 ciphertext wherever the configuration did. The tools cannot read that, so
@@ -89,9 +89,8 @@ def mirror_path(config_root: Path, path: Path) -> Path:
     keep resolving -- a module source
     (``../../../../../cs-image-system-3/tfmodules/...``) and the ``local``
     state type's ``../../../../<dir>/<ws>.tfstate`` both count directories up
-    to the configuration root, and one extra level breaks both. Found by
-    probing an AZ change, 2026-09-19: ``tofu init`` in the mirror could not
-    read its module.
+    to the configuration root, and one extra level breaks both (``tofu
+    init`` in the mirror could not read its module).
 
     A path already inside the mirror is returned unchanged, so materialising
     twice is harmless."""
@@ -200,7 +199,7 @@ def sync_back(src: Path, dst: Path) -> list[str]:
         if target.is_file() and target.read_bytes() == path.read_bytes():
             continue
         if target.is_file() and path.name == ".terraform.lock.hcl":
-            # hygiene XII item 30 (the walk's F60): `init` records the hashes of
+            # `init` records the hashes of
             # the provider packages it verified, which differ by where it ran (the
             # plugin cache, the platform), so a record from CI and one from a
             # person's machine took fourteen `h1:` lines from each other in turn.

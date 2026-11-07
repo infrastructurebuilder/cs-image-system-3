@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""Run scoping safe by construction (stage 12).
+"""Run scoping safe by construction.
 
 * `--apply-runtime <rt>` implies the bake filter: images on other
   runtimes read `skip: outside the apply scope` in the bake plan;
@@ -173,7 +173,7 @@ def test_preflight_lines_flag_a_session_shorter_than_the_expected_run(fresh, tmp
 
 
 def test_an_expired_session_does_not_stop_the_load_and_the_loaded_tree_reports_it(tmp_path, monkeypatch):
-    """Stage 127: the load reaches no cloud (the runtimes' networking is
+    """The load reaches no cloud (the runtimes' networking is
     adopted from meta-state/runtime-facts.yaml), so the sessions are read
     over the LOADED configuration -- an expired one included -- and an
     overlay's `preflight.expected_run_minutes` counts because the overlay
@@ -206,7 +206,7 @@ def test_only_runtime_scopes_the_terraform_roots_too(tmp_path, monkeypatch):
     """A run scoped to one runtime's images generates and plans no OTHER
     runtime's root (the GCE instance root's family lookup 404'd during a
     scoped AWS bake). A list-valued apply flag alone is NOT a scope: the
-    §7 decision keeps every root planning and gating under it."""
+    per-root scoping decision keeps every root planning and gating under it."""
     from cs_image_system.base.utils import root_in_runtime_scope
     root = copy_config(tmp_path)
     run = V2Run(tmp_path, monkeypatch, config_root=root)
@@ -221,7 +221,7 @@ def test_only_runtime_scopes_the_terraform_roots_too(tmp_path, monkeypatch):
         script = (run.generated / "instance-image" / "run-instance-image.sh").read_text()
         assert "tofu-gce" not in script and "open-tofu/instance-generation" in script
         run.ctx.only_runtime_scope = None
-        run.ctx.config["apply_instances"] = [GCE]                   # §7: a flag list scopes applies only
+        run.ctx.config["apply_instances"] = [GCE]                   # a flag list scopes applies only
         summary = run.run(["instance-image"], apply=True, only=["none"])
         assert summary.ok, summary.error
         script = (run.generated / "instance-image" / "run-instance-image.sh").read_text()

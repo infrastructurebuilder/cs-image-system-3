@@ -12,7 +12,7 @@ runtime_builders:
         - amazon
         - us-east-2
       type: aws
-      # stage 22.5 REMOVED -- no field on any runtime model, and zero references anywhere in the codebase
+      # not a field on any runtime model, and referenced nowhere in the codebase
       # runtime_classifier: cloud # or container or metal
       account_id: "514190660293"
       description: |
@@ -32,15 +32,15 @@ runtime_builders:
         Project: MyProject
         Environment: Development
       region: us-east-2
-      # stage 22.5 REMOVED -- the modelled key is credentials.profile_name, declared just above with the same value; the raw preflight reader prefers this one, so removing it changes nothing while both agree
+      # not a field: the modelled key is credentials.profile_name, declared just above
       # profile: noaa
       # Debug sessions AND bakes connect via SSM (no internet gateway in
-      # this VPC; decided 2026-08-31, TODO stage 1). Profile is swappable.
+      # this VPC). Profile is swappable.
       session_mechanism: ssm
       session_instance_profile: AmazonSSMRoleForInstancesQuickSetup
       default_machine_type: t2.micro
       default_image_builder: pckr-ebs-ans
-      # stage 22.5 REMOVED -- `executables` is an IAConfig field, not a runtime-builder one; declared here it is dropped
+      # `executables` is an IAConfig field, not a runtime-builder one; declared here it is dropped
       # executables: 
       #   - aws-cli
       networking:
@@ -55,10 +55,10 @@ runtime_builders:
         addl_security_groups:
         - sg-03015ec107ae5f81a # OKTA-GATEWAY
         subnets:
-        # Default flipped to the NAT-routed private subnet (2026-08-31, TODO
-        # stage 1): the VPC has NO internet gateway -- the "public" 137.75
-        # subnet is not internet-routable, and bakes/instances connect via
-        # SSM, so they belong on a private subnet with outbound NAT.
+        # Default is the NAT-routed private subnet: the VPC has NO internet
+        # gateway -- the "public" 137.75 subnet is not internet-routable, and
+        # bakes/instances connect via SSM, so they belong on a private subnet
+        # with outbound NAT.
         - name: east2-az1-private
           subnet_id: subnet-09f79018af845358a
           is_default: true
@@ -76,11 +76,11 @@ runtime_builders:
         - google
         - us-east1
       type: gcloud
-      # stage 22.5 REMOVED -- no field on any runtime model, and zero references anywhere in the codebase
+      # not a field on any runtime model, and referenced nowhere in the codebase
       # runtime_classifier: cloud # or container or metal
       # Credentials come from the environment only (ADC or
       # GOOGLE_APPLICATION_CREDENTIALS) -- same rule as the AWS profile.
-      # Live project (2026-09-02): csis-sandbox (86233086783). Terraform state
+      # Live project: csis-sandbox (86233086783). Terraform state
       # for GCP roots stays on the existing S3 backend for now (user decision).
       project_id: csis-sandbox
       zone: us-east1-b
@@ -92,10 +92,10 @@ runtime_builders:
       # 10 GB floor (a boot disk cannot be smaller than its source image), not
       # the OS builder's 200 GB default (~$8/month per instance)
       default_disk_size: 10
-      bake_preemptible: true # spot build VMs (GCP-READINESS §6); a preempted bake re-runs
-      # Declared ephemerality (stage 10.4, operator rule 58): nothing baked here
+      bake_preemptible: true # spot build VMs; a preempted bake re-runs
+      # Declared ephemerality: nothing baked here
       # survives a successful run -- the closing `retention` lifecycle disposes
-      # every GCE image. Declared storages (gce_data, gce_bucket) persist (§10.15).
+      # every GCE image. Declared storages (gce_data, gce_bucket) persist.
       ephemeral: true
       tags:
         Project: csis-sandbox
@@ -114,7 +114,7 @@ runtime_builders:
       aliases:
         - us-east-1
       type: aws
-      # stage 22.5 REMOVED -- no field on any runtime model, and zero references anywhere in the codebase
+      # not a field on any runtime model, and referenced nowhere in the codebase
       # runtime_classifier: cloud # or container or metal
       account_id: "123456789012"
       tags:
@@ -149,7 +149,7 @@ runtime_builders:
         - us-west-1
         - west
       type: aws
-      # stage 22.5 REMOVED -- no field on any runtime model, and zero references anywhere in the codebase
+      # not a field on any runtime model, and referenced nowhere in the codebase
       # runtime_classifier: cloud
       account_id: "123456789012"
       credentials:
@@ -172,7 +172,7 @@ runtime_builders:
           # Note that Packer from GH requires access via public subnet
         - name: subnet2
           subnet_id: subnet-0ca0978d152fca976
-    # Stage 128 (item 4): the fixture's container runtime, so the golden pins the
+    # The fixture's container runtime, so the golden pins the
     # docker emission (the packer docker source, the tf-docker roots). The daemon
     # is SYNTHETIC: `context` is a docker context NAME that exists on no machine,
     # and the harness stubs every daemon call (tests/harness.py), so no test
@@ -184,7 +184,7 @@ runtime_builders:
       context: csis-fixture-daemon
       executable: docker
       repository: csis/fixture
-      state_configuration: local-dev   # the docker roots inherit the local backend (stage 47)
+      state_configuration: local-dev   # the docker roots inherit the local backend
       credentials: {}
       ephemeral: false
       tags:

@@ -13,10 +13,10 @@ fixes the TAG side: every recorded build on the runtime whose real tags
 differ on the drift rule's facts (``series``, ``parent``, ``run``, the
 fingerprint prefix) is re-tagged through the runtime's retag hook. One
 tag is ADDED when absent: ``csis_config``, which says the image belongs to
-this configuration (stage 82) -- every image baked before that stage lacks
-it, and another configuration in the same account would call it foreign.
-Since stage 93 the same id is what every storage and machine the system
-makes carries, and relabel gives it to the ones that stand without it: a
+this configuration -- an image baked before the tag existed lacks it, and
+another configuration in the same account would call it foreign. The same
+id is what every storage and machine the system makes carries, and relabel
+gives it to the ones that stand without it: a
 declared storage whose cloud resource lacks the tag (through the storage
 builder's ``retag_storage``) and a launched instance whose machine lacks it
 (through the runtime's ``retag_instance``); a builder that cannot retag says
@@ -28,7 +28,7 @@ from __future__ import annotations
 import logging
 from dataclasses import field
 from cs_image_system.contract.model_config import CSIS_MODEL_CONFIG
-from pydantic.dataclasses import dataclass  # stage 23: validation at construction
+from pydantic.dataclasses import dataclass  # validation at construction
 from typing import Any
 
 from ..global_context import GlobalTypeContext
@@ -41,13 +41,13 @@ log = logging.getLogger(__name__)
 
 @dataclass(config=CSIS_MODEL_CONFIG)
 class Relabel:
-    build_id: str                           # the image's build id; a storage's or machine's cloud id (stage 93)
+    build_id: str                           # the image's build id; a storage's or machine's cloud id
     series: str                             # the image series; the storage's or instance's declared name
     runtime: str
     tags: dict[str, str]                    # what the thing will carry (record truth)
     differences: list[str] = field(default_factory=list)
     retagged: bool | None = None            # None = dry run
-    kind: str = "image"                     # image | storage | instance (stage 93)
+    kind: str = "image"                     # image | storage | instance
 
     def as_dict(self) -> dict[str, Any]:
         return {"kind": self.kind, "build_id": self.build_id, "series": self.series, "runtime": self.runtime,
@@ -80,9 +80,9 @@ def relabel_plan(ctx: GlobalTypeContext, runtime: str, builds: list[str] | None 
         tags = image.get("tags") or {}
         wanted = record_tags(b)
         diffs = []
-        # stage 82: a recorded image is this configuration's, and its tag must
-        # say so -- the one tag relabel ADDS when absent, since every image
-        # baked before the stage lacks it and another configuration in the
+        # a recorded image is this configuration's, and its tag must say so
+        # -- the one tag relabel ADDS when absent, since an image baked
+        # before the tag existed lacks it and another configuration in the
         # account would otherwise call it foreign
         owner = configuration_tag(ctx)
         if owner:
@@ -106,10 +106,10 @@ def relabel_plan(ctx: GlobalTypeContext, runtime: str, builds: list[str] | None 
 
 
 def resource_relabel_plan(ctx: GlobalTypeContext, runtime: str) -> list[Relabel]:
-    """Stage 93: the declared storages on ``runtime`` whose cloud resource
-    stands without the configuration's id, and the launched instances there
-    whose machine stands without it. Nothing else about them is compared:
-    the id is the one thing they must carry and did not, before the stage."""
+    """The declared storages on ``runtime`` whose cloud resource stands
+    without the configuration's id, and the launched instances there whose
+    machine stands without it. Nothing else about them is compared: the id
+    is the one thing they must carry and may lack."""
     owner = configuration_tag(ctx)
     if not owner:
         return []

@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""Storage semantics (stage 10.11-13, operator 2026-09-08): a storage exists
+"""Storage semantics (the operator's ruling): a storage exists
 exactly as long as its declaration.
 
 * deleting the entry is the demise: the next storage run plans the
@@ -154,7 +154,7 @@ def test_single_attach_refusal_names_the_shared_alternatives(prepared):
     assert "multi-host storage builders on aws-east2-runtime: ['aws-efs', 'aws-s3']" in err
 
 
-# --------------------------------------------------- archived (stage 11.6)
+# ---------------------------------------------------------------- archived
 
 def _set_storage_state(root: Path, name: str, state: str) -> None:
     for p in (root / "storages").glob("*.y*ml"):
@@ -240,7 +240,7 @@ def test_archived_is_refused_where_the_builder_cannot_archive(prepared):
     assert any("archived" in e and "does not realize" in e for e in summary.validation_errors)
 
 
-# ------------------------------------------ archived for EBS (stage 15)
+# ----------------------------------------------------- archived for EBS
 
 def test_archiving_an_ebs_volume_snapshots_first_and_destroys_it(prepared):
     root, make = prepared
@@ -320,7 +320,7 @@ def test_archived_ebs_lookup_expects_the_snapshot_not_the_volume(prepared, monke
     ec2 = FakeEC2([{"SnapshotId": "snap-1", "State": "completed", "VolumeSize": 100,
                     "Tags": [{"Key": "Name", "Value": "csis-mnt-data-archive"}]}])
     from cs_image_system.tf_ebs_instance_plugin import tf_storage_builder
-    monkeypatch.setattr(tf_storage_builder, "aws_client", lambda service, cfg: ec2)   # patched where it is read (a top-level import since stage 124)
+    monkeypatch.setattr(tf_storage_builder, "aws_client", lambda service, cfg: ec2)   # patched where it is read (a top-level import)
     builder = run.ctx.storage_builders["aws-ebs"]
     storage = next(s for s in run.ctx.storages if s.get_name() == "mnt_data")
     rec = builder._lookup(storage)
@@ -332,7 +332,7 @@ def test_archived_ebs_lookup_expects_the_snapshot_not_the_volume(prepared, monke
     assert builder._lookup(storage) is None                 # archive gone: HARD missing for the state query
 
 
-# ------------------------------------------ data lifecycles (stage 15)
+# ------------------------------------------------------ data lifecycles
 
 def _set_storage_lifecycle(root: Path, name: str, spec) -> None:
     for p in (root / "storages").glob("*.y*ml"):
@@ -351,7 +351,7 @@ def _set_storage_lifecycle(root: Path, name: str, spec) -> None:
 
 def test_declared_lifecycles_reach_the_modules_and_the_read_model(prepared):
     root, make = prepared
-    run = make()                                            # the fixture declares both (stage 15)
+    run = make()                                            # the fixture declares both
     summary = run.run(["storage"], apply=False)
     assert summary.ok, summary.validation_errors or summary.error
     s3 = "\n".join(p.read_text() for p in (run.generated / "storage" / "aws-s3").rglob("*.tf"))
@@ -401,7 +401,7 @@ def test_state_query_reports_a_declared_lifecycle_the_resource_lacks(prepared):
 
 
 def test_the_instance_root_reads_storage_state_from_the_second_backend(tmp_path, monkeypatch):
-    """stage 46: the instance root's own state is in the default backend; the
+    """The instance root's own state is in the default backend; the
     storage state it binds to lives in the second, and the datasource says so."""
     from harness import V2Run
     run = V2Run(tmp_path, monkeypatch)

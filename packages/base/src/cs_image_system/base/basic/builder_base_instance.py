@@ -30,7 +30,8 @@ class InstanceBuilderBase(BuilderBase[TINSTANCE], InstanceBuilderProtocol):
             return
         super().finalize()
         # finalize runs in the loader before the run context exists and is
-        # bound; the loader bound the run's registry first (stage 124 shim)
+        # bound; the loader bound the run's registry first, so the current
+        # registry is the one to read
         reg = current_registry()
         rtb = self.model.get_runtime_provider()
         if not rtb:

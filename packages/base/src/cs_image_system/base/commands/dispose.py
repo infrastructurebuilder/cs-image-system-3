@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""The sanctioned image disposal (stage 8.4).
+"""The sanctioned image disposal.
 
 ``dispose image <build-id>...`` / ``dispose image --runtime <rt> --all``
 deletes RECORDED images from their runtime and drops their lineage record
@@ -19,7 +19,7 @@ from __future__ import annotations
 import logging
 from dataclasses import field
 from cs_image_system.contract.model_config import CSIS_MODEL_CONFIG
-from pydantic.dataclasses import dataclass  # stage 23: validation at construction
+from pydantic.dataclasses import dataclass  # validation at construction
 from typing import Any
 
 from ..global_context import GlobalTypeContext
@@ -84,7 +84,7 @@ def refuse_if_in_use(ctx: GlobalTypeContext, records: list[dict[str, Any]]) -> N
 
 def retention_keep_for(ctx: GlobalTypeContext, series: str, runtime: str) -> int | None:
     """How many builds of ``series`` survive on ``runtime``: 0 on an ephemeral
-    runtime (stage 10.4), else the image's ``retention.keep`` (stage 10.3),
+    runtime, else the image's ``retention.keep``,
     else the runtime's ``retention_keep``, else None = keep everything."""
     rtb = ctx.runtime_builders.get(runtime)
     model = getattr(rtb, "model", None)
@@ -105,7 +105,7 @@ def retention_plan(ctx: GlobalTypeContext, runtime: str | None = None
     instance is pinned to / launched from (kept, reported)."""
     ms = ctx.meta_state
     in_use = set(ms.instance_pins().values()) | {p.get("build") for p in ms.launch_params().values()}
-    # stage 14.4 (operator, 2026-09-09): released builds are exempt from
+    # by the operator's decision, released builds are exempt from
     # retention and from an ephemeral runtime's disposal -- kept, reported
     # like debt, removed only by an explicit `dispose image <id>`
     released = {str(b) for images in (releases(ms).get("current") or {}).values() for b in images.values()}
