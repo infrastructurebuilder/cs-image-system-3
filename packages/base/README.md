@@ -97,7 +97,11 @@ this order:
 Each entry point loads to a callable. `load_plugins()` calls it and expects
 one object satisfying the contract's `PluginMetadataProtocol`, or a list of
 them (the check is `isinstance`, name-only; anything else is logged as an
-error and skipped). The entry point's distribution gives the plugin its
+error and skipped). An entry point whose module fails to import, or whose
+callable raises, is skipped the same way: one error line names the plugin
+and the error, the other plugins load, and every command keeps working
+without it (a tree whose `type:` names that plugin's model fails at load
+as any missing plugin does). The entry point's distribution gives the plugin its
 namespace (`namespace_of_distribution`: `cs-image-system-aws-runtime-plugin`
 is `aws-runtime`), unless the metadata names one. The load log gives one
 info line with how many classes registered under how many namespaces, and

@@ -126,7 +126,10 @@ def _discovered_plugins() -> tuple[DiscoveredPlugin, ...]:
     shortfall is a :class:`PluginConformanceError` here, with the member
     named, and nothing of that plugin loads. The plugin's namespace is
     settled here too (:func:`namespace_of_distribution`,
-    :func:`namespace_for`): a plugin with none is refused the same way."""
+    :func:`namespace_for`): a plugin with none is refused the same way. A
+    plugin whose entry point fails to import (or whose ``initialize``
+    raises) is not a refusal but an absence: one ERROR line names the
+    plugin and the error, and the rest load."""
     found: list[DiscoveredPlugin] = []
     for plugin_type, plugin_key in PLUGIN_TYPES:
         log.debug(f"Loading plugins of type: {plugin_type}")
@@ -139,8 +142,17 @@ def _discovered_plugins() -> tuple[DiscoveredPlugin, ...]:
             entry = plugins[pname]
             dist = getattr(entry, "dist", None)
             derived = namespace_of_distribution(dist.name) if dist is not None else None
-            initializer = entry.load()
-            for md in _metadata_of(initializer):
+            # an entry point whose module does not import, or whose
+            # ``initialize`` raises, is reported once and skipped, as a hook
+            # plugin is: the other plugins load and every command keeps
+            # working without it (a traceback here would end them all)
+            try:
+                initializer = entry.load()
+                metadata = _metadata_of(initializer)
+            except Exception as e:
+                log.error(f"Plugin {pname} ({plugin_type}) failed to import and is skipped: {type(e).__name__}: {e}")
+                continue
+            for md in metadata:
                 if isinstance(md, PluginMetadataProtocol):
                     namespace_for(pname, md, derived)
                     check_conformance(pname, md)
