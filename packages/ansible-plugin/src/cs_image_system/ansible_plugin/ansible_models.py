@@ -35,8 +35,9 @@ class AnsibleModItemModel(ModItemModel):
         if not self.playbooks:
             raise ValueError(
                 f"Ansible modification '{self.get_display_name()}' declares no playbooks: "
-                "it has nothing to modify with (config alone provisions nothing). "
-                "Give it 'playbooks:' (files the config keys feed as variables) or remove it.")
+                "it has nothing to modify with (config alone provisions nothing: an item's config is "
+                "hashed into the build and read by templates, never passed to ansible). "
+                "Give it 'playbooks:' (the files ansible-playbook runs, in order) or remove it.")
     def remap_self_with_copied_assets(self, copied_assets: dict[str, Path]) -> None:
         # an item's playbooks are its own (the builder-level field that was
         # copied beside the root and never run is gone)
