@@ -101,11 +101,13 @@ def test_pipeline_loads_and_resolves_builders(monkeypatch, cwd_guard, tmp_path):
 
 
 def test_string_stage_resolves_config_document(monkeypatch):
-    """The string stage (cycle_main_yaml) resolves ENV/config over the real cfg."""
+    """The string stage (``string_stage`` over the ONE parsed tree) resolves
+    ENV/config over the real cfg; the files are parsed once, here, and
+    never dumped or parsed again."""
     monkeypatch.setenv("USER", "testuser")
     import glob
     import yaml
-    from cs_image_system.base.template_utils import cycle_main_yaml
+    from cs_image_system.base.template_utils import string_stage
 
     def _extend(old, new):
         for k, v in new.items():
@@ -118,19 +120,22 @@ def test_string_stage_resolves_config_document(monkeypatch):
     merged = {}
     for f in sorted(glob.glob(str(FIXTURE_CONFIG / "cfg" / "*.yml"))):
         with open(f) as fh:
-            d = yaml.unsafe_load(fh)
+            d = yaml.safe_load(fh)
             if isinstance(d, dict):
                 _extend(merged, d)
 
-    out = yaml.safe_load(cycle_main_yaml(yaml.dump(merged),
-                                         addl={"execution": {"timestamp": "T"}}))
+    out = string_stage(merged, addl={"execution": {"timestamp": "T"}})
     assert out["config"]["systemuser"] == "testuser"
+    # the fixture's `_config.yml` carries an ENC[age:...] marker: the string
+    # stage carries a ciphertext through as the text it is, never a plaintext
+    keys = out["config"]["admin_public_keys"]
+    assert keys and all(isinstance(k, str) and k.startswith("ENC[age:") for k in keys), keys
     # stage 22.6: these assertions used to ride on the fixture's
     # `output_image_name`, which stage 22.3 commented out (stage 105 made it
     # real, without the timestamp). Template scoping is a property of the
     # engine, not of any one configuration key, so the test owns its input
     # and cannot be broken again by a fixture edit.
-    probe = yaml.safe_load(cycle_main_yaml(yaml.dump({
+    probe = string_stage({
         "os_builders": [{
             "name": "probe-os", "family": "debian", "family_version": "11",
             "scoped": "{{ this.name }}-{{ this.family }}-{{ this.family_version }}",
@@ -140,7 +145,7 @@ def test_string_stage_resolves_config_document(monkeypatch):
                           "-{{ this.parent.family_version }}-{{ execution.timestamp }}",
             }],
         }]
-    }), addl={"execution": {"timestamp": "T"}}))
+    }, addl={"execution": {"timestamp": "T"}})
     pob = probe["os_builders"][0]
     # nearest `this` = the os_builder
     assert pob["scoped"] == "probe-os-debian-11"

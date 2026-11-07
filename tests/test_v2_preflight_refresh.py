@@ -23,17 +23,18 @@ from pathlib import Path
 from cs_image_system.aws_runtime import session as aws_session
 from cs_image_system.base.commands import preflight
 from cs_image_system.base.commands.preflight import SessionInfo
+from v2_support import load_context, copy_config, reset_singletons, stub_environment
 
 
-def _aws_dir(tmp_path: Path, *, session: bool, refresh: bool, minutes: int = 40) -> Path:
+def _aws_dir(tmp_path: Path, *, session: bool, refresh: bool, minutes: int = 40, profile: str = "p") -> Path:
     d = tmp_path / "aws"
     (d / "sso" / "cache").mkdir(parents=True)
     if session:
         (d / "config").write_text("[sso-session s]\nsso_start_url = https://x.awsapps.com/start/#\n"
-                                  "sso_region = us-east-1\n\n[profile p]\nsso_session = s\n")
+                                  f"sso_region = us-east-1\n\n[profile {profile}]\nsso_session = s\n")
         key = "s"
     else:
-        (d / "config").write_text("[profile p]\nsso_start_url = https://x.awsapps.com/start/#\nsso_region = us-east-1\n")
+        (d / "config").write_text(f"[profile {profile}]\nsso_start_url = https://x.awsapps.com/start/#\nsso_region = us-east-1\n")
         key = "https://x.awsapps.com/start/#"
     exp = (datetime.now(timezone.utc) + timedelta(minutes=minutes)).strftime("%Y-%m-%dT%H:%M:%SZ")
     tok = {"accessToken": "a", "expiresAt": exp, "startUrl": "https://x.awsapps.com/start/#"}
@@ -90,12 +91,18 @@ def test_a_refreshable_token_counts_as_present_for_readiness(tmp_path):
 # three logins each ended exactly an hour after they began and the CLI said "Token has expired
 # and refresh failed", so the release reads the cached access token's own expiry, refresh token or not.
 
-def _tree_with_profile(tmp_path: Path) -> Path:
-    root = tmp_path / "tree"
-    (root / "cfg").mkdir(parents=True)
-    (root / "cfg" / "runtime-builders.yml").write_text(
-        "runtime_builders:\n  - name: east\n    type: aws\n    profile: p\n")
-    return root
+# the minutes are read over the LOADED configuration (stage 127: a load reaches no
+# provider, so it needs no session): a copy of the fixture, whose aws runtimes and
+# s3 backends all name the profile `noaa`
+
+def _tree_with_profile(tmp_path: Path, monkeypatch) -> Path:
+    stub_environment(monkeypatch)
+    return copy_config(tmp_path)
+
+
+def _minutes_left(root: Path) -> float | None:
+    reset_singletons()                     # a fresh load, as load_context makes
+    return preflight.session_minutes_left(load_context(root))
 
 
 def _use(monkeypatch, aws: Path) -> None:
@@ -105,23 +112,22 @@ def _use(monkeypatch, aws: Path) -> None:
 
 
 def test_the_release_reads_the_cached_token_expiry_even_beside_a_refresh_token(tmp_path, monkeypatch):
-    aws = _aws_dir(tmp_path, session=True, refresh=True, minutes=40)
-    exp, _, renews = aws_session.read_session("p", aws)
+    aws = _aws_dir(tmp_path, session=True, refresh=True, minutes=40, profile="noaa")
+    exp, _, renews = aws_session.read_session("noaa", aws)
     assert exp is not None and renews                                   # the fixed-expiry reading stays None (above)
     _use(monkeypatch, aws)
-    left = preflight.session_minutes_left(_tree_with_profile(tmp_path))
+    left = _minutes_left(_tree_with_profile(tmp_path, monkeypatch))
     assert left is not None and 38 < left <= 40
 
 
 def test_a_lapsed_token_counts_negative_and_no_readable_expiry_counts_none(tmp_path, monkeypatch):
-    aws = _aws_dir(tmp_path, session=True, refresh=True, minutes=-83)
+    aws = _aws_dir(tmp_path, session=True, refresh=True, minutes=-83, profile="noaa")
     monkeypatch.setattr(aws_session, "refresh_works", lambda profile, aws_dir_=None: True)   # no call leaves this machine
     _use(monkeypatch, aws)
-    left = preflight.session_minutes_left(_tree_with_profile(tmp_path))
+    left = _minutes_left(_tree_with_profile(tmp_path, monkeypatch))   # the load survives a lapsed session
     assert left is not None and left < -80
-    empty = tmp_path / "empty"
-    (empty / "cfg").mkdir(parents=True)
-    assert preflight.session_minutes_left(empty) is None
+    _use(monkeypatch, tmp_path / "no-such-aws-dir")                   # no cache at all: no expiry readable
+    assert _minutes_left(copy_config(tmp_path / "second")) is None
 
 
 def test_the_minutes_script_prints_whole_minutes_or_nothing(tmp_path, monkeypatch):
@@ -133,14 +139,18 @@ def test_the_minutes_script_prints_whole_minutes_or_nothing(tmp_path, monkeypatc
     assert spec and spec.loader
     m = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(m)
-    _use(monkeypatch, _aws_dir(tmp_path, session=True, refresh=True, minutes=40))
-    tree = _tree_with_profile(tmp_path)
+    _use(monkeypatch, _aws_dir(tmp_path, session=True, refresh=True, minutes=40, profile="noaa"))
+    tree = _tree_with_profile(tmp_path, monkeypatch)
     import io, contextlib
     out = io.StringIO()
+    reset_singletons()
     with contextlib.redirect_stdout(out):
         assert m.main(["session-minutes-left", str(tree)]) == 0
     assert out.getvalue().strip() in {"39", "40"}
-    assert m.main(["session-minutes-left", str(tmp_path / "nothing")]) == 1
+    err = io.StringIO()
+    with contextlib.redirect_stderr(err):
+        assert m.main(["session-minutes-left", str(tmp_path / "nothing")]) == 1    # a tree that does not load: nothing, exit 1
+    assert "did not load" in err.getvalue()
     assert m.main(["session-minutes-left"]) == 2
 
 

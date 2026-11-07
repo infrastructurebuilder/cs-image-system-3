@@ -25,7 +25,8 @@ import pytest
 from v2_support import REPO, V2Run, tree
 
 GOLDEN = REPO / "tests" / "fixtures" / "v2_golden"
-IGNORED_FILES = {"run-summary.json", "runs.yaml"}   # carry run-local detail
+IGNORED_FILES = {"run-summary.json", "runs.yaml",   # carry run-local detail
+                 "runtime-facts.yaml"}              # the harness's INPUT (copy_config writes it before the load; a dry run never rewrites it)
 
 
 def current_output(tmp_path: Path, monkeypatch) -> dict[str, str]:

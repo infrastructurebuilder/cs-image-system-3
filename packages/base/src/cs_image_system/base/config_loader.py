@@ -43,7 +43,7 @@ if TYPE_CHECKING:
     from .basic.builder_base_runtime import RuntimeBuilderBase
 from . import registry
 from .loader import load_plugins
-from .template_utils import cycle_main_yaml, read_and_preprocess_yaml_files
+from .template_utils import read_and_preprocess_yaml_files, sort_mappings, string_stage
 from .encryption import decrypt_tree, decrypted_plaintexts, refuse_markers_at
 from .reserved_names import refuse_invalid_config_keys, refuse_reserved_names
 from .run_context import RunContext, bind_current
@@ -55,6 +55,7 @@ from .finalizer import Finalizer
 from . import bake_steps, bake_user, capabilities, identity_attributes, image_tests, launch_enrollment
 from . import launch_params, lifecycles as _lifecycles, lineage, materialize, os_types, standing, storage_state, utils
 from . import encryption as _encryption
+from .network_facts import adopt as adopt_network_facts
 from . import image_sources as _image_sources
 from . import ephemeral_policy, state_backup
 from cs_image_system.contract.context import (
@@ -80,7 +81,6 @@ from cs_image_system.contract.lifecycles import LifecycleLike
 from cs_image_system.contract.group import GroupBuilderProtocol
 from cs_image_system.contract.image import ImageQuery
 from cs_image_system.contract.storage import StorageBuilderProtocol
-from .orchestrator import reset_unresolved_fks
 from .models.ia_config import DEFAULT_DATEFORMAT
 from .image_sources import ImageSourceCatalog, default_os_type
 
@@ -205,7 +205,6 @@ def read_item_kind(ctx: RunContext, spec: ItemKind) -> list[Any]:
     yaml_files = get_files_by_extensions(ctx.working_path / spec.source_dir)
     cvt = Orchestrator().get_converter()
     template_resolver = TemplateResolver()
-    reset_unresolved_fks()          # stage 48.3: a fresh load starts with no unresolved foreign keys
     reg = ctx.reg
     items: list[NameTyped] = []
     model_cls = item_model_class(reg, spec)
@@ -222,7 +221,10 @@ def read_item_kind(ctx: RunContext, spec: ItemKind) -> list[Any]:
     except Exception as e:
         log.error(f"Error parsing {yaml_files}: {e}")
         raise
-    template_resolver.resolve_all()
+    # stage 48.3: the object stage returns the foreign keys that named nothing,
+    # for the whole load so far (the builder stage's included); the context
+    # carries them and `validate` refuses them
+    ctx.unresolved_foreign_keys = template_resolver.resolve_all()
     for it in items:
         if spec.default_missing_type_to is not None and it.type_ in OOPS_DEFAULTS:
             log.debug(f"{spec.name} item '{it.get_name()}' using default builder")
@@ -424,7 +426,6 @@ def read_config_and_transform(
     if not orig:
         raise ValueError(f"Failed to read configuration from {_config_dir}")
     # Here, we know that none of the "name" elements collide
-    original_str = yaml.dump(orig)
     dtfmt = orig.get("dateformat", DEFAULT_DATEFORMAT)     # stage 63: the model's one default
     run_start_date = run_start_time.date()
     timestamp = run_start_time.strftime(dtfmt)
@@ -439,29 +440,33 @@ def read_config_and_transform(
     }
 
 
-    processed_str = cycle_main_yaml(original_str, addl=addl)
-    orig = yaml.safe_load(processed_str)
-    log.debug("cycle_main_yaml result:\n%s", pformat(orig, indent=2,width=163))
+    # The string stage walks the ONE parsed tree (read_and_process parsed each
+    # cfg/*.yml exactly once): the registered passes render its string leaves
+    # in place and nothing is dumped back to text or parsed again. The
+    # document's mappings are presented with their keys sorted, the order the
+    # emission has always seen (sort_mappings says why).
+    generic_yaml: Any = string_stage(sort_mappings(orig), addl=addl)
+    log.debug("string stage result:\n%s", pformat(generic_yaml, indent=2, width=163))
 
     template_resolver = TemplateResolver(addl=addl)
-    # cycled = cycle_main_yaml(processed_str, addl=addl)
-    cycled = processed_str  # skip the cycling for now, as it is causing some issues and we want to get the basic flow working.  We can re-enable it once we have a better handle on the process and have added some more safeguards around it.
+    # the object stage collects the foreign keys that name nothing for THIS
+    # load (the context receives them when the item kinds are read; `validate`
+    # refuses them); a fresh load starts with none
+    template_resolver.unresolved_foreign_keys = []
     if verbose:
+        # the rendered document, the one time it is written out (and before
+        # decryption, so no plaintext lands in it)
         with open("./YAML_DUMP.yaml", "w+") as f:
-            f.write(cycled)
+            yaml.safe_dump(generic_yaml, f, sort_keys=False)
 
-    # generic_yaml = template_utils.process_keys( yaml.unsafe_load(config_str))
-    # _ddd: dict = {}
-    # _ddd = template_utils.extend_with_envdata({},include_ENV=True)
-    # config_str = template_utils.render_j2_template_string(config_str, **_ddd)
-    generic_yaml = yaml.safe_load(cycled)
     # stage 49: any value in the base document may be an ENC[age:...] marker.
-    # HERE, after the dump/render/re-parse above, not in read_and_process: a
-    # Decrypted dumps as its plain text, so decrypting before that round-trip
-    # would lose every ciphertext the emission has to write back, feed the
-    # plaintext to Jinja as template SOURCE, and put it in YAML_DUMP.yaml.
-    # This one call covers IAConfig and the plugin builder models, whose dicts
-    # are popped out of generic_yaml below and structured from these objects.
+    # HERE, after the string stage, not in read_and_process: the passes render
+    # every string leaf as template SOURCE, and a Decrypted leaf rendered that
+    # way would feed its plaintext to Jinja; kept as its marker through the
+    # passes (a marker carries no tag, so it renders to itself), every
+    # ciphertext survives for the emission to write back. This one call covers
+    # IAConfig and the plugin builder models, whose dicts are popped out of
+    # generic_yaml below and structured from these objects.
     generic_yaml = decrypt_tree(generic_yaml, source=str(_config_dir),
                                 collect=decrypted_plaintexts())
     if isinstance(generic_yaml, list):
@@ -473,10 +478,7 @@ def read_config_and_transform(
             f"Expected config to be a dictionary at the top level, got {type(generic_yaml)}"
         )
 
-    cycled_generic_yaml = copy.deepcopy(generic_yaml)
-    original_yaml_strings: dict[str, str] = {}
     original_yaml_dictionary_lists: dict[str, list[dict[str, Any]]] = {}
-    original_yaml_strings_by_plugin_type: dict[str, dict[str, str]] = {}
     for plugin_name, plugin_key in PLUGIN_TYPES:
         if plugin_key in generic_yaml:
             items = generic_yaml.pop(plugin_key)
@@ -484,7 +486,6 @@ def read_config_and_transform(
                 raise ValueError(
                     f"Expected a list for key '{plugin_key}', got {type(items)}"
                 )
-            original_yaml_strings[plugin_key] = yaml.dump(items)
             for idx, item in enumerate(items):
                 if not isinstance(item, dict):
                     raise ValueError(
@@ -496,9 +497,6 @@ def read_config_and_transform(
                         f"Each item in '{plugin_key}' must have a 'name' field. "
                         f"Item at index {idx} is missing a name."
                     )
-                original_yaml_strings_by_plugin_type.setdefault(plugin_key, {})[
-                    name
-                ] = yaml.dump(item)
             original_yaml_dictionary_lists[plugin_key] = items
 
     # generic_yaml no longer contains the plugin-typed builder models
@@ -745,6 +743,11 @@ def read_config_and_transform(
         if callable(bind):
             bind(ctx)
     bind_current(ctx)
+    # stage 127: the network facts a real run or `validate --online` recorded
+    # are adopted OFFLINE here (a `default` network becomes the recorded one);
+    # what the record leaves unanswered waits on the context for `validate`.
+    # The load itself reaches no cloud.
+    adopt_network_facts(ctx)
     # Read the normal-flow domain-item kinds in registration order. Each reader
     # registers its items into the registry (from which the collection properties
     # read) and attaches them to their builders; the group kind's validator sets

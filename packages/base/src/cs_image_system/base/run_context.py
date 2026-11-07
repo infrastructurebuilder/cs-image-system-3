@@ -128,6 +128,11 @@ class RunContext(RunContextProtocol):
         # as a flag, so a live configuration needs no overlay file to
         # decommission a tree entry for one invocation (ledger 68, 71)
         self.undeclared: list[tuple[str, str]] = list(undeclared or [])
+        # stage 48.3: the foreign keys that named nothing at load -- (object
+        # class, object name, field, value, target) -- as the object stage
+        # returned them; set by the loader as the item kinds are read, read by
+        # `validate`, which refuses each entry
+        self.unresolved_foreign_keys: list[tuple[str, str, str, str, str]] = []
         self.apply_runtime: str | None = None      # `run --apply-runtime <rt>` (stage 11.5)
         self.migrate_state: list[str] = []          # `run --migrate-state <ws>` (stage 46): the workspaces whose state MOVES this run
         # stage 12: run scoping safe by construction
@@ -148,6 +153,10 @@ class RunContext(RunContextProtocol):
         self._root_group: Group | None = None       # set by the groups kind's validator (the loader)
         self._finalizer: Finalizer | None = None    # bound by the loader
         self._services: ServicesProtocol | None = None   # bound by the loader (stage 125)
+        # stage 127: what the adoption of meta-state/runtime-facts.yaml left
+        # unanswered (a `default` network nothing recorded, a subnet the record
+        # never checked); set by the loader's adopt, reported by a validator
+        self.network_facts_problems: list[str] = []
 
     # --- identity: a context is shared, never cloned
     # A model copy (`copy.deepcopy(executable)`, a builder's executable copy)

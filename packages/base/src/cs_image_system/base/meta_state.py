@@ -58,9 +58,10 @@ IMAGE_TESTS = "image-tests.yaml"       # post-bake test results per build (stage
 STATE_LOCATIONS = "state-locations.yaml"  # every workspace's resolved state location, and the migrations (stage 46)
 INSTANCE_STATE = "instance-state.yaml"  # generations: one machine each, and the superseded records (stage 60)
 LOGIN_PROOFS = "login-proofs.yaml"     # CI logged in through the managed policy: every verdict (stage 56)
+RUNTIME_FACTS = "runtime-facts.yaml"   # what each runtime's account answered its networking declaration with (stage 127)
 
 ALL_FILES = (IDENTITY_READ_MODEL, STORAGE_READ_MODEL, STORAGE_STATE, LINEAGE, PINS,
-             LAUNCH_PARAMS, RUNS, STATE_LOCATIONS)
+             LAUNCH_PARAMS, RUNS, STATE_LOCATIONS, RUNTIME_FACTS)
 
 # Public-safe by construction (stage 35): the scanner lives in public_safe.py
 # and is the same one behind the commit gate, `just public-safe` and the

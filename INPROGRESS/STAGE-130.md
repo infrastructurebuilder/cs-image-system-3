@@ -128,6 +128,30 @@ commit on the bundle's branch.
     `bootstrap_github` is honoured by every generated root through
     `utils.module_source` and not by the bootstrap's, which should
     resolve each section's module the same way (found by §126).
+25. The module stamps never reach a commit: the skeleton's
+    `.gitignore` ignores every dotfile (`.*`) and names no exception for
+    `.csis-module`, so a tree's fourteen stamps stay untracked and a
+    fresh checkout (CI, another machine) holds unstamped copies. Today
+    they are adopted as identical; the release after a module changes
+    would REFUSE every one of them, and the edited-copy protection the
+    docs promise (DAILY_DRIVER, CONFIGURATION 2.x, OPERATIONS) does not
+    hold across clones. Add `!**/.csis-module` to the skeleton's
+    `.gitignore`; the reference takes it at the next refresh, which
+    then commits the stamps (found 2026-11-06, the 0.1.7.dev2 take:
+    "5 files in the index").
+26. The loader sorts every free-form mapping's keys
+    (`template_utils.sort_mappings`, one call in `read_config_and_transform`)
+    only to keep the emission where the old dump-and-reparse left it (the
+    YAML dumper sorted keys, so an image's `tags` block came out sorted).
+    Dropping the call moves the golden by one key-order hunk and lets a
+    file's own order win; a deliberate emission change, with a golden
+    regeneration (found by §127).
+27. The transient-storage teardown (`retention.
+    transient_storage_teardown_command`: `run storage --only none` under
+    a different overlay set) is the one deferred system step still run
+    as a child process, because it needs a context loaded under other
+    overlays; loading that second context in-process (the loader is
+    offline now) would retire the last spawn (found by §127).
 
 **Acceptance**: each item its own commit; `just test` green after
 each; one squash, branch kept. Records: the squash; this section goes

@@ -183,6 +183,27 @@ phase; that is where packer manifests become image ids and instance
 variables. The committed script is the faithful record of what
 finalization executes.
 
+The deferred steps that are the system's own commands (`cs-image-system
+gate-plan`, `apply-check`, `prune-attachments`, `release --declared`, the
+`state-migration`, `verify`, `dispose`, `unmount` and `identity-attributes`
+steps) are executed by the running process **in that process**, over the
+configuration it loaded at its start: a run loads the configuration once,
+not once more per step. The `--root-dir`, `--no-dry-run` and `--overlay`
+arguments such a line carries describe that very configuration and are
+parsed and ignored in process. The committed script keeps the same lines
+so a hand run of `run-<lc>.sh` still works; there, each `cs-image-system`
+line is a process of its own and loads the configuration once per step,
+as it always did. The one deferred step the running process still spawns
+as a process of its own is the transient-storage teardown at the end of a
+decommission (`run storage --only none --no-state-query --no-commit`): it
+is a nested run under a *different* overlay set (the overlays that
+declared the transient storages are left out, so the storages undeclare
+and destroy through the gate), and a different overlay set is a different
+configuration, which the loaded one cannot stand in for. A command's own
+output (the gate's `Plan passes the apply gate.`, `released: ...`) prints
+as it did; what differs is that it is no longer a captured child's
+output.
+
 ### Dry run and real run
 
 The global `--dry-run` is **on by default**. A dry run generates
@@ -1300,6 +1321,7 @@ lazy and cached; writes are atomic per file.
 | `verifications.yaml` | instance verification verdicts, ephemeral and durable (last 500) | `verify instance` |
 | `instance-state.yaml` | per name, the durable and ephemeral `generation` counters, `current` (the open generation: `number`, `kind`, `how` -- `observed`, `inferred` or `adopted` -- `opened_run`, `opened_at`, `instance_id`, `provider_hostname`, a `launch_params` snapshot) and an append-only `history` -- closed generations (with `why`, `closed_run`, `closed_at`) and `resized` events (`event: resized`, `from`, `to`, `run`, `at`, on the generation they happened to) in ONE list, in order; nothing is ever deleted from it | `mark_launched` after a real instance apply, the after-apply observation, decommission and the forgets |
 | `login-proofs.yaml` | every login proof (last 500): `instance`, `runtime`, `hostname`, `group`, `run`, `as` (client or workload), `time`, `ok`, `skipped`, `checks`, `evidence` | `verify login`, `just ci-login-proof`, the CI job |
+| `runtime-facts.yaml` | per runtime (`runtimes.<name>`) what its account answered the networking declaration with: `network` (the VPC id or network name a `default` resolved to), `subnets` and, on AWS, `security_groups` (the declared ids that were checked -- never the account's inventory), `checked_at`. Every load adopts it offline: a `default` network becomes the recorded one, and a declaration the record does not cover (nothing recorded, a subnet or security group never checked, a network that changed since) is a validation error naming `validate --online` | `validate --online` and every real run, before validation; a dry run, `validate`, `config-drift` and `state query` only read it |
 | `aliases.txt` | not a record but a pool of memorable names, one free name per line: a person appends lines, a launch that can run comments the first free one out as `# <name>  -- instance <i> as <hostname> <time> run <run>`; absent means no aliases and no error | the run that launches a new durable machine |
 | `image-tests.yaml` | the latest post-bake test result per build: `ok`, `run`, `instance`, `runtime`, `time`, `checks` | `verify instance` for images with `tests.post_bake` |
 | `releases.yaml` | `releases` (every release ever made: `image`, `build_id`, `model`, `run`, `note`, `name`, `capabilities`) and `current` (per model, the current released build of each series) | `release` |
@@ -1428,10 +1450,11 @@ changed).
 
 | Command | Exit | Meaning |
 | --- | --- | --- |
-| `run` | 1 | any failure (validation, generation, apply, hard drift, an expired session before the load); a configuration that fails to LOAD exits 1 too, as `Error reading config file : <e>` followed by the traceback |
+| `run` | 1 | any failure (validation, generation, apply, hard drift, a runtime's online networking check refused -- a lapsed session included, since a real run checks the networking before it validates); a configuration that fails to LOAD exits 1 too, as `Error reading config file : <e>` followed by the traceback |
 | `run` | 2 | no or unknown lifecycle; unknown `--apply-runtime`/`--only-runtime`; an `--only` name that `--only-runtime` cannot honour (not baked on that runtime, written `@` another, or `none` beside names) |
 | `validate` | 1 | any rule fails; generates nothing |
-| `preflight` | 2 | a session absent or expired (the configuration could not load), no runtimes, or a credential-shaped environment variable (`TF_VAR_*`, `CSIS_*`, plus every prefix the installed runtimes and identity plugins declare: `AWS_*`, `GOOGLE_*`, `CLOUDSDK_*`, `DOCKER_*`, `OKTA_*`) that is set but EMPTY -- reported by name, never by value |
+| `preflight` | 2 | a session absent or expired (the configuration loads without it -- a load reaches no cloud -- but a run, `validate --online` and the deferred steps cannot use it), no runtimes, or a credential-shaped environment variable (`TF_VAR_*`, `CSIS_*`, plus every prefix the installed runtimes and identity plugins declare: `AWS_*`, `GOOGLE_*`, `CLOUDSDK_*`, `DOCKER_*`, `OKTA_*`) that is set but EMPTY -- reported by name, never by value. A configuration that fails to load is the loader's one line and exit code, before any session verdict |
+| `validate --online` | 2 | a runtime's online networking check could not run: a lapsed session (the same one line a load-time failure used to get, with the renew command); 1 when the check itself refuses the declaration (a subnet outside the VPC) or any rule fails afterwards |
 | `preflight --strict` | 1 | a session expires within `config.preflight.expected_run_minutes` (default 30) |
 | `state query` | 1 | hard drift |
 | `state query --strict` | 1 | hard drift; any drift class but `stale`; `unavailable` (a provider that could not answer); a session expiring within the window |
@@ -1556,8 +1579,17 @@ its daemon `docker version`; the `s3` and `gcs` backends reach the same
 reading through their runtime's class, so a backend's bucket credentials
 are preflighted too. A session that is expired or expires within
 `config.preflight.expected_run_minutes` (default 30) is flagged; the
-strict query refuses on it, a run warns, and an expired session refuses
-before the configuration even loads. An `sso-session` profile (the live
+strict query refuses on it and a run warns. Loading the configuration
+needs no session at all: a load reaches no cloud (the runtimes'
+networking facts come from `meta-state/runtime-facts.yaml`), so
+`validate`, a dry run, `config-drift` and `preflight` itself work on an
+expired session, and what refuses on one is what actually calls the
+provider -- a real run (its networking check runs before validation),
+`validate --online`, the state query and the deferred steps. The
+`preflight` command loads the tree and reads the sessions from the
+loaded builders, so it needs the age identity (`.envrc`) like every
+other command and prints the loader's one line when the tree does not
+load. An `sso-session` profile (the live
 `noaa`) holds a one-hour access token and a refresh token. While the
 access token has not lapsed the AWS plugin reports it present and
 self-renewing (it asks the cloud nothing); once it has lapsed the plugin
@@ -1643,18 +1675,22 @@ the configuration needs the modules beside it (`cs-image-system modules
 
 ### What a run's log shows of the commands it ran
 
-Every command the running process executes in place of a script line
-(`tofu init`/`plan`/`apply`, `gate-plan`, `apply-check`, `materialize`, a
-packer build) has its captured output in the log: the last 40 lines of
-stdout and of stderr at INFO under the command's name, the whole of it
-at DEBUG, colour codes stripped. That is where tofu's `Plan: 0 to add, 1
-to change, 0 to destroy`, the gate's verdict and `Apply complete!` are
-read during an applying run, so the apply's verdict is readable in the
-log and not only a failure's
+Every command the running process spawns in place of a script line
+(`tofu init`/`plan`/`apply`, a packer build, the nested teardown run) has
+its captured output in the log: the last 40 lines of stdout and of stderr
+at INFO under the command's name, the whole of it at DEBUG, colour codes
+stripped. That is where tofu's `Plan: 0 to add, 1 to change, 0 to
+destroy` and `Apply complete!` are read during an applying run, so the
+apply's verdict is readable in the log and not only a failure's
 ([INCIDENTS.md](INCIDENTS.md#the-applys-verdict-could-not-be-read-in-the-log));
 `tofu show tfplan` in the root is still a way to read the plan
-afterwards, since the runner leaves the plan file behind. A script run
-by hand (`run-*.sh`) shows everything.
+afterwards, since the runner leaves the plan file behind. The deferred
+steps that are the system's own commands (`gate-plan`, `apply-check`,
+`prune-attachments`, `release --declared`, ...) run in the process
+itself, so their output is not captured and tailed: a verdict line such
+as `Plan passes the apply gate.` or `released: ...` prints where it is
+produced, on the run's own stdout or stderr, ahead of the step that
+follows it. A script run by hand (`run-*.sh`) shows everything.
 
 ### `config-drift` and `fixture-live`
 
@@ -2238,7 +2274,7 @@ repository's, which the release ships.
 | `test-docker-cycle *ARGS` | the docker runtime's CHANGE CYCLE on the local daemon, from nothing to nothing: the bake above, then two containers launched on one volume through tofu, verified, their accounts reconciled; one stopped and left stopped by the next apply, then started; one upgraded to a new build (a new generation); both decommissioned, the volume destroyed, the images disposed; several minutes more; a leg of `full-test` | what `test-docker-bake` needs, plus tofu |
 | `test-podman-cycle *ARGS` | the cycle above against PODMAN'S API SERVICE instead of the environment's docker daemon; `CSIS_PODMAN_HOST` is the `DOCKER_HOST` URL of a running service (`podman system service`, a `podman machine`, or an `ssh://` URL to a host that has one) -- unset, the leg is SKIPPED, said so, and exits 0; it refuses to pass on a daemon that does not say it is Podman; what differs from docker is recorded under "Container hosts" | `CSIS_PODMAN_HOST` |
 | `test-podman-desktop-cycle *ARGS` | `test-podman-cycle` against Podman Desktop's machine on macOS, its address read from `podman machine` rather than typed (`CSIS_PODMAN_MACHINE` names one of several); the leg never creates, starts or stops the machine -- with no podman, no machine, a stopped or an ambiguous one it is SKIPPED with the reason and exits 0; on an Intel host it proves Podman 5.8 (Podman 6 dropped them) until June 2027 | a running Podman Desktop machine |
-| `preflight` | the reference configuration's runtime sessions from the caches, no load (0 / 2) | reference configuration |
+| `preflight` | the reference configuration's runtime sessions from the caches over the loaded tree -- the load reaches no cloud (0 / 2) | reference configuration, its age identity |
 | `golden-regen` | rewrite `tests/fixtures/v2_golden` from the fixture | nothing; review the diff |
 | `public-safe *ARGS` | scan this checkout with the fixture's allow list | nothing |
 | `publish-tree <root> <dest>` | a publishable copy: tracked files, gate, one commit on `main` | a clean root |
@@ -2263,7 +2299,7 @@ in `docs/examples/*/Justfile`; `CSIS` names the command, default
 | `release <rt>` | the performing run on one runtime, gated on `full-test`, records committed | write credentials |
 | `validate` / `dry [LIFECYCLES]` / `run +LIFECYCLES` | every rule / a dry run / a REAL run (`--locked --no-dry-run ... --commit`) | sessions; write credentials for `run` |
 | `record` | a dry run of EVERY lifecycle, its emission and meta-state committed (what CI's perform job makes first and last) | sessions |
-| `preflight` / `state-query *ARGS` / `cloud-preflight` | the sessions / the state query / `state query --strict` | sessions |
+| `preflight` / `state-query *ARGS` / `cloud-preflight` | the sessions, read over the loaded tree without a cloud call / the state query / `state query --strict` | the age identity / sessions / sessions |
 | `cloud-describe <rt>` | the configuration's facts about a runtime as JSON | sessions |
 | `cloud-bake <rt> [yes]` | `run base-image instance-image --only-runtime <rt> --commit`; the roots plan and gate only | `cloud-preflight`; write credentials |
 | `cloud-perform <rt>` | the performing run (what CI does on `main`): `--no-dry-run run base-image instance-image release retention --only-runtime <rt> --commit` | `cloud-preflight`; write credentials |
@@ -2905,16 +2941,24 @@ identity so the suite needs nothing from the environment.
 `generated/` in clear. The emitted artifact — packer and terraform alike —
 carries the SAME `ENC[age:…]` ciphertext the configuration carries, because
 age is randomised and re-encrypting would move every emitted byte on every
-run. Before a deferred command runs, `cs-image-system materialize` copies its
-root to `_private/<the same relative path>` under the configuration root with
-every marker replaced by its plaintext, and the command runs there:
+run. `cs-image-system materialize` copies a root to `_private/<the same
+relative path>` under the configuration root with every marker replaced by
+its plaintext and prints where, and it is the one thing that makes the
+mirror: a command list that must read plaintext at generation time (the
+identity roots' plan) begins with an explicit `materialize .` step and
+binds the commands after it to the mirror it made, and every line of a
+committed runner script enters the mirror through `cd "$(cs-image-system
+materialize . --root-dir "$CSIS_ROOT")"` before its command. The executor
+adds no materialisation of its own around a command: a deferred command
+runs where it was recorded, and what it needs in clear reaches it by
+reference (below):
 
 - the mirror is **never committed** — refused by path as a whole subtree,
   named in the emitted `.gitignore`, skipped by the scanner, and excluded from
   the run's `git add` by pathspec;
-- it is **incremental**: a root is materialised again before each of its
-  commands, so `.terraform/` and the `tfplan` that `plan` wrote survive for
-  `apply`;
+- it is **incremental**: materialising a root again (a hand-run script
+  does it on every line) never removes what the mirror already holds, so
+  `.terraform/` and the `tfplan` that `plan` wrote survive for `apply`;
 - the only thing that ever travels back out is the provider lock file, which
   `init` writes where it runs and which the emission must carry; a plan, a
   state file and packer's manifest hold plaintext and stay in the mirror;
@@ -3014,8 +3058,9 @@ within `config.preflight.expected_run_minutes`. Every cycle step
 (`cloud-bake`, `cloud-cycle`, `cloud-launch`, `cloud-decommission`)
 depends on it, so a cycle never starts on a false belief or a lapsing
 session. `just preflight` is the lighter form: the sessions alone, read
-from the caches without loading the configuration (exit 2 when one is
-absent or expired; `--strict` exits 1 on one expiring within the window).
+from the caches over the loaded configuration, which asks no cloud
+anything (exit 2 when one is absent or expired; `--strict` exits 1 on
+one expiring within the window).
 
 ### The cloud change cycle
 
@@ -3142,7 +3187,8 @@ is likely to break the GCE code path; then one live cycle, torn down.
 | `state query [--strict] [--json]`, `state import` | reality versus records; adopt foreign artifacts |
 | `lineage restamp`, `lineage relabel` | the record side and the tag side of the fingerprint |
 | `runtime describe <rt>`, `empty --runtime <rt>` | the configuration's facts; the end-of-cycle assertion |
-| `preflight [--strict]` | the sessions, without loading |
+| `preflight [--strict]` | the sessions, over the loaded tree (no cloud call) |
+| `validate [--online]` | every rule; `--online` first checks the runtimes' networking against their accounts and records `meta-state/runtime-facts.yaml` |
 | `encrypt`, `decrypt`, `reencrypt`, `public-safe` | the value tools and the scanner |
 | `test-mods` | the modification tests |
 | `mask` | a `::add-mask::` line for every value the configuration carries encrypted, so a CI log never shows one; a configuration repository's `live` and `perform` jobs run it before anything prints |

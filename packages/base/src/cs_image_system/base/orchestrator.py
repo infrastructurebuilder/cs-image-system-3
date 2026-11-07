@@ -2,7 +2,6 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-import json
 import logging
 log = logging.getLogger(__name__)
 
@@ -32,19 +31,13 @@ from .registry import NAMESPACE_SEPARATOR, UnknownTypeError, split_qualified
 
 
 
-# stage 48.3: foreign keys that named nothing during resolution -- (object class,
-# object name, field, value, target), deduplicated; `validate` refuses them
-UNRESOLVED_FKS: list[tuple[str, str, str, str, str]] = []
+# stage 48.3: a foreign key that named nothing during resolution -- (object
+# class, object name, field, value, target). The object stage collects them
+# per load (``TemplateResolver.unresolved_foreign_keys``, handed to every
+# ``SmartContext`` it builds), ``resolve_all`` returns them, the loader puts
+# them on the run context and `validate` refuses them.
+UnresolvedForeignKey = tuple[str, str, str, str, str]
 
-
-def record_unresolved_fk(cls_name: str, obj_name: str, field_name: str, value: str, target: str) -> None:
-    entry = (cls_name, obj_name, field_name, value, target)
-    if entry not in UNRESOLVED_FKS:
-        UNRESOLVED_FKS.append(entry)
-
-
-def reset_unresolved_fks() -> None:
-    UNRESOLVED_FKS.clear()
 
 def default_fk_value(reg: Any, obj: Any, target: VCT) -> str | None:
     """What a foreign key left at ``default`` resolves to: the registry's default
@@ -80,11 +73,17 @@ class SmartContext(dict):
         # Finally, fall back to the provided default
         return default
     
-    """A dictionary that swaps string IDs for actual objects when Jinja asks."""
-    def __init__(self, obj, flattened_map):
+    """A dictionary that swaps string IDs for actual objects when Jinja asks.
+
+    ``unresolved_fks`` is the load's collector of foreign keys that name
+    nothing: the resolver hands in its own, and the fk field kind records
+    into it (:meth:`record_unresolved_fk`); built without one, the context
+    keeps its own list."""
+    def __init__(self, obj, flattened_map, unresolved_fks: list[UnresolvedForeignKey] | None = None):
         super().__init__(this=obj)
         if DEFAULT in flattened_map:
             raise ValueError(f"Flattened map cannot have an entry with the key '{DEFAULT}' as it is reserved for default lookups.")
+        self._unresolved_fks: list[UnresolvedForeignKey] = unresolved_fks if unresolved_fks is not None else []
         reg = registry.current_registry()   # the resolver holds no context (stage 124 shim)
         # Shallow copy: we need a private dict (so adding 'this' below doesn't mutate
         # the shared flattened_map), but the objects must be shared by reference so
@@ -111,6 +110,12 @@ class SmartContext(dict):
         else:
             raise ValueError(f"SmartContext can only be initialized with dataclass instances or dicts, got {type(obj)}")    
         
+    def record_unresolved_fk(self, cls_name: str, obj_name: str, field_name: str, value: str, target: str) -> None:
+        """Note a foreign key that names nothing (stage 48.3), once per entry."""
+        entry: UnresolvedForeignKey = (cls_name, obj_name, field_name, value, target)
+        if entry not in self._unresolved_fks:
+            self._unresolved_fks.append(entry)
+
     def __getitem__(self, key):
         # 1. Generate the sequence of keys to try
         # We try the original, then the hyphen/underscore swaps
@@ -157,6 +162,10 @@ class TemplateResolver:
         self.flattened_map = addl or {}
         self.env = jinja2.Environment(undefined=template_utils.KeepUndefined)
         self.deferred_fields: dict[str, VCT] = {"modifications": VCT.MOD_BUILDER_ITEM_MODEL}  # List of fields that require late-stage structuring into concrete types due to dependencies on the registry
+        # stage 48.3: the foreign keys that named nothing, collected per load
+        # (the loader starts a load with a fresh list; every SmartContext this
+        # resolver builds records into it; resolve_all returns it)
+        self.unresolved_foreign_keys: list[UnresolvedForeignKey] = []
     def render_inheriting(self, templ: str, context: dict) -> Any:
         """Render ``templ``, and let the result INHERIT its inputs' encryption
         (stage 51).
@@ -173,6 +182,36 @@ class TemplateResolver:
             return rendered
         marked = mark_plaintexts(rendered)
         return Decrypted(rendered, marker=marked) if marked != rendered else rendered
+
+    def render_tree_inheriting(self, node: Any, context: dict) -> bool:
+        """Render, IN PLACE, every templated string leaf of a mapping-valued
+        field (and of the lists and mappings inside it) with
+        :meth:`render_inheriting`, so each derived leaf inherits the encryption
+        of what it was computed from. Returns whether anything changed. The
+        mapping is never serialised and parsed back: a leaf that is not a
+        string, or carries no tag, is left exactly as it is."""
+        changed = False
+        if isinstance(node, dict):
+            for k, v in node.items():
+                if isinstance(v, str):
+                    if "{{" in v:
+                        rendered = self.render_inheriting(v, context)
+                        if rendered != v:
+                            node[k] = rendered
+                            changed = True
+                elif self.render_tree_inheriting(v, context):
+                    changed = True
+        elif isinstance(node, list):
+            for i, v in enumerate(node):
+                if isinstance(v, str):
+                    if "{{" in v:
+                        rendered = self.render_inheriting(v, context)
+                        if rendered != v:
+                            node[i] = rendered
+                            changed = True
+                elif self.render_tree_inheriting(v, context):
+                    changed = True
+        return changed
 
     def upgrade_deferred_list_generated(self, obj, dfield):
         conv = Orchestrator().get_converter() 
@@ -388,8 +427,12 @@ class TemplateResolver:
         #     log.warning(f"Reached maximum iterations ({MAX_ITER}) while upgrading deferred types. "
         #                 "There may still be unresolved deferred fields.")
 
-    def resolve_all(self):
-        """Iterates until no more templates exist (handles cascading dependencies)."""
+    def resolve_all(self) -> list[UnresolvedForeignKey]:
+        """Iterates until no more templates exist (handles cascading dependencies).
+
+        Returns the foreign keys that named nothing, for the load so far: a
+        copy of the resolver's collector after this pass (stage 48.3). The
+        loader stores it on the run context; `validate` refuses each entry."""
         self.upgrade_deferred_types()
         reg = registry.current_registry()   # the resolver holds no context (stage 124 shim)
         for _ in range(5):  # Max depth to prevent infinite loops
@@ -399,7 +442,7 @@ class TemplateResolver:
                 if hasattr(obj, "_already_resolved"):
                     if obj._already_resolved:
                         continue
-                context = SmartContext(obj, self.flattened_map) 
+                context = SmartContext(obj, self.flattened_map, unresolved_fks=self.unresolved_foreign_keys)
                 if is_dataclass(obj):
                     for f in fields(obj):
                         val = getattr(obj, f.name)
@@ -429,14 +472,21 @@ class TemplateResolver:
                         # NOTE: I have to split this off to two paths
                         # if isinstance(val, list):
                         #     log.debug("Debugging here")
-                        if isinstance(val,dict) or isinstance(val,str):
-                            tmp_val = json.dumps(val) if isinstance(val, dict) else val
-                            if "{{" in tmp_val:
+                        if isinstance(val, dict):
+                            # a mapping-valued field is rendered leaf by leaf, in
+                            # place: each derived leaf inherits its inputs'
+                            # encryption, and nothing is serialised and parsed back
+                            try:
+                                if self.render_tree_inheriting(val, context):
+                                    any_changed = True
+                            except Exception as e:
+                                log.error(f"Error rendering template for field '{f.name}' in object '{obj}' with field val {val}: {e}")
+                                raise # continue
+                        elif isinstance(val, str):
+                            if "{{" in val:
                                 try:
-                                    rendered = self.render_inheriting(tmp_val, context)
-                                    if rendered != tmp_val:
-                                        if isinstance(val, dict):
-                                            rendered = json.loads(rendered)
+                                    rendered = self.render_inheriting(val, context)
+                                    if rendered != val:
                                         setattr(obj, f.name, rendered)
                                         any_changed = True
                                 except Exception as e:
@@ -471,7 +521,8 @@ class TemplateResolver:
         for obj_id, obj in self.flattened_map.items():
             if is_dataclass(obj):
                 setattr(obj, "_already_resolved", True)
-                
+        return list(self.unresolved_foreign_keys)
+
     def flatten_dataclass(self, obj):
       """Recursively crawls nested dataclasses to build a flat ID map."""
       # Use 'global_id' or 'name' as the key
@@ -774,7 +825,7 @@ class _FkFieldHandler(field_kinds.FieldKindHandler):
             # own (field_set_to_default) -- so it names nothing and is refused like
             # any other. A field that gives `none` a meaning handles it before this.
             if fk_id == NONE or fk_id not in OOPS_DEFAULTS:
-                record_unresolved_fk(type(obj).__name__, str(getattr(obj, "name", "") or ""), field.name, str(fk_id), str(target))
+                ctx.record_unresolved_fk(type(obj).__name__, str(getattr(obj, "name", "") or ""), field.name, str(fk_id), str(target))
             log.debug(f"foreign key '{field.name}' = {fk_id!r} (target {target}) resolves to nothing; the raw id stays in the context")
             ctx[field.name] = fk_id
 

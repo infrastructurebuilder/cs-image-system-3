@@ -9,6 +9,7 @@ log = logging.getLogger(__name__)
 from ..basic.builder_base_group import GroupBuilderBase
 from cs_image_system.contract.lifecycle import ExecutionLifecyclePhase
 from ..global_context import GlobalTypeContext
+from ..in_process import run_executable
 
 
 def predefined_group_generation(
@@ -43,7 +44,7 @@ def generate_groups(
                 # f"for runtime provider {gbb.model.get_runtime_provider()}: {cmd.binary} "
                 f"{' '.join(cmd.args)}"
             )
-        result = cmd.execute()
+        result = run_executable(ctx, cmd)
         if result.returncode != 0:
             log.error(
                 f"Command failed with return code {result.returncode} "

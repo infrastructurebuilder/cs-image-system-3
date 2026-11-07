@@ -30,13 +30,13 @@ from cs_image_system.base.commands.run_lifecycles import run_lifecycles, load_ho
 from cs_image_system.base.commands.runtime_facts import runtime_bake_selection, describe_runtime, emptiness
 from cs_image_system.base.commands.upgrade import upgrade
 from cs_image_system.base.commands.preflight import (
-    raw_session_readiness,
+    session_readiness,
     empty_environment_credentials,
     NOT_JUDGED,
     NOT_JUDGED_WHY,
     session_lines,
-    raw_session_lines,
 )
+from cs_image_system.base.network_facts import NetworkFactsError
 from cs_image_system.base.encryption import (
     encrypt_fields_in_text,
     encrypt_value,
@@ -105,9 +105,12 @@ from cs_image_system.base.identity_attributes import (
 from cs_image_system.base import tofu_lock
 from cs_image_system.base.global_context import read_config_and_transform
 from cs_image_system.base.commands.load_failures import classify_load_failure
+from cs_image_system.base.in_process import names_subcommand, register_system_cli_runner
+from cs_image_system.contract.constants import SYSTEM_CLI
 
 if TYPE_CHECKING:
     from cs_image_system.base.global_context import GlobalTypeContext
+    from cs_image_system.base.run_context import RunContext
 
 DEFAULT_CONFIG_FILE = "./image-actions.yml"
 
@@ -271,9 +274,25 @@ def all(ctx: typer.Context) -> None:
 
 
 @app.command(name="validate")
-def validate_command(ctx: typer.Context) -> None:
+def validate_command(
+    ctx: typer.Context,
+    online: Annotated[bool, typer.Option("--online",
+        help="First check every runtime's networking against its account (needs the runtimes' sessions) and "
+             "record the facts in meta-state/runtime-facts.yaml, as a real run does; without it the rules read "
+             "the record alone and no cloud is reached")] = False,
+) -> None:
     """Validate the configuration (V1 checks plus every V2 rule); generates nothing."""
-    errors = validate_only(_loaded(ctx))
+    try:
+        errors = validate_only(_loaded(ctx), online=online)
+    except NetworkFactsError as e:
+        # a runtime's online check failed: lapsed credentials get the one line
+        # a load-time failure gets, and its exit code; anything else the
+        # plugin's own words
+        failure = classify_load_failure(e.__cause__) if e.__cause__ is not None else None
+        lines, code = (failure.lines, failure.code) if failure is not None else (e.lines, e.code)
+        for line in lines:
+            typer.secho(line, fg=typer.colors.RED, err=True)
+        raise typer.Exit(code=code)
     for err in errors:
         typer.secho(f" - {err}", fg=typer.colors.RED, err=True)
     if errors:
@@ -315,21 +334,22 @@ def preflight_command(
         help="Also exit 1 when a session expires within config.preflight.expected_run_minutes")] = False,
 ) -> None:
     """The credential sessions the configuration's runtimes and state
-    backends need, each read by its own plugin from the caches WITHOUT
-    loading the configuration -- never a credential value; a plugin may make
-    one read-only call to decide whether a lapsed token still renews. The
-    Justfile's `full-test` gates its provider-reading legs on this. Exit 0
-    when every session is present; 2 when one is absent or EXPIRED (the
-    configuration could not even load); 1 with --strict when one expires
-    within the expected run length. A session whose expiry cannot be read
-    (static keys) is present and NOT JUDGED: exit 0, and the closing line
-    says so instead of "every session present". Each session line names
-    what was read and, when the session is absent or lapsed, the command
-    that renews it."""
-    root_dir, overlays = typer_cntx.obj["preflight_args"]
-    lines, absent, expired, blocking, unjudged = raw_session_readiness(root_dir, overlays)
+    backends need, each read by its own plugin from the caches over the
+    loaded configuration (the load reaches no cloud) -- never a credential
+    value; a plugin may make one read-only call to decide whether a lapsed
+    token still renews. The Justfile's `full-test` gates its
+    provider-reading legs on this. Exit 0 when every session is present; 2
+    when one is absent or EXPIRED (a run, `validate --online` and the
+    deferred steps would refuse); 1 with --strict when one expires within
+    the expected run length. A session whose expiry cannot be read (static
+    keys) is present and NOT JUDGED: exit 0, and the closing line says so
+    instead of "every session present". Each session line names what was
+    read and, when the session is absent or lapsed, the command that
+    renews it."""
+    ctx = _loaded(typer_cntx)
+    lines, absent, expired, blocking, unjudged = session_readiness(ctx)
     if not lines:
-        typer.secho(f"preflight: no runtimes declared under {root_dir} (cfg/runtime-builders.yml)",
+        typer.secho(f"preflight: no runtimes declared under {ctx.root_dir} (cfg/runtime-builders.yml)",
                     fg=typer.colors.RED, err=True)
         raise typer.Exit(code=2)
     for line in lines:
@@ -338,7 +358,7 @@ def preflight_command(
         typer.secho(line, fg=colour)
     # stage 43: a credential the environment sets but leaves EMPTY is a failure,
     # not an absence -- reported by name, never by value
-    empty = empty_environment_credentials()
+    empty = empty_environment_credentials(ctx.reg)
     for name in empty:
         typer.secho(f"environment: {name} is set but EMPTY -- a credential that exists with no value "
                     "is a failure, not an absence", fg=typer.colors.RED)
@@ -347,8 +367,8 @@ def preflight_command(
                     "give it its value or unset it", fg=typer.colors.RED, err=True)
         raise typer.Exit(code=2)
     if absent or expired:
-        typer.secho("preflight: a session is absent or has EXPIRED -- the configuration cannot load; "
-                    "renew it (the session line above names the command)",
+        typer.secho("preflight: a session is absent or has EXPIRED -- a run, `validate --online` and the deferred "
+                    "steps cannot use it; renew it (the session line above names the command)",
                     fg=typer.colors.RED, err=True)
         raise typer.Exit(code=2)
     if strict and blocking:
@@ -1371,9 +1391,12 @@ def state_query_command(
     else:
         typer.echo(report.render())
     typer.secho(f"state report written to {path}", err=True)
-    # stage 12.3: the sessions were printed by the callback before the load;
-    # the strict verdict uses the same reading
-    _, blocking = session_lines(ctx)
+    # stage 12.3 / stage 127: the sessions are read over the loaded
+    # configuration (nothing reads them before the load any more) and
+    # printed here; the strict verdict uses the same reading
+    lines, blocking = session_lines(ctx)
+    for line in lines:
+        typer.secho(line, fg=typer.colors.YELLOW if line in blocking else None, err=True)
     if report.hard or (strict and any(d.drift != DRIFT_STALE for d in report.drift)):
         raise typer.Exit(code=1)
     if strict and blocking:
@@ -1639,6 +1662,15 @@ def main(
     verbose: bool
         Enable verbose output. Default is False.
     """
+    if typer_cntx.obj and typer_cntx.obj.get("in_process"):
+        # a deferred step of a run, invoked IN this process by `run_in_process`
+        # over the context the run already loaded: the context object came
+        # pre-populated (ctx, invoked_cwd, config_root), the --root-dir /
+        # --no-dry-run / --overlay head every such step's line carries only
+        # describes that context and was parsed and ignored above, logging
+        # is the running process's (its --verbose stays), the lock is the
+        # run's, and the runner restores the directory. Nothing re-loads.
+        return
     setup_rich_logging(verbose)
     if locked:
         # stage 64 item 2: what scripts/with-tofu-lock did, held until the
@@ -1669,13 +1701,6 @@ def main(
         return                      # a help request loads nothing: the command's own text answers it
     if typer_cntx.invoked_subcommand in ("test", "cleanup"):
         return                      # retired V1 names: refuse without loading anything
-    if typer_cntx.invoked_subcommand == "preflight":
-        # stage 16: the sessions alone, from the raw tree -- nothing loads; the
-        # plugins are loaded only to be asked their session hooks, and the one
-        # provider call allowed is a plugin's read-only check of whether a
-        # lapsed token still renews; the Justfile's full-test gates on this
-        typer_cntx.obj["preflight_args"] = (Path(root_dir or os.getcwd()), [p.resolve() for p in (overlay or [])])
-        return
     if typer_cntx.invoked_subcommand == "bootstrap":
         # stage 70: the interview reads the checkout and the raw cfg/*.yml;
         # the sessions and federation it makes may not exist yet, so nothing loads
@@ -1720,18 +1745,10 @@ def main(
     load_plugins()
     if not root_dir:
         root_dir = Path(os.getcwd())
-    if typer_cntx.invoked_subcommand in ("run", "state"):
-        # stage 12.3: sessions BEFORE the configuration loads -- the load
-        # validates every runtime against its cloud and dies on an expired
-        # session before any preflight could report it (found live 2026-09-09)
-        lines, blocking, expired = raw_session_lines(Path(root_dir), [p.resolve() for p in (overlay or [])])
-        for line in lines:
-            typer.secho(line, fg=typer.colors.YELLOW if line in blocking else None, err=True)
-        typer_cntx.obj["preflight_sessions"] = (lines, blocking)
-        if expired:
-            typer.secho("preflight: a session has EXPIRED; renew it (the session line names the command) before "
-                        "the configuration can even load", fg=typer.colors.RED, err=True)
-            raise typer.Exit(code=1)
+    # stage 127: no session is read before the load any more -- the load
+    # reaches no cloud (the runtimes' networking is adopted from
+    # meta-state/runtime-facts.yaml), so a run prints its sessions itself,
+    # after the load (`session_lines`), and `preflight` reads the loaded tree
     try:
         # V2 reads the whole configuration every time; --base-only only selects
         # the base-image lifecycle (it no longer changes what is read).
@@ -1760,6 +1777,68 @@ def main(
         if verbose:
             raise e
         raise typer.Exit(code=failure.code)
+
+
+# ------------------------------------------------ the deferred steps, in this process
+
+def run_in_process(ctx: "RunContext", args: list[str], working_directory: Path | None) -> int | None:
+    """Run one deferred ``cs-image-system`` step of a run IN THIS PROCESS,
+    over the context the run loaded: the base's executor (the finalizer)
+    calls this through the seam in :mod:`cs_image_system.base.in_process`
+    instead of spawning the interpreter again, which would boot Python,
+    load the plugins and read the whole configuration once more per step.
+
+    ``args`` is the step's argument list as its script line carries it
+    (``--root-dir R --no-dry-run [--overlay P ...] <command> ...``): the
+    Typer app parses the head and the callback returns at once on the
+    ``in_process`` flag, so the loaded context is what the command reads
+    through ``_loaded``. The command runs from ``working_directory``
+    (relative to the current directory, the generation directory, when it
+    is not absolute) and the directory is restored afterwards. The answer is
+    the step's exit code: ``None`` from the command is success, a
+    ``typer.Exit`` is its code, a usage error its code (2) with the message
+    logged, an abort 1; any other exception propagates to the executor,
+    which fails the phase as it would for a spawned step.
+
+    The one step DECLINED (``None``) is a nested ``run``: the transient-storage
+    teardown is ``run storage --only none ...`` under a DIFFERENT overlay set
+    (the storage-declaring overlays left out so the storages undeclare and
+    destroy through the gate), which cannot share this run's loaded context,
+    so the executor spawns it as a process of its own as before.
+    """
+    args = [str(a) for a in args]
+    if names_subcommand(args, "run"):
+        return None
+    here = Path(os.getcwd()).absolute()
+    wd = here if working_directory is None else (here / working_directory).absolute()
+    obj = {"ctx": ctx, "invoked_cwd": wd, "config_root": Path(ctx.working_path), "base_only": False,
+           "in_process": True,
+           # a deferred-load sub-app's command asks this for the context: already loaded
+           "deferred_load": lambda: ctx}
+    command = typer.main.get_command(app)
+    try:
+        os.chdir(wd)
+        try:
+            rv = command.main(args=args, prog_name=SYSTEM_CLI, standalone_mode=False, obj=obj)
+        except typer.Abort:
+            log.error(f"{SYSTEM_CLI} {' '.join(args)}: aborted")
+            return 1
+        except SystemExit as e:
+            return e.code if isinstance(e.code, int) else (0 if e.code is None else 1)
+        except Exception as e:
+            # a usage error (typer vendors its click, so the class is matched by shape)
+            exit_code = getattr(e, "exit_code", None)
+            format_message = getattr(e, "format_message", None)
+            if isinstance(exit_code, int) and callable(format_message):
+                log.error(f"{SYSTEM_CLI} {' '.join(args)}: {format_message()}")
+                return exit_code
+            raise
+    finally:
+        os.chdir(here)
+    return 0 if rv is None else int(rv)
+
+
+register_system_cli_runner(run_in_process)
 
 
 if __name__ == "__main__":

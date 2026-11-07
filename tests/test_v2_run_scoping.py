@@ -171,26 +171,31 @@ def test_preflight_lines_flag_a_session_shorter_than_the_expected_run(fresh, tmp
     assert not any("SECRET" in ln for ln in lines)
 
 
-def test_raw_session_lines_need_no_loaded_configuration(tmp_path, monkeypatch):
-    """The callback reads sessions from the raw runtime-builders.yml before the
-    configuration loads (a load dies on an expired AWS session in the
-    networking validation, before any preflight could say so)."""
-    from cs_image_system.base.commands.preflight import raw_session_lines
+def test_an_expired_session_does_not_stop_the_load_and_the_loaded_tree_reports_it(tmp_path, monkeypatch):
+    """Stage 127: the load reaches no cloud (the runtimes' networking is
+    adopted from meta-state/runtime-facts.yaml), so the sessions are read
+    over the LOADED configuration -- an expired one included -- and an
+    overlay's `preflight.expected_run_minutes` counts because the overlay
+    was loaded with the tree."""
+    from cs_image_system.base.commands.preflight import session_readiness
+    from tests.v2_support import load_context, stub_environment
+    stub_environment(monkeypatch)
     root = copy_config(tmp_path)
     now = datetime.now(timezone.utc)
     monkeypatch.setenv("CSIS_AWS_DIR", str(_aws_dir(tmp_path, "noaa", "https://x.awsapps.com/start",
                                                     now - timedelta(minutes=5))))
     monkeypatch.delenv("AWS_ACCESS_KEY_ID", raising=False)
     monkeypatch.setenv("GOOGLE_APPLICATION_CREDENTIALS", str(tmp_path / "missing-adc.json"))
-    lines, blocking, expired = raw_session_lines(root, None, now)
+    ctx = load_context(root)                                     # loads: nothing asked the cloud
+    lines, absent, expired, blocking, _ = session_readiness(ctx, now)
     assert any(ln.startswith("session: aws-east1, aws-east2-runtime") and "EXPIRED" in ln for ln in lines)
     assert expired and expired == blocking[:1]
-    assert any("(gcloud, gcs, ADC)" in ln for ln in lines)
+    assert any("(gcloud, gcs, ADC)" in ln for ln in lines) and absent
     overlay = tmp_path / "pre.yaml"
     overlay.write_text("config:\n  preflight:\n    expected_run_minutes: 100000\n")
     monkeypatch.setenv("CSIS_AWS_DIR", str(_aws_dir(tmp_path / "f", "noaa", "https://x.awsapps.com/start",
                                                     now + timedelta(hours=8))))
-    lines, blocking, expired = raw_session_lines(root, [overlay], now)
+    lines, _, expired, blocking, _ = session_readiness(load_context(root, overlays=[overlay]), now)
     assert not expired and blocking and "SHORTER than the expected run (100000 min)" in blocking[0]
 
 

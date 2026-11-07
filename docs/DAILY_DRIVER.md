@@ -328,7 +328,7 @@ cd <your configuration repository>
 source .envrc
 export AWS_PROFILE=<profile> AWS_REGION=<region>
 aws sso login --profile <profile>     # when preflight says the session is absent or expired
-just preflight                        # every session the runtimes need, without loading anything
+just preflight                        # every session the runtimes need, read from the caches (the tree loads; no cloud call)
 ```
 
 With direnv, the same `.envrc` of `export` lines is loaded whenever you
@@ -339,7 +339,16 @@ is not set` row); direnv refuses a file that changed until you run
 .envrc` still
 works in a shell that has no direnv.
 
-`just validate` is the first thing to run after any edit. An `sso-session`
+`just validate` is the first thing to run after any edit, and it needs no
+session: loading the configuration asks no cloud anything. The one
+check that does -- whether each runtime's `networking` (its network, its
+subnets, on AWS its security groups) is what the account has -- runs
+online in `cs-image-system validate --online` and in every real run, and
+its answer is recorded in `meta-state/runtime-facts.yaml` for every
+offline load to adopt. A fresh tree, or one whose networking changed,
+says so at `validate` (`run cs-image-system validate --online`); run it
+once with the sessions present and commit the record with the rest of
+`meta-state/`. An `sso-session`
 profile whose one-hour token is still good reports "refreshes itself (no
 fixed expiry readable)": that is normal. Once the token has lapsed,
 `preflight` asks the CLI once whether the refresh still works and says
@@ -594,7 +603,11 @@ refuses any destroy no operation sanctioned, `apply-check` re-reads the
 flag at execution, and only then applies; the run commits its records and
 emission, and you push. The terraform commands run in a private mirror of
 the emission, `_private/<lifecycle>/<root>/`, where the ciphertext is
-opened; the mirror is never committed. Read
+opened; the mirror is never committed. The run loads your configuration
+once: the deferred script lines that are the system's own commands
+(`gate-plan`, `apply-check`, `release --declared`, ...) execute inside the
+running process over that one load, while a script you run by hand
+executes each such line as a command of its own. Read
 [OPERATIONS.md](OPERATIONS.md), "What a run is" and "The apply gate".
 
 ## 3. Making things
@@ -1070,7 +1083,7 @@ Open list in [INPROGRESS/TODO.md](../INPROGRESS/TODO.md) names.
 | --- | --- | --- |
 | `init: 'cs-image-system' is not runnable` | the release is not installed, or `CSIS` names a command that does not run | `uv tool install "cs-image-system[$(just extras)]"`, or `export CSIS="uv run cs-image-system"` beside a pyproject that depends on it |
 | `runtime type 'gcloud' is registered by no installed plugin: install the extra: uv tool install 'cs-image-system[gcloud]'` under `Validation failed with 1 error(s).` | the tree declares a `type:` word whose plugin comes with an extra the install left out (a bare `cs-image-system` carries no runtime) | the line's own command, or `uv tool install "cs-image-system[$(just extras)]"`; `just take` installs with the extras by itself |
-| `preflight: a session has EXPIRED`; `Token has expired and refresh failed`; `the configuration cannot load: AWS refused the credentials (RequestExpired)` | the AWS portal session behind the profile ended (8h from a browser sign-in; less if the CLI token was minted mid-session); an `sso-session` profile's token lasts an hour and is judged only once it has lapsed, so a lapse mid-run is environmental, not a defect. `RequestExpired` is what temporary keys pasted into the shell or a credentials file say when they lapse, and `preflight` cannot see that coming: it reads no expiry for keys ([static keys](INCIDENTS.md#static-keys-lapsed-under-a-green-session-preflight), [the sso-session hour](INCIDENTS.md#an-sso-session-profile-was-read-as-absent-for-an-hour)) | `aws sso login --profile <profile>` for an SSO profile; FRESH keys for pasted ones (`aws sso login` does nothing for them); then re-run |
+| `preflight: a session is absent or has EXPIRED`; `Token has expired and refresh failed`; `the configuration cannot load: AWS refused the credentials (RequestExpired)` (from a real run's or `validate --online`'s networking check; a plain `validate`, a dry run and `preflight` load without a session) | the AWS portal session behind the profile ended (8h from a browser sign-in; less if the CLI token was minted mid-session); an `sso-session` profile's token lasts an hour and is judged only once it has lapsed, so a lapse mid-run is environmental, not a defect. `RequestExpired` is what temporary keys pasted into the shell or a credentials file say when they lapse, and `preflight` cannot see that coming: it reads no expiry for keys ([static keys](INCIDENTS.md#static-keys-lapsed-under-a-green-session-preflight), [the sso-session hour](INCIDENTS.md#an-sso-session-profile-was-read-as-absent-for-an-hour)) | `aws sso login --profile <profile>` for an SSO profile; FRESH keys for pasted ones (`aws sso login` does nothing for them); then re-run |
 | `preflight: N session(s) present; 1 NOT JUDGED (no expiry readable: ...)` in yellow, exit 0, in place of `every session present` | a session preflight can see but not time: static keys in a profile or in the environment. Present is all it can say without a cloud call, which it makes none of by design, and it says so rather than printing a green line over keys that may already have lapsed ([INCIDENTS.md](INCIDENTS.md#static-keys-lapsed-under-a-green-session-preflight)) | nothing, if you know the keys are fresh; if the next command says `RequestExpired`, fresh keys |
 | `runtime <gce> could not answer` under `unavailable:` | no Application Default Credentials, or they expired, or Google was unreachable | `gcloud auth application-default login --impersonate-service-account=...`; an `unavailable` line is not drift, but the strict query refuses on it |
 | `state query storages/<pd> unavailable: ... oauth2.googleapis.com ... Read timed out` | the network to Google, not the system; `cloud-preflight` then exits 1 and the recipe stops before its first step ([INCIDENTS.md](INCIDENTS.md#the-network-to-google-timed-out-under-the-state-query)) | check `gcloud auth application-default print-access-token`; run the recipe again |

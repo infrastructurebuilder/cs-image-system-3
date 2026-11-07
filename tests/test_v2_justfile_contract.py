@@ -149,12 +149,18 @@ def test_the_live_configuration_never_reaches_the_fast_suite_and_is_guarded_else
 # ------------------------------------------------------------- preflight
 
 def _preflight(monkeypatch, **env: str):
+    """`preflight` over the frozen fixture: it LOADS the configuration (stage
+    127; the load reaches no cloud and needs no session -- the harness's
+    identity and dummies open the tree) and reads the sessions from it."""
     from typer.testing import CliRunner
     from cs_image_system.system.cli import app
+    from v2_support import reset_singletons, stub_environment
+    stub_environment(monkeypatch)
     for var in ("AWS_PROFILE", "AWS_ACCESS_KEY_ID"):
         monkeypatch.delenv(var, raising=False)
     for k, v in env.items():
         monkeypatch.setenv(k, v)
+    reset_singletons()                           # the command's own load, fresh (as load_context does)
     return CliRunner().invoke(app, ["--root-dir", str(FIXTURE_CONFIG), "preflight"])
 
 
@@ -165,7 +171,8 @@ def test_preflight_reports_absent_sessions_and_exits_2(monkeypatch):
     assert "aws-east2-runtime" in result.output and "gcloud-east1" in result.output
     assert "not in" in result.output or "no SSO token" in result.output      # the aws line's reason
     assert "no Application Default Credentials" in result.output
-    assert "cannot load" in result.output
+    assert "absent or has EXPIRED" in result.output and "renew it" in result.output
+    assert not (FIXTURE_CONFIG / "meta-state").exists()                     # the load wrote nothing into the frozen fixture
 
 
 def test_preflight_passes_with_static_keys_and_an_adc(monkeypatch, tmp_path):
@@ -183,7 +190,11 @@ def test_preflight_fails_on_a_credential_that_is_set_but_empty(monkeypatch, tmp_
     green CI jobs that ran nothing -- the variable existed and its value was "".
     Set-but-empty is a failure, reported by NAME, never by value."""
     from cs_image_system.base.commands.preflight import empty_environment_credentials
-    assert empty_environment_credentials({"TF_VAR_X": "", "OKTA_API_TOKEN": "", "AWS_PROFILE": "p", "HOME": ""}) == \
+    from cs_image_system.base.loader import load_plugins
+    from cs_image_system.base.registry import current_registry
+    load_plugins()
+    assert empty_environment_credentials(current_registry(),
+                                         {"TF_VAR_X": "", "OKTA_API_TOKEN": "", "AWS_PROFILE": "p", "HOME": ""}) == \
         ["OKTA_API_TOKEN", "TF_VAR_X"]
     adc = tmp_path / "adc.json"
     adc.write_text(json.dumps({"type": "authorized_user"}))

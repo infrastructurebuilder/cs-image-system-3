@@ -37,7 +37,7 @@ import pytest
 import yaml
 
 from starter_support import RENDERED
-from v2_support import load_context, stub_environment
+from v2_support import load_context, record_network_facts, stub_environment
 
 REPO = Path(__file__).resolve().parents[1]
 EXAMPLES = REPO / "docs" / "examples"
@@ -118,6 +118,11 @@ def stub_networks_from(monkeypatch, root: Path) -> None:
             entry["subnets"].append({"subnet_id": s.get("subnet_id")})
     monkeypatch.setattr(gcp_utils, "get_network_map_and_default_network",
                         lambda session_config, clients=None: (networks, "default", {}))
+    # stage 127: a load adopts the record a real run would have written
+    # instead of asking the clouds; the harness writes it, saying what the
+    # stubs above answer, so `validate` passes offline as it would after
+    # `validate --online`
+    record_network_facts(root)
 
 
 def stub_opa_credentials_from(monkeypatch, root: Path) -> None:

@@ -12,15 +12,26 @@ phase bracketed by every builder's pre/post hooks, and the runner scripts
 it. This is the engine's: the run context only holds the handle
 (``ctx.finalizer``) the loader binds.
 
+The executor is ONE loop (:meth:`Finalizer.execute_phase`), shared by the
+lifecycle runner and the legacy single-script flow. A step that is the
+system's own CLI (``gate-plan``, ``prune-attachments``, ``release
+--declared``, ...) runs in this process over the loaded context through
+the seam in :mod:`~.in_process` when the system registered its runner
+there; otherwise, and for the one step that declines (a nested ``run``),
+it is spawned as the executable says. The executor adds no materialisation
+of its own around a command: the private mirror is made by the explicit
+``cs-image-system materialize`` step where a command list carries one (a
+generation-time plaintext read) and by a hand-run script's own lines, and
+a deferred command runs where it was recorded.
+
 The module-level helpers (:func:`render_executable_line`,
-:func:`script_lines`, :func:`write_script`, :func:`materialized_for`) are
-pure functions over an executable or a queue, kept here because the
-scripts are the finalizer's output.
+:func:`script_lines`, :func:`write_script`) are pure functions over an
+executable or a queue, kept here because the scripts are the finalizer's
+output.
 """
 
 from __future__ import annotations
 
-import copy
 import logging
 import os
 import shlex
@@ -29,8 +40,8 @@ from typing import TYPE_CHECKING, Any
 
 from cs_image_system.contract.lifecycle import ExecutionLifecyclePhase
 from cs_image_system.contract.lifecycles import LifecycleLike
+from .in_process import run_executable
 from .lifecycles import all_lifecycles
-from .materialize import ensure_ignored, materialize, mirror_path, sync_back
 from .encryption import is_marker
 
 if TYPE_CHECKING:
@@ -171,100 +182,85 @@ class Finalizer:
                           f"could not record what completed: {e}")
 
     def final_execute(self) -> bool:
-        """Run all deferred (finalize) executables, phase by phase, fail-fast.
+        """Run all deferred (finalize) executables, phase by phase, fail-fast
+        (the legacy single-script flow: the bucket recorded with no lifecycle
+        current).
 
         Phases run in enum definition order, so IMAGE_GENERATION's packer builds
         run before INSTANCE_GENERATION's terraform plan/apply. Around each
-        phase's commands, every builder's pre/post_finalize_phase hooks fire —
+        phase's commands, every builder's pre/post_finalize_phase hooks fire --
         e.g. the packer builder parses build manifests after its builds, and the
         instance builder writes concrete image-id tfvars before its plan/apply.
         """
-        ctx = self.ctx
         self.write_final_execution_script()
-        pwd = Path(os.getcwd()).absolute()
-        try:
-            for phase in ExecutionLifecyclePhase:
-                executables = self.get_finalization_executables_for_phase(phase)
-                if not executables:
-                    continue
-                if ctx.dry_run:
-                    # Enumerate only: no commands, no pre/post hooks (hooks have
-                    # side effects like writing tfvars / parsing build manifests
-                    # that only make sense when the commands actually ran).
-                    for executable in executables:
-                        log.info(
-                            f"[DRY RUN] phase {phase.value}: would execute "
-                            f"{executable.binary} {' '.join(executable.args)} "
-                            f"in {executable.working_directory if executable.working_directory else 'current working directory'}"
-                        )
-                    continue
-                for builder in ctx.all_sorted_builders:
-                    builder.pre_finalize_phase(phase)
-                for executable in executables:
-                    log.info(
-                        f"Final execution of command for phase {phase.value}: "
-                        f"{executable.binary} {' '.join(executable.args)} "
-                        f"in {executable.working_directory if executable.working_directory else 'current working directory'}"
-                    )
-                    os.chdir(ctx.generation_path)
-                    executable = materialized_for(getattr(ctx, "working_path", None),
-                                                  ctx.generation_path, executable)
-                    try:
-                        res = executable.execute(skips=False)
-                    except Exception as e:
-                        log.error(
-                            f"Final execution failed for command in phase {phase.value}: "
-                            f"{executable.binary} {' '.join(executable.args)} ({e})"
-                        )
-                        os.chdir(pwd)
-                        self.after_failed_phase(phase)
-                        return False
-                    finally:
-                        os.chdir(pwd)
-                    if not res or res.returncode != 0:
-                        rc = str(res.returncode) if res else "None"
-                        log.error(
-                            f"Final execution failed for command in phase {phase.value}: "
-                            f"{executable.binary} {' '.join(executable.args)} "
-                            f"(Return code: {rc})"
-                        )
-                        self.after_failed_phase(phase)
-                        return False
-                for builder in ctx.all_sorted_builders:
-                    builder.post_finalize_phase(phase)
-        finally:
-            os.chdir(pwd)
+        for phase in ExecutionLifecyclePhase:
+            executables = self.get_finalization_executables_for_phase(phase)
+            if not executables:
+                continue
+            if not self.execute_phase(phase, executables, label=phase.value):
+                return False
         return True
 
+    def execute_phase(self, phase: ExecutionLifecyclePhase, executables: list[ExecutableModel], *,
+                      label: str) -> bool:
+        """THE executor: run ``executables`` as one phase, fail-fast. Shared by
+        the lifecycle runner (``run_lifecycles._execute_in_process``, one call
+        per phase of the lifecycle) and :meth:`final_execute`.
 
-def materialized_for(root: Path | None, generation_path: Any, executable: Any) -> Any:
-    """``executable`` pointed at the private mirror of its directory (stage 49).
+        A dry run only enumerates: no command, no pre/post hook (the hooks
+        have side effects -- writing tfvars, parsing build manifests -- that
+        only make sense when the commands ran). Otherwise every builder's
+        ``pre_finalize_phase`` fires, each executable runs from the
+        generation directory (its working directory is relative to it), the
+        first failure -- an exception or a nonzero return code -- fires every
+        builder's ``post_failed_phase`` instead of the post hooks and ends
+        the phase with ``False``, and the working directory the caller had
+        is restored however the phase ends. ``label`` names the phase in the
+        log (``<lifecycle>/<phase>``, or the phase alone).
+        """
+        ctx = self.ctx
+        if not executables:
+            return True
+        if ctx.dry_run:
+            for executable in executables:
+                log.info(f"[DRY RUN] {label}: would execute {render_executable_line(executable)}")
+            return True
+        pwd = Path(os.getcwd()).absolute()
+        try:
+            for builder in ctx.all_sorted_builders:
+                builder.pre_finalize_phase(phase)
+            for executable in executables:
+                log.info(f"[{label}] executing {render_executable_line(executable)}")
+                os.chdir(ctx.generation_path)
+                try:
+                    res = self._run_executable(executable)
+                except Exception as e:
+                    log.error(f"[{label}] command failed: {e}")
+                    os.chdir(pwd)
+                    self.after_failed_phase(phase)     # hygiene X item 2: keep what completed
+                    return False
+                finally:
+                    os.chdir(pwd)
+                if not res or res.returncode != 0:
+                    log.error(f"[{label}] command returned {res.returncode if res else 'None'}")
+                    self.after_failed_phase(phase)
+                    return False
+            for builder in ctx.all_sorted_builders:
+                builder.post_finalize_phase(phase)
+            return True
+        finally:
+            os.chdir(pwd)
 
-    The committed emission carries the ``ENC[age:...]`` ciphertext; the tools
-    cannot read that, so the root is copied to ``_private/`` with the plaintext
-    substituted and the command runs there. An executable with no working
-    directory, a directory that does not exist, or no configuration root to
-    mirror under, is returned untouched."""
-    wd = getattr(executable, "working_directory", None)
-    if not wd or root is None:
-        return executable
-    src = (Path(generation_path) / wd).resolve()
-    if not src.is_dir():
-        return executable
-    dst = mirror_path(Path(root), src)
-    ensure_ignored(Path(root))      # the system made the mirror; the system ignores it
-    # on the way IN: bring back what the PREVIOUS command in this root wrote
-    # and the emission must carry -- the provider lock file `init` writes. A
-    # root's commands run in sequence (init, plan, apply), so the lock reaches
-    # the committed tree at the next command's materialize.
-    for name in sync_back(src, dst):
-        log.info("Synced back from the private mirror: %s", name)
-    written, substituted = materialize(src, dst)
-    log.info("Materialized %s -> %s (%d file(s), %d carrying ciphertext)",
-             src.name, dst, written, substituted)
-    moved = executable.model_copy() if hasattr(executable, "model_copy") else copy.copy(executable)
-    moved.working_directory = dst
-    return moved
+    def _run_executable(self, executable: Any) -> Any:
+        """Run one deferred executable from the current directory (the
+        generation directory) and answer with its result (``returncode``):
+        :func:`~.in_process.run_executable` over this run's context, so a
+        step that is the system's own CLI runs in this process (the
+        configuration is loaded once per run, not once more per step) and
+        every other step, and the one system step that declines (the nested
+        ``run`` of the transient-storage teardown), is spawned as the
+        executable itself does."""
+        return run_executable(self.ctx, executable)
 
 
 def render_executable_line(executable: Any, base: Path | None = None, root: Path | None = None) -> str:

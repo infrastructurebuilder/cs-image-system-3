@@ -14,6 +14,7 @@ from ..basic.builder_base_runtime import RuntimeBuilderBase
 from cs_image_system.contract.lifecycle import ExecutionLifecyclePhase
 
 from ..global_context import GlobalTypeContext
+from ..in_process import run_executable
 
 
 def predefined_instance_generation(
@@ -50,7 +51,7 @@ def generate_instances(ctx: GlobalTypeContext, phase: ExecutionLifecyclePhase, b
     for cmd in cfe.build_executables:
         log.debug(f"Running command for instance builder {builder.get_name()}: "
                   f"{cmd.binary} {' '.join(cmd.args)}")
-        result = cmd.execute()
+        result = run_executable(ctx, cmd)
         if result.returncode != 0:
             log.error(f"Command failed with return code {result.returncode} "
                       f"for instance builder {builder.get_name()}: "

@@ -110,7 +110,7 @@ def test_identity_runner_script_is_gated_and_never_applies_unless_configured(v2)
 def test_group_disappearance_is_a_hard_failure(tmp_path, monkeypatch):
     def mutate(root: Path):
         ms = root / "meta-state"
-        ms.mkdir()
+        ms.mkdir(exist_ok=True)
         _write_yaml(ms / "identity.yaml", {"groups": {"ghost": {"managed": True, "builder": "oktagroups"}}})
     run = _prepared(tmp_path, monkeypatch, mutate)
     try:
@@ -128,7 +128,7 @@ def test_unmanaged_group_is_state_rm_never_destroyed(tmp_path, monkeypatch):
         data["groups"][0]["unmanaged"] = True
         _write_yaml(p, data)
         ms = root / "meta-state"
-        ms.mkdir()
+        ms.mkdir(exist_ok=True)
         _write_yaml(ms / "identity.yaml", {"groups": {"tcmet": {"managed": True, "builder": "oktagroups"}}})
     run = _prepared(tmp_path, monkeypatch, mutate)
     try:
