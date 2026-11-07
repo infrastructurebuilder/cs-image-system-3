@@ -579,17 +579,29 @@ def test_main_runs_the_family_from_the_working_directory_and_prints_a_refusal(tm
         R.main(["push"])
 
 
+def _plan(*args: str) -> list[str]:
+    """The commands `just -n` says the recipe would run, one per line."""
+    r = subprocess.run(["just", "-n", *args], cwd=REPO, capture_output=True, text=True)
+    assert r.returncode == 0, r.stderr
+    return [line for line in r.stderr.splitlines() if line.strip()]
+
+
 def test_the_recipes_are_wrappers_over_the_script():
+    """`just --summary` names the three recipes, and each one's plan is the
+    one command that runs the script with the recipe's arguments; `release`
+    and `release-finish` pass the release branch and the configuration root,
+    the probes the root alone."""
     if not os.access(SCRIPT, os.X_OK):
         pytest.fail("scripts/release.py is run as a script")
-    text = (REPO / "Justfile").read_text()
-    for recipe, call in (("release target index=", "release.py\" release \"{{target}}\" \"{{index}}\" \"{{dry}}\""),
-                         ("release-finish index=", "release.py\" release-finish \"{{index}}\""),
-                         ("publish index=", "release.py\" publish \"{{index}}\""),
-                         ("_release-probes index who=", "release.py\" probes \"{{index}}\" \"{{who}}\"")):
-        at = text.index(f"\n{recipe}")
-        body = text[at:].split("\n\n", 1)[0]
-        assert call in body, recipe
-        assert body.count("\n\t") <= 2, f"{recipe}: a wrapper, not a program"
-    for needle in ("--release-branch \"{{release_branch}}\"", "--config-root {{quote(config_root)}}"):
-        assert text.count(needle) >= 2, needle
+    summary = subprocess.run(["just", "--summary"], cwd=REPO, capture_output=True, text=True).stdout.split()
+    assert {"release", "release-finish", "publish"} <= set(summary)
+    script = f'python "{SCRIPT}" '
+    for args, call in ((("release", "patch", "test", "yes"),
+                        'release "patch" "test" "yes" --release-branch "main" --config-root '),
+                       (("release-finish", "pypi"), 'release-finish "pypi" --release-branch "main" --config-root '),
+                       (("publish", "test"), 'publish "test"'),
+                       (("_release-probes", "pypi", "release-finish"),
+                        'probes "pypi" "release-finish" --config-root ')):
+        plan = _plan(*args)
+        assert len(plan) == 1, (args, plan)                                    # a wrapper, not a program
+        assert plan[0].startswith("uv run --no-sync --project ") and script + call in plan[0], (args, plan)
