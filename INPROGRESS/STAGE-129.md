@@ -33,7 +33,7 @@ read.
    `tfmodules/` holds zero.
 2. The fixture's comments (`tests/fixtures/config`) the same way; the
    golden does not read comments.
-3. Test docstrings keep the behaviour; this stage cleans what [§128](STAGE-128.md)'s
+3. Test docstrings keep the behaviour; this stage cleans what §128's
    renames did not reach.
 4. The Justfile's comments name each recipe's purpose; the release
    family's history moves with the script in [§130](STAGE-130.md).

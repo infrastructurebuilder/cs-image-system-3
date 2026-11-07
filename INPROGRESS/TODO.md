@@ -12,7 +12,7 @@ Stages from the re-examination of 2026-11-03.
 [REEXAMINE4.md](REEXAMINE4.md) digests the three reviews
 ([REEXAMINE1.md](REEXAMINE1.md), [REEXAMINE2.md](REEXAMINE2.md),
 [REEXAMINE3.md](REEXAMINE3.md)); each stage file
-([§128](STAGE-128.md) to [§130](STAGE-130.md); §118 to §127 and §131
+([§129](STAGE-129.md) and [§130](STAGE-130.md); §118 to §128 and §131
 landed) cites the review section
 it answers. The conventions are the ones above: one file per stage; a
 stage is a plan until the operator says "do N"; **YOUR DECISION** marks
@@ -59,10 +59,13 @@ order (the default), or [§113](STAGE-113.md) first as its file plans it.
 - §127, loading once, without the cloud: landed 2026-11-06. A load
   reaches no cloud (the networking check is `validate --online` and every
   real run, recorded in `meta-state/runtime-facts.yaml`); one parse; the
-  deferred system steps run in process. The reference's record is
-  written but UNTRACKED there until its next take.
-- [§128](STAGE-128.md) and [§129](STAGE-129.md), the tests and the
-  sources stop narrating: any time after §119.
+  deferred system steps run in process. The reference's record was
+  committed on its develop by the operator (6b709d3).
+- §128, tests named for behaviour: landed 2026-11-07. Every test file
+  is named for the behaviour it pins and a rule test holds it; the
+  golden covers docker (148 files).
+- [§129](STAGE-129.md), the sources stop narrating: any time after
+  §119.
 - [§130](STAGE-130.md), hygiene bundle XXIV: the open bundle for the small findings.
 - §131, registrations carry their plugin's namespace: landed
   2026-11-06; the contract is 0.2.0 (a minor bump for the new
@@ -87,7 +90,6 @@ and validated by the operator before its "do N")
 - [§112, A release in two boxes](STAGE-112.md)
 - [§113, The kit and the engine: `base` splits where the plugins stop](STAGE-113.md)
 - [§116, A runtime installed from outside](STAGE-116.md)
-- [§128, Tests named for behaviour](STAGE-128.md)
 - [§129, The sources stop narrating](STAGE-129.md)
 - [§130, Hygiene bundle XXIV](STAGE-130.md)
 
@@ -134,6 +136,19 @@ and validated by the operator before its "do N")
 
 **Landed since 2026-10-05** (newest first)
 
+- §128, tests named for behaviour: 2026-11-07, its squash commit
+  (feature/tests-named-for-behaviour kept). The fifty-two test files
+  named after a stage, a bundle, a gate, a defect list or an exploration
+  were regrouped into behaviour-named files, the `v2_` prefix left every
+  test file but the golden's, the support module became
+  `tests/harness.py`, and `tests/test_tests_named_for_behaviour.py`
+  holds the rule. Prose pins fell from 185 sentence and 93 document pins
+  to 37 and 27, with a ceiling test that only lets them fall. The
+  fixture declares a docker runtime, so the golden covers the four
+  docker roots (148 files, re-frozen once); `golden-regen` works again.
+  The five parity tests PARITY.md promised exist; every package has a
+  test; the `v2-test` recipe is retired. 2070 passed, 29 skipped; 2099
+  collected.
 - §127, loading once, without the cloud: 2026-11-06, its squash commit
   (feature/loading-once-without-the-cloud kept). The cloud runtime
   models' `finalize()` is pure; two optional builder hooks check the
