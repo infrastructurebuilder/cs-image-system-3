@@ -1,8 +1,8 @@
 {
   "name": "cs-image-system",
   "image": "mcr.microsoft.com/devcontainers/python:3.13",
-  "onCreateCommand": "curl -LsSf https://astral.sh/uv/install.sh | sh",
-  "postCreateCommand": "~/.local/bin/uv sync",
+  "onCreateCommand": "curl -LsSf https://astral.sh/uv/install.sh | sh && curl --proto '=https' --tlsv1.2 -sSf https://just.systems/install.sh | bash -s -- --to ~/.local/bin",
+  "postCreateCommand": "~/.local/bin/just init",
   "postStartCommand": "~/.local/bin/uv sync --frozen",
   "remoteEnv": {
     "PATH": "/root/.local/bin:${containerEnv:PATH}"
