@@ -42,6 +42,7 @@ if TYPE_CHECKING:
 from typing import Any
 
 from cs_image_system.contract.constants import OOPS_DEFAULTS
+
 from .capabilities import image_chain
 
 

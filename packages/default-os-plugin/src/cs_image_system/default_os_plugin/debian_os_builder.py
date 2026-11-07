@@ -8,10 +8,9 @@ log = logging.getLogger(__name__)
 
 from typing import TypeVar
 
-
-from .debian_type import DEBIAN_TYPE, DebianOsBuilderModel
 from cs_image_system.base.basic.builder_base_os import OsBuilderBase
 
+from .debian_type import DEBIAN_TYPE, DebianOsBuilderModel
 
 DEBSOS = TypeVar('DEBSOS', bound=DebianOsBuilderModel)
 class DebianOsBuilder(OsBuilderBase[DEBSOS]):

@@ -3,28 +3,29 @@
 # SPDX-License-Identifier: Apache-2.0
 
 from __future__ import annotations
+
 import logging
 from dataclasses import field
-from cs_image_system.contract.model_config import CSIS_MODEL_CONFIG
+from typing import TYPE_CHECKING, Annotated, Any, Mapping, Sequence
+
 from pydantic import Field
 from pydantic.dataclasses import dataclass  # validation at construction
-from typing import Annotated, TYPE_CHECKING, Any, Mapping, Sequence
 
+from cs_image_system.contract.constants import DEFAULT, OOPS_DEFAULTS, VCT
 
 # from cs_image_system.base.models.base_image import BaseImage
-
-
 from cs_image_system.contract.fields import fk_field, parent_field, templated_field
-from .root_item import SubRootItem
-
-from cs_image_system.contract.constants import  DEFAULT, OOPS_DEFAULTS, VCT
 from cs_image_system.contract.image import ImageQuery
+from cs_image_system.contract.model_config import CSIS_MODEL_CONFIG
+
+from .root_item import SubRootItem
 
 if TYPE_CHECKING:
     from .os_builder_model import OsBuilderModel
     from .runtime import RuntimeBuilderModel
-from .base_image import BaseImage
 from ..image_sources import current_catalog
+from .base_image import BaseImage
+
 log = logging.getLogger(__name__)
 
 

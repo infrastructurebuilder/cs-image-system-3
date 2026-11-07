@@ -3,15 +3,17 @@
 # SPDX-License-Identifier: Apache-2.0
 
 from __future__ import annotations
-from cs_image_system.contract.model_config import CSIS_MODEL_CONFIG
-from pydantic.dataclasses import dataclass  # validation at construction
+
 import logging
+
+from pydantic.dataclasses import dataclass  # validation at construction
+
+from cs_image_system.contract.model_config import CSIS_MODEL_CONFIG
+
 log = logging.getLogger(__name__)
 
 
 from .apt_type import AptOsBuilderModel
-
-
 
 DEBIAN_TYPE: str = "debian"
 UBUNTU_TYPE: str = "ubuntu"

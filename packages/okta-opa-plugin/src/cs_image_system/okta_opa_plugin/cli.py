@@ -28,8 +28,9 @@ from typing import Annotated
 import typer
 
 from cs_image_system.contract.commands import VERIFY_LOGIN, CommandMount
-from .workload_token import workload_facts, WorkloadTokenError, mint_token, NAME_VARS, WorkloadNames
+
 from . import workload_token as wt
+from .workload_token import NAME_VARS, WorkloadNames, WorkloadTokenError, mint_token, workload_facts
 
 workload_app = typer.Typer(help="Stage 56: what CI's workload login needs from the configuration.")
 

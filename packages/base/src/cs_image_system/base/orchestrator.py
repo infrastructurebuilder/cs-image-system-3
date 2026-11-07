@@ -3,13 +3,32 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import logging
+
 log = logging.getLogger(__name__)
 
 
-from . import template_utils
-from .encryption import Decrypted, mark_plaintexts
-from cs_image_system.contract.fields import lookup_dataclass_field
+from dataclasses import MISSING, fields, is_dataclass
+from typing import Any, cast
+
+import jinja2
+
 from cs_image_system.contract import field_kinds
+from cs_image_system.contract.constants import (
+    DEFAULT,
+    DEFERRED_BUILDER_VCT,
+    DEFERRED_ITEM_VCT,
+    FK_ALSO_SET_ON_UPDATE,
+    FK_TARGET,
+    IS_DEFERRED_LIST_FK,
+    IS_DEFERRED_LIST_GENERATED,
+    IS_FK,
+    IS_REPLACE,
+    NONE,
+    OOPS_DEFAULTS,
+    REPLACE_VALUE,
+    STATE_BACKEND_FIELD,
+    VCT,
+)
 from cs_image_system.contract.core import (
     NameTypedProtocol,
     ParentPropertyHoldingProtocol,
@@ -17,19 +36,12 @@ from cs_image_system.contract.core import (
     SelfInjectedNameProtocol,
     SubItemOverrideProtocol,
 )
+from cs_image_system.contract.fields import lookup_dataclass_field
 
-
-from dataclasses import MISSING, fields, is_dataclass
-from typing import Any, cast
-import jinja2
-from cs_image_system.contract.constants import DEFAULT, DEFERRED_BUILDER_VCT, DEFERRED_ITEM_VCT, FK_ALSO_SET_ON_UPDATE, FK_TARGET, IS_DEFERRED_LIST_FK, IS_DEFERRED_LIST_GENERATED, IS_FK, IS_REPLACE, NONE, OOPS_DEFAULTS, STATE_BACKEND_FIELD, VCT, REPLACE_VALUE
-
-from .singleton import singleton
-
-from . import registry
+from . import registry, template_utils
+from .encryption import Decrypted, mark_plaintexts
 from .registry import NAMESPACE_SEPARATOR, UnknownTypeError, split_qualified
-
-
+from .singleton import singleton
 
 # a foreign key that named nothing during resolution -- (object class,
 # object name, field, value, target). The object stage collects them

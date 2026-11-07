@@ -30,20 +30,23 @@ import shlex
 import shutil
 import subprocess
 import tempfile
-from dataclasses import asdict, field
-from cs_image_system.contract.model_config import CSIS_MODEL_CONFIG
-from pydantic.dataclasses import dataclass  # validation at construction
-from pathlib import Path
 from collections.abc import Callable
+from dataclasses import asdict, field
+from pathlib import Path
 from typing import TYPE_CHECKING, Any, Protocol
 
+from pydantic.dataclasses import dataclass  # validation at construction
 
-from cs_image_system.contract.errors import ContainerStartError  # noqa: F401 - the error is the contract's; this path keeps it
-from .lineage import mod_records
-from .image_sources import _runtime_classes, stand_in_runtime_type, container_reference
+from cs_image_system.contract.errors import (
+    ContainerStartError,  # noqa: F401 - the error is the contract's; this path keeps it
+)
+from cs_image_system.contract.model_config import CSIS_MODEL_CONFIG
+
 from .capabilities import image_chain
-from .os_types import os_type_for_family
+from .image_sources import _runtime_classes, container_reference, stand_in_runtime_type
+from .lineage import mod_records
 from .meta_state import MOD_TESTS
+from .os_types import os_type_for_family
 
 if TYPE_CHECKING:
     from .global_context import GlobalTypeContext

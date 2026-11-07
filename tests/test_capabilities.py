@@ -28,7 +28,6 @@ from pathlib import Path
 
 import pytest
 import yaml
-
 from harness import V2Run, copy_config, module_path, tree
 
 

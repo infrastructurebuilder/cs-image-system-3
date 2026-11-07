@@ -23,11 +23,10 @@ import subprocess
 
 import pytest
 import yaml
-
+from harness import docker_binary, load_context, reset_singletons
 from test_docker_bake_live import _docker_answers, require_engine_for_leg
 from test_docker_cycle_live import _cli, _exec, _inspect, _standing, _tail
 from test_docs_examples import copy_example
-from harness import docker_binary, load_context, reset_singletons
 
 DOCKER = docker_binary()
 PACKER = shutil.which("packer")

@@ -35,10 +35,10 @@ import re
 from decimal import Decimal, InvalidOperation
 from typing import Any, TypeVar, cast
 
-from cs_image_system.contract.names import super_safe_name
 from cs_image_system.base.models.executable import ExecutableModel
 from cs_image_system.base.models.instance import Instance
 from cs_image_system.contract.hcl import HclRaw, hcl_expr
+from cs_image_system.contract.names import super_safe_name
 from cs_image_system.tofu_roots.tofu_instance_builder import TofuInstanceBuilderBase
 
 from .tf_docker_models import TOFU_DOCKER, TofuDockerInstanceBuilderModel

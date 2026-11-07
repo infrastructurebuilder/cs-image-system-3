@@ -3,22 +3,23 @@
 # SPDX-License-Identifier: Apache-2.0
 
 from __future__ import annotations
+
 from typing import TYPE_CHECKING, Any, TypeVar
 
-
 from cs_image_system.contract.constants import VCT
-from .builder_base import BuilderBase
 from cs_image_system.contract.storage import StorageBuilderProtocol
+
 from ..models.storage import Storage
 from ..models.storage_builder import StorageBuilderModel
+from .builder_base import BuilderBase
 
 if TYPE_CHECKING:
     from ..models.executable import ExecutableModel
 
 # The attachment cardinalities a storage plugin declares and the mount mark
 # the startup script writes are the contract's vocabulary; this path keeps them.
-from cs_image_system.contract.storage_vocabulary import CARDINALITY_MANY, CARDINALITY_SINGLE  # noqa: F401, E402
 from cs_image_system.contract.launch_vocabulary import MOUNT_MARK  # noqa: F401, E402
+from cs_image_system.contract.storage_vocabulary import CARDINALITY_MANY, CARDINALITY_SINGLE  # noqa: F401, E402
 
 
 def mount_mark_line(mount_point: str) -> str:

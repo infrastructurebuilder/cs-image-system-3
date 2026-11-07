@@ -10,10 +10,21 @@ the resolver renders, a deferred list the resolver structures late, and the
 
 from dataclasses import MISSING, field
 from typing import Any
-from .constants import (FK_ALSO_SET_ON_UPDATE, IS_DEFERRED_LIST_GENERATED, IS_FK,
-                        IS_REPLACE, REPLACE_VALUE, VCT, DEFERRED_BUILDER_VCT,
-                        IS_DEFERRED_LIST_FK, FK_TARGET, DEFERRED_ITEM_VCT, FIELD_KIND)
+
 from . import field_kinds
+from .constants import (
+    DEFERRED_BUILDER_VCT,
+    DEFERRED_ITEM_VCT,
+    FIELD_KIND,
+    FK_ALSO_SET_ON_UPDATE,
+    FK_TARGET,
+    IS_DEFERRED_LIST_FK,
+    IS_DEFERRED_LIST_GENERATED,
+    IS_FK,
+    IS_REPLACE,
+    REPLACE_VALUE,
+    VCT,
+)
 
 
 def lookup_dataclass_field(instance: Any, field_name: str) -> Any:

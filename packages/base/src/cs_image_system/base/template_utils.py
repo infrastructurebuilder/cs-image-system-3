@@ -8,16 +8,18 @@ import os
 from importlib.resources import as_file, files
 from pathlib import Path
 from typing import Any
+
 import yaml
 
 log = logging.getLogger(__name__)
 # from Cheetah.Template import Template as CheetahTemplate
-from jinja2 import Environment, Undefined, nodes, Template
+from jinja2 import Environment, Template, Undefined, nodes
 
 from cs_image_system.contract.constants import NAME, PLUGIN_TYPES
+
 from .encryption import decrypt_tree, decrypted_plaintexts
-from .reserved_names import refuse_reserved_names
 from .helpers import resolution_stages
+from .reserved_names import refuse_reserved_names
 
 
 def fetch_template_file(template: Path) -> str:

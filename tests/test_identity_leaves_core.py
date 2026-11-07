@@ -15,13 +15,12 @@ from typing import Any, cast
 
 import pytest
 import typer
+from harness import copy_config, load_context, reset_singletons, stub_environment
+from test_container_runtime import IMAGE, RUNTIME, _stub_daemon, docker_overlay
 from typer.testing import CliRunner
 
 from cs_image_system.contract.commands import CommandMount
 from cs_image_system.contract.constants import VCT
-
-from test_container_runtime import IMAGE, RUNTIME, _stub_daemon, docker_overlay
-from harness import copy_config, load_context, reset_singletons, stub_environment
 
 runner = CliRunner()
 
@@ -121,9 +120,9 @@ def _entry(name: str, mounts_fn) -> SimpleNamespace:
 
 
 def test_which_commands_each_identity_plugins_entry_point_brings(monkeypatch):
-    from cs_image_system.system import cli
     from cs_image_system.okta_opa_plugin.cli import command_mounts as okta_mounts
     from cs_image_system.posix_identity_plugin.cli import command_mounts as posix_mounts
+    from cs_image_system.system import cli
     # no identity plugin: neither command
     root, verify = _root()
     monkeypatch.setattr(cli, "entry_points", lambda group: [])
@@ -159,9 +158,11 @@ def test_the_installed_cli_carries_the_okta_commands_from_the_real_entry_point(m
     commands answer `--help` without a tree (the root callback reads the
     help request off the process arguments, which the runner sets here)."""
     import sys
+
     from typer.main import get_command
-    from cs_image_system.system.cli import app
+
     from cs_image_system.base.commands.login_proof import verify_login_command
+    from cs_image_system.system.cli import app
     assert "workload" in {g.name for g in app.registered_groups}
     assert [c.callback for g in app.registered_groups if g.name == "verify" and g.typer_instance
             for c in g.typer_instance.registered_commands if c.name == "login"] == [verify_login_command]
@@ -219,6 +220,7 @@ def test_a_tree_with_okta_profile_fields_loads_with_the_plugin_and_is_refused_wi
 
 def test_the_core_user_carries_no_profile_field():
     import dataclasses
+
     from cs_image_system.base.models.user import User
     from cs_image_system.okta_opa_plugin.okta_user import OKTA_PROFILE_FIELDS
     names = {f.name for f in dataclasses.fields(User)}
@@ -264,6 +266,7 @@ def test_validate_refuses_an_okta_group_and_accepts_a_posix_group_on_a_container
 
 def test_the_core_reads_the_accounts_report_and_the_alias_verdict_by_the_contract():
     import inspect
+
     from cs_image_system.base import accounts_reconcile, provider_aliases
     from cs_image_system.contract.group import ACCOUNTS_IN_PLACE, ACCOUNTS_REPORT_PREFIX, ALIASES_CHANGED
     from cs_image_system.okta_opa_plugin.server_aliases import alt_names_script

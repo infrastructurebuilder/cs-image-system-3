@@ -70,10 +70,9 @@ configuration, where each time the diff had to be undone by hand):
 """
 from __future__ import annotations
 
-import re
-
 import difflib
 import posixpath
+import re
 import shutil
 from collections.abc import Mapping
 from dataclasses import dataclass, field
@@ -83,8 +82,13 @@ from pathlib import Path
 import yaml
 from packaging.version import InvalidVersion, Version
 
-from cs_image_system.base.modules import (STAMP_FILE, ModulesReport, declared_overrides, installed_modules,
-                                          materialise_modules)
+from cs_image_system.base.modules import (
+    STAMP_FILE,
+    ModulesReport,
+    declared_overrides,
+    installed_modules,
+    materialise_modules,
+)
 
 from .starter_links import rewrite_tree
 

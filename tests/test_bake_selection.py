@@ -41,6 +41,7 @@ def _run_help() -> dict[str, str]:
     `run --help` would first run the CLI callback, which loads a configuration
     from the working directory."""
     import typer.main
+
     from cs_image_system.system.cli import app
     command = typer.main.get_command(app).commands["run"]                    # type: ignore[attr-defined]
     return {opt: (p.help or "") for p in command.params for opt in (getattr(p, "opts", None) or [])}

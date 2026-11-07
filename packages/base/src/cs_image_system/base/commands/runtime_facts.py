@@ -13,9 +13,10 @@ import logging
 from typing import Any
 
 from cs_image_system.contract.constants import NONE
+
 from ..global_context import GlobalTypeContext
-from ..lineage import base_image_runtimes, configuration_tag
 from ..lifecycles import all_lifecycles
+from ..lineage import base_image_runtimes, configuration_tag
 from ..release import releases
 
 log = logging.getLogger(__name__)

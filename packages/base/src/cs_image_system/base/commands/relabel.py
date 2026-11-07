@@ -27,14 +27,16 @@ from __future__ import annotations
 
 import logging
 from dataclasses import field
-from cs_image_system.contract.model_config import CSIS_MODEL_CONFIG
-from pydantic.dataclasses import dataclass  # validation at construction
 from typing import Any
 
-from ..global_context import GlobalTypeContext
-from ..lineage import FINGERPRINT_TAG_LENGTH, TAG_PREFIX, CONFIG_TAG, configuration_tag, owner_of
-from ..state_query import _TAGGED_FACTS
+from pydantic.dataclasses import dataclass  # validation at construction
+
+from cs_image_system.contract.model_config import CSIS_MODEL_CONFIG
+
 from ..basic.builder_base_storage import StorageBuilderBase
+from ..global_context import GlobalTypeContext
+from ..lineage import CONFIG_TAG, FINGERPRINT_TAG_LENGTH, TAG_PREFIX, configuration_tag, owner_of
+from ..state_query import _TAGGED_FACTS
 
 log = logging.getLogger(__name__)
 

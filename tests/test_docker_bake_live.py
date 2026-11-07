@@ -26,7 +26,6 @@ from pathlib import Path
 
 import pytest
 import yaml
-
 from harness import copy_config, docker_binary, load_context, reset_singletons
 
 RUNTIME = "leg-docker"

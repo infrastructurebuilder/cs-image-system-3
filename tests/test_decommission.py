@@ -248,6 +248,7 @@ def test_forget_refuses_an_instance_that_is_still_declared(prepared):
     """The way to remove a live instance is to undeclare it and let its destroy
     apply. `forget` cleans up after that; it is not a way around it."""
     import typer
+
     from cs_image_system.system.cli import forget_instance_command
 
     root, make_run = prepared

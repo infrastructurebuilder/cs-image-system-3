@@ -155,9 +155,10 @@ def test_the_same_class_under_three_namespaces_is_one_registration():
 
 
 def test_the_installed_roots_resolve_the_checker_by_the_bare_word():
+    from harness import reset_singletons
+
     from cs_image_system.base.registry import current_registry
     from cs_image_system.tofu_roots.tofu_instance_builder import TofuVersionChecker
-    from harness import reset_singletons
     reset_singletons()
     reg = current_registry()
     assert reg.get_model(VCT.VERSION_CHECKER, WORD) is TofuVersionChecker

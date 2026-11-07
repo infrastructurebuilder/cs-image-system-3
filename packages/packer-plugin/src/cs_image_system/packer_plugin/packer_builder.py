@@ -9,18 +9,17 @@ from pathlib import Path
 from typing import Any, TypeVar
 from warnings import deprecated
 
-from cs_image_system.contract.names import safe_name
 from cs_image_system.base.basic.abstract_version_checker import AbstractVersionChecker
-from cs_image_system.contract.assets import AssetSet
 from cs_image_system.base.basic.builder_base_image import ImageBuilderBase
 from cs_image_system.base.basic.builder_base_runtime import RuntimeBuilderBase
-from cs_image_system.contract.constants import IMAGES
-from cs_image_system.contract.lifecycle import ExecutionLifecyclePhase
-from cs_image_system.base.models.executable import ExecutableModel
-from cs_image_system.contract.executables import CFExecutables
 from cs_image_system.base.models.base_image import BaseImage
+from cs_image_system.base.models.executable import ExecutableModel
 from cs_image_system.base.models.image import Image
-
+from cs_image_system.contract.assets import AssetSet
+from cs_image_system.contract.constants import IMAGES
+from cs_image_system.contract.executables import CFExecutables
+from cs_image_system.contract.lifecycle import ExecutionLifecyclePhase
+from cs_image_system.contract.names import safe_name
 from cs_image_system.hashicorp_utils.collector import PackerVariableDecl, packer_collector
 
 from .packer_models import PACKER, PackerImageBuilderModel

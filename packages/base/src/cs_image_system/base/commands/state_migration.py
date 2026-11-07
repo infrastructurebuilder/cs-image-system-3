@@ -43,9 +43,14 @@ import logging
 import re
 from pathlib import Path
 from typing import Any
-from ..state_backup import (  # noqa: F401 - re-exported: the backup is the kit's own module
-    STATE_BACKUP_DIRNAME, backup, pull_state, state_backup_dir, tofu_run)
 
+from ..state_backup import (  # noqa: F401 - re-exported: the backup is the kit's own module
+    STATE_BACKUP_DIRNAME,
+    backup,
+    pull_state,
+    state_backup_dir,
+    tofu_run,
+)
 
 log = logging.getLogger(__name__)
 

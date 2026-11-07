@@ -126,8 +126,9 @@ def test_the_error_names_every_claimant():
 def test_a_declared_zone_reaches_the_module_call():
     """Declaring a zone must PIN it, or validate would be checking a value the
     emission ignores -- the module derives one from the subnet otherwise."""
-    from cs_image_system.tf_ebs_instance_plugin.tf_storage_builder import TofuEbsStorageBuilder
     import inspect
+
+    from cs_image_system.tf_ebs_instance_plugin.tf_storage_builder import TofuEbsStorageBuilder
     src = inspect.getsource(TofuEbsStorageBuilder.module_args)
     assert 'getattr(storage, "availability_zone", None)' in src
     assert src.index('getattr(storage, "availability_zone", None)') < src.index("default_availability_zone")

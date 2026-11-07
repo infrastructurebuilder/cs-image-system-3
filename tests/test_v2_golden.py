@@ -13,7 +13,6 @@ from __future__ import annotations
 import difflib
 
 import pytest
-
 from golden import GOLDEN, current_output
 from harness import tree
 

@@ -19,15 +19,15 @@ from __future__ import annotations
 import logging
 from typing import Any, TypeVar
 
-from cs_image_system.contract.names import super_safe_name
+from cs_image_system.base.models.instance import Instance
 from cs_image_system.contract.hcl import HclRaw, hcl_expr
 from cs_image_system.contract.launch_vocabulary import ENROLLMENT_TOKEN_VARIABLE
-from cs_image_system.base.models.instance import Instance
+from cs_image_system.contract.names import super_safe_name
+from cs_image_system.gcloud_runtime.gcp_packer_source import gce_label, gce_name
 from cs_image_system.tofu_roots.tofu_instance_builder import TofuInstanceBuilderBase
 
 from .tf_gcp_models import TOFU_GCE, TofuGceInstanceBuilderModel
 from .tf_gcp_storage_builder import google_provider_config
-from cs_image_system.gcloud_runtime.gcp_packer_source import gce_name, gce_label
 
 log = logging.getLogger(__name__)
 

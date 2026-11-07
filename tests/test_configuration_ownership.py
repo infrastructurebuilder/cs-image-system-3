@@ -215,7 +215,10 @@ def test_relabel_gives_the_id_to_standing_storages_and_machines_that_lack_it(run
     from cs_image_system.aws_runtime.aws_runtime_builders import AwsCloudBuilder
     from cs_image_system.base.commands.relabel import relabel, relabel_plan
     from cs_image_system.tf_ebs_instance_plugin.tf_storage_builder import (
-        TofuEbsStorageBuilder, TofuEfsStorageBuilder, TofuS3StorageBuilder)
+        TofuEbsStorageBuilder,
+        TofuEfsStorageBuilder,
+        TofuS3StorageBuilder,
+    )
     monkeypatch.setattr(AwsCloudBuilder, "query_images", lambda self, series: [])
     ebs = next(b for b in run.ctx.storage_builders.values() if isinstance(b, TofuEbsStorageBuilder))
     ebs_name = next(s.get_name() for s in ebs.model._storages)

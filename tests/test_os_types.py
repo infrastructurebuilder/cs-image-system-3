@@ -22,7 +22,6 @@ from types import SimpleNamespace
 from typing import Any, cast
 
 import pytest
-
 from harness import V2Run
 
 OTHER_MANAGERS = re.compile(r"(?<![a-z0-9])(yum|dnf|apt-get|apt|dpkg|rpm)(?![a-z0-9])")

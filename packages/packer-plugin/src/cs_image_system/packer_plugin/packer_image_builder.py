@@ -3,33 +3,43 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import copy
-from graphlib import TopologicalSorter
 import json
 import logging
+from graphlib import TopologicalSorter
 from pathlib import Path
 from typing import Any, cast
+
 import hcl2
 from hcl2 import Builder
 
-from cs_image_system.contract.assets import Asset, AssetSet
-from cs_image_system.contract.constants import SELF, PACKER_MANIFEST_FILENAME
-from cs_image_system.contract.context import RunContextProtocol
-from cs_image_system.contract.lifecycle import ExecutionLifecyclePhase
 from cs_image_system.base.models.base_image import BaseImage
 from cs_image_system.base.models.executable import ExecutableModel
-from cs_image_system.contract.executables import CFExecutables
 from cs_image_system.base.models.image import Image
 from cs_image_system.base.models.moditem_type import ModItemModel
+from cs_image_system.contract.assets import Asset, AssetSet
+from cs_image_system.contract.constants import PACKER_MANIFEST_FILENAME, SELF
+from cs_image_system.contract.context import RunContextProtocol
+from cs_image_system.contract.executables import CFExecutables
 from cs_image_system.contract.image import PSISourceKind
-from cs_image_system.hashicorp_utils.hashicorp import FO # noqa: F401
-from .packer_models import (PACKER, PACKER_DOCKER, PACKER_EBS, PACKER_GCE, PackerDockerImageBuilderModel,
-                            PackerEbsImageBuilderModel, PackerGceImageBuilderModel, PackerImageBuilderModel)
-from .packer_builder import PackerImageBuilderBase
-from cs_image_system.hashicorp_utils.collector import packer_collector
-from .v2_provisioners import settle_provisioner, base_image_provisioners, instance_image_provisioners
-from .v2_local_mods import stage_local_mods
-from cs_image_system.contract.lineage_vocabulary import FINGERPRINT_TAG_LENGTH, TAG_PREFIX
+from cs_image_system.contract.lifecycle import ExecutionLifecyclePhase
 from cs_image_system.contract.lifecycles import Lifecycle
+from cs_image_system.contract.lineage_vocabulary import FINGERPRINT_TAG_LENGTH, TAG_PREFIX
+from cs_image_system.hashicorp_utils.collector import packer_collector
+from cs_image_system.hashicorp_utils.hashicorp import FO  # noqa: F401
+
+from .packer_builder import PackerImageBuilderBase
+from .packer_models import (
+    PACKER,
+    PACKER_DOCKER,
+    PACKER_EBS,
+    PACKER_GCE,
+    PackerDockerImageBuilderModel,
+    PackerEbsImageBuilderModel,
+    PackerGceImageBuilderModel,
+    PackerImageBuilderModel,
+)
+from .v2_local_mods import stage_local_mods
+from .v2_provisioners import base_image_provisioners, instance_image_provisioners, settle_provisioner
 
 log = logging.getLogger(__name__)
 

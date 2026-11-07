@@ -37,10 +37,9 @@ from functools import cache
 from pathlib import Path
 
 import pytest
+from harness import REPO
 from packaging.requirements import Requirement
 from packaging.utils import canonicalize_name
-
-from harness import REPO
 
 PACKAGES = sorted(p for p in (REPO / "packages").iterdir() if (p / "pyproject.toml").exists())
 ROOT = REPO / "pyproject.toml"

@@ -25,9 +25,14 @@ import copy
 from dataclasses import dataclass, field
 from typing import Any
 
-from cs_image_system.contract.group import (WORKLOAD_CONNECTION_ABSENT, WORKLOAD_CONNECTION_INACTIVE,
-                                            WORKLOAD_CONNECTION_UNREAD, WORKLOAD_POLICY_ABSENT,
-                                            WORKLOAD_POLICY_DIVERGED, WORKLOAD_ROLE_ABSENT)
+from cs_image_system.contract.group import (
+    WORKLOAD_CONNECTION_ABSENT,
+    WORKLOAD_CONNECTION_INACTIVE,
+    WORKLOAD_CONNECTION_UNREAD,
+    WORKLOAD_POLICY_ABSENT,
+    WORKLOAD_POLICY_DIVERGED,
+    WORKLOAD_ROLE_ABSENT,
+)
 
 USER_POLICY_SUFFIX = "_v1_security_policy_user"
 CI_POLICY_SUFFIX = "_v1_security_policy_ci"

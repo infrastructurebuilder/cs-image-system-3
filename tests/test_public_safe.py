@@ -15,6 +15,7 @@ import zipfile
 from pathlib import Path
 
 import pytest
+from harness import FIXTURE_CONFIG, REPO
 
 from cs_image_system.base.meta_state import commit_meta_state
 from cs_image_system.base.public_safe import (
@@ -28,7 +29,6 @@ from cs_image_system.base.public_safe import (
     scan_tree,
     soft_exempt,
 )
-from harness import FIXTURE_CONFIG, REPO
 
 PEM = "-----BEGIN " + "RSA PRIVATE KEY-----\nMIIE"
 AKIA = "AK" + "IA" + "ABCDEFGHIJKLMNOP"

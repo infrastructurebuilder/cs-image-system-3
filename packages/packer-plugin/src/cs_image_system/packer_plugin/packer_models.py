@@ -4,9 +4,11 @@
 
 import logging
 from dataclasses import field
-from cs_image_system.contract.model_config import CSIS_MODEL_CONFIG
+
 from pydantic.dataclasses import dataclass  # validation at construction
+
 from cs_image_system.base.models.image_builder_model import ImageBuilderModel
+from cs_image_system.contract.model_config import CSIS_MODEL_CONFIG
 from cs_image_system.hashicorp_utils.hashicorp_models import PackerPluginConfig
 
 PACKER: str = "packer"

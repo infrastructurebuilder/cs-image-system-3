@@ -20,15 +20,14 @@ import subprocess
 from typing import Any
 
 import pytest
+from harness import FIXTURE_CONFIG, V2Run, tree
 
-from cs_image_system.base.encryption import (PUBLIC_BY_DECISION_KEYS, Decrypted,
-                                             decrypt_marker, encrypt_value)
+from cs_image_system.base.encryption import PUBLIC_BY_DECISION_KEYS, Decrypted, decrypt_marker, encrypt_value
 from cs_image_system.base.materialize import PRIVATE_DIRNAME
 from cs_image_system.base.meta_state import commit_meta_state, never_staged
 from cs_image_system.base.models.user import User
 from cs_image_system.hashicorp_utils.blocks import Raw
 from cs_image_system.hashicorp_utils.collector import TerraformCollector
-from harness import FIXTURE_CONFIG, V2Run, tree
 
 EMAIL = re.compile(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}")
 MARKER = re.compile(r"ENC\[age:[A-Za-z0-9+/=]+\]")
@@ -111,6 +110,7 @@ def test_a_declared_encrypted_workspace_credential_reaches_the_provider_block_by
 
 def test_decrypt_json_speaks_the_external_data_source_protocol():
     from typer.testing import CliRunner
+
     from cs_image_system.system.cli import app
     m1, m2 = encrypt_value("one@example.org", [RECIPIENT]), encrypt_value("two", [RECIPIENT])
     query = json.dumps({"email_a": m1, "b": m2, "plain": "left alone"})

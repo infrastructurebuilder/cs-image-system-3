@@ -44,6 +44,7 @@ from typing import TYPE_CHECKING, Callable
 import yaml
 
 from cs_image_system.contract.constants import RUN_LOCAL_FILENAMES
+
 from .runtime_facts import emission_dirs
 
 if TYPE_CHECKING:

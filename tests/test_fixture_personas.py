@@ -19,9 +19,9 @@ import re
 
 import pytest
 import yaml
+from harness import FIXTURE_CONFIG
 
 from cs_image_system.base.encryption import IDENTITY_ENV, decrypt_marker
-from harness import FIXTURE_CONFIG
 
 MARKER = re.compile(r"ENC\[age:[A-Za-z0-9+/=]+\]")
 # phonetic-alphabet surnames, gender-neutral first names: obviously nobody

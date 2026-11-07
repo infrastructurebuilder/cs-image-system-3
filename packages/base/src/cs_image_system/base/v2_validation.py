@@ -14,6 +14,8 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
+from cs_image_system.contract.lifecycles import Lifecycle
+
 from .basic.builder_base_storage import CARDINALITY_SINGLE
 from .capabilities import (
     admin_public_keys,
@@ -24,9 +26,8 @@ from .capabilities import (
     storage_type_of,
     validate_public_key,
 )
-from cs_image_system.contract.lifecycles import Lifecycle
-from .storage_state import attachments, validate_transitions
 from .image_tests import validate_tests_spec
+from .storage_state import attachments, validate_transitions
 from .utils import module_source_overrides
 
 if TYPE_CHECKING:

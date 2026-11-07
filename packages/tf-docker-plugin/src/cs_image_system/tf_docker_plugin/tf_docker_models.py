@@ -13,10 +13,10 @@ from __future__ import annotations
 
 from dataclasses import field
 
-from cs_image_system.contract.model_config import CSIS_MODEL_CONFIG
 from pydantic.dataclasses import dataclass  # validation at construction
 
 from cs_image_system.base.models.module_variables import ModuleVariables
+from cs_image_system.contract.model_config import CSIS_MODEL_CONFIG
 from cs_image_system.tofu_roots.tofu_models import TofuInstanceBuilderModelBase, TofuStorageBuilderModelBase
 
 TOFU_DOCKER: str = "tofu-docker"

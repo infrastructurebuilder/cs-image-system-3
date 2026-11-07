@@ -19,7 +19,8 @@ runner = CliRunner()
 
 def test_static_keys_are_present_and_not_judged(tmp_path):
     from datetime import datetime, timezone
-    from cs_image_system.aws_runtime import session as aws_session      # the plugin reads; the core judges
+
+    from cs_image_system.aws_runtime import session as aws_session  # the plugin reads; the core judges
     from cs_image_system.base.commands import preflight
     d = tmp_path / "aws"
     d.mkdir()
@@ -38,9 +39,11 @@ def test_static_keys_are_present_and_not_judged(tmp_path):
 
 def test_preflight_never_closes_green_over_keys_it_cannot_judge(monkeypatch, tmp_path):
     import json
+
+    from harness import FIXTURE_CONFIG, reset_singletons, stub_environment
+
     from cs_image_system.docker_runtime import docker_runtime_builders as drb
     from cs_image_system.system.cli import app
-    from harness import FIXTURE_CONFIG, reset_singletons, stub_environment
     stub_environment(monkeypatch)                  # `preflight` loads the tree (no cloud); the harness opens it
     reset_singletons()                             # the command's own load, fresh (as load_context does)
     # a docker runtime's "session" is its daemon answering; this test is about keys, so the fixture's daemon answers

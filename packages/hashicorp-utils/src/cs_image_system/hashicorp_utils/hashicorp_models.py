@@ -2,10 +2,9 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+import logging
 from dataclasses import field
 from typing import Any
-
-import logging
 
 from pydantic.dataclasses import dataclass
 

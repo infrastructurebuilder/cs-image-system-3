@@ -22,7 +22,6 @@ import subprocess
 from pathlib import Path
 
 import pytest
-
 from harness import V2Run, copy_config, tree
 
 AWS = "aws-east2-runtime"

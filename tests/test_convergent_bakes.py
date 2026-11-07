@@ -279,6 +279,7 @@ def test_strict_state_query_reports_stale_but_does_not_fail_on_it(monkeypatch, c
     mismatch: `state query --strict` prints it and still exits 0; a real
     drift class still fails."""
     import typer
+
     from cs_image_system.base.state_query import DRIFT_MISSING, DRIFT_STALE, Drift, StateReport
     from cs_image_system.system import cli
 

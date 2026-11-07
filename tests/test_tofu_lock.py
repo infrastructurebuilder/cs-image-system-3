@@ -17,7 +17,6 @@ import shutil
 import subprocess
 
 import pytest
-
 from harness import REPO
 
 

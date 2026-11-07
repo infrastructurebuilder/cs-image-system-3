@@ -27,7 +27,6 @@ from typing import Any, cast
 
 import pytest
 import yaml
-
 from harness import V2Run, command_lines, copy_config, load_context, reset_singletons, stub_environment, tree
 
 LITERAL_GID = re.compile(r"\b(?:owner_)?gid\s*=\s*\d+\b")
@@ -146,8 +145,8 @@ def test_archive_and_restore_are_legal_when_unattached(tmp_path, monkeypatch):
                                                     "requested_state": "archived",
                                                     "current_state": "active"}
         # after a real apply the transition is recorded and becomes authoritative
-        from cs_image_system.contract.lifecycles import Lifecycle
         from cs_image_system.base.read_models import record_storage_transitions
+        from cs_image_system.contract.lifecycles import Lifecycle
         # truthful-recorders (finding 21): the recorder refuses to write a
         # reality-claiming record while the apply flag is off ...
         record_storage_transitions(run.ctx, Lifecycle.STORAGE)
@@ -332,6 +331,7 @@ def test_gate_plan_whitelists_only_operation_driven_destroys(tmp_path):
 
 def test_the_s3_lookup_asks_for_the_storages_own_bucket(tmp_path: Path, monkeypatch):
     from types import SimpleNamespace
+
     from cs_image_system.tf_ebs_instance_plugin.tf_storage_builder import TofuS3StorageBuilder
     stub_environment(monkeypatch)
     ctx = load_context(copy_config(tmp_path))

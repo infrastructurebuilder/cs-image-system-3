@@ -3,22 +3,23 @@
 # SPDX-License-Identifier: Apache-2.0
 
 from __future__ import annotations
-from collections.abc import Mapping
+
 import logging
+from collections.abc import Mapping
 from dataclasses import field
+from typing import Any, Sequence
+
+from packaging.version import Version, parse
+from pydantic.dataclasses import dataclass  # validation at construction
+
+from cs_image_system.contract.constants import DEFAULT, VCT
 from cs_image_system.contract.model_config import CSIS_MODEL_CONFIG
 from cs_image_system.contract.operating_system import OsBuilderModelProtocol
-from pydantic.dataclasses import dataclass  # validation at construction
-from typing import  Any, Sequence
-from packaging.version import Version, parse
 
-
+from ..image_sources import current_catalog
+from .builder_model import BuilderModel
 from .os_builder_runtime_config import OSBuilderBaseImageBuilderSubconfig
 from .update_policy import POLICY_FULL, POLICY_NONE, UpdatePolicy
-
-from cs_image_system.contract.constants import DEFAULT,  VCT
-from .builder_model import BuilderModel
-from ..image_sources import current_catalog
 
 log = logging.getLogger(__name__)
 

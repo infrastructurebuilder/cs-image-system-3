@@ -11,9 +11,8 @@ import json
 
 import pytest
 
-from tests.harness import V2Run
-
 from cs_image_system.base import state_query as sq
+from tests.harness import V2Run
 
 
 @pytest.fixture

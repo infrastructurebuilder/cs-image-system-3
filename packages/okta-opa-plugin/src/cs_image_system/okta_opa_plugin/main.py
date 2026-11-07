@@ -3,16 +3,18 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import logging
+
 from cs_image_system.base.basic.abstract_plugin_metadata import AbstractPluginMetadata
-from .okta_tf_models import OKTATF
+from cs_image_system.contract.constants import VCT
+
 from .okta_opa_tf_group_builder import OktaTfGroupBuilder
 from .okta_opa_tf_group_models import OktaTfGroupBuilderModel, OktaTfGroupRoBuilderModel
 from .okta_opa_tf_group_ro_builder import OktaTfGroupRoBuilder
 from .okta_opa_tf_user_builder import OktaTfUserBuilder
 from .okta_opa_tf_user_models import OktaTfUserBuilderModel, OktaTfUserRoBuilderModel
 from .okta_opa_tf_user_ro_builder import OktaTfUserRoBuilder
+from .okta_tf_models import OKTATF
 from .okta_user import OktaUser
-from cs_image_system.contract.constants import VCT
 
 log = logging.getLogger(__name__)
 

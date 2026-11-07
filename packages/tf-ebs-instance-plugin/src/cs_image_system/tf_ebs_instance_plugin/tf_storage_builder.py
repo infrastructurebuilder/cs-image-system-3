@@ -12,13 +12,19 @@ import json
 import subprocess
 from typing import Any, TypeVar, cast
 
+from cs_image_system.aws_runtime.aws_utils import aws_client
 from cs_image_system.base.basic.abstract_version_checker import AbstractVersionChecker
 from cs_image_system.base.basic.builder_base_storage import CARDINALITY_MANY, CARDINALITY_SINGLE
 from cs_image_system.base.models.executable import ExecutableModel
+from cs_image_system.base.models.storage import (
+    STORAGE_STATE_ACTIVE,
+    STORAGE_STATE_ARCHIVED,
+    STORAGE_STATE_DESTROYED,
+    Storage,
+)
 from cs_image_system.contract.hcl import HclRaw
 from cs_image_system.contract.lifecycle import ExecutionLifecyclePhase
 from cs_image_system.contract.operating_system import PACKAGE_LOCK_TIMEOUT
-from cs_image_system.base.models.storage import STORAGE_STATE_ACTIVE, STORAGE_STATE_ARCHIVED, STORAGE_STATE_DESTROYED, Storage
 from cs_image_system.tofu_roots.tofu_storage_builder import (
     RecordedStorage,
     TofuStorageBuilderBase,
@@ -27,10 +33,15 @@ from cs_image_system.tofu_roots.tofu_storage_builder import (
 )
 
 from .tf_storage_models import (
-    TF_AWS, TF_AWS_EBS, TF_AWS_EFS, TF_AWS_S3,
-    TofuEbsStorageBuilderModel, TofuEfsStorageBuilderModel, TofuS3StorageBuilderModel, TofuStorageBuilderModel,
+    TF_AWS,
+    TF_AWS_EBS,
+    TF_AWS_EFS,
+    TF_AWS_S3,
+    TofuEbsStorageBuilderModel,
+    TofuEfsStorageBuilderModel,
+    TofuS3StorageBuilderModel,
+    TofuStorageBuilderModel,
 )
-from cs_image_system.aws_runtime.aws_utils import aws_client
 
 __all__ = [
     "EBS_DEVICES", "RecordedStorage", "TofuEbsStorageBuilder", "TofuEfsStorageBuilder", "TofuS3StorageBuilder",

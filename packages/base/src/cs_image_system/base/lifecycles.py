@@ -19,6 +19,9 @@ change to the runner.
 """
 from __future__ import annotations
 
+from cs_image_system.contract.constants import VCT
+from cs_image_system.contract.lifecycle import ExecutionLifecyclePhase
+
 # The lifecycles as data (the enum, the spec, the built-in phases and builder
 # classifications) are the contract's; this module is the registry of plugin
 # lifecycles over them.
@@ -30,9 +33,6 @@ from cs_image_system.contract.lifecycles import (
     LifecycleLike,
     LifecycleSpec,
 )
-
-from cs_image_system.contract.constants import VCT
-from cs_image_system.contract.lifecycle import ExecutionLifecyclePhase
 
 # Plugin-registered lifecycles, by name.
 _REGISTERED: dict[str, LifecycleSpec] = {}

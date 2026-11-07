@@ -19,7 +19,6 @@ import yaml
 
 from cs_image_system.base import template_utils as tu
 
-
 # --------------------------------------------------------------------------
 # interpolate_tree: value-based rendering, never the serialized text
 # --------------------------------------------------------------------------

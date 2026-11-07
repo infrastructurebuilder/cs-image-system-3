@@ -8,7 +8,6 @@ from cs_image_system.base.basic.builder_base_runtime import RuntimeBuilderBase
 from cs_image_system.base.models.cloud import Cloud
 from cs_image_system.base.models.cloud_builder import CloudBuilderModel
 
-
 Q1 = TypeVar("Q1", bound="CloudBuilderModel")
 CloudQ = TypeVar("CloudQ", bound="Cloud")
 

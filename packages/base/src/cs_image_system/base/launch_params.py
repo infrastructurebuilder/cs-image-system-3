@@ -25,29 +25,36 @@ gid, the enrollment, the declared userdata and the completion marker.
 """
 from __future__ import annotations
 
-
 import hashlib
 import logging
 from typing import TYPE_CHECKING, Any
 
-from .basic.builder_base_storage import MOUNT_MARK, StorageBuilderBase, mount_mark_line  # noqa: F401 - the mark is read here by name
+from cs_image_system.contract.lifecycles import Lifecycle
+from cs_image_system.contract.runtime import LAUNCH_DELIVERY_BOOT
+
+from . import generations
+from .basic.builder_base_storage import (  # noqa: F401 - the mark is read here by name
+    MOUNT_MARK,
+    StorageBuilderBase,
+    mount_mark_line,
+)
 from .capabilities import group_builder_of, storage_type_of
 from .launch_enrollment import enrollment_kind_for
-from . import generations
-from cs_image_system.contract.lifecycles import Lifecycle
 from .lineage import instance_follow_target
-from cs_image_system.contract.runtime import LAUNCH_DELIVERY_BOOT
 from .utils import apply_enabled, roots_on_runtime
 
 if TYPE_CHECKING:
-    from .run_context import RunContext
     from .models.instance import Instance
+    from .run_context import RunContext
 
 log = logging.getLogger(__name__)
 
 # The variable's name is the contract's vocabulary (`contract.launch_vocabulary`)
 from cs_image_system.contract.launch_vocabulary import (  # noqa: F401, E402 - re-exported
-    ENROLLMENT_TOKEN_VARIABLE, HOSTNAME_LABEL_MAX, hostname_problems)
+    ENROLLMENT_TOKEN_VARIABLE,
+    HOSTNAME_LABEL_MAX,
+    hostname_problems,
+)
 
 # Keys that may legitimately differ between generations of an instance's
 # launch params without meaning "replacement".
@@ -208,7 +215,7 @@ def compute_launch_params(ctx: "RunContext", instance: "Instance") -> dict[str, 
     session = rtb.session_mechanism() if rtb is not None else None
     delivery = str(rtb.launch_delivery()) if rtb is not None and hasattr(rtb, "launch_delivery") else LAUNCH_DELIVERY_BOOT
     hostname = canonical_hostname(ctx, instance)
-    from .alias_pool import alias_for   # lazy: alias_pool imports this module
+    from .alias_pool import alias_for  # lazy: alias_pool imports this module
     alias = alias_for(ctx, instance, hostname)     # a pool name, spent once, for a new machine
     machine_type = effective_machine_type(instance, rtb)
     return {
@@ -423,8 +430,12 @@ def forget_ephemerals(ctx: "RunContext", lifecycle: Lifecycle) -> None:
         return
     if not apply_enabled(ctx, "instances"):
         return
-    from .commands.verify_instance import (   # lazy: commands.verify_instance imports this module
-        ON_FAILURE_TEARDOWN, VerificationFailed, failure_policy, last_verification)
+    from .commands.verify_instance import (  # lazy: commands.verify_instance imports this module
+        ON_FAILURE_TEARDOWN,
+        VerificationFailed,
+        failure_policy,
+        last_verification,
+    )
     ms = ctx.meta_state
     failed: list[dict[str, Any]] = []
     for inst in ctx.instances:

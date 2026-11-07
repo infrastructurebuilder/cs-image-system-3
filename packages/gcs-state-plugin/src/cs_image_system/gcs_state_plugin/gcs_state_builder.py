@@ -6,11 +6,12 @@ from collections.abc import Callable, Mapping
 from typing import Any, TypeVar, cast
 
 from cs_image_system.base.basic.builder_base_state import StateBuilderBase
-from cs_image_system.contract.session import SessionStatus
+
 # a class-level session read, before any run is loaded and with no context
 # to reach a service through: the one kit import this plugin keeps (the
 # contract's committed exception)
 from cs_image_system.base.registry import current_registry
+from cs_image_system.contract.session import SessionStatus
 
 from .gcs_state_models import GCS_STATE, GcsStateBuilderModel
 

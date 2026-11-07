@@ -184,8 +184,8 @@ def protocol_for(classifier: Any) -> type | None:
     protocol for (an item model, an executable, a version checker). The
     loader runs ``assert_conforms`` against it when a plugin registers the
     class, so a shortfall is refused at load with the member named."""
-    from .constants import VCT
     from . import group, image, instance, modification, operating_system, runtime, state, storage, user
+    from .constants import VCT
     table: dict[Any, type] = {
         VCT.RUNTIME_BUILDER_MODEL: runtime.RuntimeBuilderModelProtocol,
         VCT.CLOUD_BUILDER_MODEL: runtime.CloudBuilderModelProtocol,

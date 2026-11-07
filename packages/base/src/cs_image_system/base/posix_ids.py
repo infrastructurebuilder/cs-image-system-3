@@ -35,7 +35,8 @@ from dataclasses import dataclass, field
 from typing import Iterable
 
 # The claim and its words are the contract's (`contract.identity_vocabulary`); this path keeps them.
-from cs_image_system.contract.identity_vocabulary import DEFERRED, Claim, ClaimKind as Kind  # noqa: F401, E402
+from cs_image_system.contract.identity_vocabulary import DEFERRED, Claim  # noqa: F401, E402
+from cs_image_system.contract.identity_vocabulary import ClaimKind as Kind
 
 #: a name groupadd and useradd take on every supported family: lower case, a
 #: letter or underscore first, at most 32 characters; the dot is allowed

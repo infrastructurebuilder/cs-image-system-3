@@ -2,16 +2,18 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from cs_image_system.contract.model_config import CSIS_MODEL_CONFIG
-from pydantic.dataclasses import dataclass  # validation at construction
 from enum import StrEnum
 from typing import Any, Callable
+
+from pydantic.dataclasses import dataclass  # validation at construction
 
 from cs_image_system.base.models.group import Group
 from cs_image_system.base.models.group_builder import GroupBuilderModel
 from cs_image_system.base.models.user import User
 from cs_image_system.base.models.user_builder import UserBuilderModel
-from .okta_user import OKTA_PROFILE_FIELDS
+from cs_image_system.base.run_context import current_context  # a model holds no context; it fetches the current one
+from cs_image_system.contract.context import RunContextProtocol
+from cs_image_system.contract.model_config import CSIS_MODEL_CONFIG
 from cs_image_system.contract.names import super_safe_name as ssn
 from cs_image_system.hashicorp_utils.blocks import (
     DataSpec,
@@ -20,8 +22,8 @@ from cs_image_system.hashicorp_utils.blocks import (
     render_blocks,
 )
 from cs_image_system.hashicorp_utils.hashicorp import TerraformGenerator
-from cs_image_system.contract.context import RunContextProtocol
-from cs_image_system.base.run_context import current_context   # a model holds no context; it fetches the current one
+
+from .okta_user import OKTA_PROFILE_FIELDS
 
 OKTATF: str = "okta-tf"
 OKTATF_RO: str = "okta-tf-ro"

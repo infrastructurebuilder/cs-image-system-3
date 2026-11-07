@@ -26,10 +26,9 @@ from pathlib import Path
 
 import pytest
 import yaml
+from harness import FIXTURE_CONFIG, copy_config, load_context, reset_singletons, stub_environment
 
 from cs_image_system.contract.image import QUERY_KEYS, ImageQuery
-
-from harness import FIXTURE_CONFIG, copy_config, load_context, reset_singletons, stub_environment
 
 AWS_RUNTIME, GCE_RUNTIME = "aws-east2-runtime", "gcloud-east1"
 ALMA_AWS_ACCOUNT = "764336703387"
@@ -154,6 +153,7 @@ def test_the_split_catalog_merges_back_to_exactly_what_the_one_file_held():
 ])
 def test_each_runtime_ships_only_its_own_blocks(package: str, runtime_type: str):
     import importlib
+
     from cs_image_system.base.image_sources import structure_entries
     module = importlib.import_module(package)
     cls = next(c for c in vars(module).values()

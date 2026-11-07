@@ -16,6 +16,7 @@ from __future__ import annotations
 from dataclasses import field
 
 import pytest
+from harness import FIXTURE_CONFIG, V2Run
 from pydantic import ValidationError
 from pydantic.dataclasses import dataclass
 
@@ -31,7 +32,6 @@ from cs_image_system.base.encryption import (
     rotate_text,
 )
 from cs_image_system.contract.model_config import CSIS_MODEL_CONFIG
-from harness import FIXTURE_CONFIG, V2Run
 
 
 def _keypair():
@@ -158,6 +158,7 @@ def test_the_fixture_rosters_are_encrypted_and_load_to_the_same_people(tmp_path,
 
 def test_the_cli_encrypts_and_decrypts_against_the_configurations_recipients(tmp_path, monkeypatch):
     from typer.testing import CliRunner
+
     from cs_image_system.system.cli import app
     monkeypatch.setenv(IDENTITY_ENV, str(FIXTURE_CONFIG / ".age-identity"))
     r = CliRunner().invoke(app, ["--root-dir", str(FIXTURE_CONFIG), "encrypt", "s3cret"])

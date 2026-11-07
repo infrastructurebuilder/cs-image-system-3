@@ -5,19 +5,17 @@
 from __future__ import annotations
 
 from abc import abstractmethod
+from pathlib import Path
+from typing import TYPE_CHECKING, Any, TypeVar
 from warnings import deprecated
 
+from cs_image_system.contract.image import ImageBuilderProtocol
 from cs_image_system.contract.names import safe_name
-from pathlib import Path
-from typing import Any, TypeVar
 
-
-from typing import TYPE_CHECKING
-
+from ..models.base_image import BaseImage
 from ..models.image import Image
 from ..models.image_builder_model import ImageBuilderModel
-from cs_image_system.contract.image import ImageBuilderProtocol
-from ..models.base_image import BaseImage
+
 if TYPE_CHECKING:
     from .builder_base_os import OsBuilderBase
 
@@ -25,8 +23,8 @@ from cs_image_system.base.registry import current_registry
 from cs_image_system.contract.constants import DEFAULT, VCT
 from cs_image_system.contract.lifecycle import ExecutionLifecyclePhase
 
-from .builder_base import BuilderBase
 from ..lineage import bake_reason
+from .builder_base import BuilderBase
 
 TIMAGE = TypeVar("TIMAGE", bound=ImageBuilderModel)
 class ImageBuilderBase(BuilderBase[TIMAGE], ImageBuilderProtocol):

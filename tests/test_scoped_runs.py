@@ -87,6 +87,7 @@ def test_apply_check_refuses_when_flag_is_off_now(v2, tmp_path, capsys):
     """Finding 24 end to end: a script generated under yesterday's flags asks
     apply-check at execution time, and TODAY's config says no."""
     import typer
+
     from cs_image_system.system.cli import apply_check_command
     _set_flag_in_file(v2, "apply_storage", False)
     os.chdir(v2.config_root / "cfg")  # anywhere under the config root
@@ -171,8 +172,8 @@ def test_storage_transitions_are_recorded_only_for_roots_that_applied(v2):
     """The after-apply storage hook reads the list the same way: a copy
     without meta-state has every storage pending None -> active; with the
     flag listing the AWS runtime alone, only the AWS storages become real."""
-    from cs_image_system.contract.lifecycles import Lifecycle
     from cs_image_system.base.read_models import record_storage_transitions
+    from cs_image_system.contract.lifecycles import Lifecycle
     assert v2.run(["storage"], apply=False).ok
     ms = v2.ctx.meta_state
     v2.ctx.config["apply_storage"] = ["aws-east2-runtime"]
@@ -191,6 +192,7 @@ def test_apply_check_refuses_an_unlisted_root(v2, capsys):
     generation does: an unlisted root is refused, a root listed by its
     runtime alias passes, and an unscoped check treats the list as 'on'."""
     import typer
+
     from cs_image_system.system.cli import apply_check_command
     _set_flag_in_file(v2, "apply_storage", "[gcloud-east1]")
     os.chdir(v2.config_root / "cfg")

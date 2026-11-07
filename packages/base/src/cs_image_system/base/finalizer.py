@@ -40,9 +40,10 @@ from typing import TYPE_CHECKING, Any
 
 from cs_image_system.contract.lifecycle import ExecutionLifecyclePhase
 from cs_image_system.contract.lifecycles import LifecycleLike
+
+from .encryption import is_marker
 from .in_process import run_executable
 from .lifecycles import all_lifecycles
-from .encryption import is_marker
 from .utils import in_directory
 
 if TYPE_CHECKING:

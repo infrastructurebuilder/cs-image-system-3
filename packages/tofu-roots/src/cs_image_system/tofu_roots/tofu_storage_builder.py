@@ -28,18 +28,23 @@ from __future__ import annotations
 
 from typing import Any, TypeVar
 
-from cs_image_system.contract.names import super_safe_name
-from cs_image_system.contract.group import GroupBuilderProtocol
 from cs_image_system.base.basic.builder_base_storage import StorageBuilderBase
 from cs_image_system.base.models.executable import ExecutableModel
-from cs_image_system.base.models.storage import STORAGE_STATE_ACTIVE, STORAGE_STATE_ARCHIVED, STORAGE_STATE_DESTROYED, Storage
+from cs_image_system.base.models.storage import (
+    STORAGE_STATE_ACTIVE,
+    STORAGE_STATE_ARCHIVED,
+    STORAGE_STATE_DESTROYED,
+    Storage,
+)
 from cs_image_system.contract.assets import AssetSet
 from cs_image_system.contract.executables import CFExecutables, ExecutableProtocol
+from cs_image_system.contract.group import GroupBuilderProtocol
 from cs_image_system.contract.hcl import HclRaw, render_module_call
 from cs_image_system.contract.lifecycle import ExecutionLifecyclePhase
-
+from cs_image_system.contract.names import super_safe_name
 from cs_image_system.hashicorp_utils.blocks import OutputSpec, Raw, render_blocks
 from cs_image_system.hashicorp_utils.collector import TerraformCollector, terraform_collector
+
 from .roots import TerraformRootMixin
 from .tofu_models import TofuStorageBuilderModelBase
 

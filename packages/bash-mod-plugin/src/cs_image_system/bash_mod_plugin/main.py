@@ -3,9 +3,11 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import logging
-from .bash_builder import  BashModBuilder, BashVersionChecker
-from .bash_models import BASH_BUILDER, BASH_EXECUTABLE, BashModItemModel, BashModBuilderModel
+
 from cs_image_system.base.basic.abstract_plugin_metadata import AbstractPluginMetadata
+
+from .bash_builder import BashModBuilder, BashVersionChecker
+from .bash_models import BASH_BUILDER, BASH_EXECUTABLE, BashModBuilderModel, BashModItemModel
 
 log = logging.getLogger(__name__)
 

@@ -14,9 +14,9 @@ import shlex
 from pathlib import Path
 
 import yaml
+from harness import V2Run, copy_config
 
 from cs_image_system.base.os_types import os_type_for_family
-from harness import V2Run, copy_config
 
 ANSIBLE = "ansible-default"
 

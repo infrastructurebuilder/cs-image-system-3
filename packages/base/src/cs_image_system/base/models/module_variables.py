@@ -18,7 +18,7 @@ with the item's over the builder's.
 """
 from __future__ import annotations
 
-from dataclasses import fields, field
+from dataclasses import field, fields
 from typing import Any
 
 from pydantic.dataclasses import dataclass

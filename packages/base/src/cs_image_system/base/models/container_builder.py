@@ -13,13 +13,13 @@ from __future__ import annotations
 from dataclasses import field
 from typing import Any
 
-from cs_image_system.contract.runtime import ContainerBuilderModelProtocol
 from pydantic.dataclasses import dataclass  # validation at construction
 
-from cs_image_system.contract.constants import VCT
 from cs_image_system.base.encryption import EncryptedStr
 from cs_image_system.base.models.runtime import RuntimeBuilderModel
+from cs_image_system.contract.constants import VCT
 from cs_image_system.contract.model_config import CSIS_MODEL_CONFIG
+from cs_image_system.contract.runtime import ContainerBuilderModelProtocol
 
 #: The network every daemon has when a runtime names none.
 DEFAULT_CONTAINER_NETWORK = "bridge"

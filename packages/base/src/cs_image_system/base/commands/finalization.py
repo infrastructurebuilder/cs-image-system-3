@@ -3,9 +3,11 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import logging
+
 log = logging.getLogger(__name__)
 
 from cs_image_system.contract.lifecycle import ExecutionLifecyclePhase
+
 from ..global_context import GlobalTypeContext
 
 

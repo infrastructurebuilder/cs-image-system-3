@@ -20,40 +20,7 @@ from typing import TYPE_CHECKING, Annotated
 import typer
 from rich.logging import RichHandler
 
-from cs_image_system.contract.commands import COMMANDS_ENTRY_POINT_GROUP, VERIFY_LOGIN, CommandMount
-from cs_image_system.base.commands.login_proof import verify_login_command
-from cs_image_system.contract.lifecycles import Lifecycle
-from cs_image_system.base.lifecycles import all_lifecycles, parse_lifecycles
-from cs_image_system.base.loader import load_plugins
-from cs_image_system.base.utils import is_base, in_directory
-from cs_image_system.base.commands.run_lifecycles import run_lifecycles, load_hook_plugins, validate_only
-from cs_image_system.base.commands.runtime_facts import runtime_bake_selection, describe_runtime, emptiness
-from cs_image_system.base.commands.upgrade import upgrade
-from cs_image_system.base.commands.preflight import (
-    session_readiness,
-    empty_environment_credentials,
-    NOT_JUDGED,
-    NOT_JUDGED_WHY,
-    session_lines,
-)
-from cs_image_system.base.network_facts import NetworkFactsError
-from cs_image_system.base.encryption import (
-    encrypt_fields_in_text,
-    encrypt_value,
-    recipients_from_config,
-    decrypt_fields_in_text,
-    decrypt_marker,
-    is_marker,
-    decrypt_tree,
-    decrypted_plaintexts,
-    reset_decrypted_plaintexts,
-    INLINE_MARKER_RE,
-    identities_from_env,
-    rotate_text,
-)
-from cs_image_system.base.materialize import PRIVATE_DIRNAME, ensure_ignored, materialize, mirror_path, sync_back
-from cs_image_system.base.modules import installed_modules, materialise_modules
-from cs_image_system.system.starters import changes_since as _changes_since, init_config
+from cs_image_system.base import tofu_lock
 from cs_image_system.base.bootstrap import (
     ANSWERS_FILE,
     Refused,
@@ -65,7 +32,65 @@ from cs_image_system.base.bootstrap import (
     write_answers,
 )
 from cs_image_system.base.bootstrap.hcl import apply_env
+from cs_image_system.base.commands.dispose import dispose_images
 from cs_image_system.base.commands.emission import config_drift, runtime_unchanged
+from cs_image_system.base.commands.gate import (
+    gate_plan,
+    plan_json_from_planfile,
+    planfile_is_stale,
+    planned_destroys,
+    sanctioned_addresses,
+)
+from cs_image_system.base.commands.identity_gids import export_gids
+from cs_image_system.base.commands.load_failures import classify_load_failure
+from cs_image_system.base.commands.login_proof import verify_login_command
+from cs_image_system.base.commands.preflight import (
+    NOT_JUDGED,
+    NOT_JUDGED_WHY,
+    empty_environment_credentials,
+    session_lines,
+    session_readiness,
+)
+from cs_image_system.base.commands.relabel import relabel
+from cs_image_system.base.commands.restamp import restamp
+from cs_image_system.base.commands.run_lifecycles import load_hook_plugins, run_lifecycles, validate_only
+from cs_image_system.base.commands.runtime_facts import describe_runtime, emptiness, runtime_bake_selection
+from cs_image_system.base.commands.state_migration import backup, begin, finish
+from cs_image_system.base.commands.unmount import read_receipt, unmount_storage
+from cs_image_system.base.commands.upgrade import upgrade
+from cs_image_system.base.commands.verify_instance import VerificationFailed, assert_last_verification, verify_instance
+from cs_image_system.base.encryption import (
+    INLINE_MARKER_RE,
+    decrypt_fields_in_text,
+    decrypt_marker,
+    decrypt_tree,
+    decrypted_plaintexts,
+    encrypt_fields_in_text,
+    encrypt_value,
+    identities_from_env,
+    is_marker,
+    recipients_from_config,
+    reset_decrypted_plaintexts,
+    rotate_text,
+)
+from cs_image_system.base.global_context import read_config_and_transform
+from cs_image_system.base.identity_attributes import (
+    AttributeApplyDisabled,
+    apply,
+    attributes_plan,
+    read_attributes_plan,
+)
+from cs_image_system.base.identity_attributes import (
+    probe as probe_fn,
+)
+from cs_image_system.base.in_process import names_subcommand, register_system_cli_runner
+from cs_image_system.base.lifecycles import all_lifecycles, parse_lifecycles
+from cs_image_system.base.loader import load_plugins
+from cs_image_system.base.materialize import PRIVATE_DIRNAME, ensure_ignored, materialize, mirror_path, sync_back
+from cs_image_system.base.meta_state import commit_meta_state
+from cs_image_system.base.mod_tests import run_mod_tests
+from cs_image_system.base.modules import installed_modules, materialise_modules
+from cs_image_system.base.network_facts import NetworkFactsError
 from cs_image_system.base.public_safe import (
     allow_from_config,
     candidate_files,
@@ -76,37 +101,14 @@ from cs_image_system.base.public_safe import (
     scan_tree,
     staged_paths,
 )
-from cs_image_system.base.mod_tests import run_mod_tests
 from cs_image_system.base.release import ReleaseError, declared_release_targets, release
-from cs_image_system.base.commands.state_migration import backup, begin, finish
-from cs_image_system.base.commands.gate import (
-    gate_plan,
-    plan_json_from_planfile,
-    planfile_is_stale,
-    planned_destroys,
-    sanctioned_addresses,
-)
-from cs_image_system.base.commands.unmount import read_receipt, unmount_storage
-from cs_image_system.base.utils import apply_flag_allows
-from cs_image_system.base.commands.identity_gids import export_gids
-from cs_image_system.base.state_query import DRIFT_STALE, query_state, write_state_report, import_foreign
-from cs_image_system.base.commands.restamp import restamp
-from cs_image_system.base.meta_state import commit_meta_state
-from cs_image_system.base.commands.relabel import relabel
-from cs_image_system.base.commands.verify_instance import VerificationFailed, verify_instance, assert_last_verification
-from cs_image_system.base.commands.dispose import dispose_images
-from cs_image_system.base.identity_attributes import (
-    AttributeApplyDisabled,
-    apply,
-    attributes_plan,
-    probe as probe_fn,
-    read_attributes_plan,
-)
-from cs_image_system.base import tofu_lock
-from cs_image_system.base.global_context import read_config_and_transform
-from cs_image_system.base.commands.load_failures import classify_load_failure
-from cs_image_system.base.in_process import names_subcommand, register_system_cli_runner
+from cs_image_system.base.state_query import DRIFT_STALE, import_foreign, query_state, write_state_report
+from cs_image_system.base.utils import apply_flag_allows, in_directory, is_base
+from cs_image_system.contract.commands import COMMANDS_ENTRY_POINT_GROUP, VERIFY_LOGIN, CommandMount
 from cs_image_system.contract.constants import SYSTEM_CLI
+from cs_image_system.contract.lifecycles import Lifecycle
+from cs_image_system.system.starters import changes_since as _changes_since
+from cs_image_system.system.starters import init_config
 
 if TYPE_CHECKING:
     from cs_image_system.base.global_context import GlobalTypeContext
@@ -534,7 +536,8 @@ def materialize_command(
         raise typer.Exit(code=1) from None
 
 
-from cs_image_system.system.starters import DEFAULT_STARTER as _DEFAULT_STARTER, STARTERS as _STARTERS
+from cs_image_system.system.starters import DEFAULT_STARTER as _DEFAULT_STARTER
+from cs_image_system.system.starters import STARTERS as _STARTERS
 
 # the help is built from the list the command accepts, so it cannot fall behind it
 _STARTER_HELP = (f"the starter tree: {', '.join(_STARTERS)}; a new tree defaults to {_DEFAULT_STARTER}, "

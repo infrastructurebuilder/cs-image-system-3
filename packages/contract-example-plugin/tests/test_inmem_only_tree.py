@@ -12,10 +12,10 @@ import re
 from pathlib import Path
 
 import yaml
+from harness import V2Run, copy_config
 
 from cs_image_system.contract.names import super_safe_name
 from cs_image_system.contract_example_plugin.models import INMEM
-from harness import V2Run, copy_config
 
 BACKEND = "scratch"
 

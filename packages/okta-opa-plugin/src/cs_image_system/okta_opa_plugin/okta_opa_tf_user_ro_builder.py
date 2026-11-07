@@ -12,10 +12,10 @@ refuses ``managed: true``.
 """
 
 
-from .okta_opa_tf_user_builder import OktaTfUserBuilder
-from .okta_opa_tf_user_models import OktaTfUserRoBuilderModel
 from cs_image_system.base.models.user import User
 
+from .okta_opa_tf_user_builder import OktaTfUserBuilder
+from .okta_opa_tf_user_models import OktaTfUserRoBuilderModel
 from .okta_tf_models import OKTATF, OKTATF_RO
 
 

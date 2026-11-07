@@ -2,15 +2,17 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from typing import Annotated, Any
-from dataclasses import field
-from pydantic import field_validator, Field
-from cs_image_system.contract.model_config import CSIS_MODEL_CONFIG
-from pydantic.dataclasses import dataclass  # validation at construction
 import logging
+from dataclasses import field
+from typing import Annotated, Any
+
+from pydantic import Field, field_validator
+from pydantic.dataclasses import dataclass  # validation at construction
+
+from cs_image_system.contract.fields import fk_field, parent_field, templated_field
+from cs_image_system.contract.model_config import CSIS_MODEL_CONFIG
 
 from ..encryption import EncryptedStr
-from cs_image_system.contract.fields import fk_field, parent_field, templated_field
 from .mixins import ParentPropertyHolding, SelfInjectedName
 
 log = logging.getLogger(__name__)

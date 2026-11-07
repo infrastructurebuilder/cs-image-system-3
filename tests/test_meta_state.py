@@ -22,7 +22,6 @@ import subprocess
 from pathlib import Path
 
 import pytest
-
 from harness import V2Run, copy_config, modules_beside
 
 # module sources are filesystem paths (relative or absolute); provider
@@ -216,6 +215,7 @@ def test_meta_state_write_is_atomic(tmp_path, monkeypatch):
     """A record is written whole beside its file and renamed over it: a
     failure leaves the old record standing and no temporary behind."""
     import os
+
     from cs_image_system.base import meta_state
     ms = meta_state.MetaState(tmp_path / "meta-state")
     target = tmp_path / "meta-state" / "pins.yaml"

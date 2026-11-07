@@ -17,16 +17,16 @@ the session instance profile is wired when the runtime offers one.
 import logging
 from typing import Any, TypeVar
 
-from cs_image_system.contract.names import super_safe_name
-from cs_image_system.contract.launch_vocabulary import ENROLLMENT_TOKEN_VARIABLE
 from cs_image_system.base.models.instance import Instance
 from cs_image_system.contract.constants import OOPS_DEFAULTS
 from cs_image_system.contract.hcl import HclRaw, hcl_expr
+from cs_image_system.contract.launch_vocabulary import ENROLLMENT_TOKEN_VARIABLE
+from cs_image_system.contract.lineage_vocabulary import CONFIG_TAG
+from cs_image_system.contract.names import super_safe_name
 from cs_image_system.hashicorp_utils.collector import TerraformCollector
 from cs_image_system.tofu_roots.tofu_instance_builder import TofuInstanceBuilderBase, TofuVersionChecker
 
 from .tf_instance_models import TOFU, TofuInstanceBuilderModel
-from cs_image_system.contract.lineage_vocabulary import CONFIG_TAG
 
 __all__ = ["TofuInstanceBuilder", "TofuVersionChecker"]
 

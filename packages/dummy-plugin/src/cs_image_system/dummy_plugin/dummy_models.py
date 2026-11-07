@@ -2,13 +2,11 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from cs_image_system.contract.model_config import CSIS_MODEL_CONFIG
 from pydantic.dataclasses import dataclass  # validation at construction
-
-
 
 from cs_image_system.base.models.group_builder import GroupBuilderModel
 from cs_image_system.base.models.user_builder import UserBuilderModel
+from cs_image_system.contract.model_config import CSIS_MODEL_CONFIG
 
 DUMMY: str = "dummy"  
 @dataclass(kw_only=True, config=CSIS_MODEL_CONFIG)

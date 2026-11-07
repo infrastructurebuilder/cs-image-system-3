@@ -30,21 +30,20 @@ import logging
 import subprocess
 from typing import Any, TypeVar
 
-from cs_image_system.contract.names import super_safe_name
 from cs_image_system.base.basic.abstract_version_checker import AbstractVersionChecker
 from cs_image_system.base.basic.builder_base_instance import InstanceBuilderBase
-from cs_image_system.contract.launch_vocabulary import ENROLLMENT_TOKEN_VARIABLE
 from cs_image_system.base.models.instance import Instance
 from cs_image_system.contract.assets import AssetSet
 from cs_image_system.contract.executables import CFExecutables, ExecutableProtocol
 from cs_image_system.contract.hcl import HclRaw, render_module_call
+from cs_image_system.contract.launch_vocabulary import ENROLLMENT_TOKEN_VARIABLE, ON_FAILURE_TEARDOWN
 from cs_image_system.contract.lifecycle import ExecutionLifecyclePhase
-
+from cs_image_system.contract.lifecycles import Lifecycle
+from cs_image_system.contract.names import super_safe_name
 from cs_image_system.hashicorp_utils.collector import TerraformCollector, TerraformVariable, terraform_collector
+
 from .roots import TerraformRootMixin
 from .tofu_models import TOFU_EXECUTABLE, TofuInstanceBuilderModelBase
-from cs_image_system.contract.launch_vocabulary import ON_FAILURE_TEARDOWN
-from cs_image_system.contract.lifecycles import Lifecycle
 
 log = logging.getLogger(__name__)
 

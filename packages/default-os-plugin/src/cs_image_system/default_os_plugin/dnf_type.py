@@ -4,7 +4,6 @@
 
 from collections.abc import Sequence
 
-from cs_image_system.contract.model_config import CSIS_MODEL_CONFIG
 from pydantic.dataclasses import dataclass  # validation at construction
 
 from cs_image_system.base.models.os_builder_model import OsBuilderModel
@@ -15,6 +14,7 @@ from cs_image_system.base.models.update_policy import (
     POLICY_SECURITY,
     UpdatePolicy,
 )
+from cs_image_system.contract.model_config import CSIS_MODEL_CONFIG
 
 from .helpers import rpm_or_dpkg_present_check
 

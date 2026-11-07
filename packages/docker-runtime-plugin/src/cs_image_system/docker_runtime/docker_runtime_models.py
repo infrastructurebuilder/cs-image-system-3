@@ -10,15 +10,16 @@ import logging
 import os
 from typing import Any
 
-from cs_image_system.contract.constants import DEFAULT, VCT
-from cs_image_system.contract.fields import fk_field
-from cs_image_system.contract.model_config import CSIS_MODEL_CONFIG
 from pydantic.dataclasses import dataclass  # validation at construction
 
 from cs_image_system.base.models.container_builder import ContainerBuilderModel
-from .docker_names import repository_name
+from cs_image_system.contract.constants import DEFAULT, VCT
+from cs_image_system.contract.fields import fk_field
 from cs_image_system.contract.hcl import emitted as emit
+from cs_image_system.contract.model_config import CSIS_MODEL_CONFIG
 from cs_image_system.contract.secrets import is_marker, open_marker
+
+from .docker_names import repository_name
 
 log = logging.getLogger(__name__)
 

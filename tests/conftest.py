@@ -14,7 +14,6 @@ wins over this fixture).
 from __future__ import annotations
 
 import pytest
-
 from starter_support import rendered_starters  # noqa: F401 - the session fixture every starter-reading test may take
 
 

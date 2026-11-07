@@ -24,10 +24,10 @@ from pathlib import Path
 
 import pytest
 import yaml
-
-from cs_image_system.contract.constants import RUN_LOCAL_FILENAMES
-from cs_image_system.base.meta_state import commit_meta_state
 from harness import REPO, V2Run
+
+from cs_image_system.base.meta_state import commit_meta_state
+from cs_image_system.contract.constants import RUN_LOCAL_FILENAMES
 
 GOLDEN = REPO / "tests" / "fixtures" / "v2_golden"
 EXAMPLES = REPO / "docs" / "examples"

@@ -10,8 +10,8 @@ resolve to an int of at least Group.MIN_GID.
 """
 import pytest
 
-from cs_image_system.contract.constants import DEFAULT
 from cs_image_system.base.models.group import Group
+from cs_image_system.contract.constants import DEFAULT
 
 
 def _group(**kwargs) -> Group:

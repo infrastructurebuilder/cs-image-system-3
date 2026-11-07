@@ -19,11 +19,10 @@ from pathlib import Path
 
 import pytest
 
-from tests.harness import V2Run
-
 from cs_image_system.base import state_query as sq
 from cs_image_system.base.lineage import TAG_PREFIX
 from cs_image_system.contract.lifecycles import Lifecycle
+from tests.harness import V2Run
 
 
 def _tags(series: str, run: str = "run-1", parent: str = "external", fp: str = "abc") -> dict[str, str]:

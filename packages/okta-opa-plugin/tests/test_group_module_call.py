@@ -5,8 +5,9 @@
 """Pins the module-call shape emitted for okta groups (tfmodules/okta_opa_module)."""
 from types import SimpleNamespace
 
-from cs_image_system.okta_opa_plugin.okta_opa_tf_group_builder import OktaTfGroupBuilder
 from harness import bare_run
+
+from cs_image_system.okta_opa_plugin.okta_opa_tf_group_builder import OktaTfGroupBuilder
 
 
 def _stub_builder(*, account_discovery=True, gateway_selector=None):
@@ -98,6 +99,7 @@ def test_effective_gateway_selector_none_when_config_unset(monkeypatch):
 def test_model_account_discovery_defaults_true():
     """Pins the OktaGroupBuilderModel field default."""
     import dataclasses
+
     from cs_image_system.okta_opa_plugin.okta_tf_models import OktaGroupBuilderModel
     fields = {f.name: f for f in dataclasses.fields(OktaGroupBuilderModel)}
     assert fields["account_discovery"].default is True

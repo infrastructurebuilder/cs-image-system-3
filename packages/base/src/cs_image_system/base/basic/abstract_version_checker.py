@@ -2,13 +2,13 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from cs_image_system.contract.constants import VCT
-
-from ..models.executable import ExecutableModel
-
 import logging
 import re
 import subprocess
+
+from cs_image_system.contract.constants import VCT
+
+from ..models.executable import ExecutableModel
 
 log = logging.getLogger(__name__)
 

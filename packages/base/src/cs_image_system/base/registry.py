@@ -3,18 +3,21 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import logging
-from importlib.metadata import entry_points
-from typing import Any, NamedTuple
 import operator
 from functools import reduce
+from importlib.metadata import entry_points
+from typing import Any, NamedTuple
 
-
-from cs_image_system.contract.core import BuilderProtocol, NameTypedProtocol, PluginArtifactProtocol, PluginMetadataProtocol
+from cs_image_system.contract.core import (
+    BuilderProtocol,
+    NameTypedProtocol,
+    PluginArtifactProtocol,
+    PluginMetadataProtocol,
+)
 
 log = logging.getLogger(__name__)
 
 from cs_image_system.contract.constants import DEFAULT, OOPS_DEFAULTS, VCT
-
 
 #: What joins a namespace to a name in the qualified form of a registration
 #: (``<namespace>/<name>``). No canonical name and no alias carries it: the

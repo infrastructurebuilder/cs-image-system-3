@@ -52,30 +52,37 @@ import functools
 import json
 import logging
 from dataclasses import field
-from cs_image_system.contract.model_config import CSIS_MODEL_CONFIG
-from pydantic.dataclasses import dataclass  # validation at construction
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast
 
-from cs_image_system.contract.group import (WORKLOAD_CONNECTION_ABSENT, WORKLOAD_CONNECTION_INACTIVE,
-                                            WORKLOAD_CONNECTION_UNREAD, WORKLOAD_POLICY_ABSENT,
-                                            WORKLOAD_POLICY_DIVERGED, WORKLOAD_ROLE_ABSENT)
+from pydantic.dataclasses import dataclass  # validation at construction
 
+from cs_image_system.contract.constants import STATE_REPORT_FILENAME
+from cs_image_system.contract.group import (
+    WORKLOAD_CONNECTION_ABSENT,
+    WORKLOAD_CONNECTION_INACTIVE,
+    WORKLOAD_CONNECTION_UNREAD,
+    WORKLOAD_POLICY_ABSENT,
+    WORKLOAD_POLICY_DIVERGED,
+    WORKLOAD_ROLE_ABSENT,
+)
+from cs_image_system.contract.model_config import CSIS_MODEL_CONFIG
+
+from . import power_state
 from .basic.builder_base_group import GroupBuilderBase
-from .capabilities import group_builder_of
 from .basic.builder_base_runtime import RuntimeBuilderBase
 from .basic.builder_base_storage import StorageBuilderBase
-from cs_image_system.contract.constants import STATE_REPORT_FILENAME
+from .capabilities import group_builder_of
+from .commands.verify_instance import failure_policy, last_verification, teardown_due
 from .lineage import CONFIG_TAG, TAG_PREFIX, belongs_to_another_configuration
 from .meta_state import assert_public_safe
-from . import power_state
 from .models.storage import STORAGE_STATE_ACTIVE, STORAGE_STATE_DESTROYED
-from .commands.verify_instance import failure_policy, last_verification, teardown_due
 from .provider_aliases import instance_identity_notes
 
 if TYPE_CHECKING:
-    from .global_context import GlobalTypeContext
     from cs_image_system.contract.lifecycles import Lifecycle
+
+    from .global_context import GlobalTypeContext
 
 log = logging.getLogger(__name__)
 

@@ -16,7 +16,11 @@ from cs_image_system.base.models.container_builder import ContainerMachineType
 from cs_image_system.contract.image import PSISourceKind
 from cs_image_system.docker_runtime.docker_provider_specific_image import DockerProviderSpecificImage
 from cs_image_system.tf_docker_plugin.tf_docker_instance_builder import (
-    TofuDockerInstanceBuilder, cpus_as_read_back, generation_of, memory_mb)
+    TofuDockerInstanceBuilder,
+    cpus_as_read_back,
+    generation_of,
+    memory_mb,
+)
 from cs_image_system.tf_docker_plugin.tf_docker_storage_builder import TofuDockerVolumeStorageBuilder, volume_name
 
 ID = "sha256:" + "a" * 64

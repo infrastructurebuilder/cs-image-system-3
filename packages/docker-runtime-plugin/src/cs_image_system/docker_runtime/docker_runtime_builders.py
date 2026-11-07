@@ -18,26 +18,36 @@ from typing import Any
 
 from cs_image_system.base.basic.abstract_version_checker import AbstractVersionChecker
 from cs_image_system.base.basic.builder_base_container import ContainerBuilderBase
+from cs_image_system.base.models.executable import ExecutableModel
 from cs_image_system.base.models.os_builder_runtime_config import OSBuilderBaseImageBuilderSubconfig
 from cs_image_system.base.models.provider_specific_image import ProviderSpecificImage
 from cs_image_system.contract import power_state
 from cs_image_system.contract.constants import VCT
 from cs_image_system.contract.core import PluginArtifactProtocol
 from cs_image_system.contract.image import ImageQuery
+from cs_image_system.contract.image_sources import container_reference
+from cs_image_system.contract.launch_vocabulary import LAUNCH_MARKER_PATH
+from cs_image_system.contract.lineage_vocabulary import CONFIG_TAG, TAG_PREFIX
 from cs_image_system.contract.runtime import LAUNCH_DELIVERY_SESSION
+from cs_image_system.contract.secrets import is_marker, open_marker
 from cs_image_system.contract.session import LoadFailureReport, SessionStatus
 
-from .docker_names import (full_id, is_digest_reference, is_image_id, label_key_problem, movable_tag,
-                           parse_movable_tag, same_repository, short_id, tag_name, tag_problem)
+from .docker_names import (
+    full_id,
+    is_digest_reference,
+    is_image_id,
+    label_key_problem,
+    movable_tag,
+    parse_movable_tag,
+    same_repository,
+    short_id,
+    tag_name,
+    tag_problem,
+)
+from .docker_packer_source import DOCKER_SOURCE, bake_container_name, docker_source, docker_tag_post_processor
 from .docker_provider_specific_image import DockerProviderSpecificImage
 from .docker_runtime_models import DockerContainerBuilderModel
-from cs_image_system.contract.secrets import is_marker, open_marker
-from cs_image_system.contract.image_sources import container_reference
 from .local_target import make_local_target
-from cs_image_system.contract.lineage_vocabulary import TAG_PREFIX, CONFIG_TAG
-from cs_image_system.base.models.executable import ExecutableModel
-from cs_image_system.contract.launch_vocabulary import LAUNCH_MARKER_PATH
-from .docker_packer_source import bake_container_name, DOCKER_SOURCE, docker_source, docker_tag_post_processor
 
 DOCKER_RUNTIME: str = "docker"
 #: the keys of the system's image-query vocabulary a daemon can answer: a

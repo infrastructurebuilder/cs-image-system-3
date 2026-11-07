@@ -32,12 +32,13 @@ from __future__ import annotations
 
 import dataclasses
 import os
-from cs_image_system.contract.model_config import CSIS_MODEL_CONFIG
-from pydantic.dataclasses import dataclass  # validation at construction
 from datetime import datetime, timedelta, timezone
 from typing import Any, Callable, Mapping, cast
 
+from pydantic.dataclasses import dataclass  # validation at construction
+
 from cs_image_system.contract.constants import VCT
+from cs_image_system.contract.model_config import CSIS_MODEL_CONFIG
 from cs_image_system.contract.session import SessionStatus
 
 DEFAULT_EXPECTED_RUN_MINUTES = 30

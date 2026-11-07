@@ -16,48 +16,31 @@ everything and loads nothing; the loading lives here.
 from __future__ import annotations
 
 import copy
-from collections.abc import Callable, Iterable, Mapping, Sequence
-from dataclasses import is_dataclass
-from cs_image_system.contract.model_config import CSIS_MODEL_CONFIG
-from pydantic.dataclasses import dataclass  # validation at construction
 import logging
 import os
-from pathlib import Path
+from collections.abc import Callable, Iterable, Mapping, Sequence
+from dataclasses import is_dataclass
 from datetime import datetime
+from pathlib import Path
 from pprint import pformat
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
 import typer
 import yaml
+from pydantic.dataclasses import dataclass  # validation at construction
 
 from cs_image_system.base.models.base_image import BaseImage
+from cs_image_system.contract.model_config import CSIS_MODEL_CONFIG
 
+from .models.ia_config import IAConfig
+from .models.user import User
 from .orchestrator import Orchestrator, TemplateResolver
 
-from .models.user import User
-from .models.ia_config import IAConfig
-from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from .basic.builder_base_image import ImageBuilderBase
     from .basic.builder_base_instance import InstanceBuilderBase
     from .basic.builder_base_mod import ModBuilderBase
     from .basic.builder_base_runtime import RuntimeBuilderBase
-from . import registry
-from .loader import load_plugins
-from .template_utils import read_and_preprocess_yaml_files, string_stage
-from .encryption import decrypt_tree, decrypted_plaintexts, refuse_markers_at
-from .reserved_names import refuse_invalid_config_keys, refuse_reserved_names
-from .run_context import RunContext, bind_current
-from .finalizer import Finalizer
-# the services behind the context: the modules the adapters at
-# the end of this file delegate to, imported here because the loader is
-# where the run is assembled and the one place already inside the import
-# web every one of them belongs to
-from . import bake_steps, bake_user, capabilities, identity_attributes, image_tests
-from . import launch_params, lifecycles as _lifecycles, lineage, materialize, os_types, standing, storage_state, utils
-from . import encryption as _encryption
-from .network_facts import adopt as adopt_network_facts
-from . import image_sources as _image_sources
-from . import ephemeral_policy, state_backup
 from cs_image_system.contract.context import (
     CliServiceProtocol,
     CommandsServiceProtocol,
@@ -75,12 +58,44 @@ from cs_image_system.contract.context import (
     WorkspacesServiceProtocol,
 )
 from cs_image_system.contract.executables import ExecutableProtocol
-from cs_image_system.contract.lifecycles import LifecycleLike
 from cs_image_system.contract.group import GroupBuilderProtocol
 from cs_image_system.contract.image import ImageQuery
+from cs_image_system.contract.lifecycles import LifecycleLike
 from cs_image_system.contract.storage import StorageBuilderProtocol
-from .models.ia_config import DEFAULT_DATEFORMAT
+
+# the registry and the services behind the context: the modules the
+# adapters at the end of this file delegate to, imported here because the loader is
+# where the run is assembled and the one place already inside the import
+# web every one of them belongs to
+from . import (
+    bake_steps,
+    bake_user,
+    capabilities,
+    ephemeral_policy,
+    identity_attributes,
+    image_tests,
+    launch_params,
+    lineage,
+    materialize,
+    os_types,
+    registry,
+    standing,
+    state_backup,
+    storage_state,
+    utils,
+)
+from . import encryption as _encryption
+from . import image_sources as _image_sources
+from . import lifecycles as _lifecycles
+from .encryption import decrypt_tree, decrypted_plaintexts, refuse_markers_at
+from .finalizer import Finalizer
 from .image_sources import ImageSourceCatalog, bind_current_catalog, default_os_type
+from .loader import load_plugins
+from .models.ia_config import DEFAULT_DATEFORMAT
+from .network_facts import adopt as adopt_network_facts
+from .reserved_names import refuse_invalid_config_keys, refuse_reserved_names
+from .run_context import RunContext, bind_current
+from .template_utils import read_and_preprocess_yaml_files, string_stage
 
 log = logging.getLogger(__name__)
 
@@ -94,26 +109,28 @@ from cs_image_system.contract.constants import (
     STORAGES,
     VCT,
 )
+from cs_image_system.contract.core import (
+    BuilderModelProtocol,
+    PluginArtifactProtocol,
+    RuntimeEnabledBuilderModelProtocol,
+)
 
+from .basic.builder_base import BuilderBase
+from .models.builder_model import BuilderModel, NameTyped
+from .models.executable import ExecutableModel
 from .models.group import Group
-from .models.image import Image
-from .models.instance import Instance
-from .models.storage import Storage
 from .models.group_builder import GroupBuilderModel
+from .models.image import Image
 from .models.image_builder_model import ImageBuilderModel
+from .models.instance import Instance
 from .models.instance_builder import InstanceBuilderModel
 from .models.mod_builder import ModBuilderModel
 from .models.os_builder_model import OsBuilderModel
 from .models.runtime import RuntimeBuilderModel
 from .models.state_builder import StateBuilderModel
+from .models.storage import Storage
 from .models.storage_builder import StorageBuilderModel
 from .models.user_builder import UserBuilderModel
-
-from .models.executable import ExecutableModel
-
-from .basic.builder_base import BuilderBase
-from .models.builder_model import BuilderModel, NameTyped
-from cs_image_system.contract.core import BuilderModelProtocol, PluginArtifactProtocol, RuntimeEnabledBuilderModelProtocol
 
 PLUGIN_TYPEMAP: dict[str, type] = {
     "base" : dict,

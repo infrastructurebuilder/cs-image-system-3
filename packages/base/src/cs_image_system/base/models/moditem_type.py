@@ -2,15 +2,19 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+from pathlib import Path
 from typing import Annotated
-from cs_image_system.contract.model_config import CSIS_MODEL_CONFIG
+
 from pydantic import Field
 from pydantic.dataclasses import dataclass  # validation at construction
-from pathlib import Path
 
-from cs_image_system.contract.fields import fk_field, parent_field
 from cs_image_system.contract.constants import DEFAULT, VCT
-from .root_item import  SubRootItem
+from cs_image_system.contract.fields import fk_field, parent_field
+from cs_image_system.contract.model_config import CSIS_MODEL_CONFIG
+
+from .root_item import SubRootItem
+
+
 @dataclass(kw_only=True, config=CSIS_MODEL_CONFIG)
 class ModItemModel(SubRootItem):    
     type_: Annotated[str, Field(alias="type")] = fk_field(target = VCT.MOD_BUILDER_MODEL,

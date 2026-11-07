@@ -8,12 +8,11 @@ from functools import cache
 from importlib.metadata import entry_points
 from typing import Any, NamedTuple
 
-from cs_image_system.contract.constants import VCT, PLUGIN_TYPES
-from cs_image_system.contract.core import PluginArtifactProtocol, PluginMetadataProtocol
-from cs_image_system.contract.testing import conformance_problems, protocol_for
 from cs_image_system.base import registry
 from cs_image_system.base.orchestrator import Orchestrator
-
+from cs_image_system.contract.constants import PLUGIN_TYPES, VCT
+from cs_image_system.contract.core import PluginArtifactProtocol, PluginMetadataProtocol
+from cs_image_system.contract.testing import conformance_problems, protocol_for
 
 log = logging.getLogger(__name__)
 

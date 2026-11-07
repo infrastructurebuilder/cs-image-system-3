@@ -52,8 +52,13 @@ def run(tmp_path: Path, monkeypatch):
 
 
 def test_post_bake_spec_is_validated_and_compiles_to_reportable_assertions(run):
-    from cs_image_system.base.image_tests import (parse_post_bake_output, post_bake_assertions,
-                                                  post_bake_script, post_bake_spec, validate_tests_spec)
+    from cs_image_system.base.image_tests import (
+        parse_post_bake_output,
+        post_bake_assertions,
+        post_bake_script,
+        post_bake_spec,
+        validate_tests_spec,
+    )
     dask = run.ctx.images_map[DASK]
     spec = post_bake_spec(dask)
     assert spec["mounts"] == ["/mnt/gce-data"] and spec["commands"][0]["run"] == "python3 -c 'import dask'"
@@ -196,6 +201,7 @@ def test_release_cli_picks_the_runtimes_head(run):
     """`release <image> --runtime <rt>` releases that runtime's series head
     (the head without a runtime is runtime-blind: the most recent record)."""
     import typer
+
     from cs_image_system.system.cli import release_command
     _seed_gce_chain(run)
     ms = run.ctx.meta_state

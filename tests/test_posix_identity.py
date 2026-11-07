@@ -93,8 +93,9 @@ def test_a_group_builder_proves_no_login_unless_it_says_so():
 # ------------------------------------------------- step 3: gids in generated IaC
 
 def test_the_okta_builder_answers_the_gid_reference_the_consumers_used_to_assume():
-    from tests.harness import FIXTURE_CONFIG, load_context, reset_singletons, stub_environment
     from pytest import MonkeyPatch
+
+    from tests.harness import FIXTURE_CONFIG, load_context, reset_singletons, stub_environment
     mp = MonkeyPatch()
     stub_environment(mp)
     try:
@@ -383,6 +384,7 @@ def test_no_accounts_are_sent_when_they_should_not_be(tmp_path, monkeypatch, why
 
 def test_a_refused_script_is_logged_as_an_error_and_never_stops_the_run(tmp_path, monkeypatch, caplog):
     import logging
+
     from cs_image_system.base import accounts_reconcile
     from cs_image_system.contract.lifecycles import Lifecycle
     _Session(monkeypatch, rc=1, out="posix accounts: group pxgroup has gid 4000 here; the configuration says 3101\n")
@@ -608,6 +610,7 @@ def test_a_name_opa_does_not_give_stops_the_list_and_guesses_nothing(monkeypatch
 
 def test_a_machine_is_left_as_it_stands_when_an_account_name_cannot_be_read(tmp_path, monkeypatch, caplog):
     import logging
+
     from cs_image_system.base import accounts_reconcile
     from cs_image_system.contract.lifecycles import Lifecycle
     from tests.harness import V2Run
@@ -663,6 +666,7 @@ def test_posix_none_sends_an_okta_machine_nothing(tmp_path, monkeypatch):
 
 def test_an_opa_that_cannot_be_asked_is_an_error_not_a_crash(tmp_path, monkeypatch, caplog):
     import logging
+
     from cs_image_system.base import accounts_reconcile
     from cs_image_system.contract.lifecycles import Lifecycle
     from tests.harness import V2Run

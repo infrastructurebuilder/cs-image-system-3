@@ -2,22 +2,22 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+import logging
 from dataclasses import field
-from cs_image_system.base.models.credentials import CredentialsBase
-from cs_image_system.contract.model_config import CSIS_MODEL_CONFIG
-from pydantic.dataclasses import dataclass  # validation at construction
 from typing import Any
 
-import logging
+from pydantic.dataclasses import dataclass  # validation at construction
 
 from cs_image_system.aws_runtime import aws_utils
+from cs_image_system.base.models.credentials import CredentialsBase
 from cs_image_system.contract.fields import fk_field, parent_field
+from cs_image_system.contract.model_config import CSIS_MODEL_CONFIG
+
 log = logging.getLogger(__name__)
 
 
-from cs_image_system.contract.constants import DEFAULT, OOPS_DEFAULTS, VCT
 from cs_image_system.base.models.cloud_builder import CloudBuilderModel, CloudNetworkingConfig
-
+from cs_image_system.contract.constants import DEFAULT, OOPS_DEFAULTS, VCT
 
 AWS: str = "aws"
 AWS_CLI: str = "aws-cli"

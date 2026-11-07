@@ -18,8 +18,8 @@ from pathlib import Path
 import pytest
 import yaml
 
-from tests.starter_support import RENDERED
 from tests.harness import V2Run, copy_config, module_path, modules_inside
+from tests.starter_support import RENDERED
 
 
 def _under(base: str):
@@ -497,6 +497,7 @@ def test_public_safe_passes_over_a_generated_root(tmp_path: Path):
 
 def test_the_command_runs_without_loading_and_refuses_by_name_under_quiet(tmp_path: Path):
     from typer.testing import CliRunner
+
     from cs_image_system.system.cli import app
     root = _starter_copy(tmp_path, remote=None)                      # no remote: the repository has no default
     quiet = ["--root-dir", str(root), "bootstrap", "--quiet", "--section", "github"]
@@ -526,6 +527,7 @@ def test_set_secrets_refuses_a_secrets_directory_git_would_track(tmp_path):
     the script refuses, before any secret is read, a directory git does not
     ignore."""
     import subprocess
+
     from cs_image_system.base.bootstrap.hcl import _secrets_script
     repo = tmp_path / "repo"; repo.mkdir()
     subprocess.run(["git", "init", "-q", str(repo)], check=True)

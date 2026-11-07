@@ -18,9 +18,8 @@ from pathlib import Path
 
 import pytest
 import yaml
-from typer.testing import CliRunner
-
 from harness import copy_config, reset_singletons, stub_environment
+from typer.testing import CliRunner
 
 runner = CliRunner()
 
@@ -59,7 +58,8 @@ def test_a_shell_with_no_age_identity_is_told_so_in_one_line(cli_root, monkeypat
 
 def test_lapsed_aws_keys_are_the_environments_failure_with_the_remedy_for_keys(cli_root, monkeypatch):
     from botocore.exceptions import ClientError
-    from cs_image_system.system import cli as gc     # patched where it is read
+
+    from cs_image_system.system import cli as gc  # patched where it is read
     err = ClientError({"Error": {"Code": "RequestExpired", "Message": "Request has expired."}}, "DescribeVpcs")
 
     def boom(*a, **kw):
@@ -71,7 +71,7 @@ def test_lapsed_aws_keys_are_the_environments_failure_with_the_remedy_for_keys(c
 
 
 def test_a_missing_opa_key_pair_is_the_environments_failure(cli_root, monkeypatch):
-    from cs_image_system.system import cli as gc     # patched where it is read
+    from cs_image_system.system import cli as gc  # patched where it is read
 
     def boom(*a, **kw):
         raise ValueError("Okta builder oktagroups is missing a key value.  Expected to find environment variable "
@@ -83,7 +83,7 @@ def test_a_missing_opa_key_pair_is_the_environments_failure(cli_root, monkeypatc
 
 
 def test_an_unknown_failure_keeps_its_traceback_and_so_does_verbose(cli_root, monkeypatch):
-    from cs_image_system.system import cli as gc     # patched where it is read
+    from cs_image_system.system import cli as gc  # patched where it is read
 
     def boom(*a, **kw):
         raise RuntimeError("something nobody classified")
@@ -106,6 +106,7 @@ def test_an_unknown_failure_keeps_its_traceback_and_so_does_verbose(cli_root, mo
 
 def test_the_classifier_walks_the_cause_chain_and_names_nothing_it_does_not_know():
     from botocore.exceptions import ClientError
+
     from cs_image_system.base.commands.load_failures import classify_load_failure
     from cs_image_system.base.encryption import MissingIdentityError
     inner = ClientError({"Error": {"Code": "ExpiredToken", "Message": "The security token included in the request is expired"}}, "ListBuckets")

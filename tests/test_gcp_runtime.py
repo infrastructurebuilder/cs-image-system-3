@@ -38,9 +38,16 @@ from typing import Any, cast
 import pytest
 import yaml
 
-from tests.harness import FIXTURE_CONFIG, V2Run, copy_config, load_context, modules_beside, reset_singletons, stub_environment
-
 from cs_image_system.gcloud_runtime.gcp_packer_source import gce_label, gce_name
+from tests.harness import (
+    FIXTURE_CONFIG,
+    V2Run,
+    copy_config,
+    load_context,
+    modules_beside,
+    reset_singletons,
+    stub_environment,
+)
 
 GCE_RUNTIME = "gcloud-east1"
 GCE_BUILDER = "pckr-gce-ans"
@@ -425,6 +432,7 @@ def test_gce_instance_root_and_launch_parameters(gce3):
 def test_gce_state_query_hooks_exist(gce3, monkeypatch):
     import subprocess
     from types import SimpleNamespace
+
     from cs_image_system.gcloud_runtime.gcp_runtime_builders import GCPCloudBuilder
     ctx = gce3.ctx
     gcp = ctx.runtime_builders[GCE_RUNTIME]
@@ -567,8 +575,11 @@ def test_the_generated_archive_and_wipe_scripts_run_the_declared_gcloud(tmp_path
     # which for the frozen fixture would be inside tests/fixtures/config
     stub_environment(monkeypatch)
     ctx = load_context(copy_config(tmp_path))
-    from cs_image_system.base.models.storage import (STORAGE_STATE_ACTIVE, STORAGE_STATE_ARCHIVED,
-                                                     STORAGE_STATE_DESTROYED)
+    from cs_image_system.base.models.storage import (
+        STORAGE_STATE_ACTIVE,
+        STORAGE_STATE_ARCHIVED,
+        STORAGE_STATE_DESTROYED,
+    )
     pd = ctx.storage_builders["gcp-pd"]
     disk = _storage_on(ctx, "gcp-pd")
     actions = pd.transition_actions(disk, STORAGE_STATE_ACTIVE, STORAGE_STATE_ARCHIVED)
@@ -741,7 +752,10 @@ def test_a_disk_without_a_zone_keeps_the_runtimes(tmp_path: Path, monkeypatch):
 
 def test_query_images_returns_only_the_series_asked_about(tmp_path: Path, monkeypatch):
     from types import SimpleNamespace
-    from cs_image_system.gcloud_runtime import gcp_runtime_builders    # the consuming module (patch where the name is read)
+
+    from cs_image_system.gcloud_runtime import (
+        gcp_runtime_builders,  # the consuming module (patch where the name is read)
+    )
     from cs_image_system.gcloud_runtime.gcp_runtime_builders import GCPCloudBuilder
     real_query_images = GCPCloudBuilder.query_images      # the harness stubs it
     stub_environment(monkeypatch)
@@ -817,10 +831,10 @@ def test_an_out_of_scope_instance_root_writes_no_tfvars(tmp_path: Path, monkeypa
 
 
 def test_the_gce_root_receives_the_build_its_run_baked_under_its_own_variable(tmp_path: Path, monkeypatch):
+    from cs_image_system.base.models.provider_specific_image import GenericProviderSpecificImage
+    from cs_image_system.contract.image import PSISourceKind
     from cs_image_system.contract.lifecycle import ExecutionLifecyclePhase
     from cs_image_system.contract.lifecycles import Lifecycle
-    from cs_image_system.contract.image import PSISourceKind
-    from cs_image_system.base.models.provider_specific_image import GenericProviderSpecificImage
     run = V2Run(tmp_path, monkeypatch)
     try:
         assert run.run(["instance-image"], apply=False).ok

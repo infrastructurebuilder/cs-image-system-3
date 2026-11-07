@@ -360,8 +360,8 @@ def test_a_starters_base_test_names_only_what_a_base_carries(starter: str):
 def test_the_base_bake_itself_installs_what_the_starters_base_test_asserts(starter: str, tmp_path: Path, monkeypatch):
     """Not a list in a test alone: the emitted base bake of the starter has a
     step that installs the package its verification then asks for."""
-    from tests.test_docs_examples import copy_example, stub_networks_from, stub_opa_credentials_from
     from tests.harness import run_v2
+    from tests.test_docs_examples import copy_example, stub_networks_from, stub_opa_credentials_from
     stub_environment(monkeypatch)
     root = copy_example(tmp_path, starter)
     stub_networks_from(monkeypatch, root)

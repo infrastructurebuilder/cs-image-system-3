@@ -21,15 +21,27 @@ from datetime import datetime, timezone
 from typing import Any
 
 from .. import power_state
-from ..ephemeral_policy import _UNITS, failure_policy, last_verification, parse_duration, teardown_due  # noqa: F401 - re-exported
-from ..launch_params import compute_launch_params, mounted_points
+from ..ephemeral_policy import (  # noqa: F401 - re-exported
+    _UNITS,
+    failure_policy,
+    last_verification,
+    parse_duration,
+    teardown_due,
+)
 from ..image_tests import parse_post_bake_output, post_bake_script, post_bake_spec, root_os_type
+from ..launch_params import compute_launch_params, mounted_points
 
 log = logging.getLogger(__name__)
 
 
 # The policies are the contract's vocabulary (`contract.launch_vocabulary`); this path keeps them.
-from cs_image_system.contract.launch_vocabulary import ON_FAILURE_KEEP, ON_FAILURE_POLICIES, ON_FAILURE_TEARDOWN  # noqa: F401, E402
+from cs_image_system.contract.launch_vocabulary import (  # noqa: F401, E402
+    ON_FAILURE_KEEP,
+    ON_FAILURE_POLICIES,
+    ON_FAILURE_TEARDOWN,
+)
+
+
 class VerificationFailed(RuntimeError):
     def __init__(self, record: dict[str, Any]) -> None:
         failed = [c for c in record.get("checks", []) if not c.get("ok")]

@@ -12,11 +12,12 @@ helper, and the S3-backend field dataclasses.
 """
 from __future__ import annotations
 
-from dataclasses import dataclass
 import logging
+from dataclasses import dataclass
 from typing import Any, Protocol
-from hcl2 import Builder, FormatterOptions
+
 import hcl2  # noqa: F401  (re-exported for emitters using hcl2.dumps)
+from hcl2 import Builder, FormatterOptions
 
 FO=FormatterOptions(
     indent_length=4,

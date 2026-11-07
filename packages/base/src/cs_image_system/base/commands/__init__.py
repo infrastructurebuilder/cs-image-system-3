@@ -4,13 +4,13 @@
 
 """Commands package: the per-phase generation functions the V2 runner dispatches to."""
 
-from .resolve import predefined_resolve as predefined_resolve
+from .finalization import predefined_finalization as predefined_finalization
+from .gen_groups import predefined_group_generation as predefined_group_generation
 from .gen_images import predefined_image_generation as predefined_image_generation
 from .gen_instances import predefined_instance_generation as predefined_instance_generation
-from .gen_users import predefined_user_generation as predefined_user_generation
-from .gen_groups import predefined_group_generation as predefined_group_generation
 from .gen_storages import predefined_storage_generation as predefined_storage_generation
-from .finalization import predefined_finalization as predefined_finalization
+from .gen_users import predefined_user_generation as predefined_user_generation
+from .resolve import predefined_resolve as predefined_resolve
 
 __all__ = [
     "predefined_resolve",

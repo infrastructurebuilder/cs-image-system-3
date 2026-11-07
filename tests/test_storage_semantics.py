@@ -85,8 +85,8 @@ def test_a_declared_storage_with_a_tombstone_is_a_new_generation(prepared):
     assert summary.ok, summary.error
     tf = "\n".join(p.read_text() for p in (run.generated / "storage" / "gcp-pd").rglob("*.tf"))
     assert 'module "storage_gce_data"' in tf              # created again
-    from cs_image_system.contract.lifecycles import Lifecycle
     from cs_image_system.base.read_models import record_storage_transitions
+    from cs_image_system.contract.lifecycles import Lifecycle
     run.ctx.config["apply_storage"] = ["gcloud-east1"]
     record_storage_transitions(run.ctx, Lifecycle.STORAGE)
     ms = run.ctx.meta_state
@@ -119,8 +119,8 @@ def test_an_undeclared_storage_is_a_whitelisted_destroy_with_its_wipe(prepared):
     # the module call is absent (that IS the destroy); the root still exists
     tf = "\n".join(p.read_text() for p in (run.generated / "storage" / "gcp-gcs").rglob("*.tf"))
     assert 'module "storage_gce_bucket"' not in tf and "backend" in tf
-    from cs_image_system.contract.lifecycles import Lifecycle
     from cs_image_system.base.read_models import record_storage_transitions
+    from cs_image_system.contract.lifecycles import Lifecycle
     run.ctx.config["apply_storage"] = ["gcp-gcs"]        # only the bucket's root applied
     record_storage_transitions(run.ctx, Lifecycle.STORAGE)
     ms = run.ctx.meta_state
@@ -188,8 +188,8 @@ def test_archiving_a_pd_snapshots_first_and_destroys_the_disk(prepared):
     tf = "\n".join(p.read_text() for p in (run.generated / "storage" / "gcp-pd").rglob("*.tf"))
     assert 'module "storage_gce_data"' not in tf and "ARCHIVED" in tf
     # the recorded transition carries the archive name
-    from cs_image_system.contract.lifecycles import Lifecycle
     from cs_image_system.base.read_models import record_storage_transitions
+    from cs_image_system.contract.lifecycles import Lifecycle
     run.ctx.config["apply_storage"] = ["gcloud-east1"]
     record_storage_transitions(run.ctx, Lifecycle.STORAGE)
     entry = run.ctx.meta_state.storage_states()["gce_data"]
@@ -262,8 +262,8 @@ def test_archiving_an_ebs_volume_snapshots_first_and_destroys_it(prepared):
     assert "already exists" in body                        # idempotent across attempts
     tf = "\n".join(p.read_text() for p in (run.generated / "storage" / "aws-ebs").rglob("*.tf"))
     assert 'module "storage_mnt_data"' not in tf and "ARCHIVED" in tf
-    from cs_image_system.contract.lifecycles import Lifecycle
     from cs_image_system.base.read_models import record_storage_transitions
+    from cs_image_system.contract.lifecycles import Lifecycle
     run.ctx.config["apply_storage"] = ["aws-east2-runtime"]
     record_storage_transitions(run.ctx, Lifecycle.STORAGE)
     entry = run.ctx.meta_state.storage_states()["mnt_data"]

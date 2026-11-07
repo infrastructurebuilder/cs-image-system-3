@@ -26,7 +26,6 @@ import os
 import stat
 
 import pytest
-
 from harness import V2Run, command_lines
 
 

@@ -28,7 +28,6 @@ from typing import Any, cast
 
 import pytest
 import yaml
-
 from harness import V2Run, command_lines, copy_config, load_context, reset_singletons, stub_environment, tree
 
 LITERAL_GID = re.compile(r"\b(?:owner_)?gid\s*=\s*\d+\b")
@@ -144,8 +143,8 @@ def test_unmanaged_group_is_state_rm_never_destroyed(tmp_path, monkeypatch):
 # ------------------------------------------- the read-only group builder
 
 def test_the_read_only_group_builder_answers_the_read_only_truth(monkeypatch):
-    from tests.harness import FIXTURE_CONFIG
     from cs_image_system.base.read_models import identity_read_model
+    from tests.harness import FIXTURE_CONFIG
     stub_environment(monkeypatch)
     ctx = load_context(FIXTURE_CONFIG)
     try:
@@ -227,6 +226,7 @@ def test_the_opa_listing_follows_the_link_header_to_every_page():
 def test_a_retirement_404_is_read_from_the_status_code_not_the_text():
     import urllib.error
     from email.message import Message
+
     from cs_image_system.okta_opa_plugin.opa_gids import OpaGidResolver
     r = OpaGidResolver("https://h", "t", "k", "s", transport=lambda *a: {})
     r._login_project = lambda group: "/v1/p"        # type: ignore[method-assign]

@@ -6,26 +6,25 @@ import logging
 from collections.abc import Mapping
 from typing import Any
 
-
+from cs_image_system.aws_runtime import aws_utils, session
 from cs_image_system.base.basic.abstract_version_checker import AbstractVersionChecker
-from cs_image_system.contract.assets import AssetSet
 from cs_image_system.base.basic.builder_base_cloud import CloudBuilderBase
-from cs_image_system.contract.constants import OOPS_DEFAULTS, VCT
-from cs_image_system.contract.lifecycle import ExecutionLifecyclePhase
+from cs_image_system.base.models.executable import ExecutableModel
 from cs_image_system.base.models.os_builder_runtime_config import OSBuilderBaseImageBuilderSubconfig
 from cs_image_system.base.models.provider_specific_image import ProviderSpecificImage
 from cs_image_system.contract import power_state
+from cs_image_system.contract.assets import AssetSet
+from cs_image_system.contract.constants import OOPS_DEFAULTS, VCT
 from cs_image_system.contract.core import PluginArtifactProtocol
+from cs_image_system.contract.image import ImageQuery
+from cs_image_system.contract.lifecycle import ExecutionLifecyclePhase
+from cs_image_system.contract.lineage_vocabulary import TAG_PREFIX
+from cs_image_system.contract.session import LoadFailureReport, SessionStatus
 
+from .aws_packer_source import AMAZON_EBS, amazon_ebs_source
 from .aws_provider_specific_image import AwsProviderSpecificImage
 from .aws_runtime_models import AWS_CLI, AwsCloudBuilderModel
 from .aws_utils import AWS_QUERY_KEYS, query_image, translate_image_query
-from cs_image_system.contract.image import ImageQuery
-from cs_image_system.contract.session import LoadFailureReport, SessionStatus
-from cs_image_system.aws_runtime import aws_utils, session
-from cs_image_system.contract.lineage_vocabulary import TAG_PREFIX
-from .aws_packer_source import AMAZON_EBS, amazon_ebs_source
-from cs_image_system.base.models.executable import ExecutableModel
 
 log = logging.getLogger(__name__)
 

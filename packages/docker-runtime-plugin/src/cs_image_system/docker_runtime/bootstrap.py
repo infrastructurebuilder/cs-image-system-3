@@ -34,8 +34,18 @@ from __future__ import annotations
 
 from typing import Any
 
-from cs_image_system.contract.bootstrap import (BY_HAND, READ, Answers, FactsProtocol as Facts, Question, Rendered,
-                                                Secret, Section, ci_can_reach, real)
+from cs_image_system.contract.bootstrap import (
+    BY_HAND,
+    READ,
+    Answers,
+    Question,
+    Rendered,
+    Secret,
+    Section,
+    ci_can_reach,
+    real,
+)
+from cs_image_system.contract.bootstrap import FactsProtocol as Facts
 
 RUNTIME_TYPE = "docker"
 GUIDE = "CI_SETUP.md 3.4a"

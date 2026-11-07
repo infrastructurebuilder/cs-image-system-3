@@ -22,7 +22,7 @@ from typing import Any, cast
 import pytest
 
 from cs_image_system.base import loader
-from cs_image_system.contract.constants import VCT, PLUGIN_TYPES
+from cs_image_system.contract.constants import PLUGIN_TYPES, VCT
 from cs_image_system.contract.metadata import PluginMetadata
 
 

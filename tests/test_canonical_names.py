@@ -18,13 +18,12 @@ from typing import Any
 
 import pytest
 
-from tests.harness import V2Run
-
 from cs_image_system.base import launch_params as lp
 from cs_image_system.base import provider_aliases as pa
 from cs_image_system.base import state_query as sq
 from cs_image_system.base.commands.validate import check_canonical_hostnames
 from cs_image_system.contract.lifecycles import Lifecycle
+from tests.harness import V2Run
 
 
 @pytest.fixture
@@ -167,8 +166,8 @@ def test_the_budget_now_covers_the_suffix(world, monkeypatch):
 
 def test_the_bare_name_and_the_ip_name_both_come_back_as_aliases(world, monkeypatch):
     from cs_image_system.aws_runtime.aws_runtime_builders import AwsCloudBuilder
-    from cs_image_system.okta_opa_plugin.okta_opa_tf_group_builder import OktaTfGroupBuilder
     from cs_image_system.base import power_state as ps
+    from cs_image_system.okta_opa_plugin.okta_opa_tf_group_builder import OktaTfGroupBuilder
     ctx = world.ctx
     scripts: list[str] = []
     ec2 = {"instance_id": "i-new", "provider_hostname": "ip-10-0-0-9.us-east-2.compute.internal"}

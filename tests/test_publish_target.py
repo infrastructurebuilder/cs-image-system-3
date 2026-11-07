@@ -11,8 +11,6 @@ listening; an unknown target; which projects hold a version; the wait form.
 """
 from __future__ import annotations
 
-from typing import Any, cast
-
 import importlib.machinery
 import importlib.util
 import json
@@ -20,6 +18,7 @@ import socket
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+from typing import Any, cast
 
 import pytest
 

@@ -3,12 +3,25 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import logging
+
 from cs_image_system.base.basic.abstract_plugin_metadata import AbstractPluginMetadata
-from cs_image_system.packer_plugin.packer_image_builder import (PackerDockerImageBuilder, PackerEbsImageBuilder,
-                                                                PackerGceImageBuilder, PackerImageBuilder)
+from cs_image_system.packer_plugin.packer_image_builder import (
+  PackerDockerImageBuilder,
+  PackerEbsImageBuilder,
+  PackerGceImageBuilder,
+  PackerImageBuilder,
+)
+
 from .packer_builder import PACKER, PackerVersionChecker
-from .packer_models import (PACKER_DOCKER, PACKER_EBS, PACKER_GCE, PackerDockerImageBuilderModel,
-                            PackerEbsImageBuilderModel, PackerGceImageBuilderModel, PackerImageBuilderModel)
+from .packer_models import (
+  PACKER_DOCKER,
+  PACKER_EBS,
+  PACKER_GCE,
+  PackerDockerImageBuilderModel,
+  PackerEbsImageBuilderModel,
+  PackerGceImageBuilderModel,
+  PackerImageBuilderModel,
+)
 
 log = logging.getLogger(__name__)
 

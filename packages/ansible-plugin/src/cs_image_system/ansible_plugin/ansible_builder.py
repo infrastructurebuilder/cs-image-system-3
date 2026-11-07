@@ -3,6 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 from __future__ import annotations
+
 import logging
 
 log = logging.getLogger(__name__)
@@ -11,20 +12,21 @@ import shutil
 from pathlib import Path
 from typing import TypeVar, cast
 
-from cs_image_system.contract.assets import AssetSet
-
-from .ansible_models import ANSIBLE_BUILDER, ANSIBLE_EXECUTABLE, AnsibleBuilderModel, AnsibleModItemModel, AnsiblePackerModBuilderModel
 from cs_image_system.base.basic.abstract_version_checker import AbstractVersionChecker
+from cs_image_system.base.basic.builder_base_image import ImageBuilderBase, build_target_label_of
 from cs_image_system.base.basic.builder_base_mod import ModBuilderBase
-from cs_image_system.contract.lifecycle import ExecutionLifecyclePhase
 from cs_image_system.base.models.image import Image
-from cs_image_system.base.basic.builder_base_image import ImageBuilderBase
 from cs_image_system.base.models.moditem_type import ModItemModel
-from cs_image_system.base.basic.builder_base_image import build_target_label_of
+from cs_image_system.contract.assets import AssetSet
+from cs_image_system.contract.lifecycle import ExecutionLifecyclePhase
 
-
-
-
+from .ansible_models import (
+    ANSIBLE_BUILDER,
+    ANSIBLE_EXECUTABLE,
+    AnsibleBuilderModel,
+    AnsibleModItemModel,
+    AnsiblePackerModBuilderModel,
+)
 
 Q = TypeVar("Q", bound=AnsiblePackerModBuilderModel)
 

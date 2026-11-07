@@ -15,10 +15,9 @@ history: bundle XII item 14 (walk finding F35).
 from __future__ import annotations
 
 import pytest
-from typer.testing import CliRunner
-
-from test_release_whole import _job_env, _stub_minting
 from harness import V2Run, copy_config, reset_singletons, stub_environment
+from test_release_whole import _job_env, _stub_minting
+from typer.testing import CliRunner
 
 runner = CliRunner()
 
@@ -41,9 +40,9 @@ def test_the_role_verdict_comes_from_resolving_a_machine_as_the_workload():
 
 
 def test_the_probe_target_is_a_standing_machine_of_a_managed_group(tmp_path, monkeypatch):
-    from cs_image_system.okta_opa_plugin.workload_token import probe_target
     from cs_image_system.okta_opa_plugin.okta_opa_tf_group_builder import OktaTfGroupBuilder
     from cs_image_system.okta_opa_plugin.okta_opa_tf_group_models import OktaTfGroupBuilderModel
+    from cs_image_system.okta_opa_plugin.workload_token import probe_target
     run = V2Run(tmp_path, monkeypatch)
     try:
         ctx = run.ctx
@@ -61,8 +60,8 @@ def test_the_probe_target_is_a_standing_machine_of_a_managed_group(tmp_path, mon
 
 
 def test_the_probe_command_prints_both_verdicts_and_exits_0(tmp_path, monkeypatch):
-    from cs_image_system.system.cli import app
     from cs_image_system.okta_opa_plugin import workload_token as wt
+    from cs_image_system.system.cli import app
     stub_environment(monkeypatch)
     reset_singletons()
     root = copy_config(tmp_path)
@@ -89,8 +88,8 @@ def test_the_probe_command_prints_both_verdicts_and_exits_0(tmp_path, monkeypatc
 
 
 def test_every_starter_recipe_and_guide_carry_the_two_verdicts(rendered_starters):
-    from test_starter_recipes import JUST, dry_run, recipe_names
     from harness import REPO
+    from test_starter_recipes import JUST, dry_run, recipe_names
     if JUST is None:
         pytest.skip("`just` is not on PATH")
     starter = rendered_starters / "standard-aws"             # the recipe and the guide are the skeleton's: one file, every starter

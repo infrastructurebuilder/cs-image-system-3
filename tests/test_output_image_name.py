@@ -25,7 +25,6 @@ import re
 from pathlib import Path
 
 import yaml
-
 from harness import FIXED_TIMESTAMP, copy_config, load_context, reset_singletons, stub_environment
 
 REPO = Path(__file__).resolve().parents[1]

@@ -10,10 +10,9 @@ from __future__ import annotations
 
 import yaml
 
-from tests.harness import V2Run
-
 from cs_image_system.base import lineage
 from cs_image_system.base.commands.upgrade import upgrade
+from tests.harness import V2Run
 
 AWS = "aws-east2-runtime"
 GCE = "gcloud-east1"

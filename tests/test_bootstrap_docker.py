@@ -16,12 +16,10 @@ from pathlib import Path
 
 import yaml
 
-from tests.test_bootstrap import EXAMPLES, GITHUB_ANSWERS, _starter_copy
-
 from cs_image_system.base import bootstrap as bs
-from cs_image_system.base.bootstrap.facts import (Facts, ci_can_reach, first_runtime_name,
-                                                  first_unreachable_runtime_name)
+from cs_image_system.base.bootstrap.facts import Facts, ci_can_reach, first_runtime_name, first_unreachable_runtime_name
 from cs_image_system.docker_runtime import bootstrap as dk
+from tests.test_bootstrap import EXAMPLES, GITHUB_ANSWERS, _starter_copy
 
 MARKER = "ENC[age:" + "A" * 40 + "]"
 

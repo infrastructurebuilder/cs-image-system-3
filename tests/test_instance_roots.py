@@ -72,8 +72,8 @@ def test_a_root_with_nothing_declared_but_state_is_emitted_empty_and_lets_its_gr
 
 
 def test_an_ephemeral_that_neither_stands_nor_launches_is_absent_from_a_plan_only_root(tmp_path, monkeypatch):
-    from test_ephemeral import _declare_ephemeral
     from harness import copy_config
+    from test_ephemeral import _declare_ephemeral
     root = copy_config(tmp_path)
     _declare_ephemeral(root, "gce-test")
     run = V2Run(tmp_path, monkeypatch, config_root=root)
@@ -94,10 +94,10 @@ def test_an_ephemeral_that_neither_stands_nor_launches_is_absent_from_a_plan_onl
 
 
 def test_release_and_retention_never_write_an_instance_roots_tfvars(tmp_path: Path, monkeypatch):
-    from cs_image_system.contract.lifecycle import ExecutionLifecyclePhase
-    from cs_image_system.contract.lifecycles import Lifecycle
     from cs_image_system.base.release import RELEASE_LIFECYCLE
     from cs_image_system.base.retention import RETENTION_LIFECYCLE
+    from cs_image_system.contract.lifecycle import ExecutionLifecyclePhase
+    from cs_image_system.contract.lifecycles import Lifecycle
     from tests.test_lineage_pins import _fake_manifest
     run = V2Run(tmp_path, monkeypatch)
     try:

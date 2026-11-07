@@ -47,7 +47,7 @@ def _ctx(root: Path, monkeypatch) -> Any:
 
 
 def _resolve(ctx: Any, image_name: str, runtime: str) -> str:
-    from cs_image_system.base.bake_user import resolve_bake_user, resolve_for_entry, entry_for_runtime
+    from cs_image_system.base.bake_user import entry_for_runtime, resolve_bake_user, resolve_for_entry
     if image_name in ctx.os_builders:
         osb = ctx.os_builders[image_name]
         return resolve_for_entry(ctx, osb, entry_for_runtime(ctx, osb, runtime), runtime)
@@ -198,6 +198,7 @@ def test_an_aws_image_entry_user_is_the_most_specific(tmp_path: Path, monkeypatc
 def test_the_resolver_is_what_both_sources_emit(tmp_path: Path, monkeypatch):
     """The two packer sources no longer carry their own fallbacks."""
     import inspect
+
     from cs_image_system.aws_runtime import aws_packer_source
     from cs_image_system.gcloud_runtime import gcp_packer_source
     for mod in (aws_packer_source, gcp_packer_source):

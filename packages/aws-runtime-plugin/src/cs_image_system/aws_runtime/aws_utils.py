@@ -8,12 +8,12 @@ from __future__ import annotations
 
 import logging
 from typing import Any, Mapping, cast
+
 import boto3  # type: ignore[import-untyped]
 from botocore.client import BaseClient as EC2  # type: ignore[import-untyped]
 from botocore.exceptions import BotoCoreError, ClientError
 
 from cs_image_system.contract.image import ImageQuery
-
 
 log = logging.getLogger(__name__)
 

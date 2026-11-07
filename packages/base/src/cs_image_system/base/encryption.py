@@ -41,7 +41,13 @@ from cs_image_system.contract.hcl import emitted
 # ``EncryptedStr`` are the contract's (`contract.secrets`); this path keeps
 # them, and installs the decoder below.
 from cs_image_system.contract.secrets import (  # noqa: F401
-    MARKER_PREFIX, MARKER_RE, Decrypted, EncryptedStr, is_marker, register_secret_decoder)
+    MARKER_PREFIX,
+    MARKER_RE,
+    Decrypted,
+    EncryptedStr,
+    is_marker,
+    register_secret_decoder,
+)
 
 IDENTITY_ENV = "CSIS_CONFIG_IDENTITY"
 INLINE_MARKER_RE = re.compile(r"ENC\[age:([A-Za-z0-9+/=]+)\]")

@@ -38,7 +38,6 @@ from typing import Any, cast
 
 import pytest
 import yaml
-
 from harness import V2Run, copy_config, load_context, reset_singletons, stub_environment
 
 BUILD = Path("instance-image/pckr-ebs-ans/image-generation/block-000/pckr-ebs-ans-image-generation-block-000-build.pkr.hcl")

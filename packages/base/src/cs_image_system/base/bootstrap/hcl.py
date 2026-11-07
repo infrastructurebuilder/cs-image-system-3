@@ -9,8 +9,8 @@ bytes -- so the root is regenerable and ``config-drift`` can judge it."""
 from __future__ import annotations
 
 import json
-from dataclasses import replace
 from collections.abc import Callable
+from dataclasses import replace
 from typing import Any, Iterable
 
 from .questions import Raw, Rendered, Secret

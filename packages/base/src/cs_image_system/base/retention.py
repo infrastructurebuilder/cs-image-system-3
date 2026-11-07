@@ -25,9 +25,10 @@ from typing import TYPE_CHECKING
 
 from cs_image_system.contract.lifecycle import ExecutionLifecyclePhase
 from cs_image_system.contract.lifecycles import LifecycleLike, LifecycleSpec
+
 from .commands.dispose import retention_plan
-from .utils import system_cli_executable_with_config, system_cli_executable
 from .lifecycles import register_lifecycle
+from .utils import system_cli_executable, system_cli_executable_with_config
 
 if TYPE_CHECKING:
     from .global_context import GlobalTypeContext

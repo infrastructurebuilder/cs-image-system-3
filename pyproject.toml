@@ -258,7 +258,7 @@ extend-exclude = [".venv", "generated", "**/generated"]
 # Conservative, high-signal rules: pyflakes (unused imports/vars, undefined names,
 # redefinitions) + syntax errors. Style/import-ordering rules are intentionally left
 # off for now to avoid large churn on this codebase.
-select = ["F", "E9", "C90", "B"]
+select = ["F", "E9", "C90", "B", "I"]
 # F841 (unused local variables) is a real backlog of ~50 across mostly untested
 # plugin code; ruff's autofix for it is "unsafe" (some RHS have side effects), so it
 # is deferred. Remove this ignore and clean up incrementally as coverage grows.
@@ -273,6 +273,11 @@ ignore = ["F841"]
 # measure_file (28), register_provider_aliases (25),
 # upgrade_deferred_list_generated (23). Lower the number after each cut.
 max-complexity = 49
+
+[tool.ruff.lint.isort]
+# The namespace's source roots sit under packages/*/src, which ruff does not
+# search, so without this every own import would sort as third-party.
+known-first-party = ["cs_image_system"]
 
 [tool.pyright]
 # "basic" mode, blocking (0 errors is the bar), with the override

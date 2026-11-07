@@ -3,28 +3,33 @@
 # SPDX-License-Identifier: Apache-2.0
 
 from __future__ import annotations
+
 import copy
-import yaml
 import logging
+
+import yaml
 
 from cs_image_system.contract.fields import fk_field
 
-
 log = logging.getLogger(__name__)
 from dataclasses import field
-from cs_image_system.contract.model_config import CSIS_MODEL_CONFIG
-from pydantic import model_validator, Field
-from pydantic.dataclasses import dataclass  # validation at construction
 from typing import Annotated, Any
-from cs_image_system.contract.constants import NO_MODEL_ID, UNSET_MODEL_ID, VCT, DEFAULT, OOPS_DEFAULTS
-from cs_image_system.contract.names import safe_name
+
+from pydantic import Field, model_validator
+from pydantic.dataclasses import dataclass  # validation at construction
+
+from cs_image_system.base.registry import current_registry
+from cs_image_system.contract.constants import DEFAULT, NO_MODEL_ID, OOPS_DEFAULTS, UNSET_MODEL_ID, VCT
 from cs_image_system.contract.core import (
     BuilderModelProtocol,
     NameTypedProtocol,
     RuntimeEnabledBuilderModelProtocol,
 )
-from cs_image_system.base.registry import current_registry
+from cs_image_system.contract.model_config import CSIS_MODEL_CONFIG
+from cs_image_system.contract.names import safe_name
+
 from ..orchestrator import Orchestrator
+
 
 @dataclass(kw_only=True, config=CSIS_MODEL_CONFIG)
 class NameTyped(NameTypedProtocol):

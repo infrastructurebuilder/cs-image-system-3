@@ -22,8 +22,9 @@ stage only makes the SHAPE checkable.
 """
 from typing import Any
 
-from cs_image_system.contract.model_config import CSIS_MODEL_CONFIG
 from pydantic.dataclasses import dataclass
+
+from cs_image_system.contract.model_config import CSIS_MODEL_CONFIG
 
 
 @dataclass(kw_only=True, config=CSIS_MODEL_CONFIG)

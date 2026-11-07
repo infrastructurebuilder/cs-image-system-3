@@ -3,27 +3,26 @@
 # SPDX-License-Identifier: Apache-2.0
 
 from __future__ import annotations
+
+import copy
+import logging
 from abc import ABC
 from collections.abc import Mapping
-import copy
 from pathlib import Path
 from typing import Generic, TypeVar, cast
-import logging
+
 log = logging.getLogger(__name__)
+from cs_image_system.contract.assets import AssetSet
 from cs_image_system.contract.constants import NO_MODEL_ID, UNSET_MODEL_ID, VCT
-from cs_image_system.contract.session import LoadFailureReport
+from cs_image_system.contract.context import RunContextProtocol
 from cs_image_system.contract.core import BuilderProtocol
+from cs_image_system.contract.executables import CFExecutables
+from cs_image_system.contract.lifecycle import ExecutionLifecyclePhase
+from cs_image_system.contract.names import safe_name
+from cs_image_system.contract.session import LoadFailureReport
 
 from ..models.builder_model import BuilderModel
-
-from cs_image_system.contract.assets import AssetSet
-from cs_image_system.contract.names import safe_name
-
-from cs_image_system.contract.context import RunContextProtocol
-
-from cs_image_system.contract.lifecycle import ExecutionLifecyclePhase
-from ..models.executable import  ExecutableModel
-from cs_image_system.contract.executables import CFExecutables
+from ..models.executable import ExecutableModel
 from ..run_context import RunContext, current_context
 
 C = TypeVar("C", bound=BuilderModel)

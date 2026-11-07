@@ -25,13 +25,13 @@ import shutil
 from pathlib import Path
 
 import pytest
+from harness import module_path
 
 from cs_image_system.base import bootstrap as bs
 from cs_image_system.base.bootstrap.questions import COVERAGE_STATUSES
-
 from tests.test_bootstrap import EXAMPLES, _assigned, _git, _starter_copy
-from tests.test_bootstrap_aws import _account as _aws_account, _facts, _filled
-from harness import module_path
+from tests.test_bootstrap_aws import _account as _aws_account
+from tests.test_bootstrap_aws import _facts, _filled
 
 REPO = Path(__file__).resolve().parents[1]
 ACCOUNT = "111122223333"
@@ -186,7 +186,8 @@ def test_a_bucket_the_root_made_stays_managed_after_the_second_interview(tmp_pat
 
 # --------------------------------------------------------------- the GCS bucket
 def _gce_root(tmp_path: Path, bucket_exists: bool) -> tuple[Path, Path]:
-    from tests.test_bootstrap_gcp import _facts as _gcp_facts, _project, _tree
+    from tests.test_bootstrap_gcp import _facts as _gcp_facts
+    from tests.test_bootstrap_gcp import _project, _tree
     root = _tree(tmp_path)
     facts = _gcp_facts(root, _project(None, number=True, pool=False, provider=False, read=False, write=False, bucket=bucket_exists))
     answers = bs.run_interview(bs.discover(), facts, quiet=True, only=["github", "gcp"])

@@ -24,7 +24,12 @@ import yaml
 # The two rules over a value, and the protocol the facts are handed to a
 # plugin's section as, are the contract's; this path keeps the names.
 from cs_image_system.contract.bootstrap import (  # noqa: F401 - re-exported
-    PLACEHOLDER_MARKS, FactsProtocol, ci_can_reach, is_placeholder, real)
+    PLACEHOLDER_MARKS,
+    FactsProtocol,
+    ci_can_reach,
+    is_placeholder,
+    real,
+)
 
 log = logging.getLogger(__name__)
 

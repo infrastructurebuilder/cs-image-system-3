@@ -20,7 +20,6 @@ import pytest
 import yaml
 
 from cs_image_system.gcloud_runtime.gcp_runtime_builders import GCPCloudBuilder
-
 from tests.harness import V2Run, command_lines, copy_config
 
 _REAL_GCE_RETAG = GCPCloudBuilder.retag_image     # captured before any harness stub replaces it
@@ -205,6 +204,7 @@ def test_apply_check_rereads_the_overlay_config(prepared, capsys):
     """The runner script generated under an overlay re-checks under that
     overlay: the file says false, the overlay lists the GCE runtime."""
     import typer
+
     from cs_image_system.system.cli import apply_check_command
     root, _ = prepared
     launch = root / "overlays" / "gce-cycle-launch.yaml"
@@ -413,7 +413,7 @@ def test_gce_retag_merges_lineage_truth_into_the_image_labels(tmp_path, monkeypa
     generation-time labels (`csis_parent: series-…`, a placeholder
     fingerprint); after the bake the runtime relabels it from the record,
     keeping every other label and the label fingerprint GCE requires."""
-    from cs_image_system.gcloud_runtime import gcp_runtime_builders   # patched where it is read (a top-level import)
+    from cs_image_system.gcloud_runtime import gcp_runtime_builders  # patched where it is read (a top-level import)
 
     class Image:
         labels = {"csis_parent": "series-basic-rh-10", "csis_fingerprint": "293d6de5ab5f3b4f",

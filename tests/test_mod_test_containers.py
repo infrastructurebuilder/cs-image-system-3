@@ -16,9 +16,8 @@ import stat
 from pathlib import Path
 
 import pytest
-from typer.testing import CliRunner
-
 from harness import V2Run, copy_config, reset_singletons, stub_environment
+from typer.testing import CliRunner
 
 runner = CliRunner()
 
@@ -80,6 +79,7 @@ def test_a_pull_is_retried_and_dockers_own_words_survive(tmp_path, caplog):
 
 def test_a_container_that_cannot_start_is_unstarted_not_a_failed_modification(tmp_path, monkeypatch, caplog):
     from test_mod_tests import FakeTarget, _only_bash
+
     from cs_image_system.base.mod_tests import MOD_TESTS_FILE, ContainerStartError, run_mod_tests
     run = V2Run(tmp_path, monkeypatch)
     try:
@@ -104,8 +104,8 @@ def test_a_container_that_cannot_start_is_unstarted_not_a_failed_modification(tm
 
 
 def test_the_command_says_cannot_start_and_exits_1(cli_root, monkeypatch):
-    from cs_image_system.system import cli as mod_tests     # patched where it is read
     from cs_image_system.base.mod_tests import ModTestResult
+    from cs_image_system.system import cli as mod_tests  # patched where it is read
     unstarted = ModTestResult(image="img", mod="m", type="bash-remote", content_hash="h", target="almalinux:10",
                               status="unstarted", detail="cannot start a container from almalinux:10: docker pull "
                               "(after 3 attempts) exited 1: context deadline exceeded")

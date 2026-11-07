@@ -44,7 +44,10 @@ from pydantic.dataclasses import dataclass  # validation at construction
 
 from cs_image_system.contract.image import ImageQuery
 from cs_image_system.contract.image_sources import (  # noqa: F401 - re-exported: the words are the contract's
-    IMAGE_SOURCES_KEY, PACKAGED_CATALOG_FILE, container_reference)
+    IMAGE_SOURCES_KEY,
+    PACKAGED_CATALOG_FILE,
+    container_reference,
+)
 from cs_image_system.contract.model_config import CSIS_MODEL_CONFIG
 from cs_image_system.contract.names import safe_name
 

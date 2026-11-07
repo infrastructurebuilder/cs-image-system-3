@@ -20,8 +20,9 @@ from tests.harness import V2Run
 
 def test_only_providers_is_gone_and_the_context_has_no_force(tmp_path: Path, monkeypatch):
     from typer.testing import CliRunner
-    from cs_image_system.system import cli as climod
+
     from cs_image_system.base.models.ia_config import IAConfig
+    from cs_image_system.system import cli as climod
     result = CliRunner().invoke(climod.app, ["--root-dir", str(tmp_path), "--only-providers", "aws", "validate"])
     plain = re.sub(r"\x1b\[[0-9;]*m", "", result.output)    # typer colours the option under GitHub Actions
     assert result.exit_code != 0 and "No such option" in plain and "--only-providers" in plain, plain
@@ -34,8 +35,8 @@ def test_only_providers_is_gone_and_the_context_has_no_force(tmp_path: Path, mon
 
 
 def test_rhels_unreachable_update_hooks_are_gone():
-    from cs_image_system.default_os_plugin.rhel_type import RhelOsBuilderModel
     from cs_image_system.base.models.os_builder_model import OsBuilderModel
+    from cs_image_system.default_os_plugin.rhel_type import RhelOsBuilderModel
     assert "commands_to_update" not in RhelOsBuilderModel.__dict__
     assert "get_command_to_update" not in RhelOsBuilderModel.__dict__
     assert OsBuilderModel.get_command_to_update(OsBuilderModel.__new__(OsBuilderModel)) == [], \

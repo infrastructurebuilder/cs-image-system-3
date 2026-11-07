@@ -11,12 +11,12 @@ if TYPE_CHECKING:
 
 
 import json
+import logging
 import os
 import re
 from pathlib import Path
 from typing import Any, Iterable, Mapping, Protocol
 
-import logging
 import typer
 
 # from cs_image_system.builder_base import BuilderBase
@@ -26,6 +26,7 @@ import typer
 log = logging.getLogger(__name__)
 
 from cs_image_system.contract import constants
+
 from .directory import in_directory  # noqa: F401 - re-exported: the name the commands import from here
 
 
@@ -69,7 +70,8 @@ class SetEncoder(json.JSONEncoder):
         return super().default(o)
 
 
-from cs_image_system.contract.constants import SYSTEM_CLI  # noqa: E402 - re-exported: the name every caller imports from here
+from cs_image_system.contract.constants import SYSTEM_CLI  # noqa: E402 - re-exported for every caller
+
 from .models.executable import ExecutableModel  # noqa: E402
 
 

@@ -135,7 +135,7 @@ def _aws_dir(tmp_path: Path, profile: str, start_url: str, expires: datetime | N
 
 
 def test_sso_expiry_is_read_from_the_cache_without_touching_the_token(tmp_path):
-    from cs_image_system.aws_runtime.session import sso_expiry as aws_sso_expiry   # the plugin's reader, not the core's
+    from cs_image_system.aws_runtime.session import sso_expiry as aws_sso_expiry  # the plugin's reader, not the core's
     now = datetime.now(timezone.utc).replace(microsecond=0)
     d = _aws_dir(tmp_path, "noaa", "https://x.awsapps.com/start", now + timedelta(hours=8))
     exp, note = aws_sso_expiry("noaa", d)

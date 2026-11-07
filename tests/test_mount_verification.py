@@ -14,9 +14,8 @@ history: bundle XII item 22 (walk finding F50).
 from __future__ import annotations
 
 import pytest
-
-from test_ephemeral import prepared  # noqa: F401 - the fixture
 from harness import V2Run
+from test_ephemeral import prepared  # noqa: F401 - the fixture
 
 KERNEL_ONLY = """
 Sep  8 14:07:27 gce-test systemd[1]: Starting google-startup-scripts.service...

@@ -21,10 +21,9 @@ from typing import Any, cast
 
 import yaml
 
-from tests.harness import V2Run
-
 from cs_image_system.base import ansible_launch, launch_params
 from cs_image_system.contract.lifecycles import Lifecycle
+from tests.harness import V2Run
 
 
 def _params(run: V2Run) -> dict[str, dict]:

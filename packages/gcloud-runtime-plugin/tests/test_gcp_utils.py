@@ -8,6 +8,7 @@ from typing import Any
 import pytest
 from google.cloud import compute_v1
 
+from cs_image_system.contract.image import ImageQuery
 from cs_image_system.gcloud_runtime import gcp_utils
 from cs_image_system.gcloud_runtime.gcp_utils import (
     build_filter_expression,
@@ -16,7 +17,6 @@ from cs_image_system.gcloud_runtime.gcp_utils import (
     resolve_projects,
     translate_image_query,
 )
-from cs_image_system.contract.image import ImageQuery
 
 
 class FakeSubconfig:

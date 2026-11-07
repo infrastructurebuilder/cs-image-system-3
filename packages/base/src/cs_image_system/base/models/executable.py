@@ -2,29 +2,30 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+import logging
 from dataclasses import field
-from cs_image_system.contract.model_config import CSIS_MODEL_CONFIG
+
 from pydantic import Field
 from pydantic.dataclasses import dataclass  # validation at construction
-import logging
 
 from cs_image_system.base.basic.abstract_plugin_metadata import AbstractPluginMetadata
-log = logging.getLogger(__name__)
+from cs_image_system.contract.model_config import CSIS_MODEL_CONFIG
 
-from cs_image_system.contract.core import PluginArtifactProtocol
-from .builder_model import NameTyped
+log = logging.getLogger(__name__)
 
 import os
 import re
-from pathlib import Path
 import subprocess
 import sys
+from pathlib import Path
 from typing import Annotated, Any
 
-from cs_image_system.contract.constants import SYSTEM_CLI, DEFAULT, VCT
-from ..encryption import decrypt_marker, is_marker
-from ..directory import in_directory
+from cs_image_system.contract.constants import DEFAULT, SYSTEM_CLI, VCT
+from cs_image_system.contract.core import PluginArtifactProtocol
 
+from ..directory import in_directory
+from ..encryption import decrypt_marker, is_marker
+from .builder_model import NameTyped
 
 #: how much of a successful command's output the log
 #: keeps at INFO (the end is where tofu's ``Plan:`` / ``Apply complete!``

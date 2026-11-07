@@ -10,12 +10,11 @@ runtime builder supplies project/zone/network.
 """
 from dataclasses import field
 
-from cs_image_system.contract.model_config import CSIS_MODEL_CONFIG
-from cs_image_system.base.models.module_variables import ModuleVariables
 from pydantic.dataclasses import dataclass  # validation at construction
 
+from cs_image_system.base.models.module_variables import ModuleVariables
 from cs_image_system.contract.constants import VCT  # noqa: F401  (re-exported for symmetry
-
+from cs_image_system.contract.model_config import CSIS_MODEL_CONFIG
 from cs_image_system.tofu_roots.tofu_models import TofuInstanceBuilderModelBase, TofuStorageBuilderModelBase
 
 TF_GCP: str = "tf-gcp"

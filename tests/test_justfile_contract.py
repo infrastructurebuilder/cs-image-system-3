@@ -25,7 +25,6 @@ import subprocess
 from pathlib import Path
 
 import pytest
-
 from harness import FIXTURE_CONFIG
 
 REPO = Path(__file__).resolve().parents[1]
@@ -205,10 +204,11 @@ def _preflight(monkeypatch, daemon: bool = False, **env: str):
     identity and dummies open the tree) and reads the sessions from it.
     ``daemon`` makes the fixture's synthetic docker daemon (docker-fixture,
     a context that exists nowhere) answer its probe."""
-    from typer.testing import CliRunner
-    from cs_image_system.system.cli import app
-    from cs_image_system.docker_runtime import docker_runtime_builders
     from harness import reset_singletons, stub_environment
+    from typer.testing import CliRunner
+
+    from cs_image_system.docker_runtime import docker_runtime_builders
+    from cs_image_system.system.cli import app
     stub_environment(monkeypatch)
     if daemon:
         monkeypatch.setattr(docker_runtime_builders, "probe_daemon", lambda binary, env, timeout=20: (True, "answers: engine stub"))

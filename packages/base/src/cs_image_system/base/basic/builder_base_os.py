@@ -10,25 +10,28 @@ import logging
 import pprint
 
 from .. import utils
-
 from ..orchestrator import Orchestrator, TemplateResolver
+
 log = logging.getLogger(__name__)
-from typing import Any, Sequence, TypeVar,Mapping
+from typing import TYPE_CHECKING, Any, Mapping, Sequence, TypeVar
+
 from cs_image_system.contract.lifecycle import ExecutionLifecyclePhase
-from ..models.os_builder_runtime_config import OSBuilderBaseImageBuilderSubconfig
+
 from ..models.base_image import BaseImage
 from ..models.os_builder_model import OsBuilderModel
-from typing import TYPE_CHECKING
+from ..models.os_builder_runtime_config import OSBuilderBaseImageBuilderSubconfig
+
 if TYPE_CHECKING:
     from .builder_base_image import ImageBuilderBase
-from cs_image_system.contract.constants import DEFAULT, OOPS_DEFAULTS, SELF, VCT
 from cs_image_system.contract.assets import AssetSet
-from .builder_base import BuilderBase
+from cs_image_system.contract.constants import DEFAULT, OOPS_DEFAULTS, SELF, VCT
 from cs_image_system.contract.operating_system import OsBuilderProtocol
-from .builder_base_image import build_target_label_of
-from ..bake_user import resolve_for_entry
+
 from ..bake_steps import execute_command_line
+from ..bake_user import resolve_for_entry
 from ..models.update_policy import POLICY_FULL, UpdatePolicy, manifest_commands
+from .builder_base import BuilderBase
+from .builder_base_image import build_target_label_of
 
 OSRTC = TypeVar("OSRTC", bound=OSBuilderBaseImageBuilderSubconfig)
 # Deliberate bound exception: this pseudo-builder wraps an os-image-builder

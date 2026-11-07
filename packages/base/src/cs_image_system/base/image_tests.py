@@ -41,16 +41,16 @@ if TYPE_CHECKING:
 import shlex
 from typing import Any
 
+from cs_image_system.base.models.container_builder import ContainerBuilderModel
+
 from .capabilities import (
     admin_public_keys,
     group_builder_of,
     group_builders_by_identity_type,
+    image_chain,
     storage_builders_by_type,
 )
-from cs_image_system.base.models.container_builder import ContainerBuilderModel
 from .os_types import os_type_for_family
-from .capabilities import image_chain
-
 
 KNOWN_KEYS = {"files", "packages", "commands", "services_enabled", "users"}
 # `tests.post_bake` is the same vocabulary plus `mounts`, run ON a

@@ -2,25 +2,25 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from functools import partial
 import logging
+from functools import partial
 from typing import Any
 
-from cs_image_system.contract.names import safe_name
-from cs_image_system.contract.assets import AssetSet
 from cs_image_system.base.basic.builder_base_user import UserBuilderBase
-from cs_image_system.contract.constants import USERS
-from cs_image_system.contract.lifecycle import ExecutionLifecyclePhase
-from cs_image_system.contract.executables import CFExecutables
 from cs_image_system.base.models.user import User
+from cs_image_system.contract.assets import AssetSet
+from cs_image_system.contract.constants import USERS
+from cs_image_system.contract.executables import CFExecutables
+from cs_image_system.contract.lifecycle import ExecutionLifecyclePhase
+from cs_image_system.contract.names import safe_name
 from cs_image_system.hashicorp_utils.collector import terraform_collector
 from cs_image_system.tofu_roots.roots import TerraformRootMixin
 
 from .okta_opa_tf_user_models import OktaTfUserBuilderModel
-from .opa_attributes import OPA_USER_ATTRIBUTES, validate_opa_attributes
-from .opa_gids import OpaGidResolver, credentials_from_env
 from .okta_tf_models import OKTATF, OktaTFUser
 from .okta_tf_workspace import OKTA_PROVIDER, okta_credentials_present
+from .opa_attributes import OPA_USER_ATTRIBUTES, validate_opa_attributes
+from .opa_gids import OpaGidResolver, credentials_from_env
 
 log = logging.getLogger(__name__)
 

@@ -24,8 +24,8 @@ by the small ``CollectorContext`` protocol below, never by the core's class.
 """
 from __future__ import annotations
 
-from dataclasses import dataclass, field
 import logging
+from dataclasses import dataclass, field
 from typing import Any, Callable, Mapping, Protocol
 
 import hcl2
@@ -40,6 +40,8 @@ from cs_image_system.contract.names import super_safe_name as ssn
 # imports nothing from this library. The names stay importable from here.
 from cs_image_system.contract.state import (  # noqa: F401
     BackendKindProtocol as BackendKind,
+)
+from cs_image_system.contract.state import (  # noqa: F401
     BackendRegistration,
     BackendWithoutKind,
     StateLocation,

@@ -19,22 +19,23 @@
 """
 from __future__ import annotations
 
-
 import re
 from dataclasses import field
-from cs_image_system.contract.model_config import CSIS_MODEL_CONFIG
-from pydantic.dataclasses import dataclass  # validation at construction
 from typing import TYPE_CHECKING, Any
+
+from pydantic.dataclasses import dataclass  # validation at construction
+
+from cs_image_system.contract.constants import SELF
+from cs_image_system.contract.model_config import CSIS_MODEL_CONFIG
 
 from .basic.builder_base_group import GroupBuilderBase
 from .basic.builder_base_storage import StorageBuilderBase
 from .encryption import like
-from cs_image_system.contract.constants import SELF
 
 if TYPE_CHECKING:
-    from .run_context import RunContext
     from .models.base_image import BaseImage
     from .models.image import Image
+    from .run_context import RunContext
 
 ADMIN_KEYS_CONFIG_KEY = "admin_public_keys"
 

@@ -87,9 +87,10 @@ def test_init_args_carry_backend_config_when_enabled(monkeypatch):
     """Partial backend configuration: init must pass -backend-config=<file>."""
     from pathlib import Path
 
+    from harness import bare_run
+
     from cs_image_system.contract.lifecycle import ExecutionLifecyclePhase
     from cs_image_system.hashicorp_utils.collector import terraform_collector
-    from harness import bare_run
 
     run = bare_run(config={"use_state_backends": True})     # the collector lives with the run
     col = terraform_collector(run)
@@ -125,8 +126,9 @@ def test_deferred_psi_also_wires_ami_variable():
 
 
 def test_pre_finalize_writes_tfvars_for_resolved_psis(tmp_path):
-    from cs_image_system.contract.lifecycle import ExecutionLifecyclePhase
     from pathlib import Path
+
+    from cs_image_system.contract.lifecycle import ExecutionLifecyclePhase
 
     psi = GenericProviderSpecificImage.resolved(
         source_name="imgfile-basic-dask", source_kind=PSISourceKind.IMAGE,

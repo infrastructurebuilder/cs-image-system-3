@@ -55,8 +55,8 @@ import logging
 from typing import Any
 
 from cs_image_system.contract.lifecycles import Lifecycle
-from .utils import apply_enabled
 
+from .utils import apply_enabled
 
 log = logging.getLogger(__name__)
 

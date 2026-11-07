@@ -12,12 +12,17 @@ from __future__ import annotations
 import json
 import urllib.error
 from email.message import Message
-
 from typing import Any
 
 from cs_image_system.okta_opa_plugin.opa_gids import OpaGidResolver
 from cs_image_system.okta_opa_plugin.workload_policy import (
-    WorkloadSnapshot, ci_policy_from, ci_policy_name, connection_active, policies_equal, workload_state)
+    WorkloadSnapshot,
+    ci_policy_from,
+    ci_policy_name,
+    connection_active,
+    policies_equal,
+    workload_state,
+)
 
 TEAM = "/v1/teams/t"
 

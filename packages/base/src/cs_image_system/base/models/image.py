@@ -5,27 +5,30 @@
 from __future__ import annotations
 
 import copy
-from dataclasses import field
-from cs_image_system.contract.model_config import CSIS_MODEL_CONFIG
-from pydantic import Field
-from pydantic.dataclasses import dataclass  # validation at construction
 import logging
+from dataclasses import field
 from typing import Annotated, Any
 
+from pydantic import Field
+from pydantic.dataclasses import dataclass  # validation at construction
+
 from cs_image_system.contract.fields import deferred_list_field, fk_field, parent_field, templated_field
+from cs_image_system.contract.model_config import CSIS_MODEL_CONFIG
 
 log = logging.getLogger(__name__)
 
+from typing import TYPE_CHECKING
+
+from cs_image_system.base.run_context import current_context
 from cs_image_system.contract.constants import DEFAULT, OOPS_DEFAULTS, SELF, VCT
 
-from .builder_model import NameTyped
-from .mixins import ParentPropertyHolding, SelfInjectedName
-from .root_item import RootItem #, SubRootItem
-from typing import TYPE_CHECKING
-from ..registry import current_registry
 from ..image_names import default_output_image_name
+from ..registry import current_registry
+from .builder_model import NameTyped
 from .image_builder_model import ImageBuilderModel
-from cs_image_system.base.run_context import current_context
+from .mixins import ParentPropertyHolding, SelfInjectedName
+from .root_item import RootItem  #, SubRootItem
+
 if TYPE_CHECKING:
     from ..basic.builder_base_image import ImageBuilderBase
     from ..basic.builder_base_os import OsBuilderBase

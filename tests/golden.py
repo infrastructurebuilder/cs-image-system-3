@@ -21,7 +21,6 @@ import sys
 from pathlib import Path
 
 import pytest
-
 from harness import REPO, V2Run, tree
 
 GOLDEN = REPO / "tests" / "fixtures" / "v2_golden"

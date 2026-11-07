@@ -5,6 +5,7 @@
 import logging
 
 from cs_image_system.base.basic.abstract_plugin_metadata import AbstractPluginMetadata
+
 from .gcp_runtime_builders import GCP_RUNTIME, GCPCLIVersionChecker, GCPCloudBuilder
 from .gcp_runtime_models import GCPCloudBuilderModel
 
