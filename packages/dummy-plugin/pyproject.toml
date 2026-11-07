@@ -15,7 +15,7 @@ license-files = ["LICENSE"]
 classifiers = ["Private :: Do Not Upload"]
 requires-python = ">=3.13"
 dependencies = [
-    "cs-image-system-contract>=0.3,<0.4",
+    "cs-image-system-contract>=0.4,<0.5",
     "cs-image-system-base==0.1.7.dev2",
     "pydantic>=2.13",
 ]

@@ -52,14 +52,13 @@ from .finalizer import Finalizer
 # the end of this file delegate to, imported here because the loader is
 # where the run is assembled and the one place already inside the import
 # web every one of them belongs to
-from . import bake_steps, bake_user, capabilities, identity_attributes, image_tests, launch_enrollment
+from . import bake_steps, bake_user, capabilities, identity_attributes, image_tests
 from . import launch_params, lifecycles as _lifecycles, lineage, materialize, os_types, standing, storage_state, utils
 from . import encryption as _encryption
 from .network_facts import adopt as adopt_network_facts
 from . import image_sources as _image_sources
 from . import ephemeral_policy, state_backup
 from cs_image_system.contract.context import (
-    AnsibleTasks,
     CliServiceProtocol,
     CommandsServiceProtocol,
     FilesServiceProtocol,
@@ -70,7 +69,6 @@ from cs_image_system.contract.context import (
     LineageServiceProtocol,
     MetaStateProtocol,
     ScopeServiceProtocol,
-    ScriptLines,
     SecretsServiceProtocol,
     ServicesProtocol,
     StorageServiceProtocol,
@@ -1081,14 +1079,8 @@ class LaunchService(_Service, LaunchServiceProtocol):
     def detachments(self, instance: Any) -> list[dict[str, Any]]:
         return launch_params.detachments(self._ctx, instance)
 
-    def hostname_problems(self, name: str) -> list[str]:
-        return launch_params.hostname_problems(name)
-
     def group_builder_of(self, group: str) -> GroupBuilderProtocol | None:
         return capabilities.group_builder_of(self._ctx, group)
-
-    def register_enrollment_kind(self, kind: str, *, script_lines: ScriptLines, ansible_tasks: AnsibleTasks) -> None:
-        launch_enrollment.register_enrollment_kind(kind, script_lines=script_lines, ansible_tasks=ansible_tasks)
 
     def failure_policy(self, instance: Any) -> tuple[str, int | None]:
         return ephemeral_policy.failure_policy(self._ctx, instance)
