@@ -50,6 +50,20 @@ own commit on the bundle's branch.
    no change (the ignores stand, as the mod builders' method-override
    ignore does); the alternative makes the base models generic over the
    field's type, a refactor (found by §130).
+6. A recording made by a CLI that is not the tree's pinned release
+   commits an emission that CI's drift check then calls BEHIND. The
+   reference's `.envrc` points `CSIS` at a development checkout (the
+   documented arrangement for a checkout beside the tree), so `just
+   record` there ran unreleased code against a `.csis-version` of
+   0.1.7.dev2; the push failed CI's `live` job at `config-drift` (six
+   files, the emission moves of §130; 2026-11-11, cured by a record
+   with `CSIS` set to the pinned release). A committing run
+   (`--commit`) reads the tree's `.csis-version` and says, before it
+   generates, when the version running is not the pin. **YOUR
+   DECISION:** it refuses unless told to go on (a flag), the default,
+   or it warns and goes on. Either way the boxes for a reference
+   record name the CLI they mean (found 2026-11-11, the record of
+   §130's item 14).
 
 **Acceptance**: each item its own commit; `just test` green after
 each; one squash, branch kept. Records: the squash; this section goes

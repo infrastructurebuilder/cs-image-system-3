@@ -11,7 +11,7 @@ and docs/INCIDENTS.md that carries dates by design.
 
 ### F44: a verification starts a machine its operator switched off
 
-**Reviewed monthly: next on or after 2026-11-09.** Each review is the
+**Reviewed monthly: next on or after 2026-12-09.** Each review is the
 operator's decision: keep the behaviour, or make it a stage (a
 verification SKIPS a machine that is off unless it is asked to start it).
 Write each review below with its date and its outcome.
@@ -28,7 +28,8 @@ corrected.
 
 **The reviews.**
 
-- 2026-11-09: (open)
+- 2026-11-09: reviewed 2026-11-11 (the first session after the date).
+  Kept: a verification still starts a machine that is off.
 - 2026-12-09: (open)
 - 2027-01-09: (open)
 - 2027-02-09: (open)
