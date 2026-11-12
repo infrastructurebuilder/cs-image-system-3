@@ -120,6 +120,16 @@ matter most is item 8.
     wasted, and the pass-limit warning of item 9 could fire on a tree
     with one more level of templates. Make a field that rendered to its
     own default stay rendered (found by item 9).
+31. An OS builder's image-builder subconfig
+    (`OSBuilderBaseImageBuilderSubconfig`, and the image's own
+    subconfig in `models/image.py`) declares `type_` as a templated
+    field whose replace template is `{{ identified_model.name }}`; no
+    `identified_model` is in the subconfig's context, so the template is
+    kept as written and five subconfigs end the load holding the raw
+    text. The output does not move, so nothing reads it today. Find
+    what the template was meant to name and render it, or drop the
+    template (found by item 30). Carried to the next bundle: it was
+    found as this one's last batch ran.
 
 **Acceptance**: each item its own commit; a fix that moves the golden
 regenerates it in that commit and names every moved line (the
