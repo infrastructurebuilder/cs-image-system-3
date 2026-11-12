@@ -43,7 +43,6 @@ def _inst(ctx, name="test"):
 @pytest.fixture
 def real(tmp_path: Path, monkeypatch):
     """A real run whose instance roots may apply: the run that launches."""
-    ap._DRAWN.clear()
     run = V2Run(tmp_path, monkeypatch, dry_run=False)
     run.ctx.config["apply_instances"] = True
     try:
@@ -54,7 +53,6 @@ def real(tmp_path: Path, monkeypatch):
 
 @pytest.fixture
 def dry(tmp_path: Path, monkeypatch):
-    ap._DRAWN.clear()
     run = V2Run(tmp_path, monkeypatch)
     try:
         yield run
