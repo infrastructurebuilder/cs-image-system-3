@@ -1,7 +1,7 @@
 # 132. Hygiene bundle XXV
 
-**Status: OPEN 2026-11-07. The open bundle; takes items as they are
-found. Waits for "do 132".**
+**Status: IN PROGRESS since "do 132", 2026-11-12 (opened 2026-11-07;
+the decisions are under each item).**
 
 The small findings carried out of [§130](../docs/CHANGES.md#s130)
 (hygiene bundle XXIV) and the ones it found, none blocking, each its
@@ -40,7 +40,8 @@ own commit on the bundle's branch.
    in `pyproject.toml`) is the measured maximum, 49. The six functions
    above 20 named in its comment are the next cuts, highest first
    (`read_config_and_transform` at 49); the ceiling falls after each
-   cut (found by §130).
+   cut (found by §130). The operator, 2026-11-12: all six in this
+   bundle, each its own commit.
 5. **YOUR DECISION:** nine fields carry `# pyright:
    ignore[reportIncompatibleVariableOverride]` where a subclass
    narrows a pydantic field on purpose (`credentials` on the AWS
@@ -50,7 +51,9 @@ own commit on the bundle's branch.
    pyright's invariance rule cannot say "narrowed only". The default is
    no change (the ignores stand, as the mod builders' method-override
    ignore does); the alternative makes the base models generic over the
-   field's type, a refactor (found by §130).
+   field's type, a refactor (found by §130). The operator,
+   2026-11-12: the ignores stand, with a reminder in
+   [REMINDERS.md](../REMINDERS.md) to revisit them before 1.0.
 6. A recording made by a CLI that is not the tree's pinned release
    commits an emission that CI's drift check then calls BEHIND. The
    reference's `.envrc` points `CSIS` at a development checkout (the
@@ -64,8 +67,13 @@ own commit on the bundle's branch.
    DECISION:** it refuses unless told to go on (a flag), the default,
    or it warns and goes on. Either way the boxes for a reference
    record name the CLI they mean (found 2026-11-11, the record of
-   §130's item 14).
+   §130's item 14). The operator, 2026-11-12: it refuses unless
+   told. The check also refuses a development install whose version
+   equals the pin, which is what the two were on 2026-11-11 (both said
+   0.1.7.dev2); the flag is `--allow-unpinned`, or `CSIS_ALLOW_UNPINNED`
+   in the environment.
 
 **Acceptance**: each item its own commit; `just test` green after
-each; one squash, branch kept. Records: the squash; this section goes
+each batch and at the end, then `just full-test-legs` once (the
+operator, 2026-11-12); one squash, branch kept. Records: the squash; this section goes
 at "merge 132".

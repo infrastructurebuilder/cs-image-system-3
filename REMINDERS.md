@@ -1,7 +1,8 @@
 # Reminders
 
 Things to check at intervals collect in this file: the standing reviews
-under "Monthly General Items" and the GCP account housekeeping. The
+under "Monthly General Items", the questions to settle "Before 1.0" and
+the GCP account housekeeping. The
 system's work in flight stays in [INPROGRESS/TODO.md](INPROGRESS/TODO.md).
 The assistant raises each item when it falls due and records the
 outcome here, so this is the one current page besides docs/CHANGES.md
@@ -90,6 +91,26 @@ that is a documentation and recipe change, so it becomes a stage then.
 **The reviews.**
 
 - 2026-12-02: (open)
+
+## Before 1.0
+
+Raised when the first 1.0 release is planned, not on a date.
+
+### The nine variable-override ignores
+
+**Revisit before 1.0** (the operator, 2026-11-12, at hygiene bundle
+XXV item 5). Nine pydantic fields carry `# pyright:
+ignore[reportIncompatibleVariableOverride]` where a subclass narrows a
+field's type on purpose: `credentials` on the AWS runtime model,
+`variables` on the storage models of tf-docker (one), tf-ebs (three)
+and tf-gcp (three), and `description` on the OS builder's runtime
+config. The narrowed type is what refuses an unknown key, and pyright's
+invariance rule cannot say "narrowed only". The decision that day: the
+ignores stand. The question to settle before 1.0: keep them, or make
+the base models generic over the field's type so that no ignore is
+needed (a refactor across base and four plugins).
+
+- Before 1.0: (open)
 
 ## GCP account housekeeping (csis-sandbox)
 
