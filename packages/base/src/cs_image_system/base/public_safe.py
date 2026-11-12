@@ -108,6 +108,7 @@ _OWN_RULES: dict[str, Rule] = {
 }
 
 
+# shared by every run in the process: the installed runtime classes' own patterns
 @cache
 def _runtime_rules() -> Mapping[str, Rule]:
     """The secret shapes every installed runtime plugin declares, by rule

@@ -525,7 +525,7 @@ The kinds:
 | --------- | ------ | ----------- |
 | `fk_field(target, also_set_on_update=None, ...)` | `fk` | The value names an object of classification `target`. A `default` value resolves to the registered default. In templates the field name yields the object itself (`{{ runtime.get_default_machine_type() }}`). With `also_set_on_update`, the named attribute (used as `model_id`) is set to the target's `global_id` and `builder` is put in the template context. |
 | `templated_field(replace_value, ...)` | `templated` | When the value is `default`, `replace_value` (a Jinja string) is rendered in its place. |
-| `deferred_list_field(builder_vct, item_vct)` | `deferred_list` | A list of mappings structured late, after every builder is registered: each entry's `type` selects a builder of `builder_vct`; the entry is structured as the item class registered under `item_vct` (or the owning model's `get_subitem_overrides()`). Used for `modifications:` and `storages:`. |
+| `deferred_list_field(builder_vct, item_vct)` | `deferred_list` | A list of mappings structured late, after every builder is registered: each entry's `type` selects a builder of `builder_vct`; the entry is structured as the item class registered under `item_vct` for that builder's type, else the owning model's `get_subitem_overrides()` entry for `item_vct`, else `item_vct`'s default model (the item model a plugin's metadata injected as that classification's default, such as the base's `storage_mapping`). Used for `modifications:` and `storages:`. |
 | `deferred_list_fk_field(target)` | `deferred_list_fk` | A list of foreign keys resolved late. |
 
 A plugin may register a new kind and stamp `field_kind` metadata on its own
@@ -534,8 +534,34 @@ fields.
 ### Template resolution
 
 After structuring, the run's resolver (`ctx.template_resolver.resolve_all()`) renders, up to five
-passes, every string and mapping field that still contains `{{`. Each
-object renders in a `SmartContext` that exposes:
+passes, every string and mapping field that still contains `{{`, and
+every templated string value of a plain mapping in its map (the run
+scopes `execution` and `ENV`). Every one of those renders inherits its
+inputs' encryption: a value derived from a decrypted one comes out of
+the resolution carrying a ciphertext built from its pieces
+(`mark_plaintexts`), so the emission writes `ENC[age:...]` where the
+plaintext was.
+
+A pass that changes nothing ends the resolution. A template whose
+rendering feeds another needs one pass per link, so a chain longer than
+five, or a template that renders to a new template every time, is still
+unrendered when the fifth pass ends: then a WARNING names each field
+the passes worked on that still holds `{{` (the object's flat-map key, a
+model's global id or a run scope's name, and the field), once per field
+for the run's resolver, never its value. The field keeps what the last
+pass left and the run goes on. A replace template that names something
+not yet defined is logged as an error and tried again in the next pass;
+one that does not compile is logged the same way and fails the load.
+
+A change is measured against what the field held when the pass began.
+A templated field that holds `default` gets its replace template back
+in every pass and is rendered again, so a value its inputs gained since
+can still reach it; a rendering back to `default` is not a change, so
+such a field (an image builder subconfig's `machine_type` when no
+machine type is named anywhere) holds no pass open. The resolver keeps
+the number of passes each call made (`passes_made`).
+
+Each object renders in a `SmartContext` that exposes:
 
 | Name | Value |
 | ------ | ------- |
@@ -987,12 +1013,17 @@ Source: [`commands/run_lifecycles.py`](src/cs_image_system/base/commands/run_lif
 `run_lifecycles(requested, apply=True, commit=False, state_query=True,
 only=None, force_bake=None)` performs, in order:
 
-1. Load hook plugins. Reset the "generated this run" set and the bake
-   decision cache. Validate `--only` names (an image name, or
-   `<image>@<runtime>`; `none` means an empty bake surface). Write the
+1. Check the `--only` names first (an image name or an OS builder, or
+   `<image>@<runtime>` with a configured runtime; `none` alone means an
+   empty bake surface and is no name to check). An unknown name returns
+   a failed summary with nothing requested, and that is all: no hook
+   plugin is loaded, nothing on the context is reset, and nothing is
+   written, recorded or handed to the on-summary hooks. Otherwise: load
+   hook plugins; reset the "generated this run" set, the bake decision
+   cache and the bake surface (`only_images`, `force_bake`); write the
    root `generated/.gitignore` (the merged policy plus the run-local
    file names). A `--migrate-state` under a dry run is refused here,
-   before anything else.
+   before the state query.
 2. **State query** (unless disabled): ask every plugin for reality, write
    `generated/state-report.json`, log the credential session lines.
 3. **Validation**: unique names, executables present and version-compliant
@@ -1146,6 +1177,53 @@ What the context exposes:
 | `reg`, `image_sources`, `template_resolver` | The run's registry, image-source catalog and template resolver (with its converter): one of each per load. |
 | `finalizer` | The run's deferred-command queue and executor: `get_finalization_executables_for_phase(phase, lifecycle)`, `finalization_phases_for(lifecycle)`, `final_execution_path`, `write_lifecycle_runner_script(lc, header)`, `write_gating_script()`, `final_execute()`. |
 | `extend_finalization_phase(phase, executables)` | Queue executables for a phase on the run's finalizer (the one finalizer verb the contract's context protocol declares). |
+| `plugin_state(key, factory)` | The one object a library or plugin keeps for this run under `key`: made by `factory` on the first ask, the same object after, gone with the context. |
+
+### What a process shares between runs, and what it must not
+
+A process may hold more than one run. A run's transient-storage teardown is
+a nested run of its own (the same root under fewer overlays), loaded and run
+in the same process, and a test loads many trees in one process. So
+anything a run's configuration, credentials, overlays, root, clock or
+meta-state decides belongs to that run: on its context, or on an object the
+run owns. What the process keeps for every run is either a fact of what is
+installed or the process's own by design, and every run shares it safely:
+
+| Where | What it holds | Why sharing it is safe |
+| ----- | ------------- | ---------------------- |
+| `loader._discovered_plugins` | The installed plugins, discovered and held to the contract once. | What is installed does not change under a process; each run replays it into a registry of its own. |
+| `basic.abstract_plugin_metadata._distribution_roots` | Where each installed distribution's files are, and its version. | Installed. |
+| `public_safe._runtime_rules` | The secret shapes the installed runtime classes declare. | Installed; nothing of a run is read. |
+| The hook lists in `commands/run_lifecycles.py` (`_VALIDATORS` to `_STATE_BINDINGS`), `_HOOK_PLUGINS_LOADED` | The run hooks of the core and of the installed hook plugins. | Filled once from code and entry points; every hook is handed the run it serves; registering one again adds nothing. |
+| `lifecycles._REGISTERED` | The lifecycles code and hook plugins register. | Each is registered once and never changed. |
+| `config_loader._ITEM_KINDS` | The domain-item kinds the loader reads. | Registered at import; a run reads its items into its own context. |
+| `helpers.resolution_stages._PASSES` | The string-stage passes. | Registered at import; each pass walks the document it is handed. |
+| The contract's `field_kinds._HANDLERS`, `enrollment._KINDS`, `secrets._decoder` | The field-kind handlers, the launch-enrollment renderers, the core's marker decoder. | Each is handed what it works on (the run's resolver and registry, a launch's parameters, a marker). |
+| `in_process._RUNNER` | The system CLI's in-process runner. | One per process, handed the run's context on every call; a nested run loads a context of its own. |
+| The system CLI's `_DEFERRED_LOAD_COMMANDS` | The plugin sub-apps whose commands load the tree themselves. | Filled at import from the installed command mounts. |
+| `encryption._identities_for` | The age identities `CSIS_CONFIG_IDENTITY` names. | Keyed by the environment's value, which every run in the process reads alike. |
+| `encryption._OPENED`, `_OPENED_KEYS` | Every marker opened in the process and its plaintext, and the keys each plaintext was read under. | A marker opens to one plaintext under the process's one identity, and every reader takes a plaintext more as one more value to hide (a stricter scan of what is written, a derived value marked, a record written as ciphertext), never as one fewer. The nested run reads the same root under some of its outer run's overlays. |
+| The working directory, the logging, standard output, the typer context | The process's own. | A nested run leaves each as it found it (`run_nested` in the system CLI). |
+
+What is a run's own: its registry, image-source catalog, template resolver,
+finalizer and meta-state handle, its run id and start time, its bake
+decisions (`ctx.bake_decisions`), and whatever a library or plugin keeps
+through `ctx.plugin_state(key, factory)`: the terraform and packer
+collectors ([hashicorp-utils](../hashicorp-utils/README.md)) and the alias
+pool's draws (`alias_pool.drawn_this_run(ctx)`). The draws are kept by run,
+not by run id: a run id is the load's start time to the second and names no
+root, so two runs loaded in one second carry one id
+([the test](../../tests/test_two_runs_in_one_process_share_nothing.py)).
+
+For a plugin author: never keep run state at module level. No
+`functools.cache` over anything a run's configuration, credentials or
+overlays decide; no module-level SDK client, session or token built from a
+runtime's settings; no dict of cloud answers keyed by region, project or
+profile, which would serve one run's answer to another run under other
+overlays. Build a client per call from the builder's own model, as every
+built-in runtime does, or keep it for the run through `ctx.plugin_state`,
+which gives one object per run and drops it with the context. Only a fact
+of what is installed may be cached for the process.
 
 ## Meta-state
 
@@ -1523,7 +1601,7 @@ elsewhere, or edit a copy and keep the edit by naming it.
 | [`power_state.py`](src/cs_image_system/base/power_state.py) | The system's power-state vocabulary (`running`, `stopped`, `suspended`, `starting`, `stopping`, `absent`, `unknown`; `None` is "cannot answer"), `wait_until_reachable`, and `running_for_task`, the one bounded exception under which a stopped machine is started for work that needs it and stopped again afterwards. |
 | [`generations.py`](src/cs_image_system/base/generations.py) | Instance generations: one per machine, opened `inferred` by a launch and confirmed `observed` (or closed as `replaced-out-of-band`) by the provider's instance id after a real apply; a machine launched before the record existed is `adopted` as generation 1 of it. |
 | [`alias_pool.py`](src/cs_image_system/base/alias_pool.py) | The pool of pre-approved names in `meta-state/aliases.txt`: a new durable machine's alias is the first free line, burnt in place under an exclusive lock by the run that can launch it. |
-| [`provider_aliases.py`](src/cs_image_system/base/provider_aliases.py) | After a real instance-image apply, gives each launched, running instance back the names it lost at boot (the bare declared name, the pool alias, the provider's `ip-...` label), skipping every collision and every silent registry: the core decides the names, the machine and the moment, and the group builder's `alias_registration_script` renders the script that tells its agent (the core reads only the contract's `ALIASES_CHANGED` / `ALIASES_UNCHANGED` from its output); and the `reality.instances` entries and notes of the state report. |
+| [`provider_aliases.py`](src/cs_image_system/base/provider_aliases.py) | After a real instance-image apply, gives each launched, running instance that its group's registry lists the names it lost at boot back (the bare declared name, the pool alias, the provider's `ip-...` label), skipping every collision and every silent registry; a machine with no record of its own (none carries its provider id: it has not enrolled) is passed over with an INFO line carrying the module's `NOT_LISTED`, and one this run launched is waited for first, bounded: the core decides the names, the machine and the moment, and the group builder's `alias_registration_script` renders the script that tells its agent (the core reads only the contract's `ALIASES_CHANGED` / `ALIASES_UNCHANGED` from its output); and the `reality.instances` entries and notes of the state report. |
 | [`workload_access.py`](src/cs_image_system/base/workload_access.py) | After a real identity apply, reconciles each managed group's CI login policy through the group builder and records the outcome in the identity read-model. |
 | [`reserved_names.py`](src/cs_image_system/base/reserved_names.py) | The read-time refusals: `refuse_reserved_names` (a `name:` at any depth, or an `aliases:` entry, that is a word of `OOPS_DEFAULTS` in any case or spacing, every one listed with the file, the entry's place and the word, `ReservedNameError`) and `refuse_invalid_config_keys` (a key of a document's top-level `config:` that is in `INVALID_CONFIG_KEYS`, `InvalidConfigKeyError`). Called by `read_and_process` for each `cfg/` file, by the item-file reader after decryption, and by `load_overlay`; pure functions of the parsed document, no identity or network. |
 | [`materialize.py`](src/cs_image_system/base/materialize.py) | The private mirror `_private/` beside `generated/`, at the same depth: a root is copied there with every `ENC[age:...]` marker replaced by its plaintext before a deferred command runs, incrementally; only `.terraform.lock.hcl` is ever copied back. `ensure_ignored` appends `_private/` to the configuration root's `.gitignore`. |
@@ -2009,11 +2087,15 @@ builder model is its plugin's):
 - **The registry answers vs the registry is silent.** With
   `apply_instances` on and the instance-image lifecycle requested, a
   registry that answers lets the hostname claims be checked and the
-  aliases written; a registry that cannot be asked (`registered_servers`
-  returns `None`) REFUSES the launch ("could not check whether canonical
-  hostname ... is already claimed"), skips every alias that run, and fails
-  the login proof's "one registration" check. Silence is never a free
-  name.
+  aliases written for every machine it lists (by the provider id the
+  agent enrolled with); a machine it answers without (not enrolled, so
+  no record of its own to judge its names beside) is passed over with an
+  INFO line, as a stopped one is, and gets its aliases at the next
+  applies-on run that finds it listed. A registry that cannot be asked
+  (`registered_servers` returns `None`) REFUSES the launch ("could not
+  check whether canonical hostname ... is already claimed"), skips every
+  alias that run, and fails the login proof's "one registration" check.
+  Silence is never a free name.
 - **`use_state_backends` on vs off.** On: every terraform root's state
   location is resolved from the declarations (own `state_configuration`,
   else the runtime's, else the default backend), collisions and unsafe
@@ -2170,7 +2252,9 @@ journaled under `bake_plan`) and applies the scope check.
   `image_id`); no image builder, no runtime builder, no resolved
   identifier for an OS builder, or a pinned id the provider does not know
   raises and the lifecycle is recorded `failed`. Template resolution runs up to five passes; what
-  still carries `{{` stays as written.
+  still carries `{{` stays as written, and when the fifth pass still
+  changed something each such field is named in a warning (see
+  [Template resolution](#template-resolution)).
 - **The phases**: a before-hook, generator or after-hook returning false,
   or a build executable exiting non-zero, raises `LifecycleRunError`
   (`[<lifecycle>] before-phase hooks failed for <phase>` and so on); the
@@ -2363,9 +2447,8 @@ code writes it (values in angle brackets).
   repository's `.envrc` does; a subshell of the tool needs it sourced), or
   `reencrypt` the tree to the current recipients from a holder that can
   open it.
-- `No runtime providers configured.` / `No runtime builders found in
-  config file.` -- no `runtime_builders:` entry, or no runtime plugin
-  installed.
+- `No runtime providers configured.` -- no `runtime_builders:` entry, or
+  no runtime plugin installed.
 - `No default builder found in <classification> list.` / `Multiple default
   builders found: <a> and <b>` -- mark exactly one `is_default: true` per
   builder class.
@@ -2554,8 +2637,10 @@ summary):
 - `state: <class> <kind> <name>: <detail> (from state-report.json; re-run
   'state query' after fixing)` -- hard drift from the last report.
 - `--only names unknown image(s): ...; known: ...` (the summary's `error`,
-  before validation) and `run scope: bake(s) outside the apply scope
-  [...]` (after the bake plan, a real run only).
+  before anything else of the run: the refused summary is returned to
+  the caller and never written, journalled or handed to the on-summary
+  hooks) and `run scope: bake(s) outside the apply scope [...]` (after
+  the bake plan, a real run only).
 - `--migrate-state moves state and needs --no-dry-run: a dry run never
   moves state`.
 
@@ -2658,7 +2743,9 @@ lifecycle `failed` or the apply `failed`; exit 1):
   claimed by <id> (OPA would resolve it to that record, or refuse as
   ambiguous)` / `group '<g>''s server registry could not be asked; skipping
   alias [...] -- silence is not a free name` / `could not write its aliases
-  [...]: <e>` / `alias write failed (<rc>): <tail>`.
+  [...]: <e>` / `alias write failed (<rc>): <tail>` (also when the
+  command answered with no output at all, whatever its exit status: the
+  tail then reads `no output`).
 - `Instance <n>: the machine bearing this name is <id2>, not <id1> --
   generation <kind> <k> closed as replaced out of band, <kind> <k+1>
   opened. Nothing in this system did that.` -- a WARNING: a taint, a

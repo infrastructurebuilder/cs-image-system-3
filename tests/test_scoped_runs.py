@@ -246,6 +246,34 @@ def test_only_with_unknown_name_is_a_hard_error(v2):
     assert "no-such-image" in (summary.error or "")
 
 
+def _checksums(root: Path) -> dict[str, str]:
+    """``{relative path: sha256}`` of every file under ``root``."""
+    import hashlib
+    return {str(p.relative_to(root)): hashlib.sha256(p.read_bytes()).hexdigest()
+            for p in sorted(root.rglob("*")) if p.is_file()}
+
+
+def test_a_refused_only_changes_nothing_and_records_nothing(v2, monkeypatch):
+    """The ``--only`` name check is the first thing a run does: the refusal
+    comes back to its caller, and the tree (generated output and
+    meta-state), the hook plugins, the context's generated lifecycles and
+    the on-summary hooks are exactly as they were."""
+    from cs_image_system.base.commands import run_lifecycles as rl
+    assert v2.run(["storage"], apply=False).ok         # generated output, a summary and a journal entry
+    before = _checksums(v2.config_root)
+    generated = v2.ctx.generated_lifecycles
+    assert generated
+    loads: list[bool] = []
+    notified: list[object] = []
+    monkeypatch.setattr(rl, "load_hook_plugins", lambda force=False: loads.append(force) or 0)
+    monkeypatch.setattr(rl, "_ON_SUMMARY", [notified.append])
+    summary = v2.run(["base-image"], apply=True, only=["no-such-image"])
+    assert summary.ok is False and summary.requested == [] and summary.error
+    assert _checksums(v2.config_root) == before
+    assert loads == [] and notified == []
+    assert v2.ctx.generated_lifecycles == generated
+
+
 def test_only_leaves_terraform_roots_declarative(v2):
     """--only never filters the instance root: every non-destroyed instance
     is present regardless of the bake selection."""

@@ -199,9 +199,9 @@ def test_the_live_configuration_never_reaches_the_fast_suite_and_is_guarded_else
 # ------------------------------------------------------------- preflight
 
 def _preflight(monkeypatch, daemon: bool = False, **env: str):
-    """`preflight` over the frozen fixture: it LOADS the configuration (stage
-    127; the load reaches no cloud and needs no session -- the harness's
-    identity and dummies open the tree) and reads the sessions from it.
+    """`preflight` over the frozen fixture: it LOADS the configuration (the
+    load reaches no cloud and needs no session -- the harness's identity
+    and dummies open the tree) and reads the sessions from it.
     ``daemon`` makes the fixture's synthetic docker daemon (docker-fixture,
     a context that exists nowhere) answer its probe."""
     from harness import stub_environment

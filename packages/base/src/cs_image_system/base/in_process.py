@@ -56,6 +56,7 @@ if TYPE_CHECKING:
 #: ``fn(ctx, args, working_directory) -> exit code``, or ``None`` to decline.
 SystemCliRunner = Callable[["RunContext", list[str], Optional[Path]], Optional[int]]
 
+# shared by every run in the process: one runner, handed the run (its context) on every call
 _RUNNER: SystemCliRunner | None = None
 
 

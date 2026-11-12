@@ -48,10 +48,19 @@ log = logging.getLogger(__name__)
 POOL_FILE = ALIASES
 _SPENT_RE = re.compile(r"^\s*#\s*(?P<name>[A-Za-z0-9][A-Za-z0-9-]*)\s+--\s+(?P<record>.+?)\s*$")
 
-# names drawn by THIS process, per run and instance: the launch parameters
-# are computed more than once per run, and a second computation must find
-# the name the first one burned, not burn another
-_DRAWN: dict[tuple[str, str], str] = {}
+#: the key under which a run keeps its draws beside its context
+DRAWS_KEY = "alias-pool.draws"
+
+
+def drawn_this_run(ctx: "RunContext") -> dict[str, str]:
+    """The names this run drew, by instance name, kept beside the run's
+    context (``ctx.plugin_state``): the launch parameters are computed more
+    than once per run, and a second computation must find the name the
+    first one burned, not burn another. The run's own, not the process's:
+    another run in the process (a nested teardown, another tree, a load in
+    the same second and so under the same run id) draws from its own pool
+    and never finds this one's names."""
+    return ctx.plugin_state(DRAWS_KEY, dict)
 
 
 @dataclass
@@ -195,10 +204,10 @@ def release_unlaunched(ctx: "RunContext") -> list[str]:
     other draw of this run is released. Returns the names released."""
     ms = ctx.meta_state
     path = pool_path(ctx.working_path)
+    run_id = str(ctx.run_id)
+    draws = drawn_this_run(ctx)
     released: list[str] = []
-    for key in [k for k in list(_DRAWN) if k[0] == str(ctx.run_id)]:
-        run_id, name = key
-        drawn = _DRAWN[key]
+    for name, drawn in list(draws.items()):
         rec = ms.launch_params().get(name) or {}
         given = bool(rec.get("launched")) and str(rec.get("launched_run") or "") == run_id \
             and str(rec.get("alias") or "") == drawn
@@ -208,7 +217,7 @@ def release_unlaunched(ctx: "RunContext") -> list[str]:
             released.append(drawn)
             log.warning(f"Instance {name}: alias {drawn!r} drawn this run goes back to the pool -- the "
                         f"machine it was for never came to exist (the run did not launch it)")
-        _DRAWN.pop(key, None)
+        draws.pop(name, None)
     return released
 
 
@@ -233,9 +242,9 @@ def alias_for(ctx: "RunContext", instance: Any, canonical: str) -> str | None:
     path = pool_path(ctx.working_path)
     if not path.is_file():
         return None
-    key = (str(ctx.run_id), name)
-    if key in _DRAWN:
-        return _DRAWN[key]
+    draws = drawn_this_run(ctx)
+    if name in draws:
+        return draws[name]
     if str(recorded.get("run") or "") == str(ctx.run_id) and recorded.get("alias"):
         return str(recorded["alias"])              # drawn earlier in this run, already recorded
     can_launch = (not ctx.dry_run) and apply_enabled(ctx, "instances", str(instance.type_), [str(instance.runtime)])
@@ -252,7 +261,7 @@ def alias_for(ctx: "RunContext", instance: Any, canonical: str) -> str | None:
         log.warning(f"Instance {name}: the alias pool is EMPTY; launching {canonical} without an alias "
                     f"(append names to {path.name} to refill it)")
         return None
-    _DRAWN[key] = drawn
+    draws[name] = drawn
     log.info(f"Instance {name}: took alias {drawn!r} from the pool for {canonical} (spent; the line is "
              f"commented out in {path.name})")
     return drawn

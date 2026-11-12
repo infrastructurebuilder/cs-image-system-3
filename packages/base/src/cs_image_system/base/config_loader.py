@@ -136,6 +136,10 @@ from .models.storage import Storage
 from .models.storage_builder import StorageBuilderModel
 from .models.user_builder import UserBuilderModel
 
+#: the file a verbose load writes the rendered document to, in the
+#: configuration root's private directory (``_private/``)
+VERBOSE_DUMP = "YAML_DUMP.yaml"
+
 PLUGIN_TYPEMAP: dict[str, type] = {
     "base" : dict,
     "runtime": RuntimeBuilderModel,
@@ -176,6 +180,7 @@ class ItemKind:
     base_only: bool = False                     # read in base-only mode instead of the normal flow
 
 
+# shared by every run in the process: specs registered by code at import; a run reads its items INTO its own context
 _ITEM_KINDS: list[ItemKind] = []
 
 
@@ -417,7 +422,9 @@ def read_config_and_transform(
     Parameters
     ----------
     root_dir : Path
-        The root directory containing the configuration files.
+        The root directory containing the configuration files, and the
+        run's working directory. Required: a load without one is refused
+        before anything is loaded or changed.
     reg : Registry, optional
         A prepared registry to load this run into (a test's); by default
         the run gets a registry of its own with the installed plugins
@@ -427,6 +434,10 @@ def read_config_and_transform(
     -------
         The global configuration instance.
     """
+    # refused first: no plugin is loaded, no catalog made and the typer
+    # context's object is left as the caller had it
+    if not root_dir:
+        raise ValueError("Root directory must be provided")
     run_start_time = datetime.now()
     typer_cntx.obj = {"run_start_time": run_start_time}   # the CLI sets "base_only" itself
     env = os.environ.copy()
@@ -438,8 +449,6 @@ def read_config_and_transform(
     # read from this registry's runtimes, the tree's layer set below once
     # the configuration is parsed
     catalog = ImageSourceCatalog(reg)
-    if not root_dir:
-        raise ValueError("Root directory must be provided")
     _config_dir = root_dir / "cfg"
     orig = read_and_process(_config_dir)
     if not orig:
@@ -476,8 +485,13 @@ def read_config_and_transform(
     template_resolver = TemplateResolver(reg, addl=addl, converter=cvt)
     if verbose:
         # the rendered document, the one time it is written out (and before
-        # decryption, so no plaintext lands in it)
-        with open("./YAML_DUMP.yaml", "w+") as f:
+        # decryption, so no plaintext lands in it), under the root's private
+        # directory, which is never committed; the invoking directory is left
+        # alone (the root is not yet the current directory, so a relative
+        # root still resolves against the invoking one here)
+        dump_dir = materialize.private_root(root_dir)
+        dump_dir.mkdir(parents=True, exist_ok=True)
+        with open(dump_dir / VERBOSE_DUMP, "w+") as f:
             yaml.safe_dump(generic_yaml, f, sort_keys=False)
 
     # any value in the base document may be an ENC[age:...] marker.
@@ -531,10 +545,6 @@ def read_config_and_transform(
     addl_config = copy.deepcopy(addl)
     addl_config.update(config_data.config)
 
-
-    if not config_data.runtime_builders:
-        log.error("No runtime builders found in config file.")
-        raise ValueError("No runtime builders found in config file.")
 
     log.debug(f"Original runtime builders config: {config_data.runtime_builders}")
 
@@ -637,24 +647,18 @@ def _take_builder_lists(generic_yaml: dict[str, Any]) -> dict[str, list[dict[str
     return original_yaml_dictionary_lists
 
 
-def _structure_configuration(cvt: PydanticConverter, generic_yaml: dict[str, Any]) -> Any:
+def _structure_configuration(cvt: PydanticConverter, generic_yaml: dict[str, Any]) -> IAConfig:
     """The document, its builder lists taken out, structured as the
-    configuration (:class:`IAConfig`). A document that does not structure is
-    logged as an error and the failure raised as it came."""
+    configuration (:class:`IAConfig`): the document is one mapping
+    (:func:`_single_mapping`), so the configuration is one object. A
+    document that does not structure is logged as an error and the failure
+    raised as it came."""
     try:
         # cattrs.resolve_types(IAConfig)
-        config_data = cvt.structure(generic_yaml, IAConfig)
+        return cvt.structure(generic_yaml, IAConfig)
     except Exception as e:
         log.error(f"Failed to parse configuration: {e}")
         raise
-    assert (
-        config_data.working_directory is not None
-    ), "working_directory is required in config"
-    if isinstance(config_data, list):
-        if len(config_data) != 1:
-            raise ValueError(f"Expected single config, got {len(config_data)}")
-        config_data = config_data[0]
-    return config_data
 
 
 def _structure_builder_models(
@@ -718,9 +722,10 @@ def _structure_builder_model(
             bmpname = bmp.get_name()
             vct = registry.sanitize_classifier(bmp.get_classification())
             if bmpname and vct and bmp.get_is_default():
-                if reg.get_default_for(vct) != None:
+                registered = reg.get_default_for(vct)
+                if registered is not None:
                     log.warning(
-                        f"Default {vct.value} builder already registered: {reg.get_default_for(vct)}. Overwriting with {bmpname} from config."
+                        f"Default {vct.value} builder already registered: {registered}. Overwriting with {bmpname} from config."
                     )
                 reg.set_default_for(vct, bmpname)
         template_resolver.flatten_dataclass(named_obj)
@@ -753,11 +758,26 @@ def _build_builders(
 ) -> list[BuilderBase]:
     """Build and register the builders of every family the configuration
     declares (the runtimes always; another family only when it has entries)
-    and return them as one list: runtimes, state backends, group, user, OS,
-    modification, storage, image and instance builders, in that order, and
-    by name within a family. The families are BUILT in another order than
-    they are listed in: runtimes, state backends, OS, group, user, image,
-    instance, modification, storage."""
+    and return them as one list. The families are built in one order and
+    listed in another, and each order is kept for what depends on it:
+
+    * BUILT: runtimes, state backends, OS, group, user, image, instance,
+      modification, storage. The runtimes must come first: every model
+      that names a runtime resolves the name (or ``default``) against the
+      runtime builders' names, aliases and default, which the runtimes'
+      own build registers.
+    * LISTED (by name within a family): runtimes, state backends, group,
+      user, OS, modification, storage, image, instance. The list is the
+      run's ``all_sorted_builders``, and its order is the run's: every
+      phase hook walks the builders in it (the generation before and after
+      a phase and the deferred commands it collects, the executor's pre-,
+      post- and failed-phase hooks), and the state-location check walks
+      the terraform roots in it, so its refusals come out in this order.
+      Listing in the build order changes no file the installed plugins
+      emit (each family acts in a phase of its own), but it would reorder
+      those refusals (an instance root's ahead of a storage root's) and
+      the hooks of any builder that acts in another family's phase, so
+      the listing keeps its own order."""
     configured_runtime_builders: dict[str, RuntimeBuilderBase] = process_and_register_builders(
         config_data, VCT.RUNTIME_BUILDER, "runtime_builders", addl_config, reg
     )  # type: ignore
@@ -825,19 +845,12 @@ def _build_builders(
 
 
 def _enter_working_directory(root_dir: Path, config_data: IAConfig) -> tuple[Path, Path]:
-    """Resolve the working path, refuse one that does not exist, make it the
-    process's current directory, and return it with the generation path
-    under it."""
-    # If a root_dir is supplied
-    if root_dir:
-        # Use the supplied root_dir
-        working_dir = root_dir
-    else:
-        # Use the root_dir from the config file, or default to "."
-        working_dir = (
-            config_data.working_directory if config_data.working_directory else "."
-        )
-    wpath = Path(working_dir).resolve()
+    """The root is the working path: resolved, refused when it does not
+    exist, made the process's current directory, and returned with the
+    generation path under it. The configuration's ``working_directory`` is
+    accepted and not read: every load is handed its root, and the root is
+    where the run works."""
+    wpath = Path(root_dir).resolve()
     if not wpath.exists():
         raise FileNotFoundError(f"Working directory {wpath} does not exist.")
     # Deliberately NOT a scoped change: the loaded configuration is used from

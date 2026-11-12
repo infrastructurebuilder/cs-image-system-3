@@ -28,7 +28,7 @@ encryption:
 # else that looks like a secret or a person refuses the commit.
 public_safe:
   allow:
-    - "mykelalvis@infrastructurebuilder.org"   # the copyright holder's address in the SPDX header of every release-owned file (hygiene XII item 1); not a person of this tree
+    - "mykelalvis@infrastructurebuilder.org"   # the copyright holder's address in the SPDX header of every release-owned file; not a person of this tree
     - "path:.age-identity"          # the TEST identity, committed on purpose; DROP this line the day a real identity replaces it
 
 # Entries appended to the built-in gitignore list and written to generated/.gitignore.

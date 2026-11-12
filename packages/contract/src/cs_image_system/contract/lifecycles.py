@@ -7,9 +7,11 @@ phases and builder classifications each owns, and the record a plugin
 registers a lifecycle of its own with.
 
 The data lives here so a plugin names a lifecycle or declares one
-without importing the core; the registry of plugin lifecycles
-(``register_lifecycle`` and its readers) stays in
-``cs_image_system.base.lifecycles``, which re-exports everything here.
+without importing the core, and the core imports it from here too. The
+registry of plugin lifecycles (``register_lifecycle`` and its readers) is
+the core's own, ``cs_image_system.base.lifecycles``: it imports the six
+names defined here for its own use and declares no re-export of them, so
+a plugin imports them from this module.
 """
 from __future__ import annotations
 

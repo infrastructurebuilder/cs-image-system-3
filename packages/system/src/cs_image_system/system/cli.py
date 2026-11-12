@@ -1557,6 +1557,7 @@ def _version_callback(value: bool) -> None:
 
 # ------------------------------------------------ what the plugins add
 
+# shared by every run in the process: filled at import from the installed plugins' command mounts
 _DEFERRED_LOAD_COMMANDS: set[str] = set()
 
 

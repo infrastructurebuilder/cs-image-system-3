@@ -9,14 +9,20 @@
   ``yaml.safe_load``);
 * preflight finds a runtime declared in any cfg file, because the loaded
   configuration reads every cfg file alike;
+* a load without a root is refused before any plugin loads, and the root
+  is the working directory whatever ``working_directory`` names; a verbose
+  load writes its rendered document under the root's ``_private/``, not
+  into the directory it was started from;
 * ``dateformat`` has one default and it is the one the run uses; an
   executable builds its command once.
 
-History: stage 63 low-hanging items 5, 11 and 13, dead-code item 11.
+History: stage 63 low-hanging items 5, 11 and 13, dead-code item 11; hygiene XXVI items 1 and 4.
 """
 from __future__ import annotations
 
 from pathlib import Path
+from types import SimpleNamespace
+from typing import Any, cast
 
 import pytest
 import yaml
@@ -65,6 +71,50 @@ def test_preflight_finds_a_runtime_declared_in_any_cfg_file(tmp_path: Path, monk
     src.unlink()
     after = {i.runtime for i in session_infos(load_context(root))}
     assert after == before, f"{after} != {before}: a runtime declared in another cfg file is preflighted too"
+
+
+# ----------------------------------------------------- the root
+
+def test_a_load_without_a_root_is_refused_before_any_plugin_loads(monkeypatch):
+    from cs_image_system.base import config_loader
+    loaded: list[Any] = []
+    catalogs: list[Any] = []
+    monkeypatch.setattr(config_loader, "load_plugins", loaded.append)
+    monkeypatch.setattr(config_loader, "ImageSourceCatalog", catalogs.append)
+    typer_cntx = SimpleNamespace(obj={"invoked_cwd": "kept"})
+    with pytest.raises(ValueError, match="Root directory"):
+        config_loader.read_config_and_transform(cast(Any, typer_cntx), cast(Any, None))
+    assert loaded == [] and catalogs == []
+    assert typer_cntx.obj == {"invoked_cwd": "kept"}
+
+
+def test_the_root_is_the_working_directory_whatever_the_configuration_names(tmp_path: Path, monkeypatch):
+    root = copy_config(tmp_path)
+    cfg = root / "cfg" / "_config.yml"
+    cfg.write_text(cfg.read_text() + "working_directory: ./elsewhere\n")
+    stub_environment(monkeypatch)
+    monkeypatch.chdir(tmp_path)
+    ctx = load_context(root)
+    assert ctx.working_path == root.resolve()
+    assert Path.cwd() == root.resolve()
+    assert not (root / "elsewhere").exists() and not (tmp_path / "elsewhere").exists()
+
+
+def test_a_verbose_load_dumps_the_rendered_document_under_the_roots_private_directory(tmp_path: Path, monkeypatch):
+    from cs_image_system.base import config_loader
+    from cs_image_system.base.materialize import PRIVATE_DIRNAME
+    root = copy_config(tmp_path)
+    invoking = tmp_path / "invoking"
+    invoking.mkdir()
+    assert not (root / PRIVATE_DIRNAME).exists()
+    stub_environment(monkeypatch)
+    monkeypatch.chdir(invoking)
+    config_loader.read_config_and_transform(cast(Any, SimpleNamespace(obj={})), root, True,
+                                            dry_run=True, overlays=[], undeclare=[])
+    dump = yaml.safe_load((root / PRIVATE_DIRNAME / config_loader.VERBOSE_DUMP).read_text())
+    assert dump["id"] == yaml.safe_load((root / "cfg" / "_config.yml").read_text())["id"]
+    assert list(invoking.iterdir()) == [], "the invoking directory is left alone"
+    assert not (root / config_loader.VERBOSE_DUMP).exists()
 
 
 # ----------------------------------------------------- the base models

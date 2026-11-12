@@ -1,4 +1,4 @@
-# docs/examples/complete/meta-state/aliases.txt -- the alias pool (stage 59):
+# docs/examples/complete/meta-state/aliases.txt -- the alias pool:
 # one memorable name per line, hand-appended; the system only ever comments a
 # line out, in place, when a new durable machine takes it. Reference:
 # ../../../OPERATIONS.md (the alias pool) and CONFIGURATION.md section 1.3.

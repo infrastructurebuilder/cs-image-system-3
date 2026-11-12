@@ -5,7 +5,7 @@ and storage read-models, the storage transitions, lineage, pins, launch
 parameters, runs, verifications, image tests, releases, mod tests, state
 locations). Two files are hand-written here on purpose:
 
-- [`aliases.txt`](aliases.txt) -- the **alias pool** (stage 59): pre-approved,
+- [`aliases.txt`](aliases.txt) -- the **alias pool**: pre-approved,
   memorable names, one per line, hand-appended in advance. The run that can
   launch a NEW durable machine takes the first free line, records it as that
   machine's alias in its launch parameters, and comments the line out in

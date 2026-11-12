@@ -16,6 +16,13 @@ each model and builder answers with its own run's. The second looks at the
 behaviour: a run whose load was followed by another run's load AND
 generation still emits the golden tree, byte for byte, while the other
 run's emission shows what only its own declarations say.
+
+What a run keeps beside its context is its own as well, and is not keyed
+by anything two runs could share: two runs loaded at one moment carry one
+run id, and still each draws its aliases from its own pool and gives back
+only its own. What the process does keep for every run (the installed
+plugins, the hook lists, the opened ciphertexts) is listed, with why
+sharing it is safe, in the base package's README.
 """
 from __future__ import annotations
 
@@ -27,7 +34,8 @@ import yaml
 from golden import GOLDEN, IGNORED_FILES
 from harness import V2Run, copy_config, load_context, stub_environment, tree
 
-from cs_image_system.base import image_sources, registry, run_context
+from cs_image_system.base import alias_pool, image_sources, registry, run_context
+from cs_image_system.base.launch_params import compute_launch_params
 from cs_image_system.base.models.builder_model import NameTyped
 from cs_image_system.base.models.os_builder_model import OsBuilderModel
 
@@ -133,6 +141,42 @@ def test_the_process_keeps_no_current_context_registry_or_catalog():
     assert not hasattr(image_sources, "current_catalog") and not hasattr(image_sources, "bind_current_catalog")
     assert importlib.util.find_spec("cs_image_system.base.global_context") is None
     assert importlib.util.find_spec("cs_image_system.base.singleton") is None
+    assert not hasattr(alias_pool, "_DRAWN")                 # a run's alias draws are kept beside its context
+
+
+def test_each_run_keeps_its_own_alias_draws_under_one_run_id(tmp_path, monkeypatch):
+    """Two runs that can launch, loaded in one process at one moment (so
+    under one run id), each over a tree with a pool of its own: each draws
+    its instance's alias from its own pool, the second computation does not
+    find the first one's draw, and the first giving back what it drew leaves
+    the second's name spent."""
+    stub_environment(monkeypatch)
+    cwd = os.getcwd()
+    try:
+        runs = [load_context(copy_config(tmp_path, name), dry_run=False) for name in ("first", "second")]
+        first, second = runs
+        assert first.run_id == second.run_id
+        pools = [alias_pool.pool_path(ctx.working_path) for ctx in runs]
+        for ctx, pool, names in zip(runs, pools, ("amber\n", "birch\n"), strict=True):
+            ctx.config["apply_instances"] = True
+            pool.parent.mkdir(parents=True, exist_ok=True)
+            pool.write_text(names)
+        instance = {id(ctx): next(i for i in ctx.instances if i.get_name() == "test") for ctx in runs}
+
+        drawn = [compute_launch_params(ctx, instance[id(ctx)]).get("alias") for ctx in runs]
+        assert drawn == ["amber", "birch"]
+        assert [alias_pool.free_names(pool) for pool in pools] == [[], []]
+        assert alias_pool.drawn_this_run(first) == {"test": "amber"}
+        assert alias_pool.drawn_this_run(second) == {"test": "birch"}
+        # a second computation in each run finds that run's own draw
+        assert [compute_launch_params(ctx, instance[id(ctx)]).get("alias") for ctx in runs] == drawn
+
+        assert alias_pool.release_unlaunched(first) == ["amber"]
+        assert [alias_pool.free_names(pool) for pool in pools] == [["amber"], []]
+        assert alias_pool.drawn_this_run(first) == {}
+        assert alias_pool.drawn_this_run(second) == {"test": "birch"}
+    finally:
+        os.chdir(cwd)
 
 
 def _emission(run: V2Run) -> dict[str, str]:

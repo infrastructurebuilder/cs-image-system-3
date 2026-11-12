@@ -95,6 +95,8 @@ _DURING: dict[ExecutionLifecyclePhase, Callable[[RunContext, ExecutionLifecycleP
 # Their shapes, the entry-point group and ``HookSet`` are the contract's
 # (`contract.hooks`), typed over the context protocol; this
 # module keeps the names its callers and the tests read them by.
+# Shared by every run in the process: filled from code and the installed hook
+# plugins, never from a run, and each hook is handed the run it serves.
 
 _VALIDATORS: list[ValidatorHook] = []
 _AFTER_GENERATE: list[LifecycleHook] = []
@@ -471,13 +473,15 @@ def run_lifecycles(ctx: RunContext, requested: list[LifecycleLike], *, apply: bo
     named images: image builders enumerate only those, so sources, build
     blocks and bake runner scripts exist for nothing else. The terraform
     roots are untouched -- instances stay declarative. Unknown names are
-    a hard error.
+    a hard error, checked before anything else: the refusal is returned
+    with nothing loaded, reset, written or recorded.
     """
-    load_hook_plugins()
-    ctx.reset_generated_lifecycles()
-    refused = _scope_bakes(ctx, only, force_bake)
+    refused = _refuse_unknown_only(ctx, only)
     if refused is not None:
         return refused
+    load_hook_plugins()
+    ctx.reset_generated_lifecycles()
+    _scope_bakes(ctx, only, force_bake)
     wanted = {lc.value for lc in requested}
     ordered = [lc for lc in all_lifecycles() if lc.value in wanted]
     summary = RunSummary(run_id=ctx.run_id, requested=[lc.value for lc in ordered],
@@ -531,38 +535,53 @@ def run_lifecycles(ctx: RunContext, requested: list[LifecycleLike], *, apply: bo
     return summary
 
 
+def _empty_bake_surface(only: list[str] | None) -> bool:
+    """Whether ``only`` is ``none`` alone (in any case): an explicitly
+    EMPTY bake surface, the terraform roots alone (a launch or teardown
+    that must not re-bake)."""
+    return [o.lower() for o in only or ()] == ["none"]
+
+
+def _refuse_unknown_only(ctx: RunContext, only: list[str] | None) -> RunSummary | None:
+    """The ``only`` name check, the first thing a run does. A name that is
+    neither an image nor an OS builder, or a runtime after ``@`` that is
+    not configured, refuses the run: the refusal is a failed summary with
+    nothing requested, returned to the caller and nothing else. It reads
+    the loaded configuration alone, so a refused run has loaded no hook
+    plugin, reset nothing on the context, and written, recorded and handed
+    nothing to the on-summary hooks. None when the names are known, or
+    when there are none to check."""
+    if not only or _empty_bake_surface(only):
+        return None
+    known = set(ctx.images_map) | set(ctx.os_builders)
+    unknown = []
+    for entry in only:
+        name, _, runtime = entry.partition("@")
+        if name not in known or (runtime and runtime not in ctx.runtime_builders):
+            unknown.append(entry)
+    if not unknown:
+        return None
+    return RunSummary(run_id=ctx.run_id, requested=[], dry_run=ctx.dry_run,
+                      ok=False, error=f"--only names unknown image(s): {', '.join(sorted(unknown))}; "
+                                      f"known: {', '.join(sorted(known))}")
+
+
 def _scope_bakes(ctx: RunContext, only: list[str] | None,
-                 force_bake: list[str] | None) -> RunSummary | None:
+                 force_bake: list[str] | None) -> None:
     """Set the run's bake surface on the context: no restriction, a fresh
     decision cache and the forced bakes, then what ``only`` says. ``none``
     alone is an explicitly empty surface; names restrict the bakes to those
-    images. A name that is neither an image nor an OS builder, or a runtime
-    after ``@`` that is not configured, refuses the run before anything is
-    generated or recorded: the refusal comes back as a failed summary.
-    None when the run goes on."""
+    images. The names were checked first (:func:`_refuse_unknown_only`)."""
     ctx.only_images = None
     # convergent bakes: a fresh decision cache per run; --force-bake
     # names images (or `all`) that bake even when current
     ctx.bake_decisions = {}
-    ctx.force_bake = {f.strip() for f in force_bake if f.strip()} or None if force_bake else None
-    if only and [o.lower() for o in only] == ["none"]:
-        # `--only none`: an explicitly EMPTY bake surface -- the terraform
-        # roots alone (a launch or teardown that must not re-bake)
+    forced = {f.strip() for f in force_bake or () if f.strip()}
+    ctx.force_bake = forced or None   # no names (none given, or blanks alone): no forced bake
+    if _empty_bake_surface(only):
         ctx.only_images = set()
-        only = None
-    if only:
-        known = set(ctx.images_map) | set(ctx.os_builders)
-        unknown = []
-        for entry in only:
-            name, _, runtime = entry.partition("@")
-            if name not in known or (runtime and runtime not in ctx.runtime_builders):
-                unknown.append(entry)
-        if unknown:
-            return RunSummary(run_id=ctx.run_id, requested=[], dry_run=ctx.dry_run,
-                              ok=False, error=f"--only names unknown image(s): {', '.join(sorted(unknown))}; "
-                                              f"known: {', '.join(sorted(known))}")
+    elif only:
         ctx.only_images = set(only)
-    return None
 
 
 def _run_requested(ctx: RunContext, summary: RunSummary, ordered: list[LifecycleLike], root: Path, *,
@@ -677,6 +696,7 @@ def validate_only(ctx: RunContext, *, online: bool = False) -> list[str]:
 
 # ------------------------------------------------ plugin hooks (entry points)
 
+# shared by every run in the process: whether the installed hook plugins were read into the lists above
 _HOOK_PLUGINS_LOADED = False
 
 

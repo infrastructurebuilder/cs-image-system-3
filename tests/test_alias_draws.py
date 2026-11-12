@@ -22,7 +22,6 @@ from tests.harness import V2Run
 def test_an_aborted_run_gives_its_alias_draw_back(tmp_path: Path, monkeypatch, caplog):
     from cs_image_system.base import alias_pool as ap
     from cs_image_system.base.models.executable import ExecutableModel
-    ap._DRAWN.clear()
     run = V2Run(tmp_path, monkeypatch, dry_run=False)
     try:
         run.ctx.config["apply_instances"] = True
@@ -43,14 +42,13 @@ def test_an_aborted_run_gives_its_alias_draw_back(tmp_path: Path, monkeypatch, c
         assert any(r.levelno == logging.INFO for r in drawn), "it WAS drawn at generation"
         assert any(r.levelno == logging.WARNING for r in drawn), "and given back, said as a warning"
         assert ap.free_names(pool) == ["gar", "koi"]                             # and it is free again
-        assert not [k for k in ap._DRAWN if k[0] == str(run.ctx.run_id)]
+        assert ap.drawn_this_run(run.ctx) == {}                                  # nothing of it is kept
     finally:
         run.restore_cwd()
 
 
 def test_a_draw_the_launch_gave_a_machine_stays_spent(tmp_path: Path, monkeypatch):
     from cs_image_system.base import alias_pool as ap
-    ap._DRAWN.clear()
     run = V2Run(tmp_path, monkeypatch, dry_run=False)
     try:
         run.ctx.config["apply_instances"] = True

@@ -45,10 +45,10 @@ def _stub_osb(commands, os_type="debian"):
 
 
 def _full(model_cls) -> list[str]:
-    """What a bake emits for `update: {policy: full}` on this family (stage
-    63: the apt and fedora get_command_to_update() forms these tests pinned
-    were unreachable from every bake, because those families answer through
-    commands_for_policy)."""
+    """What a bake emits for `update: {policy: full}` on this family, read
+    through commands_for_policy: the apt and fedora families answer a bake
+    through it, so their get_command_to_update() form alone is not what a
+    bake emits."""
     from cs_image_system.base.models.update_policy import POLICY_FULL, UpdatePolicy
     # a stand-in for the model: no instance state, the family's own update
     # command (an instance method, needing no state either)

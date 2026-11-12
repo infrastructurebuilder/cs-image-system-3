@@ -13,8 +13,9 @@ This registry is an **extension point**: a plugin may ``register_field_kind`` wi
 new name + :class:`FieldKindHandler` and declare fields carrying that
 ``FIELD_KIND`` to add a late-binding method the base system does not know about.
 No kind is hard-coded into the dispatch sites; they all go through this registry.
-In the contract (``cs_image_system.base.helpers.field_kinds`` re-exports
-it), so a plugin registers a kind without importing the core.
+The registry lives here alone, so a plugin registers a kind without importing
+the core: the core's resolver registers its own handlers in this same registry
+and dispatches through it, and no module of the core re-exports it.
 """
 from __future__ import annotations
 
@@ -83,6 +84,7 @@ class FieldKindHandler:
         return obj
 
 
+# shared by every run in the process: each hook is handed the run's resolver and registry, so a handler keeps no run
 _HANDLERS: dict[str, FieldKindHandler] = {}
 
 

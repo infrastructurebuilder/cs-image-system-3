@@ -32,7 +32,7 @@ LAZY_EDGES_CORE_MAX = 3
 # (runtime) import edges: 1 means no import cycle at all
 SCC_TOP_MAX = 1
 # ... and over every edge, lazy and typing-only ones included
-SCC_ALL_MAX = 45
+SCC_ALL_MAX = 27
 # one plugin importing another, by (importer -> imported) family; a pair
 # absent here may not appear, and a listed count may not grow
 CROSS_PLUGIN_MAX = {

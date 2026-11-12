@@ -133,7 +133,6 @@ def _process_state() -> dict[str, Any]:
         "standard output": id(sys.stdout),
         "environment": dict(os.environ),
         "opened": encryption.opened_markers(),
-        "alias draws": dict(alias_pool._DRAWN),
     }
 
 
@@ -152,6 +151,7 @@ def _run_state(ctx: Any) -> dict[str, Any]:
         "storages": sorted(storage.get_name() for storage in ctx.storages),
         "lifecycle": ctx.current_lifecycle, "generated": ctx.generated_lifecycles, "last step": ctx.last_lifecycle_step,
         "run": (ctx.run_id, ctx.dry_run, ctx.only_images, ctx.apply_runtime, ctx.only_runtime_scope),
+        "alias draws": dict(alias_pool.drawn_this_run(ctx)),
     }
 
 
@@ -433,7 +433,7 @@ def test_the_two_runs_keep_their_own_records_and_their_own_alias_draws(tmp_path,
         pool = alias_pool.pool_path(where.root)
         pool.write_text("amber\nbirch\n")
         drawn = alias_pool.draw(pool, taken_by="instance test as test-001", run_id=run.ctx.run_id)
-        monkeypatch.setitem(alias_pool._DRAWN, (run.ctx.run_id, "test"), str(drawn))
+        alias_pool.drawn_this_run(run.ctx)["test"] = str(drawn)
         summary = _run_it(run)
         assert summary.ok, summary.error
         nested = steps.nested
@@ -450,8 +450,9 @@ def test_the_two_runs_keep_their_own_records_and_their_own_alias_draws(tmp_path,
         assert json.loads((run.generated / "run-summary.json").read_text())["run_id"] == FIXED_RUN_ID
         # --- the outer run's draw was still its own while the nested run ended, and went back at the outer's end
         assert steps.before is not None and steps.after is not None
-        assert steps.after[0]["alias draws"] == steps.before[0]["alias draws"] == {(FIXED_RUN_ID, "test"): "amber"}
-        assert (FIXED_RUN_ID, "test") not in alias_pool._DRAWN
+        assert steps.after[1]["alias draws"] == steps.before[1]["alias draws"] == {"test": "amber"}
+        assert alias_pool.drawn_this_run(nested) == {}
+        assert alias_pool.drawn_this_run(run.ctx) == {}
         assert alias_pool.free_names(pool) == ["amber", "birch"]
     finally:
         run.restore_cwd()

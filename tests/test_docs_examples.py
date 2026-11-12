@@ -308,8 +308,8 @@ def test_every_example_is_a_whole_repository_a_team_can_copy(rendered_starters):
     terraform modules; the system is installed from a release, never cloned
     beside it. The rendered tree holds them, the modules are the installed
     plugins' byte for byte (each copy stamped), and what the release
-    resolves as its starters must be the source under docs/examples (stage
-    64: the source the release is built from)."""
+    resolves as its starters must be the source under docs/examples (the
+    source the release is built from)."""
     import stat
 
     from cs_image_system.base.modules import STAMP_FILE, installed_modules

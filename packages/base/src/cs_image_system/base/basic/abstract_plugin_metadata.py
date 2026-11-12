@@ -27,6 +27,7 @@ from cs_image_system.contract.core import NameTypedProtocol, PluginArtifactProto
 from cs_image_system.contract.metadata import python_specifier
 
 
+# shared by every run in the process: what is installed does not change under a process
 @cache
 def _distribution_roots() -> tuple[dict[str, str], dict[str, str]]:
     """Two maps from where a module's file may be to the version of the

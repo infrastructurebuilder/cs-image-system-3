@@ -1119,8 +1119,8 @@ whose adapters the loader binds to the context, so a plugin imports from
 the core only its base classes and models and reaches everything else
 through the context it is handed; the hooks entry point (`contract.hooks`)
 and the bootstrap vocabulary and facts protocol (`contract.bootstrap`)
-are the contract's as well, and a test holds the import rule with an
-exception list of four. Deferred, one piece of work of its own: a
+are the contract's as well, and a test holds the import rule with no
+exception left. Deferred, one piece of work of its own: a
 separate repository for the contract once stable, with an external plugin
 as the proof.
 The same direction holds among the plugins themselves: a terraform

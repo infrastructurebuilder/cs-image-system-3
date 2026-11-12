@@ -188,41 +188,7 @@ class BuilderModel(NameTyped, BuilderModelProtocol):
         # This is called after the dataclass __init__ method, so we can do any necessary initialization here
         # For example, we can initialize any fields that are not part of the dataclass, or perform any necessary validation
         super().__post_init__()
-                
 
-    # def recycle_object_via_yaml(
-    #         self,
-    #         addl_config: dict[str, Any],
-    #         classification: VCT | None = None,
-    #         addl_this: dict[str, Any] = {  }) -> BuilderModel:
-    #     """
-    #     Dump an object to YAML and reload it, applying any necessary transformations 
-    #     in the process.  Usually there are minimal transformations needed, but this allows
-    #     subclasses to perform any necessary processing on the YAML
-        
-    #     NOTE: This should generally not be necessary to override, but you should always
-    #     do so VERY CAREFULLY
-    #     """
-    #     return self
-    #     cls = self.__class__                
-    #     orig_dict = self.export_self_to_dict()
-    #     extracted, extracted_originals, self_dict = self.extract_any_protected_types_from_self(orig_dict)
-    #     exported_yaml = self.export_self_to_yaml_string(self_dict)
-    #     exported_yaml = self.check_or_mutate_yaml_per_classification(exported_yaml, classification)
-    #     reloaded_yaml_str = template_utils.cycle_named_yaml(exported_yaml, "this", addl=addl_config)
-    #     reloaded_dict = self.cycle_extracted(reloaded_yaml_str,
-    #                                          extracted,
-    #                                          extracted_originals,
-    #                                          classification = classification, 
-    #                                          addl_config = addl_config,
-    #                                          addl_this = addl_this)
-    #     try:
-    #         new_obj = Orchestrator().get_converter(ignore_collections = True).structure(reloaded_dict, cls) # type: ignore
-    #     except Exception as e:
-    #         log.error(f"Error recycling object {self.name} of type {cls.__name__}: {e}")
-    #         raise e
-    #     return new_obj
-    
     def cycle_extracted(self, reloaded_yaml_str: str, 
                         extracted: dict[str, Any], 
                         extracted_originals: dict[str, Any],

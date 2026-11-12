@@ -20,8 +20,8 @@ log = logging.getLogger(__name__)
 
 
 class TFDockerTypes(AbstractPluginMetadata):
-    """The container instance builder AND the volume storage builder (stage
-    103 branch 2), in one registration as the clouds' tofu plugins are."""
+    """The container instance builder AND the volume storage builder, in
+    one registration as the clouds' tofu plugins are."""
 
     def __init__(self) -> None:
         super().__init__("1", "3.13",

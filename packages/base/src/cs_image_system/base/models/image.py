@@ -132,10 +132,11 @@ class ImageImageBuilderSubconfig(NameTyped, ParentPropertyHolding):
     def get_owners(self) -> list[str]:
         return self.owners
     def get_image_output_name(self) -> str:
-        """The PREFIX of this image's build names on this runtime (stage
-        105): the declared ``output_image_name`` when set, else the shape
-        every build carried before, the image's display name (original
-        case) and the image builder. The run's timestamp is appended by
+        """The PREFIX of this image's build names on this runtime: the
+        declared ``output_image_name`` when set, else the default, the
+        image's display name (original case) and the image builder -- the
+        shape every build carried before the field existed (see
+        docs/CHANGES.md#s105). The run's timestamp is appended by
         ``_final_name``; the deferred lookup asks for ``<prefix>*``."""
         if self.output_image_name:
             return self.output_image_name

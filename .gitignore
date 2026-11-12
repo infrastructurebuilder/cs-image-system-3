@@ -13,16 +13,19 @@ build/
 .venv/
 .DS_Store
 packages/**/*.code-workspace
-# the IDE rewrites the root workspace file whenever folders are opened: it is the editor's, not the repository's (hygiene XXI)
+# the IDE rewrites the root workspace file whenever folders are opened: it is the editor's, not the repository's
 /*.code-workspace
 trial
 tfmodules/tftest
 YAML_DUMP.yaml
+# a configuration tree's run-local plaintexts and debug output, wherever a tree
+# sits in this repository (a copy of the frozen fixture included)
+_private/
 .obsidian
 .tofu-plugin-cache/
 _uncommitted/
 target/
-# never publishable, whatever the root (stage 35 refuses them; stage 40's publish-tree checks the policy)
+# never publishable, whatever the root (the public-safe hook refuses them; `just publish-tree` checks the policy)
 tfplan
 *.tfstate
 *.tfstate.backup

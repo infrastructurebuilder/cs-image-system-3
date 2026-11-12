@@ -23,7 +23,7 @@ exists -- the values come back with the instance itself, the claimed set
 comes from the group's server registry, and the write is the
 runtime's session command.
 
-Three rules, in order of how much they matter:
+Four rules, in order of how much they matter:
 
 * **A collision is skipped, and said.** A registry ranks a record's own
   hostname above another record's aliases, so a colliding alias resolves
@@ -34,6 +34,13 @@ Three rules, in order of how much they matter:
 * **A machine that is off is left off.** The write needs the machine
   running, and an alias is not work worth starting one for. It
   is picked up by the next run that finds the machine on.
+* **A machine the registry does not list waits, and is said.** Its own
+  record (found by the provider id its agent enrolled with) is what the
+  names are judged beside: the aliases it already carries are kept, and
+  every other record's names are claims. A machine with no record has not
+  enrolled, so nothing is written; the next run that finds it listed
+  gives its aliases back. A machine this run launched is waited for
+  first, bounded, since its agent enrolls a minute or more after boot.
 * **Silence is not a free name.** A registry that could not be asked skips
   every alias this run, rather than guessing (silence is not an answer,
   as the hostname claim applies it).
@@ -128,6 +135,11 @@ REACHABLE_WAIT_SECONDS = 300      # a fresh machine: sshd and the session agent 
 REGISTRATION_WAIT_SECONDS = 300   # then the identity agent's enrollment, which the launch script performs
 REGISTRATION_POLL_SECONDS = 15
 
+#: What the log says of a launched machine its group's server registry
+#: does not list (no record carries its provider id): it has not enrolled,
+#: and its aliases wait for a run that finds it listed.
+NOT_LISTED = "not listed in its group's server registry"
+
 
 def _wait_for_registration(gb: Any, group: str, instance_id: str) -> list[dict[str, Any]] | None:
     """Poll the group's registry until a record carries ``instance_id`` or
@@ -144,7 +156,8 @@ def _wait_for_registration(gb: Any, group: str, instance_id: str) -> list[dict[s
 def register_provider_aliases(ctx: "RunContext", lifecycle: Lifecycle) -> None:
     """After the instance-image runner applied for real: every launched
     instance whose root applied gets its provider-hostname alias, unless the
-    name is claimed, the registry is silent, or the machine is off."""
+    name is claimed, the registry is silent or does not list the machine,
+    or the machine is off."""
     if lifecycle != Lifecycle.INSTANCE_IMAGE:
         return
     if not apply_enabled(ctx, "instances"):
@@ -162,16 +175,19 @@ def _register_instance_aliases(ctx: "RunContext", instance: Any, recorded: dict[
     """One instance's aliases, or nothing: an instance outside the apply
     scope, not launched, on a runtime that cannot say who it is, or in a
     group whose builder cannot list its servers is passed over in silence;
-    a machine that is off, one whose identity is unavailable, and a registry
-    that could not be asked are passed over and said. A machine launched by
-    this run is waited for first. The aliases already written and the
-    unclaimed ones are written through the runtime's session command,
-    unless the registry already holds exactly those. ``registries`` keeps
-    each group's server listing for the instances that follow."""
+    a machine that is off, one whose identity is unavailable, a registry
+    that could not be asked, and a machine the registry does not list (no
+    record of its own: it has not enrolled) are passed over and said. A
+    machine launched by this run is waited for first. The aliases already
+    written and the unclaimed ones are written through the runtime's
+    session command, unless the registry already holds exactly those.
+    ``registries`` keeps each group's server listing for the instances
+    that follow."""
     name = instance.get_name()
     if not apply_enabled(ctx, "instances", str(instance.type_), [str(instance.runtime)]):
         return
-    if not (recorded.get(name) or {}).get("launched"):
+    record = recorded.get(name) or {}
+    if not record.get("launched"):
         return
     rtb = ctx.runtime_builders.get(str(instance.runtime)) if instance.runtime else None
     if rtb is None or not rtb.can_query_instance_identity():
@@ -190,10 +206,10 @@ def _register_instance_aliases(ctx: "RunContext", instance: Any, recorded: dict[
         log.info(f"Instance {name}: provider identity unavailable; no alias this run")
         return
     canonical = canonical_hostname(ctx, instance)
-    wanted = wanted_aliases(identity, canonical, name, str((recorded.get(name) or {}).get("alias") or ""))
+    wanted = wanted_aliases(identity, canonical, name, str(record.get("alias") or ""))
     if not wanted:
         return
-    if str((recorded.get(name) or {}).get("launched_run") or "") == str(ctx.run_id):
+    if str(record.get("launched_run") or "") == str(ctx.run_id):
         # the machine booted THIS run: the apply returns on `running`, and
         # the session agent, then the identity agent's enrollment, come up
         # a minute or more later. Writing the alias block before that races
@@ -210,10 +226,14 @@ def _register_instance_aliases(ctx: "RunContext", instance: Any, recorded: dict[
                     f"skipping alias {wanted} -- silence is not a free name")
         return
     own = own_record(servers, str(identity.get("instance_id") or ""))
-    own_id = str(own.get("id")) if own else ""
+    if own is None:
+        log.info(f"Instance {name}: {NOT_LISTED} (group {group!r}; it has not enrolled); its provider "
+                 "alias waits for a run that finds it listed")
+        return
+    own_id = str(own.get("id"))
     claims = claimed_names([s for s in servers if s.get("id") != own_id], declared - {canonical})
     final = _unclaimed_aliases(name, wanted, own, claims)
-    if own and sorted(own.get("alt_names") or []) == sorted(final):
+    if sorted(own.get("alt_names") or []) == sorted(final):
         return   # reality already agrees; no session command
     _write_aliases(rtb, gb, name, group, final)
 
@@ -259,7 +279,10 @@ def _write_aliases(rtb: RuntimeBuilderProtocol, gb: GroupBuilderProtocol, name: 
     """Render the group builder's alias script for ``final`` and run it on
     the machine through the runtime's session command, saying what came of
     it. A script that cannot be rendered, a builder that writes no aliases
-    and a command that fails are reported and never raised."""
+    and a command that fails are reported and never raised; a command that
+    answers with no output at all is a failure too, whatever its exit
+    status, since the script always prints one of the contract's two
+    words."""
     try:
         # the script is the identity plugin's: it knows its agent's
         # configuration file and how the agent is told about a new name
@@ -275,8 +298,8 @@ def _write_aliases(rtb: RuntimeBuilderProtocol, gb: GroupBuilderProtocol, name: 
     except Exception as e:  # noqa: BLE001 - reported, never fatal to the run
         log.error(f"Instance {name}: could not write its aliases {final}: {e}")
         return
-    if rc != 0:
-        log.error(f"Instance {name}: alias write failed ({rc}): {out.strip()[-300:]}")
+    if rc != 0 or not out:
+        log.error(f"Instance {name}: alias write failed ({rc}): {(out or '').strip()[-300:] or 'no output'}")
     elif ALIASES_CHANGED in out:
         log.info(f"Instance {name}: now also answers to {final} (the identity agent restarted)")
     else:

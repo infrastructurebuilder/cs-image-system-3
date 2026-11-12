@@ -3,10 +3,11 @@
 # SPDX-License-Identifier: Apache-2.0
 
 """What a ``generate_items_*`` hook returns: assets, each a destination path
-and a value, gathered in an :class:`AssetSet`. In the contract since stage
-30 (``cs_image_system.base.basic.asset`` re-exports both); writing an asset
-set takes the generation path as an argument, so nothing here reaches the
-run context."""
+and a value, gathered in an :class:`AssetSet`. Both are defined here alone:
+a hook builds its return value without importing the core, the core
+imports them from here as a plugin does, and no module of the core
+re-exports them. Writing an asset set takes the generation path as an
+argument, so nothing here reaches the run context."""
 
 import logging
 import os

@@ -59,7 +59,7 @@ name. Which commands honour which is in the
 | Option | Default | Meaning |
 | -------- | --------- | --------- |
 | `--root-dir PATH` | the current directory | The configuration root: the directory holding `cfg/`, `groups/`, `storages/`, `images/`, `instances/` and `meta-state/`. A command that loads the configuration changes into it (resolved) during the load and returns to the starting directory when the command ends; the value tools, `mask`, `materialize` and `preflight` only record it; `gate-plan`, `apply-check` and `identity export-gids` ignore it. |
-| `--verbose / --no-verbose` | off | Log at `DEBUG`, for every command. With a configuration load, also writes the string-stage-rendered document to `YAML_DUMP.yaml` in the directory the command was started from (it is written before the change of directory). |
+| `--verbose / --no-verbose` | off | Log at `DEBUG`, for every command. With a configuration load, also writes the string-stage-rendered document (before decryption: an encrypted value appears as its `ENC[...]` marker) to `_private/YAML_DUMP.yaml` under the configuration root, creating `_private/` when it is missing; like everything else in `_private/` it is never committed, and the directory the command was started from is left alone. |
 | `--dry-run / --no-dry-run` | `--dry-run` | Dry run: generation is complete and runner scripts are written, but deferred finalization commands (packer builds, tofu init/plan/gate/apply, system CLI steps) are enumerated, not executed. `--no-dry-run` executes them. The same flag governs `dispose image`, `lineage restamp` and `lineage relabel`, which report a plan under a dry run, and `run --migrate-state`, which a dry run refuses. `reencrypt` has a `--dry-run` of its own and ignores the global one. |
 | `--overlay FILE` (repeatable) | none | A transient declaration file merged over the tree for this invocation only. `config:` keys override; named `instances:`/`storages:` (and other item) entries update or add; an entry with `undeclare: true` removes the tree's entry. A file that does not exist, is not a mapping, has a top-level key other than `config` and the item collections, or lists an entry without a `name` is refused before anything loads. The tree on disk never changes. |
 | `--undeclare KIND:NAME` (repeatable) | none | Treat a declared tree entry as absent for this invocation, for example `instance:gce-test`. `KIND` is an item collection key (`instances`, `storages`, ...); the singular is accepted; anything else is refused before the load. |
@@ -116,7 +116,7 @@ to the four built-ins alone.
 | `--apply / --no-apply` | `--apply` | After generation, execute the runner scripts that exist. Under a dry run they are enumerated. |
 | `--commit / --no-commit` | `--no-commit` | Make the meta-state commit (read-models, pins, lineage, launch parameters, generated IaC) in the configuration repository after the run. A root outside a git repository, or a gitignored path, is skipped with a warning, never an error. |
 | `--state-query / --no-state-query` | `--state-query` | First ask reality (read-only) and write `generated/state-report.json`; validation refuses to run on hard drift. `--no-state-query` keeps the existing report. |
-| `--only NAME` (repeatable) | none | Restrict the bake surface to the named image(s), as `<image>` or `<image>@<runtime>`. Sources, build blocks and bake steps exist for nothing else; terraform roots are untouched. Unknown names fail the run (exit 1, the summary's `error` names them and the known names). `--only none` bakes nothing. |
+| `--only NAME` (repeatable) | none | Restrict the bake surface to the named image(s), as `<image>` or `<image>@<runtime>`. Sources, build blocks and bake steps exist for nothing else; terraform roots are untouched. Unknown names fail the run before it does anything else (exit 1, the summary's `error` names them and the known names; the summary is printed and nothing is generated, written to `generated/run-summary.json` or journalled in `meta-state/runs.yaml`). `--only none` bakes nothing. |
 | `--only-runtime NAME` | none | Restrict the bake surface to every image baked on that runtime. Terraform roots of other runtimes are not generated or planned. |
 | `--apply-runtime NAME` | none | Let the storage and instance roots of that runtime apply, as if `apply_storage` and `apply_instances` listed it. Implies `--only-runtime NAME` unless `--only` or `--only-runtime` is given. The generated `apply-check` steps carry it. |
 | `--force-bake NAME` (repeatable) | none | Bake the named image(s) even when current; `all` forces every image in the run's surface. |
@@ -924,7 +924,7 @@ base and the plugins ([docs/CONFIGURATION.md](../../docs/CONFIGURATION.md)).
 | Option | Type | Default | Meaning | Honoured by |
 | --- | --- | --- | --- | --- |
 | `--root-dir` | path | the current directory | the configuration root | every loading command (changes into it); `preflight`, `encrypt`, `decrypt`, `reencrypt`, `public-safe`, `materialize`, `mask` (recorded as the root); ignored by `gate-plan`, `apply-check`, `identity export-gids`, `test`, `cleanup` |
-| `--verbose` | bool | `false` | `DEBUG` logging; `YAML_DUMP.yaml` in the starting directory when a load happens | every command (the log level); the dump only with a load |
+| `--verbose` | bool | `false` | `DEBUG` logging; `_private/YAML_DUMP.yaml` under the configuration root when a load happens | every command (the log level); the dump only with a load |
 | `--dry-run/--no-dry-run` | bool | `true` | enumerate deferred work instead of executing it | `run`, `build-all`, `generate`, `dispose image`, `lineage restamp`, `lineage relabel`; the deferred CLI steps a run emits carry `--no-dry-run` themselves; `reencrypt` has its own flag; every other command ignores it |
 | `--overlay` | path, repeatable | none | a transient declaration file | every loading command; `preflight` and the `run`/`state` session check (their `config:` keys, for `preflight.expected_run_minutes`); ignored by the value tools, `gate-plan` (which has none), `apply-check` (which has its own), `identity export-gids` |
 | `--undeclare` | `kind:name`, repeatable | none | treat a tree entry as absent | every loading command; ignored elsewhere |
@@ -955,7 +955,7 @@ base and the plugins ([docs/CONFIGURATION.md](../../docs/CONFIGURATION.md)).
 | `config.apply_<lifecycle>` | `cfg/_config.yml`, then each `--overlay` | bool or list of root/runtime names | `false` | `apply-check` |
 | `encryption.recipients` | `cfg/_config.yml` | list of age recipients | none (an error) | `encrypt`, `reencrypt` |
 | `public_safe.allow` | the `--config` file, else the tree's `cfg/_config.yml`, else the fixture's inside the system repository | list | none | `public-safe` |
-| `dateformat`, `working_directory`, `generation_directory` | the merged tree | strings | `%Y%m%d_%H%M%S`, `./workdir`, `generated` | the load (base). The callback always supplies a root (`--root-dir` or the current directory) as the working directory, so `working_directory` is never consulted through the CLI; `generation_directory` is resolved under that root |
+| `dateformat`, `working_directory`, `generation_directory` | the merged tree | strings | `%Y%m%d_%H%M%S`, `./workdir`, `generated` | the load (base). The callback always supplies a root (`--root-dir` or the current directory), and the load takes the root it is handed as the working directory, so `working_directory` is accepted and never read; `generation_directory` is resolved under that root |
 
 Accepted, not read, anywhere in this package: `apply-check --lifecycle release` (the help lists it;
 nothing emits it, and the release lifecycle's cloud marking runs under the
@@ -1095,14 +1095,16 @@ location sound, the lineage and release policies, every registered
 validator. The verdict is the ` - <error>` lines and `Validation failed
 with N error(s).` on standard error, exit 1; nothing is written.
 
-**At generation (`run`).** In order: the state query (verdict:
+**At generation (`run`).** In order: the `--only` name check (verdict:
+the summary's `error`, printed with exit 1; it comes before everything
+else, so a refused run writes no `generated/run-summary.json` and no
+journal entry), the state query (verdict:
 `generated/state-report.json` and the `state` counts in the summary), the
 same validation as `validate` (verdict: `validation_errors` in
 `generated/run-summary.json`, `validation: <error>` log lines, exit 1
 before anything is generated), the bake plan (`bake plan: <key>:
-<decision>` lines and `bake_plan` in the summary), the scope check
-(`run scope: ...` refusal or warning), and the `--only` name check (the
-summary's `error`). The run's verdict is `ok`, `error` and the
+<decision>` lines and `bake_plan` in the summary), and the scope check
+(`run scope: ...` refusal or warning). The run's verdict is `ok`, `error` and the
 per-lifecycle `apply` states in the summary on standard output and in
 `generated/run-summary.json`, the journal entry in `meta-state/runs.yaml`,
 and the exit code.
@@ -1218,7 +1220,9 @@ failed with N error(s)` (each also logged as `validation: <error>`);
 `run scope: bake(s) outside the apply scope ...`; `--migrate-state moves
 state and needs --no-dry-run` (raised again inside the run, in case a
 library caller set it); any generation or apply exception, named by class.
-The summary and journal are still written.
+The summary and journal are still written, except for the `--only`
+refusal: that check is the run's first, so a refused run has written
+and recorded nothing, and its summary exists only as the printed one.
 
 The value tools (exit 1): `decrypt: not an ENC[age:...] marker`,
 `decrypt: expected a JSON object of string values on stdin`, `decrypt: a

@@ -2,8 +2,8 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""The CI workflow calls only `just` targets and splits into three jobs (stage
-64): the credential-free bar, the read-only `live` job that proves the
+"""The CI workflow calls only `just` targets and splits into three jobs:
+the credential-free bar, the read-only `live` job that proves the
 system against real clouds over the FROZEN FIXTURE, and the publish job that
 uploads a pushed `v*` tag to the index. Recording and performing
 the reference configuration left this workflow for the configuration

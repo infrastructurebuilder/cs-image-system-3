@@ -12,7 +12,7 @@ Stages from the re-examination of 2026-11-03.
 [REEXAMINE4.md](REEXAMINE4.md) digests the three reviews
 ([REEXAMINE1.md](REEXAMINE1.md), [REEXAMINE2.md](REEXAMINE2.md),
 [REEXAMINE3.md](REEXAMINE3.md)); each stage file
-([§133](STAGE-133.md); §118 to §132
+([§134](STAGE-134.md); §118 to §133
 landed) cites the review section
 it answers. The conventions are the ones above: one file per stage; a
 stage is a plan until the operator says "do N"; **YOUR DECISION** marks
@@ -79,17 +79,25 @@ order (the default), or [§113](STAGE-113.md) first as its file plans it.
   state is left, so two runs can share a process, and the nested
   teardown run executes in this one; a committing run or restamp is
   held to the tree's pinned release; the lint covers the scripts; no
-  function scores above complexity 20. Its findings opened
-  [§133](STAGE-133.md).
-- [§133](STAGE-133.md), hygiene bundle XXVI: the open bundle for the
-  small findings; opened 2026-11-12 with what §132's complexity cuts
-  met. Waits for "do 133".
+  function scores above complexity 20. Its findings opened §133.
+- §133, hygiene bundle XXVI: landed 2026-11-12. Each run keeps its own
+  alias draws; this repository ignores every `_private/`; every
+  rendered value inherits encryption; a refused `--only` changes
+  nothing; the narration rule reads across line breaks and the starter
+  trees; and twenty-four smaller findings of §132's cuts.
+  [§113](STAGE-113.md)'s plan is re-measured. Its last findings opened
+  [§134](STAGE-134.md).
+- [§134](STAGE-134.md), hygiene bundle XXVII: the open bundle for the
+  small findings; opened 2026-11-12 with §133's five carried items.
+  Waits for "do 134".
 - [§112](STAGE-112.md), a release in two boxes: planned 2026-11-03; waits for
   "do 112".
 - [§113](STAGE-113.md) and [§116](STAGE-116.md), the decomposition that
   remains (the kit and the engine; a runtime installed from outside):
-  planned 2026-11-03, §113 re-planned 2026-11-05 on §124's numbers;
-  §114 and §115 landed inside §125; each waits for its "do N".
+  planned 2026-11-03, §113 re-planned 2026-11-05 on §124's numbers
+  and re-measured 2026-11-12 (§133 item 22, with three new decisions
+  for "do 113"); §114 and §115 landed inside §125; each waits for its
+  "do N".
 - 0.1.7, the final release, is cut (2026-11-12): it carries §110 and
   §111 and every stage from §118 to §131; the reference's `develop`
   and `main` run it (Release, below).
@@ -102,7 +110,7 @@ and validated by the operator before its "do N")
 - [§112, A release in two boxes](STAGE-112.md)
 - [§113, The kit and the engine: `base` splits where the plugins stop](STAGE-113.md)
 - [§116, A runtime installed from outside](STAGE-116.md)
-- [§133, Hygiene bundle XXVI](STAGE-133.md)
+- [§134, Hygiene bundle XXVII](STAGE-134.md)
 
 **Release**
 
@@ -164,6 +172,26 @@ and validated by the operator before its "do N")
 
 **Landed since 2026-10-05** (newest first)
 
+- §133, hygiene bundle XXVI: 2026-11-12, its squash commit
+  (feature/hygiene-xxvi kept). Thirty items landed. A run keeps its
+  alias draws on its own state, where two runs with one run id had
+  shared them; every process-wide cache left says why sharing it is
+  safe, in a section of the base README for plugin authors. This
+  repository's `.gitignore` covers every `_private/`. A plain mapping
+  in the resolver inherits encryption like every other render (no
+  plaintext could reach the emission before; now none can by
+  construction). A refused `--only` is checked first and changes
+  nothing; an unlisted machine's aliases wait and say so; an alias
+  write with no output is a failed write, never a raise; a template
+  left after the last pass is named; a field that renders back to its
+  default stops costing passes. The loader checks its root first and
+  writes its verbose dump under `_private/`. The narration rule reads
+  across line breaks and gains the hook, the ignore file and the
+  starter trees (137 tokens cleaned; the starters' hashed modification
+  files stay). The closure ceiling fell to 27; a dead module and
+  several dead branches went. §113's plan was re-measured, with three
+  new decisions. The golden never moved; the bar and the full-test
+  legs were green. Items 31 to 35 opened §134.
 - §132, hygiene bundle XXV: 2026-11-12, its squash commit
   (feature/hygiene-xxv kept). The process keeps no current run: the
   compatibility module, the singleton helper, the no-argument fetches

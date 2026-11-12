@@ -34,7 +34,8 @@ from cs_image_system.contract.lifecycles import (
     LifecycleSpec,
 )
 
-# Plugin-registered lifecycles, by name.
+# Plugin-registered lifecycles, by name. Shared by every run in the process:
+# specs registered by code and the installed hook plugins, each once, never changed.
 _REGISTERED: dict[str, LifecycleSpec] = {}
 
 # Accepted spellings on the command line -> lifecycle.

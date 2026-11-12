@@ -70,7 +70,7 @@ class SetEncoder(json.JSONEncoder):
         return super().default(o)
 
 
-from cs_image_system.contract.constants import SYSTEM_CLI  # noqa: E402 - re-exported for every caller
+from cs_image_system.contract.constants import SYSTEM_CLI  # noqa: E402 - the executable below names it
 
 from .models.executable import ExecutableModel  # noqa: E402
 

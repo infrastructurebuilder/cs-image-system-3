@@ -45,7 +45,7 @@ jobs:
   verify:
     runs-on: ubuntu-24.04
     container:
-      # The runner image (stage 92): AlmaLinux 10 with every tool a job calls at a pinned
+      # The runner image: AlmaLinux 10 with every tool a job calls at a pinned
       # version (docs/CI_RUNNER.md lists them); moved by `init-config --force` with the
       # release's other lines. The host's docker socket lets the modification tests drive
       # the host daemon through the image's docker client.
@@ -53,7 +53,7 @@ jobs:
       # token, as the runner always did (an empty credential is invalid). A team that runs its own
       # build names it in the variable; a registry other than ghcr.io needs the variable
       # CSIS_RUNNER_IMAGE_USERNAME and the secret CSIS_RUNNER_IMAGE_PASSWORD. Release refreshes never
-      # touch them (stage 66).
+      # touch them.
       image: ${{ vars.CSIS_RUNNER_IMAGE || 'ghcr.io/infrastructurebuilder/csis-ci:alma10-20261016.4' }}
       credentials:
         username: ${{ vars.CSIS_RUNNER_IMAGE_USERNAME || github.actor }}
@@ -67,7 +67,7 @@ jobs:
           indexes=""
           # PyPI first (uv ranks --extra-index-url above --index-url), and TestPyPI only for what PyPI
           # cannot satisfy: the pinned .dev packages. uv's default strategy stops at the first index
-          # that has a name at all, and PyPI has had cs-image-system since 0.1.1 (stage 99).
+          # that has a name at all, and PyPI has had cs-image-system since 0.1.1.
           case "$pin" in *.dev*) indexes="--index-url https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple/ --index-strategy unsafe-first-match" ;; esac
           # the extras this tree's `type:` words need (`just extras`): a bare install carries no runtime
           extras=$(just extras)
@@ -83,7 +83,7 @@ jobs:
     if: github.event_name != 'pull_request'
     runs-on: ubuntu-24.04
     container:
-      # The runner image (stage 92): AlmaLinux 10 with every tool a job calls at a pinned
+      # The runner image: AlmaLinux 10 with every tool a job calls at a pinned
       # version (docs/CI_RUNNER.md lists them); moved by `init-config --force` with the
       # release's other lines. The host's docker socket lets the modification tests drive
       # the host daemon through the image's docker client.
@@ -91,14 +91,14 @@ jobs:
       # token, as the runner always did (an empty credential is invalid). A team that runs its own
       # build names it in the variable; a registry other than ghcr.io needs the variable
       # CSIS_RUNNER_IMAGE_USERNAME and the secret CSIS_RUNNER_IMAGE_PASSWORD. Release refreshes never
-      # touch them (stage 66).
+      # touch them.
       image: ${{ vars.CSIS_RUNNER_IMAGE || 'ghcr.io/infrastructurebuilder/csis-ci:alma10-20261016.4' }}
       credentials:
         username: ${{ vars.CSIS_RUNNER_IMAGE_USERNAME || github.actor }}
         password: ${{ secrets.CSIS_RUNNER_IMAGE_PASSWORD || github.token }}
       options: -v /var/run/docker.sock:/var/run/docker.sock
     permissions:
-      packages: read          # the runner image is pulled with this job's token (stage 92): a permissions block without it reads as none
+      packages: read          # the runner image is pulled with this job's token: a permissions block without it reads as none
       id-token: write          # OIDC federation for the read-only cloud identities
       contents: read
     env:
@@ -148,7 +148,7 @@ jobs:
           indexes=""
           # PyPI first (uv ranks --extra-index-url above --index-url), and TestPyPI only for what PyPI
           # cannot satisfy: the pinned .dev packages. uv's default strategy stops at the first index
-          # that has a name at all, and PyPI has had cs-image-system since 0.1.1 (stage 99).
+          # that has a name at all, and PyPI has had cs-image-system since 0.1.1.
           case "$pin" in *.dev*) indexes="--index-url https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple/ --index-strategy unsafe-first-match" ;; esac
           # the extras this tree's `type:` words need (`just extras`): a bare install carries no runtime
           extras=$(just extras)
@@ -207,7 +207,7 @@ jobs:
     if: github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-24.04
     container:
-      # The runner image (stage 92): AlmaLinux 10 with every tool a job calls at a pinned
+      # The runner image: AlmaLinux 10 with every tool a job calls at a pinned
       # version (docs/CI_RUNNER.md lists them); moved by `init-config --force` with the
       # release's other lines. The host's docker socket lets the modification tests drive
       # the host daemon through the image's docker client.
@@ -215,7 +215,7 @@ jobs:
       # token, as the runner always did (an empty credential is invalid). A team that runs its own
       # build names it in the variable; a registry other than ghcr.io needs the variable
       # CSIS_RUNNER_IMAGE_USERNAME and the secret CSIS_RUNNER_IMAGE_PASSWORD. Release refreshes never
-      # touch them (stage 66).
+      # touch them.
       image: ${{ vars.CSIS_RUNNER_IMAGE || 'ghcr.io/infrastructurebuilder/csis-ci:alma10-20261016.4' }}
       credentials:
         username: ${{ vars.CSIS_RUNNER_IMAGE_USERNAME || github.actor }}
@@ -225,7 +225,7 @@ jobs:
       group: perform            # two merges never record or perform at once
       cancel-in-progress: false # a record in flight is never cancelled
     permissions:
-      packages: read          # the runner image is pulled with this job's token (stage 92): a permissions block without it reads as none
+      packages: read          # the runner image is pulled with this job's token: a permissions block without it reads as none
       id-token: write
       contents: write           # the records are committed and pushed back here
     env:
@@ -253,7 +253,7 @@ jobs:
           # some missing is configured-and-broken -- a FAILURE that names them.
           # None configured is tested FIRST, a push to main included: a repository made from a
           # starter pushes its first commit to main with nothing configured, and that run
-          # failed here until hygiene XVI item 3 (a workflow from 0.1.2 or before).
+          # is skipped here (a workflow from 0.1.2 or before failed it).
           names="AWS_ROLE_ARN GCP_WORKLOAD_IDENTITY_PROVIDER GCP_SERVICE_ACCOUNT OKTA_API_PRIVATE_KEY TF_VAR_KEY TF_VAR_SECRET CSIS_CONFIG_IDENTITY"
           if [ "$IS_RECORD" = true ]; then names="$names AWS_APPLY_ROLE_ARN GCP_APPLY_SERVICE_ACCOUNT"; fi
           missing=""; present=0
@@ -292,7 +292,7 @@ jobs:
           indexes=""
           # PyPI first (uv ranks --extra-index-url above --index-url), and TestPyPI only for what PyPI
           # cannot satisfy: the pinned .dev packages. uv's default strategy stops at the first index
-          # that has a name at all, and PyPI has had cs-image-system since 0.1.1 (stage 99).
+          # that has a name at all, and PyPI has had cs-image-system since 0.1.1.
           case "$pin" in *.dev*) indexes="--index-url https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple/ --index-strategy unsafe-first-match" ;; esac
           # the extras this tree's `type:` words need (`just extras`): a bare install carries no runtime
           extras=$(just extras)
@@ -410,11 +410,11 @@ jobs:
         # as the WORKLOAD: this run's OIDC token, the team's connection and role from the
         # configuration; a stopped machine is skipped, never started; the verdicts are recorded
         # and the closing record commits them. A posix group logs in as its proof user over ssh
-        # through the runtime's session tunnel instead (stage 75), with this key; unset, a posix
+        # through the runtime's session tunnel instead, with this key; unset, a posix
         # proof fails its first check and an Okta proof never reads it
         # It runs while the WRITE identity is still held, before the read-only one is taken
         # back: a posix proof's ssh travels through the runtime's session tunnel, and opening a
-        # session is a permission the read-only identity is not given (stage 89)
+        # session is a permission the read-only identity is not given
         env:
           CSIS_PROOF_SSH_KEY: ${{ secrets.CSIS_PROOF_SSH_KEY }}
         run: just ci-login-proof --runtime "$PERFORM_RUNTIME"

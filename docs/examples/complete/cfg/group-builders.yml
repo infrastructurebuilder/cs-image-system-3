@@ -13,7 +13,7 @@ group_builders:
     # ---- 9.1: the workspace
     org: REPLACE-ME-org            # the Okta org name (`okta` provider org_name)
     team: REPLACE-ME-team          # the OPA team; also names TF_VAR_<team>_key / _secret
-    # ---- stage 75: REQUIRED -- the posix group builder that makes these groups
+    # ---- 9.2: REQUIRED -- the posix group builder that makes these groups
     # exist on the machines (created after each applying run with OPA's gid,
     # members joined at each login); `none` keeps them off the machines
     posix: posix-local
@@ -34,12 +34,12 @@ group_builders:
     # ---- 9.2: the group builder
     gateway_selector: "environment=staging"   # the resource-group project's gateway_selector (else config.okta_gateway_selector)
     account_discovery: true        # the project's account_discovery
-    # stage 56: CI logs in as a WORKLOAD. Both objects are the team's, made by
+    # CI logs in as a WORKLOAD. Both objects are the team's, made by
     # hand once in the OPA console; with both named, every managed group gets
     # a CI login policy beside its user policy, kept through the OPA API.
     workload_connection: REPLACE-ME-workload-connection
     workload_role: REPLACE-ME-workload-role
-  # stage 75: groups as POSIX accounts on the machines, with ids this
+  # groups as POSIX accounts on the machines, with ids this
   # configuration declares (`gid:` on the group). No terraform root, no
   # credentials: the owning group is baked into its instance images. A
   # group names it with `type: posix-local` (none does here), and
@@ -59,7 +59,7 @@ user_builders:
     team: REPLACE-ME-team
     email_as_username: false       # 9.3: a user's `name` is the bare OPA username, not its email
     # the address domain is its own value so it can be ENCRYPTED: a derived
-    # address inherits it and reaches the emission as ciphertext (stage 51).
+    # address inherits it and reaches the emission as ciphertext (section 13).
     # It decrypts to example.invalid.
     email_domain: ENC[age:YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSBMd3pHdFlPNlQ3UmpCNXF3R3prWEhwWlJVcWJoTVExdlJHNUVxZHZIUlZzCjZPRTIwZ1pNUVNIeTBrUGhabllPaGU2cFJTa0xFVWZuMmxSNTAxcnZ6MDgKLS0tIHU1dHUvOFFtR0RJSDZkR280Q1ZQY2h2M3RHYzR4OW0xTXdWT0ozOHBiVGMKZfcyCqflNN+CE4oPpyTAtEiOjdfaXEuxzxv7D6cRTNjHGTTr8GmHFq1Xk2BGfkw=]
     default_user_email_template: "{{ user.name }}@{{ builder.email_domain }}"
@@ -68,7 +68,7 @@ user_builders:
       - name: okta
         source: okta/okta
         version: ">= 6.0"
-  # stage 75: users as POSIX accounts, each with a declared `uid:`, a
+  # users as POSIX accounts, each with a declared `uid:`, a
   # user-private group of the same name and id, and its `public_keys:` as the
   # only way in. A user names it with `type: posix-users`; none does here.
   - name: posix-users

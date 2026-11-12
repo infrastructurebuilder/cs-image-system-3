@@ -4,7 +4,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-# cs-image-system public-safe gate (stage 35): refuse a commit that would publish
+# cs-image-system public-safe gate: refuse a commit that would publish
 # material that must never be public. Plain sh, no framework; installed by
 # `just init` (this repository) and `just hooks-live` (the live configuration)
 # through `git config core.hooksPath .githooks`. Allow a value by decision in

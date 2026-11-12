@@ -2,11 +2,13 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""The constants a plugin declares its models with (moved here from
-``cs_image_system.base.constants``, which re-exports them): the
-sentinels that mean "not set", the classification enum ``VCT``, the field
-metadata keys the field helpers stamp, the entry-point groups, the
-collection names and the file names a run writes."""
+"""The constants a plugin declares its models with: the sentinels that
+mean "not set", the classification enum ``VCT``, the field metadata keys
+the field helpers stamp, the entry-point groups, the collection names and
+the file names a run writes.
+
+They are defined here and nowhere else; the core imports them from here
+as a plugin does, and re-exports none of them."""
 
 from enum import Enum, StrEnum
 

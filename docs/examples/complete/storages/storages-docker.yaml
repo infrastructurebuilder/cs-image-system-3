@@ -1,6 +1,6 @@
 ---
 # storages/storages-docker.yaml (from the complete starter) -- a named volume on
-# the docker host (stage 103). Reference: CONFIGURATION.md (the system
+# the docker host. Reference: CONFIGURATION.md (the system
 # repository's docs/CONFIGURATION.md) section 11.4 and 8.2. The daemon mounts a
 # volume at the declared path before the container's first command; the launch
 # script only makes the group's subtree.
