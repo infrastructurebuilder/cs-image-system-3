@@ -31,10 +31,18 @@ What is read, and where:
 - the tests, ``tests/`` and ``packages/*/tests``: comments and
   docstrings, except one closing ``history:`` line per module, which
   names the bundle items a test came from and is how a reader follows a
-  frozen ledger entry to the test that holds it today;
+  frozen ledger entry to the test that holds it today. A history line
+  that wraps is exempt whole: the exemption runs from the ``history:``
+  line to the blank line or the docstring's close that ends its
+  paragraph;
 - the workflows, ``.github/workflows/*.yml``: the ``#`` comments;
 - the scripts under ``scripts/``: comments and docstrings of a Python
   file, the ``#`` comment lines of a shell script.
+
+A docstring is read whole, a run of comments on consecutive lines as one
+text and a file read whole as one text, so a token a line break splits
+(the word ending one line, its number opening the next) is found; the
+line reported is the one where the token starts.
 
 Each area holds zero.
 
@@ -44,6 +52,7 @@ tests/test_sources_do_not_narrate.py [area ...]``.
 from __future__ import annotations
 
 import ast
+import bisect
 import io
 import re
 import sys
@@ -77,57 +86,119 @@ AREAS: dict[str, str] = {
     "justfile": "the Justfile, whole",
     "pyproject": "pyproject.toml, whole",
     "fixture": "the YAML comments and the README of tests/fixtures/config, the hashed content included",
-    "tests": "comments and docstrings of tests/ and packages/*/tests, history: lines excepted",
+    "tests": "comments and docstrings of tests/ and packages/*/tests, history: lines (wrapped or not) excepted",
     "workflows": "the # comments of .github/workflows/*.yml",
     "scripts": "comments and docstrings of every file under scripts/ (Python, or a shell script's # lines)",
 }
 
 
+#: consecutive lines read as one text: ``(line number, text)`` each
+Block = list[tuple[int, str]]
 
-def _python_hits(path: Path, *, except_history: bool) -> list[str]:
-    """``file:line: text`` for every narration token in a comment or a
-    docstring of one Python file."""
-    src = path.read_text()
-    tree = ast.parse(src, filename=str(path))
+
+def _block_tokens(block: Block) -> list[tuple[int, str, str]]:
+    """``(line, token, that line's text)`` for every narration token in one
+    block read as ONE text: each line stripped, the lines joined by a space,
+    so a token split across a line break is found (and a page reference
+    whose ``DESIGN`` ends one line is still excused). The line reported is
+    the one where the token starts."""
+    starts: list[int] = []
+    parts: list[str] = []
+    pos = 0
+    for _, text in block:
+        starts.append(pos)
+        parts.append(text.strip())
+        pos += len(parts[-1]) + 1
+    out: list[tuple[int, str, str]] = []
+    for m in NARRATION.finditer(" ".join(parts)):
+        i = bisect.bisect_right(starts, m.start()) - 1
+        out.append((block[i][0], m.group(0), parts[i]))
+    return out
+
+
+def _tokens(blocks: list[Block]) -> list[tuple[int, str, str]]:
+    return sorted((t for b in blocks for t in _block_tokens(b)), key=lambda t: t[0])
+
+
+def _report(rel: Path, blocks: list[Block]) -> list[str]:
+    return [f"{rel}:{lineno}: {token!r} in {text[:90]}" for lineno, token, text in _tokens(blocks)]
+
+
+def _extend_run(runs: list[Block], lineno: int, text: str) -> None:
+    """Add a comment line to the run it continues (the line just above it is
+    a comment too), or open a new run."""
+    if not runs or runs[-1][-1][0] != lineno - 1:
+        runs.append([])
+    runs[-1].append((lineno, text))
+
+
+def _docstring_blocks(first_line: int, text: str, *, except_history: bool) -> list[Block]:
+    """A docstring as one block. With ``except_history`` each ``history:``
+    paragraph is cut out: the ``history:`` line and every line after it up to
+    a blank line or the docstring's close, so a history line that wraps onto
+    the next line is exempt whole; the text before and after it are blocks of
+    their own."""
+    blocks: list[Block] = [[]]
+    in_history = False
+    for i, line in enumerate(text.splitlines()):
+        if except_history and HISTORY_LINE.match(line):
+            in_history = True
+        elif in_history and not line.strip():
+            in_history = False
+            blocks.append([])
+        if not in_history:
+            blocks[-1].append((first_line + i, line))
+    return [b for b in blocks if b]
+
+
+def _python_blocks(src: str, *, except_history: bool, filename: str = "<sample>") -> list[Block]:
+    """Every docstring of one Python source, and every run of comments on
+    consecutive lines (the ``#`` dropped)."""
     doc_starts: set[tuple[int, int]] = set()
-    for node in ast.walk(tree):
+    for node in ast.walk(ast.parse(src, filename=filename)):
         if isinstance(node, (ast.Module, ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef)) and node.body:
             first = node.body[0]
             if isinstance(first, ast.Expr) and isinstance(first.value, ast.Constant) and isinstance(first.value.value, str):
                 doc_starts.add((first.value.lineno, first.value.col_offset))
-    out: list[str] = []
-    rel = path.relative_to(REPO)
+    docs: list[Block] = []
+    runs: list[Block] = []
     for tok in tokenize.generate_tokens(io.StringIO(src).readline):
         if tok.type == tokenize.COMMENT:
-            lines = [(tok.start[0], tok.string)]
+            _extend_run(runs, tok.start[0], tok.string.lstrip("#"))
         elif tok.type == tokenize.STRING and tok.start in doc_starts:
-            lines = [(tok.start[0] + i, line) for i, line in enumerate(tok.string.splitlines())]
-        else:
-            continue
-        for lineno, text in lines:
-            if except_history and HISTORY_LINE.match(text):
-                continue
-            for m in NARRATION.finditer(text):
-                out.append(f"{rel}:{lineno}: {m.group(0)!r} in {text.strip()[:90]}")
-    return out
+            docs += _docstring_blocks(tok.start[0], tok.string, except_history=except_history)
+    return docs + runs
+
+
+def _comment_blocks(text: str) -> list[Block]:
+    """The runs of ``#`` and ``//`` comments on consecutive lines of a YAML,
+    HCL, terraform or shell file."""
+    runs: list[Block] = []
+    for i, line in enumerate(text.splitlines(), 1):
+        m = COMMENT.search(line)
+        if m:
+            _extend_run(runs, i, m.group(1))
+    return runs
+
+
+def _whole_blocks(text: str) -> list[Block]:
+    return [list(enumerate(text.splitlines(), 1))]
+
+
+def _python_hits(path: Path, *, except_history: bool) -> list[str]:
+    """``file:line: text`` for every narration token in a docstring or a
+    comment run of one Python file."""
+    blocks = _python_blocks(path.read_text(), except_history=except_history, filename=str(path))
+    return _report(path.relative_to(REPO), blocks)
 
 
 def _whole_file_hits(path: Path) -> list[str]:
-    rel = path.relative_to(REPO)
-    return [f"{rel}:{i}: {m.group(0)!r} in {line.strip()[:90]}"
-            for i, line in enumerate(path.read_text(errors="replace").splitlines(), 1)
-            for m in NARRATION.finditer(line)]
+    return _report(path.relative_to(REPO), _whole_blocks(path.read_text(errors="replace")))
 
 
 def _comment_hits(path: Path) -> list[str]:
     """``#`` and ``//`` comments of a YAML, HCL or terraform file."""
-    rel = path.relative_to(REPO)
-    out: list[str] = []
-    for i, line in enumerate(path.read_text(errors="replace").splitlines(), 1):
-        m = COMMENT.search(line)
-        if m:
-            out.extend(f"{rel}:{i}: {h.group(0)!r} in {line.strip()[:90]}" for h in NARRATION.finditer(m.group(1)))
-    return out
+    return _report(path.relative_to(REPO), _comment_blocks(path.read_text(errors="replace")))
 
 
 def _src_files() -> list[Path]:
@@ -182,6 +253,54 @@ def test_the_pattern_reads_what_it_claims():
     assert all(NARRATION.search(s) for s in bad), [s for s in bad if not NARRATION.search(s)]
     assert not any(NARRATION.search(s) for s in good), [s for s in good if NARRATION.search(s)]
     assert HISTORY_LINE.match("  history: bundle VIII item 5.") and not HISTORY_LINE.match("the history: of it")
+
+
+#: a module whose docstring, comment run and wrapped history line each hold a token a line break splits,
+#: and two comments a line apart that hold none between them
+_SPLIT_PYTHON = "\n".join([
+    '"""A docstring a wrap splits a token in: the work of stage',
+    '42 is named here.',
+    '',
+    'history: a history line that wraps may name hygiene',
+    'XIV on the line it wraps onto."""',
+    'x = 1  # a comment run a wrap splits a token in: hygiene',
+    '# XIV is named here',
+    'y = 2',
+    '# a comment that ends on stage',
+    'z = 3',
+    '# 9 opens a run of its own, so nothing is named',
+    '',
+])
+#: the same split in a YAML comment run and an HCL one, then in a file read whole
+_SPLIT_COMMENTS = "\n".join([
+    "key: 1  # a YAML comment a wrap splits a token in: stage",
+    "# 7 is named here",
+    'resource "x" "y" {}',
+    "// an HCL comment run: Hygiene",
+    "// 3 is named here",
+    "",
+])
+_SPLIT_WHOLE = "a paragraph a wrap splits a token in: stage\n128 is named here.\n"
+
+
+def test_a_token_a_line_break_splits_is_found():
+    """Each reader joins what it reads across line breaks -- a docstring
+    whole, a run of comments on consecutive lines, a file read whole -- and
+    reports the line where the token starts. A history line that wraps is
+    exempt whole, a comment a line apart opens a run of its own, and a page
+    reference that wraps stays excused."""
+    samples = (_SPLIT_PYTHON, _SPLIT_COMMENTS, _SPLIT_WHOLE)
+    assert not [line for s in samples for line in s.splitlines() if NARRATION.search(line)]   # no line holds one alone
+    found = [(n, t) for n, t, _ in _tokens(_python_blocks(_SPLIT_PYTHON, except_history=True))]
+    assert found == [(1, "stage 42"), (6, "hygiene XIV")], found
+    found = [(n, t) for n, t, _ in _tokens(_python_blocks(_SPLIT_PYTHON, except_history=False))]
+    assert found == [(1, "stage 42"), (4, "hygiene XIV"), (6, "hygiene XIV")], found
+    found = [(n, t) for n, t, _ in _tokens(_comment_blocks(_SPLIT_COMMENTS))]
+    assert found == [(1, "stage 7"), (4, "Hygiene 3")], found
+    found = [(n, t) for n, t, _ in _tokens(_whole_blocks(_SPLIT_WHOLE))]
+    assert found == [(1, "stage 128")], found
+    wrapped_reference: Block = [(1, "a page reference that wraps: DESIGN"), (2, "§3A stays")]
+    assert NARRATION.search(wrapped_reference[1][1]) and not _block_tokens(wrapped_reference)
 
 
 if __name__ == "__main__":
