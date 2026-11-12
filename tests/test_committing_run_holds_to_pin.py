@@ -26,6 +26,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import subprocess
 from importlib import metadata
 from pathlib import Path
@@ -309,13 +310,20 @@ def test_a_tree_without_a_pin_commits_from_any_install(recorded_tree):
     assert _git(recorded_tree, "rev-parse", "HEAD") != head
 
 
+def _plain(output: str) -> str:
+    """The help without its colour: under GitHub Actions typer forces it, and
+    the styling can fall inside an option's name."""
+    return re.sub(r"\x1b\[[0-9;]*m", "", output)
+
+
 @pytest.mark.parametrize("command", [("run",), ("lineage", "restamp")])
 def test_the_help_of_each_held_command_names_the_flag_and_its_variable(monkeypatch, command):
     monkeypatch.setenv("COLUMNS", "200")
     monkeypatch.setattr("sys.argv", ["cs-image-system", *command, "--help"])
     from cs_image_system.system.cli import app
     result = runner.invoke(app, [*command, "--help"], catch_exceptions=False)
-    assert result.exit_code == 0 and ALLOW_FLAG in result.output and ALLOW_ENVVAR in result.output
+    help_text = _plain(result.output)
+    assert result.exit_code == 0 and ALLOW_FLAG in help_text and ALLOW_ENVVAR in help_text
 
 
 def test_the_help_of_a_disposal_offers_no_such_flag(monkeypatch):
@@ -323,7 +331,8 @@ def test_the_help_of_a_disposal_offers_no_such_flag(monkeypatch):
     monkeypatch.setattr("sys.argv", ["cs-image-system", "dispose", "image", "--help"])
     from cs_image_system.system.cli import app
     result = runner.invoke(app, ["dispose", "image", "--help"], catch_exceptions=False)
-    assert result.exit_code == 0 and ALLOW_FLAG not in result.output and ALLOW_ENVVAR not in result.output
+    help_text = _plain(result.output)
+    assert result.exit_code == 0 and ALLOW_FLAG not in help_text and ALLOW_ENVVAR not in help_text
 
 
 # ------------------------------------------------ a restamp of lineage, and a disposal
