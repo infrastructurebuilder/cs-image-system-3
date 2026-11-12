@@ -25,12 +25,12 @@ from .basic.builder_base_group import GroupBuilderBase
 from .utils import apply_enabled
 
 if TYPE_CHECKING:
-    from .global_context import GlobalTypeContext
+    from .run_context import RunContext
 
 log = logging.getLogger(__name__)
 
 
-def reconcile_workload_access(ctx: "GlobalTypeContext", lifecycle: Lifecycle) -> None:
+def reconcile_workload_access(ctx: "RunContext", lifecycle: Lifecycle) -> None:
     if lifecycle != Lifecycle.IDENTITY:
         return
     if not apply_enabled(ctx, "identity"):

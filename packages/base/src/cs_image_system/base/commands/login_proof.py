@@ -39,7 +39,7 @@ from ..launch_params import canonical_hostname, group_builder_of
 from ..standing import standing_instances  # noqa: F401 - re-exported
 
 if TYPE_CHECKING:          # annotations only
-    from ..global_context import GlobalTypeContext
+    from ..run_context import RunContext
 
 log = logging.getLogger(__name__)
 
@@ -53,7 +53,7 @@ class LoginProofFailed(Exception):
                                      if r["instance"] in failed for c in r.get("checks", []) if not c.get("ok")))
 
 
-def _group_of(ctx: GlobalTypeContext, instance: Any) -> str:
+def _group_of(ctx: RunContext, instance: Any) -> str:
     image = ctx.images_map.get(str(instance.image))
     return str(getattr(image, "group", None) or "") if image is not None else ""
 
@@ -62,7 +62,7 @@ def _as(gb: Any) -> str:
     return gb.login_identity() if isinstance(gb, GroupBuilderBase) else "client"
 
 
-def _skip(ctx: GlobalTypeContext, inst: Any, hostname: str, group: str, why: str, gb: Any = None) -> dict[str, Any]:
+def _skip(ctx: RunContext, inst: Any, hostname: str, group: str, why: str, gb: Any = None) -> dict[str, Any]:
     log.info(f"login proof {inst.get_name()}: SKIPPED -- {why}. Nothing is proved: no verdict was reached.")
     return {"instance": inst.get_name(), "runtime": str(getattr(inst, "runtime", "") or ""),
             "hostname": hostname, "group": group, "run": ctx.run_id, "as": _as(gb),
@@ -71,7 +71,7 @@ def _skip(ctx: GlobalTypeContext, inst: Any, hostname: str, group: str, why: str
             "evidence": []}
 
 
-def prove_login(ctx: GlobalTypeContext, inst: Any, *, timeout: int = 120) -> dict[str, Any]:
+def prove_login(ctx: RunContext, inst: Any, *, timeout: int = 120) -> dict[str, Any]:
     """One instance's proof; a record either way (skipped, failed, ok)."""
     name = inst.get_name()
     rt = str(getattr(inst, "runtime", "") or "")
@@ -99,7 +99,7 @@ def prove_login(ctx: GlobalTypeContext, inst: Any, *, timeout: int = 120) -> dic
     return record
 
 
-def login_proof(ctx: GlobalTypeContext, names: list[str] | None = None, *, runtime: str | None = None,
+def login_proof(ctx: RunContext, names: list[str] | None = None, *, runtime: str | None = None,
                 timeout: int = 120, record_only: bool = False) -> list[dict[str, Any]]:
     targets = standing_instances(ctx, runtime=runtime, names=names)
     if not targets:

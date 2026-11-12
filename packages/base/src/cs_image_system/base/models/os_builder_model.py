@@ -16,7 +16,6 @@ from cs_image_system.contract.constants import DEFAULT, VCT
 from cs_image_system.contract.model_config import CSIS_MODEL_CONFIG
 from cs_image_system.contract.operating_system import OsBuilderModelProtocol
 
-from ..image_sources import current_catalog
 from .builder_model import BuilderModel
 from .os_builder_runtime_config import OSBuilderBaseImageBuilderSubconfig
 from .update_policy import POLICY_FULL, POLICY_NONE, UpdatePolicy
@@ -98,10 +97,14 @@ class OsBuilderModel(BuilderModel, OsBuilderModelProtocol):
         if self.default_primary_disk_size == DEFAULT:
             self.default_primary_disk_size = 200
         self.family = str(self.family).strip().lower()
-        # a type that does not serve what the family IS is a
-        # contradiction between the entry and the catalog; refused when the
-        # family is one some registered type serves (a token nobody serves
-        # is only a token)
+
+    def on_bound(self) -> None:
+        """A type that does not serve what the family IS is a
+        contradiction between the entry and the catalog; refused when the
+        family is one some registered type serves (a token nobody serves
+        is only a token). Checked as soon as the model knows its run: the
+        catalog and the registered types are the run's."""
+        super().on_bound()
         real = self.get_family()
         served = tuple(f.lower() for f in type(self).families())
         if real not in served:
@@ -127,7 +130,7 @@ class OsBuilderModel(BuilderModel, OsBuilderModelProtocol):
         """What the declared family IS: the image-source
         catalog's ``is`` for it, else the token itself. Everything that
         branches on a family reads this one."""
-        return current_catalog().effective_family(self.family, self.family_version)  # a model holds no context
+        return self._image_sources.effective_family(self.family, self.family_version)
     def get_vendor_family(self) -> str:
         """The family token as written (``rhel-from-jerry``): the catalog's key."""
         return self.family

@@ -22,7 +22,7 @@ from types import SimpleNamespace
 from typing import Any, cast
 
 import pytest
-from harness import V2Run
+from harness import V2Run, os_type_for_family
 
 OTHER_MANAGERS = re.compile(r"(?<![a-z0-9])(yum|dnf|apt-get|apt|dpkg|rpm)(?![a-z0-9])")
 
@@ -42,7 +42,6 @@ def _says_only_apk(lines: list[str]) -> None:
 
 # ------------------------------------------------------------ the resolver
 def test_the_resolver_finds_the_type_that_serves_a_family():
-    from cs_image_system.base.os_types import os_type_for_family
     assert os_type_for_family("alpine").csis_name() == "alpine"
     assert os_type_for_family("debian").csis_name() == "debian"
     assert os_type_for_family("Ubuntu").csis_name() == "ubuntu"
@@ -52,7 +51,6 @@ def test_the_resolver_finds_the_type_that_serves_a_family():
 
 
 def test_the_resolver_refuses_an_unserved_or_missing_family():
-    from cs_image_system.base.os_types import os_type_for_family
     with pytest.raises(ValueError, match="no registered OS type serves the family 'plan9'"):
         os_type_for_family("plan9")
     with pytest.raises(ValueError, match="no OS family given"):
@@ -76,7 +74,6 @@ def test_the_core_base_type_names_no_manager():
     ("alpine", "apk", "sudo apk add --no-cache curl unzip"),
 ])
 def test_each_type_answers_its_own_manager(family, fmt, install):
-    from cs_image_system.base.os_types import os_type_for_family
     from cs_image_system.contract.operating_system import PACKAGE_LOCK_TIMEOUT
     t = os_type_for_family(family)
     assert t.package_format() == fmt
@@ -88,7 +85,6 @@ def test_each_type_answers_its_own_manager(family, fmt, install):
 def test_the_lock_timeout_is_the_deb_families_alone():
     """apt-get takes the wait as an option; the rpm and alpine managers
     have no such option and ignore it, so a caller may always pass it."""
-    from cs_image_system.base.os_types import os_type_for_family
     deb, rpm, apk = (os_type_for_family(f) for f in ("debian", "rhel", "alpine"))
     assert deb.package_install_command(["x"]) == "sudo apt-get install -y x"
     assert deb.package_install_command(["x"], lock_timeout=30) == "sudo apt-get -o DPkg::Lock::Timeout=30 install -y x"
@@ -105,7 +101,6 @@ def test_every_types_package_check_stops_a_bake_and_names_the_package(family):
     line to, for every type: a false package test exits for itself under
     ``sh -e`` and says which package (the host has none of the managers,
     so every check is false here)."""
-    from cs_image_system.base.os_types import os_type_for_family
     line = os_type_for_family(family).package_present_check("nope-not-a-real-package-xyz")
     proc = subprocess.run(["sh", "-e", "-c", f"{line}\necho {SENTINEL}"], capture_output=True, text=True)
     assert SENTINEL not in proc.stdout, line
@@ -120,7 +115,6 @@ def test_an_alpine_image_bakes_through_the_hooks(v2):
     agents (apk lines), and the declared package tests (apk's own test).
     Nothing says yum, dnf, apt, dpkg or rpm."""
     from cs_image_system.base.image_tests import declared_test_commands
-    from cs_image_system.base.os_types import os_type_for_family
     ctx = v2.ctx
     alpine = os_type_for_family("alpine")
     posix = ctx.group_builders["posix-local"]
@@ -152,7 +146,6 @@ def test_an_alpine_image_bakes_through_the_hooks(v2):
 
 
 def test_the_filestore_storage_bakes_apk_on_alpine():
-    from cs_image_system.base.os_types import os_type_for_family
     from cs_image_system.tf_gcp_plugin.tf_gcp_storage_builder import TofuFilestoreStorageBuilder
     # the builder asks the images service for the OS type: the stub's
     # context carries that one service, answered by the kit's own lookup

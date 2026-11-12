@@ -29,7 +29,7 @@ from types import SimpleNamespace
 
 import pytest
 import yaml
-from harness import FIXTURE_CONFIG, copy_config, reset_singletons, stub_environment
+from harness import FIXTURE_CONFIG, copy_config, stub_environment
 from typer.testing import CliRunner
 
 runner = CliRunner()
@@ -38,7 +38,6 @@ runner = CliRunner()
 @pytest.fixture
 def cli_config(tmp_path, monkeypatch):
     journal = stub_environment(monkeypatch)
-    reset_singletons()
     root = copy_config(tmp_path)
     return root, journal
 
@@ -67,7 +66,6 @@ def test_cli_generate_and_base_only_aliases(cli_config):
     assert _invoke(root, "generate").exit_code == 0
     summary = json.loads((root / "generated" / "run-summary.json").read_text())
     assert set(summary["apply"].values()) == {"not-attempted"}
-    reset_singletons()
     stub = _invoke(root, "--base-only", "build-all")
     assert stub.exit_code == 0
     summary = json.loads((root / "generated" / "run-summary.json").read_text())
@@ -92,7 +90,6 @@ def test_validation_failure_exits_nonzero_with_a_summary(cli_config):
 def test_validate_command_reports_every_rule(cli_config):
     root, _ = cli_config
     assert _invoke(root, "validate").exit_code == 0
-    reset_singletons()
     p = root / "cfg" / "_config.yml"
     data = yaml.safe_load(p.read_text())
     data["config"]["admin_public_keys"] = ["-----BEGIN " + "PRIVATE KEY-----"]
@@ -107,7 +104,6 @@ def test_unknown_lifecycle_is_a_usage_error(cli_config):
     result = _invoke(root, "run", "identity", "nonsense")
     assert result.exit_code == 2
     assert "nonsense" in result.output        # the refusal names the lifecycle
-    reset_singletons()
     assert _invoke(root, "run").exit_code == 2
 
 
@@ -144,7 +140,7 @@ def test_finalization_never_waits_on_a_terminal(monkeypatch):
     monkeypatch.setattr(time, "sleep", _no_sleep)
     monkeypatch.setattr("builtins.input", lambda *a, **k: (_ for _ in ()).throw(AssertionError("no input()")))
     ctx = SimpleNamespace(dry_run=False, sleep_before_finalization=30,
-                          final_execution_path=Path("/dev/null"), final_execute=lambda: True)
+                          finalizer=SimpleNamespace(final_execution_path=Path("/dev/null"), final_execute=lambda: True))
     assert predefined_finalization(ctx, ExecutionLifecyclePhase.FINALIZATION) is True  # type: ignore[arg-type]
 
 
@@ -190,7 +186,6 @@ def test_encrypt_without_recipients_says_so_instead_of_a_traceback(tmp_path: Pat
     _edit(root / "cfg" / "_config.yml", lambda d: d.pop("encryption", None))
     stub_environment(monkeypatch)
     result = CliRunner().invoke(climod.app, ["--root-dir", str(root), "encrypt", "x"])
-    reset_singletons()
     assert result.exit_code == 1, result.output
     assert "encrypt:" in result.output and "Traceback" not in result.output, result.output
 

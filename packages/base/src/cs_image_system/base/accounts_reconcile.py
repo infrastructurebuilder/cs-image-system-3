@@ -36,7 +36,7 @@ from .capabilities import group_builder_of
 from .utils import apply_enabled
 
 if TYPE_CHECKING:
-    from .global_context import GlobalTypeContext
+    from .run_context import RunContext
 
 log = logging.getLogger(__name__)
 
@@ -45,7 +45,7 @@ SCRIPT_TIMEOUT_SECONDS = 300
 HEREDOC = "CSIS_ACCOUNTS"
 
 
-def _group_of(ctx: "GlobalTypeContext", instance: Any) -> str:
+def _group_of(ctx: "RunContext", instance: Any) -> str:
     image = ctx.images_map.get(str(instance.image))
     return str(getattr(image, "group", None) or "") if image is not None else ""
 
@@ -55,7 +55,7 @@ def as_root(script: str) -> str:
     return f"sudo bash -s <<'{HEREDOC}'\n{script.rstrip()}\n{HEREDOC}\n"
 
 
-def reconcile_accounts(ctx: "GlobalTypeContext", lifecycle: Lifecycle) -> None:
+def reconcile_accounts(ctx: "RunContext", lifecycle: Lifecycle) -> None:
     if lifecycle != Lifecycle.INSTANCE_IMAGE:
         return
     if not apply_enabled(ctx, "instances"):

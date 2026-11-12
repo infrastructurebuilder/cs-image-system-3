@@ -166,6 +166,12 @@ class DockerContainerBuilder(ContainerBuilderBase[DockerContainerBuilderModel], 
     def provider_specific_image_class(self) -> type[ProviderSpecificImage]:
         return DockerProviderSpecificImage
 
+    def prepare_provider_specific_image(self, psi: ProviderSpecificImage) -> None:
+        """An image of this runtime knows the repository its builds are
+        tagged into: the floating tag of a deferred one is read from it."""
+        if isinstance(psi, DockerProviderSpecificImage):
+            psi.repository = self.model.get_repository()
+
     # ------------------------------------------------------------ the CLI
     def docker_binary(self) -> str:
         """The docker CLI this runtime runs: the ``binary`` of the

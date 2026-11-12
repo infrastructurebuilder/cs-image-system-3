@@ -31,6 +31,7 @@ def _load(root: Path):
     """The tree, loaded dry with no overlays: what the session reading needs."""
     import types
     from typing import Any, cast
+
     from cs_image_system.base.config_loader import read_config_and_transform
     return read_config_and_transform(cast(Any, types.SimpleNamespace(obj={})), root, False, dry_run=True)
 

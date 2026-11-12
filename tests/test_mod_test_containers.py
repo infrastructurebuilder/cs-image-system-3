@@ -16,7 +16,7 @@ import stat
 from pathlib import Path
 
 import pytest
-from harness import V2Run, copy_config, reset_singletons, stub_environment
+from harness import V2Run, copy_config, stub_environment
 from typer.testing import CliRunner
 
 runner = CliRunner()
@@ -30,7 +30,6 @@ def _invoke(root: Path, *args: str, catch: bool = False):
 @pytest.fixture
 def cli_root(tmp_path, monkeypatch):
     stub_environment(monkeypatch)
-    reset_singletons()
     return copy_config(tmp_path)
 
 

@@ -26,7 +26,7 @@ import re
 import subprocess
 from pathlib import Path
 
-from harness import REPO, reset_singletons
+from harness import REPO
 
 CONFIGURATION = REPO / "docs" / "CONFIGURATION.md"
 OPERATIONS = REPO / "docs" / "OPERATIONS.md"
@@ -61,10 +61,9 @@ def _documents(text: str, field: str) -> bool:
 
 
 def _registered_models() -> list[type]:
-    from cs_image_system.base.registry import current_registry
-    reset_singletons()
+    from cs_image_system.base.loader import installed_registry
     seen: dict[type, None] = {}
-    for cls in current_registry().models.values():
+    for cls in installed_registry().models.values():
         if dataclasses.is_dataclass(cls):
             seen.setdefault(cls, None)
     return list(seen)
@@ -129,7 +128,7 @@ def test_every_package_appears_in_the_readmes_list():
 
 def _cli_commands() -> list[str]:
     import typer
-    reset_singletons()                         # the plugins mount their commands at load
+
     from cs_image_system.system.cli import app
     group = typer.main.get_command(app)
     out: list[str] = []

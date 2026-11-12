@@ -32,7 +32,7 @@ from ..posix_ids import FIRST_REGULAR_ID, NAME_RE, Claim, resolve_posix_ids, sup
 from ..public_safe import scan_for_plaintexts
 
 if TYPE_CHECKING:          # annotations only
-    from ..global_context import GlobalTypeContext
+    from ..run_context import RunContext
 
 
 def check_version(sv: str | None, version: str | None) -> ComplianceState:
@@ -65,14 +65,14 @@ def check_version(sv: str | None, version: str | None) -> ComplianceState:
     return ComplianceState.IGNORED
 
 
-def version_checker_for(exe: ExecutableModel) -> type[AbstractVersionChecker] | None:
-    """The checker for an executable: registered under its NAME
+def version_checker_for(exe: ExecutableModel, reg: registry.Registry) -> type[AbstractVersionChecker] | None:
+    """The checker for an executable, looked up in ``reg`` (the run's
+    registry, ``ctx.reg``): registered under its NAME
     first -- packer, tofu, each cloud's CLI, ansible-playbook and bash have
     their own -- then under its TYPE (`packer-1.9.4` with `type: packer`),
     which for the default type `executable` is the generic checker base
     registers. The checkers were always registered by name while the lookup
     keyed on the type in the wrong table, so none had ever matched."""
-    reg = registry.current_registry()   # an executable holds no context; the current registry is the one
     for key in (exe.name, exe.type_):
         cc = reg.get_model(VCT.VERSION_CHECKER, key)
         if cc is not None:
@@ -80,18 +80,19 @@ def version_checker_for(exe: ExecutableModel) -> type[AbstractVersionChecker] | 
     return None
 
 
-def check_single_version(exe: ExecutableModel, verbose: bool = False,
+def check_single_version(exe: ExecutableModel, reg: registry.Registry, verbose: bool = False,
                          checked: list[str] | None = None) -> list[Exception]:
     """One declared executable: its binary must exist (an absolute path, or a
     name on PATH) and, when it declares a `version`, the version its checker
-    reads must satisfy the requirement. Every failure names the tool."""
+    (the one ``reg`` holds for it) reads must satisfy the requirement. Every
+    failure names the tool."""
     binary = exe.binary or exe.name
     if shutil.which(binary) is None:
         msg = (f"{exe.name}: binary {binary!r} not found (declared in cfg/executables.yml; "
                "an absolute path, or a name on PATH)")
         log.error(f"   - {msg}")
         return [Exception(msg)]
-    cc = version_checker_for(exe)
+    cc = version_checker_for(exe, reg)
     if cc is None:  # pragma: no cover - base registers the generic checker under the default type
         log.info(f"{exe.name}: no version checker under name {exe.name!r} or type {exe.type_!r}; version unchecked")
         return []
@@ -148,7 +149,7 @@ def check_existence_of_executable(
             )
     return exceptions
 
-def check_name_uniquness(ctx: GlobalTypeContext) -> list[Exception]:
+def check_name_uniquness(ctx: RunContext) -> list[Exception]:
 
     exceptions: list[Exception] = []
     # Check to ensure that all OS Builder runtimes and all images have a unique id
@@ -189,7 +190,7 @@ def check_name_uniquness(ctx: GlobalTypeContext) -> list[Exception]:
         else:
             seen_names.add(name)
     return exceptions
-def check_state_backend_executables(ctx: GlobalTypeContext) -> list[Exception]:
+def check_state_backend_executables(ctx: RunContext) -> list[Exception]:
     """A state backend names an executable too (the tofu its roots
     run). A declared one must exist in the executables list, where it is
     version-checked like every other entry; an undeclared one is skipped."""
@@ -202,7 +203,7 @@ def check_state_backend_executables(ctx: GlobalTypeContext) -> list[Exception]:
     return exs
 
 
-def check_executables_exist_and_versions(ctx: GlobalTypeContext) -> list[Exception]:
+def check_executables_exist_and_versions(ctx: RunContext) -> list[Exception]:
     """Every declared executable exists and meets its version requirement,
     said once as one INFO line -- the record of what versions a
     run actually ran with -- and every provider's executable is declared."""
@@ -210,7 +211,7 @@ def check_executables_exist_and_versions(ctx: GlobalTypeContext) -> list[Excepti
     checked: list[str] = []
     unspecified: list[str] = []
     for exe in ctx.executables.values():
-        exs.extend(check_single_version(exe, checked=checked))
+        exs.extend(check_single_version(exe, ctx.reg, checked=checked))
     for providers in (ctx.runtime_builders, ctx.storage_builders, ctx.os_builders,
                       ctx.mod_builders, ctx.image_builders, ctx.instance_builders):
         exs.extend(check_existence_of_executable(ctx.executables, providers, unspecified=unspecified))  # type: ignore
@@ -226,7 +227,7 @@ def check_executables_exist_and_versions(ctx: GlobalTypeContext) -> list[Excepti
 from ..standing import deployed_in_workspace, terraform_workspaces  # noqa: E402, F401 - re-exported
 
 
-def check_posix_ids(ctx: GlobalTypeContext) -> list[Exception]:
+def check_posix_ids(ctx: RunContext) -> list[Exception]:
     """Every POSIX id the configuration's builders claim, resolved
     by the operator's rule (``posix_ids.resolve_posix_ids``): one name with
     two ids is refused naming both sides, a name no side supplies an id for
@@ -256,7 +257,7 @@ def check_posix_ids(ctx: GlobalTypeContext) -> list[Exception]:
     return [Exception(m) for m in messages]
 
 
-def check_group_builders(ctx: GlobalTypeContext) -> list[Exception]:
+def check_group_builders(ctx: RunContext) -> list[Exception]:
     """What each group builder finds wrong with its own
     declarations that only the plugin can see (``configuration_errors``) --
     a posix group's member with no account to create."""
@@ -266,7 +267,7 @@ def check_group_builders(ctx: GlobalTypeContext) -> list[Exception]:
     return [Exception(e) for gb in ctx.group_builders.values() for e in gb.configuration_errors()]
 
 
-def check_foreign_keys(ctx: GlobalTypeContext) -> list[Exception]:
+def check_foreign_keys(ctx: RunContext) -> list[Exception]:
     """A field declared as a foreign key that names nothing is an
     error, with the object, the field, the value and the target named -- the
     fallback to the raw id let the fixture and the live tree name a
@@ -290,7 +291,7 @@ def check_foreign_keys(ctx: GlobalTypeContext) -> list[Exception]:
     return errors
 
 
-def _zone_of_storage(ctx: GlobalTypeContext, name: str) -> tuple[str | None, bool]:
+def _zone_of_storage(ctx: RunContext, name: str) -> tuple[str | None, bool]:
     """A storage's declared zone, and whether its type is bound to one."""
     storage = next((s for s in (ctx.storages or []) if s.get_name() == name), None)
     if storage is None:
@@ -300,7 +301,7 @@ def _zone_of_storage(ctx: GlobalTypeContext, name: str) -> tuple[str | None, boo
     return (getattr(storage, "availability_zone", None), zonal)
 
 
-def _storage_runtime(ctx: GlobalTypeContext, storage) -> str | None:
+def _storage_runtime(ctx: RunContext, storage) -> str | None:
     """The runtime a storage is REALLY on: its builder's.
 
     Every other reader places a storage by its builder's runtime; this check
@@ -317,7 +318,7 @@ def _storage_runtime(ctx: GlobalTypeContext, storage) -> str | None:
     return str(name) if name else getattr(storage, "runtime", None)
 
 
-def _runtime_zone(ctx: GlobalTypeContext, runtime_name: str | None) -> tuple[str | None, str]:
+def _runtime_zone(ctx: RunContext, runtime_name: str | None) -> tuple[str | None, str]:
     """The zone a runtime asserts, and where it said it: its networking's
     ``default_availability_zone``, else its DEFAULT SUBNET's declared zone,
     else the runtime's own ``zone`` (a zonal cloud's runtime states its zone there and
@@ -339,7 +340,7 @@ def _runtime_zone(ctx: GlobalTypeContext, runtime_name: str | None) -> tuple[str
     return (str(zone), f"runtime '{runtime_name}' subnet '{subnet.get_name()}'") if zone else fallback
 
 
-def check_availability_zones(ctx: GlobalTypeContext) -> list[Exception]:
+def check_availability_zones(ctx: RunContext) -> list[Exception]:
     """Everything that shares a zone must ask for a COMPATIBLE one.
 
     An availability zone is declared, never inferred, so an absent value
@@ -392,7 +393,7 @@ def check_availability_zones(ctx: GlobalTypeContext) -> list[Exception]:
     return exs
 
 
-def check_no_plaintext_emitted(ctx: GlobalTypeContext) -> list[Exception]:
+def check_no_plaintext_emitted(ctx: RunContext) -> list[Exception]:
     """No value the loader DECRYPTED stands in clear under ``generated/`` or
     ``meta-state/``.
 
@@ -414,7 +415,7 @@ def check_no_plaintext_emitted(ctx: GlobalTypeContext) -> list[Exception]:
     return [ValueError(f"{f.path}: {f.excerpt}") for f in findings]
 
 
-def check_canonical_hostnames(ctx: GlobalTypeContext) -> list[Exception]:
+def check_canonical_hostnames(ctx: RunContext) -> list[Exception]:
     """Every instance's canonical hostname must be one the machine can
     actually take.
 
@@ -440,7 +441,7 @@ def check_canonical_hostnames(ctx: GlobalTypeContext) -> list[Exception]:
     return exs
 
 
-def check_alias_pool(ctx: GlobalTypeContext) -> list[Exception]:
+def check_alias_pool(ctx: RunContext) -> list[Exception]:
     """Every free line of ``meta-state/aliases.txt`` must be a name
     a machine can take -- an RFC 1123 label, no repeat, not a name the
     configuration already gives an instance -- checked here, where an
@@ -459,7 +460,7 @@ def check_alias_pool(ctx: GlobalTypeContext) -> list[Exception]:
     return exs
 
 
-def check_state_backends_needed(ctx: GlobalTypeContext) -> list[Exception]:
+def check_state_backends_needed(ctx: RunContext) -> list[Exception]:
     """``use_state_backends: false`` is refused when any root would read a
     producer's outputs, by decision.
 
@@ -505,7 +506,7 @@ def check_state_backends_needed(ctx: GlobalTypeContext) -> list[Exception]:
         for consumer, producers in needs]
 
 
-def check_bake_users(ctx: GlobalTypeContext) -> list[Exception]:
+def check_bake_users(ctx: RunContext) -> list[Exception]:
     """Every bake user resolves, and a chain that must share one does, by
     decision.
 
@@ -556,7 +557,7 @@ def check_bake_users(ctx: GlobalTypeContext) -> list[Exception]:
     return exs
 
 
-def check_label_keys(ctx: GlobalTypeContext) -> list[Exception]:
+def check_label_keys(ctx: RunContext) -> list[Exception]:
     """Every declared tag key that becomes a label on a runtime whose labels
     have rules (one cloud: a lowercase letter first) is refused here, naming the
     key and who declared it (it used to fail at apply). The keys
@@ -589,7 +590,7 @@ def check_label_keys(ctx: GlobalTypeContext) -> list[Exception]:
     return exs
 
 
-def check_image_sources(ctx: GlobalTypeContext) -> list[Exception]:
+def check_image_sources(ctx: RunContext) -> list[Exception]:
     """Every OS builder's runtime entry has a vendor-image query
     its runtime can ask, and says what it is. Refused, naming the entry:
     a key the system does not know (written in the catalog, the OS builder
@@ -600,7 +601,7 @@ def check_image_sources(ctx: GlobalTypeContext) -> list[Exception]:
     will be asked without opening the catalog."""
     exs: list[Exception] = []
     catalog = ctx.image_sources
-    stand_in_type = stand_in_runtime_type() or "no installed runtime offers a local test target"
+    stand_in_type = stand_in_runtime_type(ctx.reg.runtime_builder_classes()) or "no installed runtime offers a local test target"
     for osb_name, osb in sorted((ctx.os_builders or {}).items()):
         model = osb.model
         family, version = model.get_vendor_family(), model.get_family_version()
@@ -678,7 +679,7 @@ FAMILY_MARKERS: tuple[tuple[str, str], ...] = (
 )
 
 
-def check_image_names(ctx: GlobalTypeContext) -> list[Exception]:
+def check_image_names(ctx: RunContext) -> list[Exception]:
     """Every image's build-name prefix on every runtime it bakes
     on (``cs_image_system.base.image_names``), refused in one sentence
     naming the image and the runtime when: it carries the run's timestamp
@@ -699,8 +700,10 @@ def check_image_names(ctx: GlobalTypeContext) -> list[Exception]:
         for who, prefix, declared in entries:
             where = f"{who} on runtime {rt_name}"
             if stamp in prefix or "execution." in prefix:
-                # cfg/ files render `execution.timestamp` at the string stage (the stamp is in the
-                # value); the collections' entries keep the tag (it renders when packer's name is made)
+                # `execution.timestamp` is rendered at load, so the stamp is in the value: by the
+                # string stage in cfg/ files, by the object stage in the collections' entries (the
+                # run's `execution` scope is in the resolver's map). A tag nothing rendered is the
+                # same refusal
                 exs.append(ValueError(
                     f"{where}: output_image_name {prefix!r} names the run's timestamp ({stamp}) -- the final "
                     f"name appends the timestamp itself, so it would carry two; remove `execution.timestamp` "
@@ -745,7 +748,7 @@ def _is_container_runtime(rtb: Any) -> bool:
     return isinstance(getattr(rtb, "model", None), ContainerBuilderModel)
 
 
-def check_container_runtimes(ctx: GlobalTypeContext) -> list[Exception]:
+def check_container_runtimes(ctx: RunContext) -> list[Exception]:
     """By decision, on a container runtime, only a group whose
     identity lives on the machine itself. Each group builder answers
     ``container_runtime_objection()``: None when its groups may own an
@@ -778,7 +781,7 @@ def check_container_runtimes(ctx: GlobalTypeContext) -> list[Exception]:
     return exs
 
 
-def collect_validation_errors(ctx: GlobalTypeContext) -> list[Exception]:
+def collect_validation_errors(ctx: RunContext) -> list[Exception]:
     """The configuration checks, with no side effects on generated output:
     unique global ids, executables present and version-compliant, foreign
     keys, zones, names. A plugin's checks (a terraform root's state

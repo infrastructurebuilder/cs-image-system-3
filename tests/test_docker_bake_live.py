@@ -26,7 +26,7 @@ from pathlib import Path
 
 import pytest
 import yaml
-from harness import copy_config, docker_binary, load_context, reset_singletons
+from harness import copy_config, docker_binary, load_context
 
 RUNTIME = "leg-docker"
 BUILDER = "pckr-docker-ans"
@@ -164,7 +164,6 @@ def test_the_docker_runtime_bakes_from_nothing_to_nothing(tmp_path, monkeypatch)
         res = _cli(root, "--no-dry-run", "run", "base-image", "instance-image", env=env)
         assert res.returncode == 0, res.stdout[-4000:] + res.stderr[-4000:]
         # 3. the lineage: three builds on the runtime, each an image id
-        reset_singletons()
         ctx = load_context(root, dry_run=True)
         builds = [b for b in ctx.meta_state.builds() if b.get("runtime") == RUNTIME]
         by_series = {str(b["series"]): b for b in builds}

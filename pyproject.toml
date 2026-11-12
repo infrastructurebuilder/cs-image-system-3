@@ -253,6 +253,9 @@ dev = [
 target-version = "py313"
 line-length = 120
 extend-exclude = [".venv", "generated", "**/generated"]
+# The helper scripts carry no .py suffix (they are run by name), so ruff is
+# told they are Python; `just lint` names the directory.
+extend-include = ["scripts/*"]
 
 [tool.ruff.lint]
 # Every rule blocking, no rule ignored: pyflakes (unused imports and locals,
@@ -266,13 +269,12 @@ select = ["F", "E9", "C90", "B", "I"]
 
 [tool.ruff.lint.mccabe]
 # The complexity ceiling (C901) is the measured maximum, so it can only fall
-# from here. Measured over src, packages, tests and scripts: 93 functions
-# above 10, 47 above 12, 22 above 15, 6 above 20, 4 above 25, 2 above 30,
-# 1 above 40. The six above 20 are the next cuts, highest first:
-# read_config_and_transform (49), resolve_all (33), run_lifecycles (28),
-# measure_file (28), register_provider_aliases (25),
-# upgrade_deferred_list_generated (23). Lower the number after each cut.
-max-complexity = 49
+# from here. Measured over src, packages, tests and scripts: 91 functions
+# above 10, 44 above 12, 18 above 15, none above 20. The next candidates,
+# highest first: render_root (20), prune_stale_attachments (20),
+# register_built_instance (19), predefined_resolve (19). Lower the number
+# after each cut.
+max-complexity = 20
 
 [tool.ruff.lint.isort]
 # The namespace's source roots sit under packages/*/src, which ruff does not

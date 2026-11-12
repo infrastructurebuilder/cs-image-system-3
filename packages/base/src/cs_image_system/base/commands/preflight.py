@@ -41,6 +41,8 @@ from cs_image_system.contract.constants import VCT
 from cs_image_system.contract.model_config import CSIS_MODEL_CONFIG
 from cs_image_system.contract.session import SessionStatus
 
+from ..basic.builder_base_state import StateBuilderBase
+
 DEFAULT_EXPECTED_RUN_MINUTES = 30
 # the environment names the SYSTEM reads credentials and identities from; each
 # runtime and each identity provider adds its own through its class's
@@ -204,12 +206,26 @@ def _status(cls: type, settings: Mapping[str, Any], executables: Mapping[str, An
     return hook(settings, executables) if callable(hook) else None
 
 
+def _backend_status(backend: Any, settings: Mapping[str, Any], executables: Mapping[str, Any],
+                    runtime_classes: Mapping[str, type]) -> SessionStatus | None:
+    """A state backend's session. A builder of the kit is also handed the
+    run's runtime builder classes (a bucket is reached with a runtime's
+    credentials, and its builder reads that runtime's session hook from
+    them); any other builder is asked as the contract says, with the
+    settings and the executables alone."""
+    if isinstance(backend, StateBuilderBase):
+        return type(backend).session_status(settings, executables, runtime_classes)
+    return _status(type(backend), settings, executables)
+
+
 def session_infos(ctx: Any) -> list[SessionInfo]:
     """The sessions of the LOADED configuration: every runtime builder's
     class and every state backend's class is asked for its session over the
     model's fields; a class that needs none answers None and is skipped."""
     out: list[SessionInfo] = []
     executables = getattr(ctx, "executables", None) or {}
+    reg = getattr(ctx, "reg", None)
+    runtime_classes: Mapping[str, type] = reg.runtime_builder_classes() if reg is not None else {}
     for name, rtb in sorted((getattr(ctx, "runtime_builders", None) or {}).items()):
         settings = _settings_of(getattr(rtb, "model", None))
         status = _status(type(rtb), settings, executables)
@@ -218,7 +234,7 @@ def session_infos(ctx: Any) -> list[SessionInfo]:
     # the session of every state backend a run reaches
     for name, sb in sorted((getattr(ctx, "state_backends", None) or {}).items()):
         settings = _settings_of(getattr(sb, "model", sb))
-        status = _status(type(sb), settings, executables)
+        status = _backend_status(sb, settings, executables, runtime_classes)
         if status is not None:
             out.append(_from_status(f"state {name}", _type_word(settings, type(sb)), status))
     return _merge(out)

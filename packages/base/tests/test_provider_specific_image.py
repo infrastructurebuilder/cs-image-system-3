@@ -8,7 +8,6 @@ from typing import Any
 
 import pytest
 
-from cs_image_system.base import registry as _registry
 from cs_image_system.base.models.provider_specific_image import (
     GenericProviderSpecificImage,
     ProviderSpecificImage,
@@ -98,7 +97,7 @@ class TestNameTypedSurface:
 
 class TestRegistryRoundTrip:
     def test_register_and_lookup(self, clean_registry):
-        reg = _registry.current_registry()
+        reg = clean_registry.reg
         psi = make_resolved()
         reg.register_built_instance(psi)
         got = reg.get_instance_by_name_or_alias(
@@ -107,7 +106,7 @@ class TestRegistryRoundTrip:
         assert got is psi
 
     def test_reregistration_overwrites(self, clean_registry):
-        reg = _registry.current_registry()
+        reg = clean_registry.reg
         first = make_resolved()
         second = make_resolved(identifier="ami-fedcba9876543210f")
         reg.register_built_instance(first)
@@ -137,7 +136,7 @@ class TestGenericQueryAssets:
 
 class TestRuntimeBuilderCreation:
     @pytest.fixture
-    def stub_rtb(self):
+    def stub_rtb(self, clean_registry):
         from cs_image_system.base.basic.builder_base_runtime import RuntimeBuilderBase
 
         class Stub:
@@ -152,16 +151,18 @@ class TestRuntimeBuilderCreation:
             def get_name(self):
                 return "stub-runtime"
 
+            prepare_provider_specific_image = RuntimeBuilderBase.prepare_provider_specific_image
+
             def _get_context(self):
                 # a builder registers into its run's registry
-                return types.SimpleNamespace(reg=_registry.current_registry())
+                return types.SimpleNamespace(reg=clean_registry.reg)
 
             _run_context = _get_context      # the kit's own accessor to the registry
 
         return Stub()
 
     def test_create_resolved_registers(self, clean_registry, stub_rtb):
-        reg = _registry.current_registry()
+        reg = clean_registry.reg
         psi = stub_rtb.create_provider_specific_image_resolved(
             source_name="some-os",
             source_kind=PSISourceKind.OS_BUILDER,
@@ -189,7 +190,7 @@ class TestRuntimeBuilderCreation:
             def get_name(self):
                 return "my-image"
 
-        reg = _registry.current_registry()
+        reg = clean_registry.reg
         psi = stub_rtb.create_provider_specific_image_deferred(
             image=StubImage(), subconfig=StubSubconfig()
         )

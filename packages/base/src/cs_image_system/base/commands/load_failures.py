@@ -32,8 +32,8 @@ from typing import Callable, Iterator, cast
 from cs_image_system.contract.session import LoadFailureReport
 
 from ..encryption import MissingIdentityError
-from ..loader import load_plugins
-from ..registry import AmbiguousTypeError, UnknownTypeError, current_registry
+from ..loader import installed_registry
+from ..registry import AmbiguousTypeError, Registry, UnknownTypeError
 from ..reserved_names import ReservedNameError
 
 IDENTITY_REMEDY = ("the shell never loaded `.envrc` (a new terminal, a directory direnv has not entered or "
@@ -56,11 +56,12 @@ def _chain(exc: BaseException) -> Iterator[BaseException]:
         e = e.__cause__ or e.__context__
 
 
-def _builder_classes() -> list[type]:
-    """Every registered builder class once, in registration order."""
-    load_plugins()
+def _builder_classes(reg: Registry | None = None) -> list[type]:
+    """Every builder class ``reg`` holds once, in registration order. A
+    load that failed left no run to ask, so without a registry the
+    installed plugins are read into one of this function's own."""
     seen: dict[int, type] = {}
-    for cls in current_registry().builders.values():   # pre-load: no run's registry yet
+    for cls in (reg if reg is not None else installed_registry()).builders.values():
         seen.setdefault(id(cls), cls)
     return list(seen.values())
 
@@ -76,10 +77,12 @@ def _ask_plugins(classes: list[type], e: BaseException) -> LoadFailureReport | N
     return None
 
 
-def classify_load_failure(exc: BaseException) -> LoadFailure | None:
+def classify_load_failure(exc: BaseException, reg: Registry | None = None) -> LoadFailure | None:
     """The one-line form of a known load-time failure, or None for one
-    that keeps its traceback."""
-    classes = _builder_classes()
+    that keeps its traceback. The builder classes asked are ``reg``'s,
+    or the installed plugins' when none is given (the CLI's case: the
+    load failed, so there is no run's registry)."""
+    classes = _builder_classes(reg)
     for e in _chain(exc):
         if isinstance(e, (ReservedNameError, AmbiguousTypeError, UnknownTypeError)):
             # a reserved word used as a name, a bare `type:` word that several

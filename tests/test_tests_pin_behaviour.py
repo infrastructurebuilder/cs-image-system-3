@@ -95,79 +95,109 @@ def _walk_scope(body: list[ast.stmt]):
         todo += [c for c in ast.iter_child_nodes(node) if not isinstance(c, _SCOPE)]
 
 
-def measure_file(path: Path) -> tuple[list[int], list[int]]:
-    """``(sentence pin lines, document pin lines)`` of one test module."""
-    src = path.read_text()
-    tree = ast.parse(src)
-    lines = src.splitlines(keepends=True)
-    cache: dict[int, str] = {}
+class _Module:
+    """One test module, read once: its source segments, and what it learns
+    about which names and which helpers hold a document's text."""
 
-    def seg(n: ast.AST) -> str:
+    def __init__(self, path: Path):
+        src = path.read_text()
+        self.tree = ast.parse(src)
+        self.lines = src.splitlines(keepends=True)
+        self.functions = [f for f in ast.walk(self.tree) if isinstance(f, (ast.FunctionDef, ast.AsyncFunctionDef))]
+        self.doc_funcs: set[str] = set()              # helpers whose return value is a document's text
+        self.module_names: set[str] = set()
+        self.scope_names: dict[int, set[str]] = {}
+        self._segments: dict[int, str] = {}
+
+    def seg(self, n: ast.AST) -> str:
         key = id(n)
-        if key not in cache:
+        if key not in self._segments:
             a, b = getattr(n, "lineno", 0), getattr(n, "end_lineno", 0)
+            lines = self.lines
             if not a or not b:
-                cache[key] = ""
+                self._segments[key] = ""
             elif a == b:
-                cache[key] = lines[a - 1][n.col_offset:n.end_col_offset]      # type: ignore[attr-defined]
+                self._segments[key] = lines[a - 1][n.col_offset:n.end_col_offset]      # type: ignore[attr-defined]
             else:
-                cache[key] = lines[a - 1][n.col_offset:] + "".join(lines[a:b - 1]) + lines[b - 1][:n.end_col_offset]   # type: ignore[attr-defined]
-        return cache[key]
+                self._segments[key] = lines[a - 1][n.col_offset:] + "".join(lines[a:b - 1]) + lines[b - 1][:n.end_col_offset]   # type: ignore[attr-defined]
+        return self._segments[key]
 
-    def reads_file(node: ast.AST) -> bool:
-        s = seg(node)
+    def reads_file(self, node: ast.AST) -> bool:
+        s = self.seg(node)
         return ("read_text(" in s and bool(DOC_FILE.search(s)) and "safe_load(" not in s
                 and any(_CONSTANT.match(n) for n in _names(node)))
 
-    scopes: list[tuple[ast.AST, list[ast.stmt]]] = [(tree, tree.body)]
-    scopes += [(f, f.body) for f in ast.walk(tree) if isinstance(f, (ast.FunctionDef, ast.AsyncFunctionDef))]
-    doc_funcs: set[str] = set()              # helpers whose return value is a document's text
-    module_names: set[str] = set()
-    scope_names: dict[int, set[str]] = {}
+    def holds_document(self, node: ast.AST, names: set[str]) -> bool:
+        """Whether the expression is a document's text: it reads one, it names
+        something bound to one, or it calls a helper that returns one."""
+        return self.reads_file(node) or bool(_names(node) & names) or bool(_calls(node) & self.doc_funcs)
 
-    def bound_in(body: list[ast.stmt], inherited: set[str]) -> set[str]:
+    def bound_in(self, body: list[ast.stmt], inherited: set[str]) -> set[str]:
+        """The names a scope binds to a document's text (two passes, so a name
+        bound from a later-defined one is found)."""
         names: set[str] = set()
         for _ in range(2):
             for node in _walk_scope(body):
                 if isinstance(node, (ast.Assign, ast.AnnAssign)) and node.value is not None:
-                    if "safe_load(" in seg(node.value):
+                    if "safe_load(" in self.seg(node.value):
                         continue
-                    if reads_file(node.value) or (_names(node.value) & (names | inherited)) or (_calls(node.value) & doc_funcs):
+                    if self.holds_document(node.value, names | inherited):
                         targets = node.targets if isinstance(node, ast.Assign) else [node.target]
                         for t in targets:
                             names |= _names(t)
                 elif isinstance(node, (ast.For, ast.comprehension)):
-                    if reads_file(node.iter) or (_names(node.iter) & (names | inherited)) or (_calls(node.iter) & doc_funcs):
+                    if self.holds_document(node.iter, names | inherited):
                         names |= _names(node.target)
         return names
 
-    for _ in range(2):
-        module_names = bound_in(tree.body, set())
-        for f, body in scopes[1:]:
-            assert isinstance(f, (ast.FunctionDef, ast.AsyncFunctionDef))
-            names = bound_in(body, module_names)
-            scope_names[id(f)] = names
-            for ret in _walk_scope(body):
-                if isinstance(ret, ast.Return) and ret.value is not None and "safe_load(" not in seg(ret.value):
-                    if reads_file(ret.value) or (_names(ret.value) & (names | module_names)) or (_calls(ret.value) & doc_funcs):
-                        doc_funcs.add(f.name)
+    def returns_document(self, f: ast.FunctionDef | ast.AsyncFunctionDef, names: set[str]) -> bool:
+        for ret in _walk_scope(f.body):
+            if isinstance(ret, ast.Return) and ret.value is not None and "safe_load(" not in self.seg(ret.value):
+                if self.holds_document(ret.value, names | self.module_names):
+                    return True
+        return False
 
-    sentences: list[int] = []
-    doc_pins: list[int] = []
-    for f, body in scopes:
-        names = module_names | scope_names.get(id(f), set())
-        for node in _walk_scope(body):
-            if not isinstance(node, ast.Assert):
-                continue
-            if _literal_words(node.test) >= PROSE_WORDS and node.lineno not in sentences:
-                sentences.append(node.lineno)
-            for cmp in ast.walk(node.test):
-                if isinstance(cmp, ast.Compare) and any(isinstance(op, (ast.In, ast.NotIn)) for op in cmp.ops):
-                    if any(reads_file(c) or (_names(c) & names) or (_calls(c) & doc_funcs) for c in cmp.comparators):
-                        if node.lineno not in doc_pins:
-                            doc_pins.append(node.lineno)
-                        break
-    return sorted(sentences), sorted(doc_pins)
+    def learn(self) -> None:
+        """Find the document names of the module and of each function, and the
+        helpers that return a document (two passes: a helper found in the first
+        makes the names bound from its calls findable in the second)."""
+        for _ in range(2):
+            self.module_names = self.bound_in(self.tree.body, set())
+            for f in self.functions:
+                names = self.bound_in(f.body, self.module_names)
+                self.scope_names[id(f)] = names
+                if self.returns_document(f, names):
+                    self.doc_funcs.add(f.name)
+
+    def pins_a_document(self, test: ast.expr, names: set[str]) -> bool:
+        """Whether an assertion's test holds a membership comparison against a document's text."""
+        for cmp in ast.walk(test):
+            if isinstance(cmp, ast.Compare) and any(isinstance(op, (ast.In, ast.NotIn)) for op in cmp.ops):
+                if any(self.holds_document(c, names) for c in cmp.comparators):
+                    return True
+        return False
+
+    def pins(self) -> tuple[list[int], list[int]]:
+        sentences: list[int] = []
+        doc_pins: list[int] = []
+        scopes: list[tuple[ast.AST, list[ast.stmt]]] = [(self.tree, self.tree.body), *((f, f.body) for f in self.functions)]
+        for f, body in scopes:
+            names = self.module_names | self.scope_names.get(id(f), set())
+            for node in _walk_scope(body):
+                if not isinstance(node, ast.Assert):
+                    continue
+                if _literal_words(node.test) >= PROSE_WORDS and node.lineno not in sentences:
+                    sentences.append(node.lineno)
+                if self.pins_a_document(node.test, names) and node.lineno not in doc_pins:
+                    doc_pins.append(node.lineno)
+        return sorted(sentences), sorted(doc_pins)
+
+
+def measure_file(path: Path) -> tuple[list[int], list[int]]:
+    """``(sentence pin lines, document pin lines)`` of one test module."""
+    module = _Module(path)
+    module.learn()
+    return module.pins()
 
 
 def _test_files() -> list[Path]:

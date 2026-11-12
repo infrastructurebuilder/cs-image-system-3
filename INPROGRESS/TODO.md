@@ -12,7 +12,7 @@ Stages from the re-examination of 2026-11-03.
 [REEXAMINE4.md](REEXAMINE4.md) digests the three reviews
 ([REEXAMINE1.md](REEXAMINE1.md), [REEXAMINE2.md](REEXAMINE2.md),
 [REEXAMINE3.md](REEXAMINE3.md)); each stage file
-([§132](STAGE-132.md); §118 to §131
+([§133](STAGE-133.md); §118 to §132
 landed) cites the review section
 it answers. The conventions are the ones above: one file per stage; a
 stage is a plan until the operator says "do N"; **YOUR DECISION** marks
@@ -71,13 +71,19 @@ order (the default), or [§113](STAGE-113.md) first as its file plans it.
   bugbear, import sorting, a complexity ceiling and unused locals;
   pyright standard over the whole tree), the release family as
   `scripts/release.py`, and twenty other small findings; the contract
-  is 0.4.0. Its items 19 and 27 moved to [§132](STAGE-132.md).
+  is 0.4.0. Its items 19 and 27 moved to §132.
 - §131, registrations carry their plugin's namespace: landed
   2026-11-06; the contract is 0.2.0 (a minor bump for the new
   `PluginMetadata.namespace` field).
-- [§132](STAGE-132.md), hygiene bundle XXV: the open bundle for the
-  small findings; opened 2026-11-07 with §130's items 19 and 27 and
-  three of its findings. Waits for "do 132".
+- §132, hygiene bundle XXV: landed 2026-11-12. No process-wide run
+  state is left, so two runs can share a process, and the nested
+  teardown run executes in this one; a committing run or restamp is
+  held to the tree's pinned release; the lint covers the scripts; no
+  function scores above complexity 20. Its findings opened
+  [§133](STAGE-133.md).
+- [§133](STAGE-133.md), hygiene bundle XXVI: the open bundle for the
+  small findings; opened 2026-11-12 with what §132's complexity cuts
+  met. Waits for "do 133".
 - [§112](STAGE-112.md), a release in two boxes: planned 2026-11-03; waits for
   "do 112".
 - [§113](STAGE-113.md) and [§116](STAGE-116.md), the decomposition that
@@ -96,7 +102,7 @@ and validated by the operator before its "do N")
 - [§112, A release in two boxes](STAGE-112.md)
 - [§113, The kit and the engine: `base` splits where the plugins stop](STAGE-113.md)
 - [§116, A runtime installed from outside](STAGE-116.md)
-- [§132, Hygiene bundle XXV](STAGE-132.md)
+- [§133, Hygiene bundle XXVI](STAGE-133.md)
 
 **Release**
 
@@ -158,6 +164,22 @@ and validated by the operator before its "do N")
 
 **Landed since 2026-10-05** (newest first)
 
+- §132, hygiene bundle XXV: 2026-11-12, its squash commit
+  (feature/hygiene-xxv kept). The process keeps no current run: the
+  compatibility module, the singleton helper, the no-argument fetches
+  of the context, the registry and the image-source catalog, and the
+  harness's reset are gone; every load makes its own registry,
+  catalog, template resolver and context, and a test proves two runs
+  in one process share nothing. The transient-storage teardown, the
+  last deferred step that spawned a process, runs in this process,
+  proved equal to the child it replaced. `run --commit` and `lineage
+  restamp --commit` refuse unless the CLI is the tree's pinned release
+  installed from an index (`--allow-unpinned` or `CSIS_ALLOW_UNPINNED`
+  to go on deliberately). The lint covers `scripts/`; six functions
+  were cut and the complexity ceiling fell from 49 to 20. The nine
+  pyright ignores stand by decision, with a reminder before 1.0 in
+  REMINDERS.md. The bar and the full-test legs were green; the
+  nested run is not yet proved against a real cloud teardown.
 - §130, hygiene bundle XXIV: 2026-11-07, its squash commit
   (feature/hygiene-xxiv kept). Twenty-two items landed, each its own
   commit on the branch: the lint bar (ruff gains bugbear, import
@@ -173,7 +195,7 @@ and validated by the operator before its "do N")
   the narration rule over the workflows and scripts. The contract is
   0.4.0 (two members left `LaunchServiceProtocol`). Three emission
   moves regenerated the golden. Items 9, 11, 18 and 23 closed with no
-  commit; items 19 and 27 moved to [§132](STAGE-132.md). The
+  commit; items 19 and 27 moved to §132. The
   reference's item 14 commit (a9d8414, the one `packer` key) waits on
   its develop for the operator's record and push.
 - §129, the sources stop narrating: 2026-11-07, its squash commit

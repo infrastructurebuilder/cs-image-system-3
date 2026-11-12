@@ -9,12 +9,12 @@ import logging
 log = logging.getLogger(__name__)
 from cs_image_system.contract.lifecycle import ExecutionLifecyclePhase
 
-from ..global_context import GlobalTypeContext
 from ..in_process import run_executable
+from ..run_context import RunContext
 
 
 def predefined_image_generation(
-    ctx: GlobalTypeContext, 
+    ctx: RunContext, 
     phase: ExecutionLifecyclePhase,
     is_base_image_phase: bool = False
 ) -> bool:

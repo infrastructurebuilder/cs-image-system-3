@@ -34,8 +34,8 @@ from pydantic.dataclasses import dataclass  # validation at construction
 from cs_image_system.contract.model_config import CSIS_MODEL_CONFIG
 
 from ..basic.builder_base_storage import StorageBuilderBase
-from ..global_context import GlobalTypeContext
 from ..lineage import CONFIG_TAG, FINGERPRINT_TAG_LENGTH, TAG_PREFIX, configuration_tag, owner_of
+from ..run_context import RunContext
 from ..state_query import _TAGGED_FACTS
 
 log = logging.getLogger(__name__)
@@ -63,7 +63,7 @@ def record_tags(record: dict[str, Any]) -> dict[str, str]:
     return {k: v for k, v in tags.items() if v}
 
 
-def relabel_plan(ctx: GlobalTypeContext, runtime: str, builds: list[str] | None = None) -> list[Relabel]:
+def relabel_plan(ctx: RunContext, runtime: str, builds: list[str] | None = None) -> list[Relabel]:
     ms = ctx.meta_state
     if runtime not in ctx.runtime_builders:
         raise ValueError(f"relabel: unknown runtime {runtime!r}; known: {sorted(ctx.runtime_builders)}")
@@ -107,7 +107,7 @@ def relabel_plan(ctx: GlobalTypeContext, runtime: str, builds: list[str] | None 
     return out
 
 
-def resource_relabel_plan(ctx: GlobalTypeContext, runtime: str) -> list[Relabel]:
+def resource_relabel_plan(ctx: RunContext, runtime: str) -> list[Relabel]:
     """The declared storages on ``runtime`` whose cloud resource stands
     without the configuration's id, and the launched instances there whose
     machine stands without it. Nothing else about them is compared: the id
@@ -161,7 +161,7 @@ def resource_relabel_plan(ctx: GlobalTypeContext, runtime: str) -> list[Relabel]
     return out
 
 
-def _storage_builder_of(ctx: GlobalTypeContext, name: str):
+def _storage_builder_of(ctx: RunContext, name: str):
     for sb in ctx.storage_builders.values():
         if isinstance(sb, StorageBuilderBase):
             for storage in list(getattr(getattr(sb, "model", None), "_storages", None) or []):
@@ -170,7 +170,7 @@ def _storage_builder_of(ctx: GlobalTypeContext, name: str):
     return None, None
 
 
-def relabel(ctx: GlobalTypeContext, runtime: str, builds: list[str] | None = None) -> list[Relabel]:
+def relabel(ctx: RunContext, runtime: str, builds: list[str] | None = None) -> list[Relabel]:
     plan = relabel_plan(ctx, runtime, builds)
     if ctx.dry_run:
         for r in plan:

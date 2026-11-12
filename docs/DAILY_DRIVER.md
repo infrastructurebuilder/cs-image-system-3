@@ -144,6 +144,32 @@ change. The versions on the index, and what each carries, are the system
 repository's releases ([OPERATIONS.md](OPERATIONS.md), "Installing a
 release").
 
+The pin holds your own recordings too, not only CI's. Every run that
+commits (`just record`, `just run ...`, the `cloud-*` recipes that run:
+anything that passes `--commit` to `run`) first reads `.csis-version`,
+and is refused, before it generates anything, unless the command
+running is that release, installed from the index. The reason is the
+`live` job of
+section 1.8: CI installs the pin and compares what you committed with
+what it generates, so a record made by another version fails there as
+BEHIND, after the push. The refusal starts `run --commit: REFUSED
+unpinned` and names the pinned version, the running one, and both ways
+out: record with the pinned release (`just take <version>` installs it
+and moves the pin with it), or say `CSIS_ALLOW_UNPINNED=1 just record`
+to go on deliberately. A dry run (`just dry`) and `just validate` commit
+nothing and are never held. If the command is the pinned version from
+the index (`just take` leaves it so; so does `uv run` beside a
+`pyproject.toml` whose lock resolves the pinned version) you will never
+see the refusal. You will after `uv tool upgrade cs-image-system` on its
+own: the command moved and the pin did not, and `just take <version>`
+moves the pin to match. One more command is held the same way, `lineage
+restamp --commit` under `--no-dry-run` (its lines begin `lineage restamp
+--commit:`): a restamp records the fingerprints the code running
+computes, and the pinned release may not agree with what unreleased
+code computes. `dispose image --commit` (`just cloud-dispose-images`) is not
+held: a disposal records what was removed, which is the same whatever
+version removed it.
+
 Some releases do ask something of the tree, and then `validate` refuses
 the tree until it is given, so the release and the change land in ONE
 commit. The POSIX identity plugin is the standing example (its
@@ -1081,6 +1107,7 @@ Open list in [INPROGRESS/TODO.md](../INPROGRESS/TODO.md) names.
 
 | Symptom | Meaning | Do |
 | --- | --- | --- |
+| `run --commit: REFUSED unpinned -- this tree pins cs-image-system <version> (.csis-version) and the system running is not that release installed from an index` (or the same under `lineage restamp --commit:`), exit 2, before anything is generated or, for a restamp, computed | a committing run (`just record`, `just run`, a `cloud-*` recipe that runs) or a committing `lineage restamp` was started by a command that is not the tree's pinned release: another version, or a development checkout (`CSIS` pointing at a system checkout's venv), whatever version the checkout says it is. The tree's CI installs the pin and would judge such a record BEHIND | record with the pinned release: `CSIS="$HOME/.local/bin/cs-image-system" just record`, after `just take <version>` if the tree should move; or go on deliberately with `CSIS_ALLOW_UNPINNED=1 just record` (section 1.1) |
 | `init: 'cs-image-system' is not runnable` | the release is not installed, or `CSIS` names a command that does not run | `uv tool install "cs-image-system[$(just extras)]"`, or `export CSIS="uv run cs-image-system"` beside a pyproject that depends on it |
 | `runtime type 'gcloud' is registered by no installed plugin: install the extra: uv tool install 'cs-image-system[gcloud]'` under `Validation failed with 1 error(s).` | the tree declares a `type:` word whose plugin comes with an extra the install left out (a bare `cs-image-system` carries no runtime) | the line's own command, or `uv tool install "cs-image-system[$(just extras)]"`; `just take` installs with the extras by itself |
 | `preflight: a session is absent or has EXPIRED`; `Token has expired and refresh failed`; `the configuration cannot load: AWS refused the credentials (RequestExpired)` (from a real run's or `validate --online`'s networking check; a plain `validate`, a dry run and `preflight` load without a session) | the AWS portal session behind the profile ended (8h from a browser sign-in; less if the CLI token was minted mid-session); an `sso-session` profile's token lasts an hour and is judged only once it has lapsed, so a lapse mid-run is environmental, not a defect. `RequestExpired` is what temporary keys pasted into the shell or a credentials file say when they lapse, and `preflight` cannot see that coming: it reads no expiry for keys ([static keys](INCIDENTS.md#static-keys-lapsed-under-a-green-session-preflight), [the sso-session hour](INCIDENTS.md#an-sso-session-profile-was-read-as-absent-for-an-hour)) | `aws sso login --profile <profile>` for an SSO profile; FRESH keys for pasted ones (`aws sso login` does nothing for them); then re-run |
@@ -1361,7 +1388,23 @@ is the index's condition, not the release's
 configuration only through `just cli ...`, for the system's own live
 proofs; its cycles, like any team's, run from its own `Justfile` (`cd
 ../cs-image-system-testconfig && just cloud-cycle gcloud-east1`), which
-the release shipped and `init-config` wrote. The starter trees under
+the release shipped and `init-config` wrote. When `CSIS` in that tree's
+`.envrc` points at this checkout's `.venv/bin/cs-image-system` (the
+arrangement for a checkout beside the tree), the command is a
+development install, and a committing run there (`just record`, a
+`cloud-*` recipe that runs), like a committing `lineage restamp`, is
+refused before it generates: the tree pins a
+release in `.csis-version`, and a checkout is not that release even when
+its version string says the same, because it holds commits no release
+carries. A record made that way once reached the tree's CI and failed
+its drift check as BEHIND. So choose, each time: `CSIS_ALLOW_UNPINNED=1
+just record` when the point is to prove the checkout's code (the run
+says `ALLOWED unpinned` in one line and goes on), or
+`CSIS="$HOME/.local/bin/cs-image-system" just record` for the record
+`main` will carry, made by the pinned release your local machine has
+from `just take` ([OPERATIONS.md](OPERATIONS.md), "`--commit`"). The
+same holds for `just cli run ... --commit` from here. The starter trees
+under
 `docs/examples/` are the source the release is built from: change them
 there, and the tests hold the built wheel to them. Read
 [OPERATIONS.md](OPERATIONS.md), sections 2 and 3,

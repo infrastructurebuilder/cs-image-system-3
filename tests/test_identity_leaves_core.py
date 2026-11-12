@@ -15,7 +15,7 @@ from typing import Any, cast
 
 import pytest
 import typer
-from harness import copy_config, load_context, reset_singletons, stub_environment
+from harness import copy_config, load_context, stub_environment
 from test_container_runtime import IMAGE, RUNTIME, _stub_daemon, docker_overlay
 from typer.testing import CliRunner
 
@@ -187,9 +187,9 @@ def _with_a_profile_field(root: Path) -> None:
 
 
 def test_a_tree_with_okta_profile_fields_loads_with_the_plugin_and_is_refused_without_it(tmp_path, monkeypatch):
-    from cs_image_system.base.global_context import read_config_and_transform
+    from cs_image_system.base.config_loader import read_config_and_transform
+    from cs_image_system.base.loader import installed_registry
     from cs_image_system.base.models.user import User
-    from cs_image_system.base.registry import current_registry
     from cs_image_system.okta_opa_plugin.okta_user import OktaUser
     stub_environment(monkeypatch)
     root = copy_config(tmp_path)
@@ -208,8 +208,7 @@ def test_a_tree_with_okta_profile_fields_loads_with_the_plugin_and_is_refused_wi
     hcl = "\n".join(OktaTFUser(avery, provider="okta.x").generate_terraform())
     assert 'mobile_phone = "+1-555-0100"' in hcl and 'department = "Modeling"' in hcl
     # without the plugin's injected model, the core's User is the item model and the keys are unknown
-    reset_singletons()
-    reg = current_registry()             # the plugins loaded into it; the run below loads into it too
+    reg = installed_registry()           # the plugins loaded into a registry of the test's own; the run below loads into it
     for key in reg.registration_keys(VCT.USER_MODEL):
         del reg.models[key]
     reg.defaults_registry.pop(VCT.USER_MODEL, None)

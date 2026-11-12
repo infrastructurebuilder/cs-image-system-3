@@ -7,10 +7,11 @@ import logging
 log = logging.getLogger(__name__)
 
 
-from dataclasses import MISSING, fields, is_dataclass
+from dataclasses import MISSING, Field, dataclass, fields, is_dataclass
 from typing import Any, cast
 
 import jinja2
+from pydantic import TypeAdapter
 
 from cs_image_system.contract import field_kinds
 from cs_image_system.contract.constants import (
@@ -40,8 +41,8 @@ from cs_image_system.contract.fields import lookup_dataclass_field
 
 from . import registry, template_utils
 from .encryption import Decrypted, mark_plaintexts
+from .image_sources import ImageSourceCatalog
 from .registry import NAMESPACE_SEPARATOR, UnknownTypeError, split_qualified
-from .singleton import singleton
 
 # a foreign key that named nothing during resolution -- (object class,
 # object name, field, value, target). The object stage collects them
@@ -49,6 +50,17 @@ from .singleton import singleton
 # ``SmartContext`` it builds), ``resolve_all`` returns them, the loader puts
 # them on the run context and `validate` refuses them.
 UnresolvedForeignKey = tuple[str, str, str, str, str]
+
+
+@dataclass(frozen=True)
+class ModelBinding:
+    """What a run's converter hands every model it structures, as the
+    validation context: the run's registry and its image-source catalog.
+    A model keeps both (``NameTyped.bind_run``), so a model method reads
+    its own run's and no process-wide one exists to read instead."""
+
+    reg: registry.Registry
+    image_sources: ImageSourceCatalog
 
 
 def default_fk_value(reg: Any, obj: Any, target: VCT) -> str | None:
@@ -87,16 +99,18 @@ class SmartContext(dict):
     
     """A dictionary that swaps string IDs for actual objects when Jinja asks.
 
-    ``unresolved_fks`` is the load's collector of foreign keys that name
-    nothing: the resolver hands in its own, and the fk field kind records
-    into it (:meth:`record_unresolved_fk`); built without one, the context
-    keeps its own list."""
-    def __init__(self, obj, flattened_map, unresolved_fks: list[UnresolvedForeignKey] | None = None):
+    ``reg`` is the registry the foreign keys of ``obj`` are looked up in
+    (the resolver hands in its run's). ``unresolved_fks`` is the load's
+    collector of foreign keys that name nothing: the resolver hands in its
+    own, and the fk field kind records into it
+    (:meth:`record_unresolved_fk`); built without one, the context keeps
+    its own list."""
+    def __init__(self, obj, flattened_map, reg: registry.Registry,
+                 unresolved_fks: list[UnresolvedForeignKey] | None = None):
         super().__init__(this=obj)
         if DEFAULT in flattened_map:
             raise ValueError(f"Flattened map cannot have an entry with the key '{DEFAULT}' as it is reserved for default lookups.")
         self._unresolved_fks: list[UnresolvedForeignKey] = unresolved_fks if unresolved_fks is not None else []
-        reg = registry.current_registry()   # the resolver holds no context; the registry is the run's
         # Shallow copy: we need a private dict (so adding 'this' below doesn't mutate
         # the shared flattened_map), but the objects must be shared by reference so
         # Jinja renders against the live, being-resolved instances. A deepcopy here
@@ -168,10 +182,19 @@ def field_set_to_default(fld, val: Any) -> bool:
     return default == val
 
     
-@singleton
 class TemplateResolver:
-    def __init__(self, addl: dict | None = None):
-        self.flattened_map = addl or {}
+    """The object stage of one load: the flat map of every structured model
+    by global id, the Jinja environment its templates render in, and the
+    converter that structures the run's models. One per run: the loader
+    makes it over the run's registry and hands it to the run context as
+    ``ctx.template_resolver``; ``addl`` seeds the map with the run's own
+    scopes (``execution``, ``ENV``). Two resolvers share nothing."""
+
+    def __init__(self, reg: registry.Registry, addl: dict | None = None,
+                 converter: "PydanticConverter | None" = None):
+        self.reg = reg
+        self.converter: PydanticConverter = converter if converter is not None else PydanticConverter(reg)
+        self.flattened_map: dict[str, Any] = dict(addl or {})
         self.env = jinja2.Environment(undefined=template_utils.KeepUndefined)
         self.deferred_fields: dict[str, VCT] = {"modifications": VCT.MOD_BUILDER_ITEM_MODEL}  # List of fields that require late-stage structuring into concrete types due to dependencies on the registry
         # the foreign keys that named nothing, collected per load
@@ -225,8 +248,8 @@ class TemplateResolver:
         return changed
 
     def upgrade_deferred_list_generated(self, obj, dfield):
-        conv = Orchestrator().get_converter() 
-        reg = registry.current_registry()   # the resolver holds no context; the registry is the run's
+        conv = self.converter
+        reg = self.reg
         data_field = dfield.name
         deferred_override_types:dict[VCT,type] = obj.get_subitem_overrides() if isinstance(obj, SubItemOverrideProtocol) else {}
         field_metadata: dict[str, Any] = dfield.metadata if hasattr(dfield, "metadata") else {} # type: ignore                
@@ -252,33 +275,8 @@ class TemplateResolver:
                     structured_mods.append(mod_data)
                     continue
                 
-                # The item's own `type:` names its builder (a configured mod
-                # builder's name or alias). Looking this up under the FIELD
-                # name ('modifications') -- the historical bug -- made every
-                # item resolve to the default builder regardless of type.
-                builder_name = mod_data.get("type", None)
-                if not builder_name:
-                    log.debug(f"Deferred item in '{data_field}' has no type: using {DEFAULT}.")
-                    builder_name = DEFAULT
-                if builder_name == DEFAULT:
-                    # Deferred default doesn't get pre-resolved
-                    builder_name = reg.get_default_for(deferred_builder_vct)  # Ensure default is loaded
-                    if builder_name is None:
-                        if deferred_builder_vct == VCT.MOD_BUILDER_MODEL:
-                            # a modification with no `type` and no default mod
-                            # builder used to be left a plain mapping, and the
-                            # packer builder later died on it with an AttributeError
-                            raise ValueError(
-                                f"modification {mod_data.get('name', '<unnamed>')!r} names no builder "
-                                "(`type`) and no mod builder is `is_default: true`; name one with `type:` "
-                                "or mark a default")
-                        log.debug(f"Default builder for VCT '{deferred_builder_vct}' not found in registry.")
-                        structured_mods.append(mod_data)
-                        continue
-                    # mod_data["type"] = builder_name   # Use the default builder's type for resolution
-                if not builder_name:
-                    # Can't happen because of above logic, but just in case we change that logic later...
-                    log.warning(f"Deferred item missing '{data_field}': {mod_data}")
+                builder_name = self._deferred_builder_name(mod_data, data_field, deferred_builder_vct)
+                if builder_name is None:
                     structured_mods.append(mod_data)
                     continue
 
@@ -287,29 +285,8 @@ class TemplateResolver:
                 if not builder_instance:
                     raise KeyError(f"Could not resolve builder '{builder_name}' referenced in {obj}")
                 
-                # Get the true underlying type: the registry holds a builder or its
-                # model under this classification, and both name their type
-                # (NameTypedProtocol; the protocol check is the dispatch)
-                true_type = builder_instance.get_type() if isinstance(builder_instance, NameTypedProtocol) else None
-                
-                # Get the target model class based on the true type
-                target_cls = reg.get_model(deferred_item_vct, true_type) if true_type else None
-                if target_cls is None:
-                    if deferred_item_vct:
-                        target_cls = deferred_override_types.get(deferred_item_vct, None)
-                    if target_cls is None:
-                        log.debug(f"No item model found for '{true_type}' under '{deferred_item_vct}'. "
-                                    f"Attempting to look up with builder_name '{builder_name}'...")
-                        m1 = reg.get_default_for(deferred_item_vct)
-                        if m1 is None:
-                            log.warning(f"No default model found [yet] for '{deferred_item_vct}' to use as fallback for '{true_type}'.")
-                            # structured_mods.append(mod_data)
-                            # continue
-                        else:
-                            m = reg.get_instance_by_name_or_alias(deferred_item_vct, m1)
-                            target_cls = reg.get_model(deferred_builder_vct, m.type_) if m else None
-                if target_cls is None:
-                    raise KeyError(f"No concrete model registered for underlying deferred type '{true_type}'")
+                target_cls = self._deferred_item_class(builder_instance, builder_name, deferred_builder_vct,
+                                                       deferred_item_vct, deferred_override_types)
                 
                 # the item's `type` becomes the BUILDER's own name, whatever
                 # the item wrote (its name, an alias, `default`
@@ -327,32 +304,112 @@ class TemplateResolver:
                 structured_mods.append(concrete_mod)
                 
                 
-                # 6. CRITICAL: Add the newly structured model to the flattened map
-                # so that TemplateResolver.resolve_all() will process its Jinja tags!
-                if isinstance(concrete_mod, ParentPropertyHoldingProtocol):
-                    try:
-                        # a sub-item its MODEL already claimed (an OS builder's runtime
-                        # subconfig, parented in the model's __post_init__) keeps
-                        # that parent; this used to overwrite it with the builder's id and
-                        # warn four times per load
-                        if isinstance(obj, NameTypedProtocol) and not concrete_mod.model_id:
-                            concrete_mod.model_id = obj.global_id
-                    except Exception as e:
-                        log.warning(f"Structured object {concrete_mod} does not have a valid _model_id. It will not be added to the flattened map for template resolution. Error: {e}")
-                if isinstance(concrete_mod, NameTypedProtocol):
-                    try:
-                        _gid = concrete_mod.global_id
-                        if _gid:
-                            self.flattened_map[_gid] = concrete_mod
-                    except Exception as e:
-                        log.warning(f"Structured object {concrete_mod} does not have a valid global_id. It will not be added to the flattened map for template resolution. Error: {e}")
-                reg.register_built_instance(concrete_mod)  # Register the newly structured model in the registry
+                self._enter_deferred_item(obj, concrete_mod)
                 
             # Replace the raw list with the newly structured list
             setattr(obj, data_field, structured_mods)
         return obj
+
+    def _deferred_builder_name(self, mod_data: dict, data_field: str, deferred_builder_vct: VCT) -> Any:
+        """The builder one raw item of a deferred list names: its own ``type``,
+        or the registry's default for the list's builder classification when
+        the item names none or names ``default``. None when that default does
+        not exist or is empty: the item then stays as it was written. A
+        modification is the exception: one that names no builder where no mod
+        builder is the default is refused."""
+        reg = self.reg
+        # The item's own `type:` names its builder (a configured mod
+        # builder's name or alias). Looking this up under the FIELD
+        # name ('modifications') -- the historical bug -- made every
+        # item resolve to the default builder regardless of type.
+        builder_name = mod_data.get("type", None)
+        if not builder_name:
+            log.debug(f"Deferred item in '{data_field}' has no type: using {DEFAULT}.")
+            builder_name = DEFAULT
+        if builder_name == DEFAULT:
+            # Deferred default doesn't get pre-resolved
+            builder_name = reg.get_default_for(deferred_builder_vct)  # Ensure default is loaded
+            if builder_name is None:
+                if deferred_builder_vct == VCT.MOD_BUILDER_MODEL:
+                    # a modification with no `type` and no default mod
+                    # builder used to be left a plain mapping, and the
+                    # packer builder later died on it with an AttributeError
+                    raise ValueError(
+                        f"modification {mod_data.get('name', '<unnamed>')!r} names no builder "
+                        "(`type`) and no mod builder is `is_default: true`; name one with `type:` "
+                        "or mark a default")
+                log.debug(f"Default builder for VCT '{deferred_builder_vct}' not found in registry.")
+                return None
+            # mod_data["type"] = builder_name   # Use the default builder's type for resolution
+        if not builder_name:
+            # Can't happen because of above logic, but just in case we change that logic later...
+            log.warning(f"Deferred item missing '{data_field}': {mod_data}")
+            return None
+        return builder_name
+
+    def _deferred_item_class(self, builder_instance: Any, builder_name: Any, deferred_builder_vct: VCT,
+                             deferred_item_vct: VCT, deferred_override_types: dict[VCT, type]) -> Any:
+        """The class one raw item of a deferred list structures into: the item
+        model registered for its builder's own type; else the owning model's
+        override for the item classification; else the model the registry
+        holds, under the BUILDER classification, for the type of the item
+        classification's default. A KeyError when none of them answers."""
+        reg = self.reg
+        # Get the true underlying type: the registry holds a builder or its
+        # model under this classification, and both name their type
+        # (NameTypedProtocol; the protocol check is the dispatch)
+        true_type = builder_instance.get_type() if isinstance(builder_instance, NameTypedProtocol) else None
+                
+        # Get the target model class based on the true type
+        target_cls = reg.get_model(deferred_item_vct, true_type) if true_type else None
+        if target_cls is None:
+            if deferred_item_vct:
+                target_cls = deferred_override_types.get(deferred_item_vct, None)
+            if target_cls is None:
+                log.debug(f"No item model found for '{true_type}' under '{deferred_item_vct}'. "
+                            f"Attempting to look up with builder_name '{builder_name}'...")
+                m1 = reg.get_default_for(deferred_item_vct)
+                if m1 is None:
+                    log.warning(f"No default model found [yet] for '{deferred_item_vct}' to use as fallback for '{true_type}'.")
+                    # structured_mods.append(mod_data)
+                    # continue
+                else:
+                    m = reg.get_instance_by_name_or_alias(deferred_item_vct, m1)
+                    target_cls = reg.get_model(deferred_builder_vct, m.type_) if m else None
+        if target_cls is None:
+            raise KeyError(f"No concrete model registered for underlying deferred type '{true_type}'")
+        return target_cls
+
+    def _enter_deferred_item(self, obj: Any, concrete_mod: Any) -> None:
+        """Enter one newly structured item of a deferred list: it takes the
+        owning model's global id as its parent when it holds a parent property
+        and has none, goes into the flat map under its own global id (so its
+        templates are resolved with the rest), and is registered. An id that
+        cannot be read is a warning; the item is registered all the same."""
+        reg = self.reg
+        # 6. CRITICAL: Add the newly structured model to the flattened map
+        # so that TemplateResolver.resolve_all() will process its Jinja tags!
+        if isinstance(concrete_mod, ParentPropertyHoldingProtocol):
+            try:
+                # a sub-item its MODEL already claimed (an OS builder's runtime
+                # subconfig, parented in the model's __post_init__) keeps
+                # that parent; this used to overwrite it with the builder's id and
+                # warn four times per load
+                if isinstance(obj, NameTypedProtocol) and not concrete_mod.model_id:
+                    concrete_mod.model_id = obj.global_id
+            except Exception as e:
+                log.warning(f"Structured object {concrete_mod} does not have a valid _model_id. It will not be added to the flattened map for template resolution. Error: {e}")
+        if isinstance(concrete_mod, NameTypedProtocol):
+            try:
+                _gid = concrete_mod.global_id
+                if _gid:
+                    self.flattened_map[_gid] = concrete_mod
+            except Exception as e:
+                log.warning(f"Structured object {concrete_mod} does not have a valid global_id. It will not be added to the flattened map for template resolution. Error: {e}")
+        reg.register_built_instance(concrete_mod)  # Register the newly structured model in the registry
+
     def upgrade_deferred_list_object(self, obj, dfield):        
-        reg = registry.current_registry()   # the resolver holds no context; the registry is the run's
+        reg = self.reg
         data_field = dfield.name
         field_metadata: dict[str, Any] = dfield.metadata if hasattr(dfield, "metadata") else {} # type: ignore                
         target_fk: VCT | None = field_metadata.get(FK_TARGET, None)
@@ -394,7 +451,7 @@ class TemplateResolver:
         Deep-casts generic dictionaries (like modifications) into concrete dataclasses 
         now that all builders are safely loaded into the Registry.
         """
-        reg = registry.current_registry()   # the resolver holds no context; the registry is the run's
+        reg = self.reg
         # We need to iterate over a static list of the map's values because 
         # we will be adding new items to self.flattened_map during the loop.
         cnt = 0
@@ -435,93 +492,142 @@ class TemplateResolver:
         copy of the resolver's collector after this pass. The loader stores
         it on the run context; `validate` refuses each entry."""
         self.upgrade_deferred_types()
-        reg = registry.current_registry()   # the resolver holds no context; the registry is the run's
         for _ in range(5):  # Max depth to prevent infinite loops
-            any_changed = False
-            for _obj_id, obj in self.flattened_map.items():
-                if hasattr(obj, "_already_resolved"):
-                    if obj._already_resolved:
-                        continue
-                context = SmartContext(obj, self.flattened_map, unresolved_fks=self.unresolved_foreign_keys)
-                if is_dataclass(obj):
-                    for f in fields(obj):
-                        val = getattr(obj, f.name)
-                        target: VCT | None = f.metadata.get(FK_TARGET,None)
-                        if field_set_to_default(f, val):
-                            if target:
-                                val = default_fk_value(reg, obj, target) or DEFAULT
-                            if f.metadata.get(IS_REPLACE) and f.metadata.get(REPLACE_VALUE):
-                                templ = f.metadata[REPLACE_VALUE]
-                                if isinstance(templ, str) and "{{" in templ:
-                                    template = self.env.from_string(templ)
-                                    try:
-                                        rendered = self.render_inheriting(templ, context)
-                                        if rendered != templ:
-                                            val = rendered
-                                            setattr(obj, f.name, val)
-                                            any_changed = True
-                                    except jinja2.UndefinedError as e:
-                                        log.error(f"Error rendering template for field '{f.name}' in object '{obj}' with template {templ}: {e}")
-#                                        raise e # continue
-                                        continue
-                                if val == DEFAULT:
-                                    # `default` here is the declared meaning -- the consumer
-                                    # decides (a machine type the runtime supplies at bake
-                                    # time); a warning per field would say nothing actionable
-                                    log.debug(f"Field '{f.name}' of {type(obj).__name__} '{getattr(obj, 'name', '')}' stays `default`: the consumer resolves it")
-                        # NOTE: I have to split this off to two paths
-                        # if isinstance(val, list):
-                        #     log.debug("Debugging here")
-                        if isinstance(val, dict):
-                            # a mapping-valued field is rendered leaf by leaf, in
-                            # place: each derived leaf inherits its inputs'
-                            # encryption, and nothing is serialised and parsed back
-                            try:
-                                if self.render_tree_inheriting(val, context):
-                                    any_changed = True
-                            except Exception as e:
-                                log.error(f"Error rendering template for field '{f.name}' in object '{obj}' with field val {val}: {e}")
-                                raise # continue
-                        elif isinstance(val, str):
-                            if "{{" in val:
-                                try:
-                                    rendered = self.render_inheriting(val, context)
-                                    if rendered != val:
-                                        setattr(obj, f.name, rendered)
-                                        any_changed = True
-                                except Exception as e:
-                                    log.error(f"Error rendering template for field '{f.name}' in object '{obj}' with field val {val}: {e}")
-                                    raise # continue
-                        if f.metadata.get(IS_FK,False):
-                            if not field_set_to_default(f, val):
-                                if isinstance(obj, ParentPropertyHoldingProtocol):
-                                    curval = getattr(obj, f.name)
-                                    if curval and curval != val:
-                                        log.warning(
-                                            f"Model {obj} already has a model assigned: "
-                                            f"{curval}. Overwriting with {val}."
-                                        )                                    
-                                    setattr(obj, f.name, val)
-                        # Extension seam: plugin-registered field kinds resolve here
-                        # (built-in fk/templated kinds no-op; their logic is inline above).
-                        _h = field_kinds.handler_for(f.metadata)
-                        if _h is not None and _h.resolve(self, obj, f, context, reg):
-                            any_changed = True
-                elif isinstance(obj, dict):
-                    for k, v in obj.items():
-                        if isinstance(v, str) and "{{" in v:
-                            template = self.env.from_string(v)
-                            rendered = template.render(context)
-                            
-                            if rendered != v:
-                                obj[k] = rendered
-                                any_changed = True
-            if not any_changed:
+            if not self._resolve_pass():
                 break
         for _obj_id, obj in self.flattened_map.items():
             if is_dataclass(obj):
                 cast(Any, obj)._already_resolved = True
         return list(self.unresolved_foreign_keys)
+
+    def _resolve_pass(self) -> bool:
+        """One pass over the flat map: every model not yet marked resolved has
+        each of its fields resolved against a context built for it, and every
+        plain mapping in the map has its templated string values rendered.
+        Returns whether the pass changed anything."""
+        reg = self.reg
+        any_changed = False
+        for _obj_id, obj in self.flattened_map.items():
+            if hasattr(obj, "_already_resolved"):
+                if obj._already_resolved:
+                    continue
+            context = SmartContext(obj, self.flattened_map, reg, unresolved_fks=self.unresolved_foreign_keys)
+            if is_dataclass(obj):
+                for f in fields(obj):
+                    if self._resolve_field(obj, f, context):
+                        any_changed = True
+            elif isinstance(obj, dict):
+                if self._resolve_mapping(obj, context):
+                    any_changed = True
+        return any_changed
+
+    def _resolve_field(self, obj: Any, f: Field[Any], context: SmartContext) -> bool:
+        """One field of one model, in one pass. A field left at its default
+        takes its foreign key's default (the registry's for the target, a
+        root's runtime's state backend) as the value the rest of the pass
+        works with, and its replace template, when it has one, is rendered
+        and set on the model; a replace template that names something
+        undefined is logged as an error and ends the field for this pass.
+        Then the value is rendered when it is a templated string or a
+        mapping, a written foreign key is kept on a model that holds a
+        parent property, and the field's registered kind resolves it.
+        Returns whether anything changed."""
+        reg = self.reg
+        changed = False
+        val = getattr(obj, f.name)
+        target: VCT | None = f.metadata.get(FK_TARGET,None)
+        if field_set_to_default(f, val):
+            if target:
+                val = default_fk_value(reg, obj, target) or DEFAULT
+            if f.metadata.get(IS_REPLACE) and f.metadata.get(REPLACE_VALUE):
+                templ = f.metadata[REPLACE_VALUE]
+                if isinstance(templ, str) and "{{" in templ:
+                    self.env.from_string(templ)
+                    try:
+                        rendered = self.render_inheriting(templ, context)
+                        if rendered != templ:
+                            val = rendered
+                            setattr(obj, f.name, val)
+                            changed = True
+                    except jinja2.UndefinedError as e:
+                        log.error(f"Error rendering template for field '{f.name}' in object '{obj}' with template {templ}: {e}")
+#                                        raise e # continue
+                        return changed
+                if val == DEFAULT:
+                    # `default` here is the declared meaning -- the consumer
+                    # decides (a machine type the runtime supplies at bake
+                    # time); a warning per field would say nothing actionable
+                    log.debug(f"Field '{f.name}' of {type(obj).__name__} '{getattr(obj, 'name', '')}' stays `default`: the consumer resolves it")
+        # NOTE: I have to split this off to two paths
+        # if isinstance(val, list):
+        #     log.debug("Debugging here")
+        if self._render_field_value(obj, f, val, context):
+            changed = True
+        self._keep_written_foreign_key(obj, f, val)
+        # Extension seam: plugin-registered field kinds resolve here
+        # (built-in fk/templated kinds no-op; their logic is inline above).
+        _h = field_kinds.handler_for(f.metadata)
+        if _h is not None and _h.resolve(self, obj, f, context, reg):
+            changed = True
+        return changed
+
+    def _render_field_value(self, obj: Any, f: Field[Any], val: Any, context: SmartContext) -> bool:
+        """Render the value of one field: a mapping leaf by leaf in place, a
+        templated string whole, set on the model when the rendering differs
+        from the text. Any other value is left alone. A failure to render is
+        logged as an error and raised as it came. Returns whether anything
+        changed."""
+        changed = False
+        if isinstance(val, dict):
+            # a mapping-valued field is rendered leaf by leaf, in
+            # place: each derived leaf inherits its inputs'
+            # encryption, and nothing is serialised and parsed back
+            try:
+                if self.render_tree_inheriting(val, context):
+                    changed = True
+            except Exception as e:
+                log.error(f"Error rendering template for field '{f.name}' in object '{obj}' with field val {val}: {e}")
+                raise # continue
+        elif isinstance(val, str):
+            if "{{" in val:
+                try:
+                    rendered = self.render_inheriting(val, context)
+                    if rendered != val:
+                        setattr(obj, f.name, rendered)
+                        changed = True
+                except Exception as e:
+                    log.error(f"Error rendering template for field '{f.name}' in object '{obj}' with field val {val}: {e}")
+                    raise # continue
+        return changed
+
+    def _keep_written_foreign_key(self, obj: Any, f: Field[Any], val: Any) -> None:
+        """A foreign-key field that is not at its default, on a model that
+        holds a parent property: the value the pass worked with is set on the
+        field, with a warning when the field held a different one."""
+        if f.metadata.get(IS_FK,False):
+            if not field_set_to_default(f, val):
+                if isinstance(obj, ParentPropertyHoldingProtocol):
+                    curval = getattr(obj, f.name)
+                    if curval and curval != val:
+                        log.warning(
+                            f"Model {obj} already has a model assigned: "
+                            f"{curval}. Overwriting with {val}."
+                        )                                    
+                    setattr(obj, f.name, val)
+
+    def _resolve_mapping(self, obj: dict, context: SmartContext) -> bool:
+        """Render every templated string value of a plain mapping in the flat
+        map, in place. Returns whether anything changed."""
+        changed = False
+        for k, v in obj.items():
+            if isinstance(v, str) and "{{" in v:
+                template = self.env.from_string(v)
+                rendered = template.render(context)
+                            
+                if rendered != v:
+                    obj[k] = rendered
+                    changed = True
+        return changed
 
     def flatten_dataclass(self, obj):
       """Recursively crawls nested dataclasses to build a flat ID map."""
@@ -618,10 +724,18 @@ def _str_collection_kind(ann: Any) -> str | None:
 
 
 class PydanticConverter:
-    """Mapping and validation on pydantic, exposing cattrs' two verbs."""
+    """Mapping and validation on pydantic, exposing cattrs' two verbs.
 
-    def __init__(self, reg: registry.Registry) -> None:
+    One per run, held by the run's :class:`TemplateResolver`: it dispatches
+    on, and registers into, the registry it was made with, and every model
+    it structures is bound to that registry and to the run's image-source
+    catalog (:class:`ModelBinding`, handed to pydantic as the validation
+    context). Made with a registry alone, the catalog is one over that
+    registry with no tree entries."""
+
+    def __init__(self, reg: registry.Registry, image_sources: ImageSourceCatalog | None = None) -> None:
         self._reg = reg
+        self.binding = ModelBinding(reg, image_sources if image_sources is not None else ImageSourceCatalog(reg))
         self._adapters: dict[Any, Any] = {}
         self._dispatch_vcts: dict[Any, VCT | None] = {}
 
@@ -657,7 +771,6 @@ class PydanticConverter:
     def _adapter(self, cls: Any) -> Any:
         ta = self._adapters.get(cls)
         if ta is None:
-            from pydantic import TypeAdapter
             ta = TypeAdapter(cls)
             self._adapters[cls] = ta
         return ta
@@ -702,7 +815,7 @@ class PydanticConverter:
             if vct is not None:
                 return self._dispatch(data, cls, vct)
             data = self._coerce_collections(cls, data)
-        obj = self._adapter(cls).validate_python(data)
+        obj = self._adapter(cls).validate_python(data, context=self.binding)
         self._register(obj)
         return obj
 
@@ -740,43 +853,17 @@ class PydanticConverter:
         return keys
 
     def unstructure(self, obj: Any) -> Any:
-        import dataclasses
-        if not dataclasses.is_dataclass(obj):
+        if not is_dataclass(obj):
             return obj
         return self._adapter(type(obj)).dump_python(obj, by_alias=True, exclude_defaults=True)
 
 
-class Orchestrator:
-    """The Orchestrator is responsible for managing the overall configuration and state of the system.
-    It hands out the one converter that structures YAML into the models and
-    unstructures them back (pydantic behind two verbs).
-    """
-    def __init__(self):
-        # Built lazily on first get_converter() -- after plugins have registered
-        # their model/builder classes -- and memoized. Previously this rebuilt the
-        # entire cattrs Converter (re-registering every hook) on *every* call.
-        self._converter: Any = None          # a PydanticConverter
-
-    def get_converter(self, ignore_collections: bool = False) -> Any:
-        """Return the cached converter, building it once on first use.
-
-        The converter depends on the set of registered model/builder classes, so it
-        is built lazily and memoized. Call :meth:`invalidate_converter` if the
-        registered model schema changes (e.g. after loading more plugins).
-        """
-        reg = registry.current_registry()   # the orchestrator holds no context; the registry is the run's
-        if self._converter is None or self._converter._reg is not reg:
-            # pydantic behind the same two verbs. The cattrs builder it
-            # replaced was kept for one release and then removed (it is in
-            # the history before the first published version).
-            # One registry per run -- a converter built against an earlier
-            # run's registry is rebuilt against this one.
-            self._converter = PydanticConverter(reg)
-        return self._converter
-
-    def invalidate_converter(self) -> None:
-        """Drop the cached converter so it rebuilds on the next ``get_converter``."""
-        self._converter = None
+def unstructure(obj: Any) -> Any:
+    """A model as the mapping it was written as (by alias, defaults left
+    out). It reads no registry, so it needs no run's converter."""
+    if not is_dataclass(obj):
+        return obj
+    return TypeAdapter(type(obj)).dump_python(obj, by_alias=True, exclude_defaults=True)
 
 
 class _FkFieldHandler(field_kinds.FieldKindHandler):

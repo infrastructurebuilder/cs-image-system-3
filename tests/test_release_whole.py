@@ -19,7 +19,6 @@ import stat
 from pathlib import Path
 
 import pytest
-from harness import reset_singletons
 from typer.testing import CliRunner
 
 from cs_image_system.system import starter_links, starters
@@ -587,7 +586,6 @@ def test_config_drift_is_a_command_that_loads_nothing(tmp_path, monkeypatch):
     v2 = _generated_tree(tmp_path, monkeypatch)
     monkeypatch.setattr(emission, "subprocess_dry_run", _copy_of_committed(v2))
     monkeypatch.delenv("CSIS_CONFIG_IDENTITY", raising=False)
-    reset_singletons()
     result = CliRunner().invoke(app, ["--root-dir", str(v2.config_root), "config-drift"])
     assert result.exit_code == 0, result.output
     assert "current with the configuration" in result.output
@@ -698,7 +696,6 @@ def test_workload_token_fills_missing_names_from_the_configuration(monkeypatch, 
     _job_env(monkeypatch)
     for v in ("OPA_WORKLOAD_CONNECTION", "OPA_WORKLOAD_ROLE", "SFT_TEAM", "OPA_ADDR"):
         monkeypatch.delenv(v, raising=False)
-    reset_singletons()
     result = CliRunner().invoke(app, ["--root-dir", str(root), "workload", "token"])
     assert result.exit_code == 0, result.output
     names = calls[0][0]

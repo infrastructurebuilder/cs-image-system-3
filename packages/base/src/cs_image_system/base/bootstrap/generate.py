@@ -28,7 +28,7 @@ from .questions import Rendered, Section
 from .sections import discover
 
 if TYPE_CHECKING:
-    from ..global_context import GlobalTypeContext
+    from ..run_context import RunContext
 
 log = logging.getLogger(__name__)
 
@@ -196,7 +196,7 @@ def regenerate(config_root: Path, *, module_source_base: str | None = None,
     return written
 
 
-def regenerate_in_run(ctx: "GlobalTypeContext") -> None:
+def regenerate_in_run(ctx: "RunContext") -> None:
     """Inside every run, before the lifecycles, by decision (see docs/CHANGES.md#s70)."""
     root = Path(ctx.working_path)
     base = None

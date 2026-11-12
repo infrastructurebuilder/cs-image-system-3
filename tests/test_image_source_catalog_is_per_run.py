@@ -4,35 +4,38 @@
 
 """The image-source catalog is one per run, like the registry.
 
-It was the last process singleton a run read: a tree's ``image_sources:``
-entries set on it stayed for the next load in the same process, and its
-release layer was read from whichever registry was current. Now the
-loader makes one beside the run's registry (the release layer is that
-registry's runtimes'), binds it as the process's current one and carries
-it as ``ctx.image_sources``; a reader that holds a context takes it from
-there, a model takes the current one as it takes the registry.
+A tree's ``image_sources:`` entries set on a catalog stay with it, and its
+release layer is read from the registry it was made over. The loader makes
+one over the run's registry and carries it as ``ctx.image_sources``; a
+reader that holds a context takes it from there, and an OS model holds the
+one of the run that structured it. The process holds none.
 """
 from __future__ import annotations
 
 from harness import FIXTURE_CONFIG, load_context, stub_environment
 
-from cs_image_system.base.image_sources import ImageSourceCatalog, current_catalog
+from cs_image_system.base import image_sources
+from cs_image_system.base.image_sources import ImageSourceCatalog
+from cs_image_system.base.loader import installed_registry
 from cs_image_system.base.registry import Registry
 
 
-def test_each_load_makes_its_own_catalog_and_binds_it_current(monkeypatch):
+def test_each_load_makes_its_own_catalog_and_its_models_hold_it(monkeypatch):
     stub_environment(monkeypatch)
     first = load_context(FIXTURE_CONFIG)
-    assert first.image_sources is current_catalog()
     second = load_context(FIXTURE_CONFIG)
-    assert second.image_sources is current_catalog()
     assert first.image_sources is not second.image_sources
     assert first.image_sources.families() == second.image_sources.families()
+    for ctx in (first, second):
+        assert ctx.os_builders
+        assert all(osb.model._image_sources is ctx.image_sources for osb in ctx.os_builders.values())
+    assert not hasattr(image_sources, "current_catalog") and not hasattr(image_sources, "bind_current_catalog")
 
 
 def test_a_trees_entries_stay_with_their_run():
-    mine = ImageSourceCatalog()
-    other = ImageSourceCatalog()
+    reg = installed_registry()
+    mine = ImageSourceCatalog(reg)
+    other = ImageSourceCatalog(reg)
     mine.set_tree([{"family": "rhel-from-jerry", "is": "rhel", "sources": {}}])
     assert mine.effective_family("rhel-from-jerry") == "rhel"
     assert other.tree_entries() == [] and other.effective_family("rhel-from-jerry") == "rhel-from-jerry"
@@ -43,6 +46,5 @@ def test_the_release_layer_is_the_runs_registrys_runtimes():
     empty = ImageSourceCatalog(Registry())
     assert empty.default_entries() == []
     assert empty.stand_in_block("debian", "12") is None
-    # the current registry holds the installed plugins, so the default
-    # catalog knows the release's families
-    assert "debian" in ImageSourceCatalog().families()
+    # a registry holding the installed plugins: the catalog knows the release's families
+    assert "debian" in ImageSourceCatalog(installed_registry()).families()

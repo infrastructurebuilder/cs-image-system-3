@@ -19,6 +19,16 @@ class StateBuilderBase(BuilderBase[TSTATE], StateBuilderProtocol):
         return VCT.STATE_BACKEND
 
     @classmethod
-    def session_status(cls, settings: Mapping[str, Any], executables: Mapping[str, Any]) -> SessionStatus | None:
-        """Default: the backend needs no session the preflight can read."""
+    def session_status(cls, settings: Mapping[str, Any], executables: Mapping[str, Any],
+                       runtime_classes: Mapping[str, type] | None = None) -> SessionStatus | None:
+        """Default: the backend needs no session the preflight can read.
+
+        ``runtime_classes`` is the kit's addition to the contract's hook:
+        the run's runtime builder classes by type word
+        (``ctx.reg.runtime_builder_classes()``), which the preflight hands
+        every state builder of the kit, so a backend whose bucket is
+        reached with a runtime's credentials reads that runtime's session
+        hook from it and asks no process for a registry. A caller that
+        knows only the contract passes two arguments, and such a backend
+        then says its session cannot be read."""
         return None

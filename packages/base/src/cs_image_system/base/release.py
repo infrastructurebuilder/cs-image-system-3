@@ -38,7 +38,7 @@ from .meta_state import MOD_TESTS, RELEASES, MetaState
 from .utils import apply_enabled, system_cli_executable_with_config
 
 if TYPE_CHECKING:
-    from .global_context import GlobalTypeContext
+    from .run_context import RunContext
 
 log = logging.getLogger(__name__)
 
@@ -72,7 +72,7 @@ def released_builds(ms: MetaState, image: str, model: str | None = None) -> set[
     return out
 
 
-def release(ctx: "GlobalTypeContext", image: str, build_id: str, model: str = DEFAULT_MODEL,
+def release(ctx: "RunContext", image: str, build_id: str, model: str = DEFAULT_MODEL,
             note: str = "") -> dict[str, Any]:
     ms = ctx.meta_state
     record = ms.build(build_id)
@@ -122,7 +122,7 @@ def release(ctx: "GlobalTypeContext", image: str, build_id: str, model: str = DE
 
 # ---------------------------------------------------------- lifecycle hooks
 
-def declared_release_targets(ctx: "GlobalTypeContext") -> list[tuple[str, str, str, str]]:
+def declared_release_targets(ctx: "RunContext") -> list[tuple[str, str, str, str]]:
     """``[(image, runtime, build_id, model)]`` -- for every image declaring
     ``release: {model}``, each runtime's series head that has a PASSING
     post-bake record and is not already the model's current release
@@ -148,7 +148,7 @@ def declared_release_targets(ctx: "GlobalTypeContext") -> list[tuple[str, str, s
     return out
 
 
-def after_generate(ctx: "GlobalTypeContext", lifecycle: LifecycleLike) -> None:
+def after_generate(ctx: "RunContext", lifecycle: LifecycleLike) -> None:
     if lifecycle.value != RELEASE_LIFECYCLE.name:
         return
     # declared releases -- a deferred step per image that declares
@@ -185,7 +185,7 @@ def after_generate(ctx: "GlobalTypeContext", lifecycle: LifecycleLike) -> None:
     ctx.extend_finalization_phase(ExecutionLifecyclePhase.INSTANCE_GENERATION, execs)
 
 
-def release_grace(ctx: "GlobalTypeContext", instance: Any, pin: str) -> tuple[str | None, str]:
+def release_grace(ctx: "RunContext", instance: Any, pin: str) -> tuple[str | None, str]:
     """Why an UNRELEASED pin is allowed for now, or why not.
 
     A durable instance whose volume allows one attachment can only prove a
@@ -223,7 +223,7 @@ def release_grace(ctx: "GlobalTypeContext", instance: Any, pin: str) -> tuple[st
     return None, f"'{name}' neither stands on the build nor is a pending replacement onto it"
 
 
-def validate_released_pins(ctx: "GlobalTypeContext", requested: list[LifecycleLike]) -> list[str]:
+def validate_released_pins(ctx: "RunContext", requested: list[LifecycleLike]) -> list[str]:
     """config.require_released_builds: an instance's pinned build must be a
     released build of its image (for any model) -- or the series head in the
     middle of its own proof (:func:`release_grace`)."""

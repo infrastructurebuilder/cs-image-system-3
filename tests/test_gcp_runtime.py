@@ -45,7 +45,6 @@ from tests.harness import (
     copy_config,
     load_context,
     modules_beside,
-    reset_singletons,
     stub_environment,
 )
 
@@ -507,7 +506,6 @@ def ctx(monkeypatch):
     stub_environment(monkeypatch)
     c = load_context(FIXTURE_CONFIG)
     yield c
-    reset_singletons()
 
 
 class _Recorder:
@@ -537,13 +535,10 @@ def test_an_undeclared_gcloud_entry_is_refused_by_validate(tmp_path: Path, monke
     ex.write_text(yaml.safe_dump(data, sort_keys=False))
     stub_environment(monkeypatch)
     c = load_context(root)
-    try:
-        errors = [str(e) for e in check_existence_of_executable(c.executables, cast(Any, c.runtime_builders))]
-        assert any("gcloud" in e and "gcloud-east1" in e for e in errors), errors
-        with pytest.raises(ValueError, match="executable 'gcloud' is not declared"):
-            cast(Any, c.runtime_builders["gcloud-east1"]).gcloud_binary()
-    finally:
-        reset_singletons()
+    errors = [str(e) for e in check_existence_of_executable(c.executables, cast(Any, c.runtime_builders))]
+    assert any("gcloud" in e and "gcloud-east1" in e for e in errors), errors
+    with pytest.raises(ValueError, match="executable 'gcloud' is not declared"):
+        cast(Any, c.runtime_builders["gcloud-east1"]).gcloud_binary()
 
 
 def test_the_session_command_runs_the_declared_gcloud(ctx, monkeypatch):
@@ -593,7 +588,6 @@ def test_the_generated_archive_and_wipe_scripts_run_the_declared_gcloud(tmp_path
     body = (Path(str(ctx.generation_path)) / str(wipe.working_directory) / wipe.args[0]).read_text()
     assert f"out=$({DECLARED} storage rm" in body, body
     assert str(tmp_path) in str(ctx.generation_path)
-    reset_singletons()
 
 
 def test_the_bucket_lookup_runs_the_declared_gcloud(ctx, monkeypatch):
@@ -622,29 +616,26 @@ def test_filestore_looks_itself_up_through_the_declared_gcloud(tmp_path: Path, m
     real_query_state = TofuStorageBuilderBase.query_state
     stub_environment(monkeypatch)
     c = load_context(_with_filestore(tmp_path))
-    try:
-        fs: Any = c.storage_builders["gcp-fs"]
-        storage = _storage_on(c, "gcp-fs")
-        found = _Recorder(0, '{"name": "projects/p/locations/us-east1-b/instances/shared-nfs", "state": "READY", '
+    fs: Any = c.storage_builders["gcp-fs"]
+    storage = _storage_on(c, "gcp-fs")
+    found = _Recorder(0, '{"name": "projects/p/locations/us-east1-b/instances/shared-nfs", "state": "READY", '
                              '"fileShares": [{"name": "share", "capacityGb": "1024"}], "labels": {"csis": "true"}}')
-        monkeypatch.setattr(subprocess, "run", found)
-        rec = fs._lookup(storage)
-        cmd = found.calls[0]
-        assert cmd[:5] == [DECLARED, "filestore", "instances", "describe", "shared-nfs"], cmd
-        assert cmd[cmd.index("--location") + 1] == "us-east1-b"
-        assert rec == {"id": "shared-nfs", "state": "READY", "tags": {"csis": "true"}, "size": 1024}
-        state = real_query_state(fs)
-        assert state["shared_nfs"]["present"] is True and state["shared_nfs"]["type"] == "filestore", state
+    monkeypatch.setattr(subprocess, "run", found)
+    rec = fs._lookup(storage)
+    cmd = found.calls[0]
+    assert cmd[:5] == [DECLARED, "filestore", "instances", "describe", "shared-nfs"], cmd
+    assert cmd[cmd.index("--location") + 1] == "us-east1-b"
+    assert rec == {"id": "shared-nfs", "state": "READY", "tags": {"csis": "true"}, "size": 1024}
+    state = real_query_state(fs)
+    assert state["shared_nfs"]["present"] is True and state["shared_nfs"]["type"] == "filestore", state
 
-        monkeypatch.setattr(subprocess, "run", _Recorder(1, "", "ERROR: (gcloud.filestore.instances.describe) NOT_FOUND: resource"))
-        assert fs._lookup(storage) is None
-        assert real_query_state(fs)["shared_nfs"]["present"] is False
+    monkeypatch.setattr(subprocess, "run", _Recorder(1, "", "ERROR: (gcloud.filestore.instances.describe) NOT_FOUND: resource"))
+    assert fs._lookup(storage) is None
+    assert real_query_state(fs)["shared_nfs"]["present"] is False
 
-        monkeypatch.setattr(subprocess, "run", _Recorder(1, "", "ERROR: PERMISSION_DENIED"))
-        with pytest.raises(RuntimeError, match="PERMISSION_DENIED"):
-            fs._lookup(storage)
-    finally:
-        reset_singletons()
+    monkeypatch.setattr(subprocess, "run", _Recorder(1, "", "ERROR: PERMISSION_DENIED"))
+    with pytest.raises(RuntimeError, match="PERMISSION_DENIED"):
+        fs._lookup(storage)
 
 
 def test_the_base_tf_gcp_type_is_refused_at_load(tmp_path: Path, monkeypatch):
@@ -655,13 +646,10 @@ def test_the_base_tf_gcp_type_is_refused_at_load(tmp_path: Path, monkeypatch):
                                      "runtime": "gcloud-east1"})
     sb.write_text(yaml.safe_dump(data, sort_keys=False))
     stub_environment(monkeypatch)
-    try:
-        with pytest.raises(Exception) as exc:
-            load_context(root)
-        message = str(exc.value)
-        assert "'tf-gcp'" in message and "tf-gcp-pd" in message, message
-    finally:
-        reset_singletons()
+    with pytest.raises(Exception) as exc:
+        load_context(root)
+    message = str(exc.value)
+    assert "'tf-gcp'" in message and "tf-gcp-pd" in message, message
 
 
 # -------------------------------------------------------------- the zones
@@ -697,10 +685,7 @@ def _zone_errors(root: Path, monkeypatch) -> list[str]:
     from cs_image_system.base.commands.validate import check_availability_zones
     stub_environment(monkeypatch)
     ctx = load_context(root)
-    try:
-        return [str(e) for e in check_availability_zones(ctx)]
-    finally:
-        reset_singletons()
+    return [str(e) for e in check_availability_zones(ctx)]
 
 
 def test_a_gce_disk_in_its_runtimes_zone_passes_without_naming_the_runtime(tmp_path: Path, monkeypatch):
@@ -729,23 +714,17 @@ def _pd(root: Path, monkeypatch) -> tuple[Any, Any, Any]:
 def test_a_persistent_disk_is_created_found_and_archived_in_its_own_zone(tmp_path: Path, monkeypatch):
     from cs_image_system.base.models.storage import STORAGE_STATE_ACTIVE, STORAGE_STATE_ARCHIVED
     ctx, pd, disk = _pd(_zoned_copy(tmp_path, "us-east1-c"), monkeypatch)
-    try:
-        assert pd.module_args(disk)["zone"] == "us-east1-c"
-        assert pd._disk_zone(disk) == "us-east1-c"
-        (script,) = pd.transition_actions(disk, STORAGE_STATE_ACTIVE, STORAGE_STATE_ARCHIVED)
-        body = (Path(str(ctx.generation_path)) / str(script.working_directory) / script.args[0]).read_text()
-        assert '--zone "us-east1-c"' in body, body
-    finally:
-        reset_singletons()
+    assert pd.module_args(disk)["zone"] == "us-east1-c"
+    assert pd._disk_zone(disk) == "us-east1-c"
+    (script,) = pd.transition_actions(disk, STORAGE_STATE_ACTIVE, STORAGE_STATE_ARCHIVED)
+    body = (Path(str(ctx.generation_path)) / str(script.working_directory) / script.args[0]).read_text()
+    assert '--zone "us-east1-c"' in body, body
 
 
 def test_a_disk_without_a_zone_keeps_the_runtimes(tmp_path: Path, monkeypatch):
     ctx, pd, disk = _pd(copy_config(tmp_path), monkeypatch)
-    try:
-        assert getattr(disk, "availability_zone", None) is None
-        assert pd.module_args(disk)["zone"] == "us-east1-b"
-    finally:
-        reset_singletons()
+    assert getattr(disk, "availability_zone", None) is None
+    assert pd.module_args(disk)["zone"] == "us-east1-b"
 
 
 # ------------------------------------------ images, labels and the GCE root
@@ -760,15 +739,12 @@ def test_query_images_returns_only_the_series_asked_about(tmp_path: Path, monkey
     real_query_images = GCPCloudBuilder.query_images      # the harness stubs it
     stub_environment(monkeypatch)
     ctx = load_context(copy_config(tmp_path))
-    try:
-        images = [SimpleNamespace(name=n, status="READY", creation_timestamp="t", labels={"csis_series": s})
-                  for n, s in (("a-1", "imgfile-basic-dask"), ("b-1", "basic-rh-10"), ("c-1", "someone-else"))]
-        monkeypatch.setattr(gcp_runtime_builders, "_make_images_client",
-                            lambda cfg: SimpleNamespace(list=lambda request: images))
-        got = real_query_images(cast(Any, ctx.runtime_builders["gcloud-east1"]), ["imgfile-basic-dask", "basic-rh-10"])
-        assert sorted(i["name"] for i in got) == ["a-1", "b-1"], got
-    finally:
-        reset_singletons()
+    images = [SimpleNamespace(name=n, status="READY", creation_timestamp="t", labels={"csis_series": s})
+              for n, s in (("a-1", "imgfile-basic-dask"), ("b-1", "basic-rh-10"), ("c-1", "someone-else"))]
+    monkeypatch.setattr(gcp_runtime_builders, "_make_images_client",
+                        lambda cfg: SimpleNamespace(list=lambda request: images))
+    got = real_query_images(cast(Any, ctx.runtime_builders["gcloud-east1"]), ["imgfile-basic-dask", "basic-rh-10"])
+    assert sorted(i["name"] for i in got) == ["a-1", "b-1"], got
 
 
 def test_a_tag_key_gce_cannot_take_is_refused_at_validate(tmp_path: Path, monkeypatch):
@@ -781,36 +757,27 @@ def test_a_tag_key_gce_cannot_take_is_refused_at_validate(tmp_path: Path, monkey
     _edit(root / "images" / "image1.yaml", edit)
     stub_environment(monkeypatch)
     ctx = load_context(root)
-    try:
-        errors = [str(e) for e in check_label_keys(ctx)]
-        assert any("imgfile-basic-dask" in e and "'2024'" in e and "gcloud-east1" in e for e in errors), errors
-        assert not any("aws-east2-runtime" in e for e in errors), "AWS tags take any key"
-    finally:
-        reset_singletons()
+    errors = [str(e) for e in check_label_keys(ctx)]
+    assert any("imgfile-basic-dask" in e and "'2024'" in e and "gcloud-east1" in e for e in errors), errors
+    assert not any("aws-east2-runtime" in e for e in errors), "AWS tags take any key"
 
 
 def test_the_fixture_has_no_label_finding(tmp_path: Path, monkeypatch):
     from cs_image_system.base.commands.validate import check_label_keys
     stub_environment(monkeypatch)
     ctx = load_context(copy_config(tmp_path))
-    try:
-        assert check_label_keys(ctx) == []
-    finally:
-        reset_singletons()
+    assert check_label_keys(ctx) == []
 
 
 def test_a_disk_archive_script_without_a_project_is_refused_at_generation(tmp_path: Path, monkeypatch):
     from cs_image_system.base.models.storage import STORAGE_STATE_ACTIVE, STORAGE_STATE_ARCHIVED
     stub_environment(monkeypatch)
     ctx = load_context(copy_config(tmp_path))
-    try:
-        pd = ctx.storage_builders["gcp-pd"]
-        disk = next(s for s in ctx.storages if s.get_name() == "gce_data")
-        monkeypatch.setattr(type(pd), "_project", lambda self: None)
-        with pytest.raises(ValueError, match="the archive scripts need project"):
-            pd.transition_actions(disk, STORAGE_STATE_ACTIVE, STORAGE_STATE_ARCHIVED)
-    finally:
-        reset_singletons()
+    pd = ctx.storage_builders["gcp-pd"]
+    disk = next(s for s in ctx.storages if s.get_name() == "gce_data")
+    monkeypatch.setattr(type(pd), "_project", lambda self: None)
+    with pytest.raises(ValueError, match="the archive scripts need project"):
+        pd.transition_actions(disk, STORAGE_STATE_ACTIVE, STORAGE_STATE_ARCHIVED)
 
 
 def test_an_out_of_scope_instance_root_writes_no_tfvars(tmp_path: Path, monkeypatch):

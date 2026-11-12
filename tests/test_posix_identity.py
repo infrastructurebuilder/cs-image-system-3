@@ -95,7 +95,7 @@ def test_a_group_builder_proves_no_login_unless_it_says_so():
 def test_the_okta_builder_answers_the_gid_reference_the_consumers_used_to_assume():
     from pytest import MonkeyPatch
 
-    from tests.harness import FIXTURE_CONFIG, load_context, reset_singletons, stub_environment
+    from tests.harness import FIXTURE_CONFIG, load_context, stub_environment
     mp = MonkeyPatch()
     stub_environment(mp)
     try:
@@ -104,7 +104,6 @@ def test_the_okta_builder_answers_the_gid_reference_the_consumers_used_to_assume
         assert gb.gid_workspace() == "oktagroups"
         assert gb.gid_expression("coops") == 'data.terraform_remote_state.oktagroups.outputs.group_gids["coops"]'
     finally:
-        reset_singletons()
         mp.undo()
 
 
@@ -200,33 +199,27 @@ def _posix_tree(tmp_path, *, gid=3101, uids=(3201, 3202), extra_group=None):
 
 def _posix_errors(root, monkeypatch) -> list[str]:
     from cs_image_system.base.commands.validate import check_posix_ids
-    from tests.harness import load_context, reset_singletons, stub_environment
+    from tests.harness import load_context, stub_environment
     stub_environment(monkeypatch)
-    try:
-        return [str(e) for e in check_posix_ids(load_context(root))]
-    finally:
-        reset_singletons()
+    return [str(e) for e in check_posix_ids(load_context(root))]
 
 
 def test_a_posix_tree_loads_and_its_ids_resolve_cleanly(tmp_path, monkeypatch):
-    from tests.harness import load_context, reset_singletons, stub_environment
+    from tests.harness import load_context, stub_environment
     root = _posix_tree(tmp_path)
     assert _posix_errors(root, monkeypatch) == []
     stub_environment(monkeypatch)
-    try:
-        ctx = load_context(root)
-        gb = ctx.group_builders["posix-local"]
-        assert gb.identity_type() == "posix" and gb.gid_policy() == "config-time"
-        assert gb.gid_workspace() is None and gb.gid_expression("pxgroup") == "3101"
-        group = next(g for g in gb.get_groups_for_builder() if g.get_name() == "pxgroup")
-        image: Any = type("I", (), {"get_name": lambda self: "img"})()      # only its name is read
-        bake = "\n".join(gb.activation_commands(image, group))
-        assert "sudo bash -s <<'CSIS_POSIX_ACCOUNTS'" in bake and "groupadd -g 3101 pxgroup" in bake
-        assert gb.activation_verify_commands(image, group)[-1] == "test \"$(getent group pxgroup | cut -d: -f3)\" = '3101'"
-        users = {u.get_name(): u.uid for u in ctx.user_builders["posix-users"].get_users_for_builder()}
-        assert users == {"taylor_tango": 3201, "unity_uniform": 3202}
-    finally:
-        reset_singletons()
+    ctx = load_context(root)
+    gb = ctx.group_builders["posix-local"]
+    assert gb.identity_type() == "posix" and gb.gid_policy() == "config-time"
+    assert gb.gid_workspace() is None and gb.gid_expression("pxgroup") == "3101"
+    group = next(g for g in gb.get_groups_for_builder() if g.get_name() == "pxgroup")
+    image: Any = type("I", (), {"get_name": lambda self: "img"})()      # only its name is read
+    bake = "\n".join(gb.activation_commands(image, group))
+    assert "sudo bash -s <<'CSIS_POSIX_ACCOUNTS'" in bake and "groupadd -g 3101 pxgroup" in bake
+    assert gb.activation_verify_commands(image, group)[-1] == "test \"$(getent group pxgroup | cut -d: -f3)\" = '3101'"
+    users = {u.get_name(): u.uid for u in ctx.user_builders["posix-users"].get_users_for_builder()}
+    assert users == {"taylor_tango": 3201, "unity_uniform": 3202}
 
 
 @pytest.mark.parametrize("change,needle", [
@@ -249,31 +242,25 @@ def test_validate_refuses_each_id_problem_by_name(tmp_path, monkeypatch, change,
 def test_a_gid_below_the_floor_is_refused_when_the_group_loads(tmp_path, monkeypatch):
     """The Group model's own rule, older than this stage: the posix check
     uses the same floor for uids."""
-    from tests.harness import load_context, reset_singletons, stub_environment
+    from tests.harness import load_context, stub_environment
     root = _posix_tree(tmp_path, gid=999)
     stub_environment(monkeypatch)
-    try:
-        with pytest.raises(Exception, match="gid must be at least 1024"):
-            load_context(root)
-    finally:
-        reset_singletons()
+    with pytest.raises(Exception, match="gid must be at least 1024"):
+        load_context(root)
 
 
 def test_a_posix_group_or_user_declaring_attributes_is_refused(tmp_path, monkeypatch):
     """Their ids are `gid:` and `uid:`: provider attributes would drag them
     into the OPA attribute plan, which asks a provider the posix plugin is not."""
     from cs_image_system.base.identity_attributes import validate_identity_items
-    from tests.harness import load_context, reset_singletons, stub_environment
+    from tests.harness import load_context, stub_environment
     root = _posix_tree(tmp_path)
     for rel, key, name in (("groups/group-pxgroup.yaml", "groups", "pxgroup"), ("groups/users.yaml", "users", "unity_uniform")):
         data = yaml.safe_load((root / rel).read_text())
         next(i for i in data[key] if i["name"] == name)["attributes"] = {"unix_gid" if key == "groups" else "unix_uid": 4000}
         (root / rel).write_text(yaml.safe_dump(data, sort_keys=False))
     stub_environment(monkeypatch)
-    try:
-        errors = validate_identity_items(load_context(root), [])
-    finally:
-        reset_singletons()
+    errors = validate_identity_items(load_context(root), [])
     assert any("group 'pxgroup'" in e and "`gid:`" in e for e in errors), errors
     assert any("user 'unity_uniform'" in e and "`uid:`" in e for e in errors), errors
 
@@ -281,36 +268,30 @@ def test_a_posix_group_or_user_declaring_attributes_is_refused(tmp_path, monkeyp
 # --------------------------------------------- step 4: accounts on machines
 
 def test_the_posix_group_renders_its_whole_accounts_script(monkeypatch):
-    from tests.harness import FIXTURE_CONFIG, load_context, reset_singletons, stub_environment
+    from tests.harness import FIXTURE_CONFIG, load_context, stub_environment
     stub_environment(monkeypatch)
-    try:
-        gb = load_context(FIXTURE_CONFIG).group_builders["posix-local"]
-        script = gb.accounts_script("pxgroup")
-        assert script is not None
-        for needle in ("useradd -m -u 3201 -g 3201 -s /bin/bash taylor_tango",
-                       "useradd -m -u 3202 -g 3202 -s /bin/bash unity_uniform",
-                       "groupadd -g 3101 pxgroup", "# members of pxgroup: taylor_tango, unity_uniform",
-                       "# authorized keys of taylor_tango: 1", "taylor_tango ALL=(ALL) NOPASSWD:ALL"):
-            assert needle in script, needle
-        assert "unity_uniform ALL=(ALL)" not in script, "a member who is not an admin gets no sudo"
-        monkeypatch.setattr(gb.model, "admin_sudo", False)
-        assert "NOPASSWD" not in (gb.accounts_script("pxgroup") or "")
-        assert gb.accounts_script("no-such-group") is None
-        assert gb.configuration_errors() == []
-    finally:
-        reset_singletons()
+    gb = load_context(FIXTURE_CONFIG).group_builders["posix-local"]
+    script = gb.accounts_script("pxgroup")
+    assert script is not None
+    for needle in ("useradd -m -u 3201 -g 3201 -s /bin/bash taylor_tango",
+                   "useradd -m -u 3202 -g 3202 -s /bin/bash unity_uniform",
+                   "groupadd -g 3101 pxgroup", "# members of pxgroup: taylor_tango, unity_uniform",
+                   "# authorized keys of taylor_tango: 1", "taylor_tango ALL=(ALL) NOPASSWD:ALL"):
+        assert needle in script, needle
+    assert "unity_uniform ALL=(ALL)" not in script, "a member who is not an admin gets no sudo"
+    monkeypatch.setattr(gb.model, "admin_sudo", False)
+    assert "NOPASSWD" not in (gb.accounts_script("pxgroup") or "")
+    assert gb.accounts_script("no-such-group") is None
+    assert gb.configuration_errors() == []
 
 
 def test_a_posix_group_member_without_a_posix_account_is_refused(tmp_path, monkeypatch):
     from cs_image_system.base.commands.validate import check_group_builders
-    from tests.harness import load_context, reset_singletons, stub_environment
+    from tests.harness import load_context, stub_environment
     root = _posix_tree(tmp_path, extra_group={"name": "pxextra", "type": "posix-local", "gid": 3102,
                                               "members": ["blake.bravo"]})
     stub_environment(monkeypatch)
-    try:
-        errors = [str(e) for e in check_group_builders(load_context(root))]
-    finally:
-        reset_singletons()
+    errors = [str(e) for e in check_group_builders(load_context(root))]
     assert len(errors) == 1 and errors[0].startswith("posix group pxextra: blake.bravo") and "`uid:`" in errors[0]
 
 
@@ -412,14 +393,11 @@ def _okta_posix(root, value):
 
 def _okta_findings(root, monkeypatch):
     from cs_image_system.base.commands.validate import check_group_builders
-    from tests.harness import load_context, reset_singletons, stub_environment
+    from tests.harness import load_context, stub_environment
     stub_environment(monkeypatch)
-    try:
-        ctx = load_context(root)
-        gb: Any = ctx.group_builders["oktagroups"]      # the Okta builder: posix_delegate is its own
-        return [str(e) for e in check_group_builders(ctx)], gb.configuration_notes(), gb
-    finally:
-        reset_singletons()
+    ctx = load_context(root)
+    gb: Any = ctx.group_builders["oktagroups"]      # the Okta builder: posix_delegate is its own
+    return [str(e) for e in check_group_builders(ctx)], gb.configuration_notes(), gb
 
 
 @pytest.mark.parametrize("value,needle", [
@@ -446,26 +424,20 @@ def test_posix_none_is_valid_and_says_what_it_keeps_off_the_machines(tmp_path, m
 
 
 def test_the_read_only_okta_builder_neither_requires_nor_reads_posix(monkeypatch):
-    from tests.harness import FIXTURE_CONFIG, load_context, reset_singletons, stub_environment
+    from tests.harness import FIXTURE_CONFIG, load_context, stub_environment
     stub_environment(monkeypatch)
-    try:
-        ro: Any = load_context(FIXTURE_CONFIG).group_builders["okta-groups-ro"]
-        assert ro.configuration_errors() == [] and ro.configuration_notes() == [] and ro.posix_delegate() is None
-    finally:
-        reset_singletons()
+    ro: Any = load_context(FIXTURE_CONFIG).group_builders["okta-groups-ro"]
+    assert ro.configuration_errors() == [] and ro.configuration_notes() == [] and ro.posix_delegate() is None
 
 
 def _bake_lines(root, monkeypatch) -> tuple[str, list[str]]:
     """coops' activation and in-bake checks, rendered inside the loaded tree."""
-    from tests.harness import load_context, reset_singletons, stub_environment
+    from tests.harness import load_context, stub_environment
     stub_environment(monkeypatch)
-    try:
-        gb = load_context(root).group_builders["oktagroups"]
-        image: Any = type("I", (), {"get_name": lambda self: "img"})()
-        coops = next(g for g in gb.get_groups_for_builder() if g.get_name() == "coops")
-        return "\n".join(gb.activation_commands(image, coops)), gb.activation_verify_commands(image, coops)
-    finally:
-        reset_singletons()
+    gb = load_context(root).group_builders["oktagroups"]
+    image: Any = type("I", (), {"get_name": lambda self: "img"})()
+    coops = next(g for g in gb.get_groups_for_builder() if g.get_name() == "coops")
+    return "\n".join(gb.activation_commands(image, coops)), gb.activation_verify_commands(image, coops)
 
 
 def test_an_okta_image_bakes_the_login_hook_only_with_a_delegate(tmp_path, monkeypatch):
@@ -509,21 +481,18 @@ class _Opa:
 
 
 def test_the_okta_accounts_script_makes_the_group_with_opas_gid_and_lists_its_people(monkeypatch):
-    from tests.harness import FIXTURE_CONFIG, load_context, reset_singletons, stub_environment
+    from tests.harness import FIXTURE_CONFIG, load_context, stub_environment
     opa = _Opa(monkeypatch)
     stub_environment(monkeypatch)
-    try:
-        ctx = load_context(FIXTURE_CONFIG)
-        gb = ctx.group_builders["oktagroups"]
-        coops = next(g for g in gb.get_groups_for_builder() if g.get_name() == "coops")
-        script = gb.accounts_script("coops") or ""
-        assert opa.asked == [["coops"]]
-        assert "groupadd -g 180007 coops" in script and "/etc/csis/groups/coops.members" in script
-        assert "useradd" not in script and "# the keys of" not in script     # no keys file: not opted in
-        people = {str(m) for m in coops.members} | {str(a) for a in coops.admins} | {str(a) for a in ctx.root_group.admins}
-        assert all(p in script for p in people), "members, admins and the root group's admins, as OPA has them"
-    finally:
-        reset_singletons()
+    ctx = load_context(FIXTURE_CONFIG)
+    gb = ctx.group_builders["oktagroups"]
+    coops = next(g for g in gb.get_groups_for_builder() if g.get_name() == "coops")
+    script = gb.accounts_script("coops") or ""
+    assert opa.asked == [["coops"]]
+    assert "groupadd -g 180007 coops" in script and "/etc/csis/groups/coops.members" in script
+    assert "useradd" not in script and "# the keys of" not in script     # no keys file: not opted in
+    people = {str(m) for m in coops.members} | {str(a) for a in coops.admins} | {str(a) for a in ctx.root_group.admins}
+    assert all(p in script for p in people), "members, admins and the root group's admins, as OPA has them"
 
 
 def _coops_people(ctx, gb) -> list[str]:
@@ -549,22 +518,19 @@ def test_the_member_list_is_written_in_account_names_read_from_opa(monkeypatch):
     that logs in with the list, name for name, and OPA makes each account
     under the person's `unix_user_name` attribute -- which need not be their
     username. The list carries the attribute's value as OPA gives it."""
-    from tests.harness import FIXTURE_CONFIG, load_context, reset_singletons, stub_environment
+    from tests.harness import FIXTURE_CONFIG, load_context, stub_environment
     stub_environment(monkeypatch)
-    try:
-        ctx = load_context(FIXTURE_CONFIG)
-        gb = ctx.group_builders["oktagroups"]
-        people = _coops_people(ctx, gb)
-        assert len(people) >= 2
-        odd, plain = people[0], people[1]
-        opa = _Opa(monkeypatch, unix_names={odd: "an-account-nothing-like-the-username"})
-        listed = _member_list(gb.accounts_script("coops") or "")
-        assert sorted(opa.attributes_asked) == people, "every person is asked of OPA, once"
-        assert "an-account-nothing-like-the-username" in listed and odd not in listed
-        assert plain in listed, "a person whose two names agree is listed as before"
-        assert len(listed) == len(people)
-    finally:
-        reset_singletons()
+    ctx = load_context(FIXTURE_CONFIG)
+    gb = ctx.group_builders["oktagroups"]
+    people = _coops_people(ctx, gb)
+    assert len(people) >= 2
+    odd, plain = people[0], people[1]
+    opa = _Opa(monkeypatch, unix_names={odd: "an-account-nothing-like-the-username"})
+    listed = _member_list(gb.accounts_script("coops") or "")
+    assert sorted(opa.attributes_asked) == people, "every person is asked of OPA, once"
+    assert "an-account-nothing-like-the-username" in listed and odd not in listed
+    assert plain in listed, "a person whose two names agree is listed as before"
+    assert len(listed) == len(people)
 
 
 @pytest.mark.parametrize("username, account", [("pat.papa", "pat_papa"), ("pat_papa", "pat.papa"),
@@ -591,21 +557,18 @@ def test_a_name_opa_does_not_give_stops_the_list_and_guesses_nothing(monkeypatch
     """A list written without a member would take a standing member OUT of the
     group; a guessed name could let another account in. So the script is not
     made at all, and the error names who."""
-    from tests.harness import FIXTURE_CONFIG, load_context, reset_singletons, stub_environment
+    from tests.harness import FIXTURE_CONFIG, load_context, stub_environment
     stub_environment(monkeypatch)
-    try:
-        ctx = load_context(FIXTURE_CONFIG)
-        gb = ctx.group_builders["oktagroups"]
-        first = _coops_people(ctx, gb)[0]
-        kwargs = dict(opa)
-        if "unix_names" in kwargs:
-            kwargs["unix_names"] = {first: None}
-        _Opa(monkeypatch, **kwargs)
-        with pytest.raises(ValueError, match=needle) as refused:
-            gb.accounts_script("coops")
-        assert repr(first) in str(refused.value) and "not rewritten" in str(refused.value)
-    finally:
-        reset_singletons()
+    ctx = load_context(FIXTURE_CONFIG)
+    gb = ctx.group_builders["oktagroups"]
+    first = _coops_people(ctx, gb)[0]
+    kwargs = dict(opa)
+    if "unix_names" in kwargs:
+        kwargs["unix_names"] = {first: None}
+    _Opa(monkeypatch, **kwargs)
+    with pytest.raises(ValueError, match=needle) as refused:
+        gb.accounts_script("coops")
+    assert repr(first) in str(refused.value) and "not rewritten" in str(refused.value)
 
 
 def test_a_machine_is_left_as_it_stands_when_an_account_name_cannot_be_read(tmp_path, monkeypatch, caplog):
@@ -696,34 +659,28 @@ PROOF_PEM = f"-----BEGIN {_ARMOUR}\nZmFrZQ==\n-----END {_ARMOUR}\n"
 
 def test_the_aws_tunnel_is_ssm_start_ssh_session_with_the_runtimes_region_and_profile(monkeypatch):
     from cs_image_system.aws_runtime.aws_runtime_builders import AwsCloudBuilder
-    from tests.harness import FIXTURE_CONFIG, load_context, reset_singletons, stub_environment
+    from tests.harness import FIXTURE_CONFIG, load_context, stub_environment
     stub_environment(monkeypatch)
-    try:
-        ctx = load_context(FIXTURE_CONFIG)
-        rtb: Any = ctx.runtime_builders["aws-east2-runtime"]       # the AWS builder: its model has get_region
-        monkeypatch.setattr(AwsCloudBuilder, "running_instance_id", lambda s, n: "i-0abc" if n == "test" else None)
-        cmd = rtb.ssh_proxy_command("test") or []
-        assert cmd[:8] == ["aws", "ssm", "start-session", "--target", "i-0abc", "--document-name",
-                           "AWS-StartSSHSession", "--parameters"]
-        assert "portNumber=%p" in cmd and cmd[cmd.index("--region") + 1] == str(rtb.model.get_region())
-        profile = rtb.model.get_credentials().get("profile_name")
-        assert (cmd[cmd.index("--profile") + 1] == profile) if profile else "--profile" not in cmd
-        assert rtb.ssh_proxy_command("not-running") is None
-    finally:
-        reset_singletons()
+    ctx = load_context(FIXTURE_CONFIG)
+    rtb: Any = ctx.runtime_builders["aws-east2-runtime"]       # the AWS builder: its model has get_region
+    monkeypatch.setattr(AwsCloudBuilder, "running_instance_id", lambda s, n: "i-0abc" if n == "test" else None)
+    cmd = rtb.ssh_proxy_command("test") or []
+    assert cmd[:8] == ["aws", "ssm", "start-session", "--target", "i-0abc", "--document-name",
+                       "AWS-StartSSHSession", "--parameters"]
+    assert "portNumber=%p" in cmd and cmd[cmd.index("--region") + 1] == str(rtb.model.get_region())
+    profile = rtb.model.get_credentials().get("profile_name")
+    assert (cmd[cmd.index("--profile") + 1] == profile) if profile else "--profile" not in cmd
+    assert rtb.ssh_proxy_command("not-running") is None
 
 
 def test_the_gce_tunnel_is_iap_on_stdin(monkeypatch):
-    from tests.harness import FIXTURE_CONFIG, load_context, reset_singletons, stub_environment
+    from tests.harness import FIXTURE_CONFIG, load_context, stub_environment
     stub_environment(monkeypatch)
-    try:
-        ctx = load_context(FIXTURE_CONFIG)
-        rtb = ctx.runtime_builders["gcloud-east1"]                  # the fixture's GCE runtime: session_mechanism iap
-        cmd = rtb.ssh_proxy_command("gce-test") or []
-        assert cmd[1:5] == ["compute", "start-iap-tunnel", "gce-test", "%p"] and "--listen-on-stdin" in cmd
-        assert cmd[cmd.index("--project") + 1] == "csis-sandbox" and cmd[cmd.index("--zone") + 1] == "us-east1-b"
-    finally:
-        reset_singletons()
+    ctx = load_context(FIXTURE_CONFIG)
+    rtb = ctx.runtime_builders["gcloud-east1"]                  # the fixture's GCE runtime: session_mechanism iap
+    cmd = rtb.ssh_proxy_command("gce-test") or []
+    assert cmd[1:5] == ["compute", "start-iap-tunnel", "gce-test", "%p"] and "--listen-on-stdin" in cmd
+    assert cmd[cmd.index("--project") + 1] == "csis-sandbox" and cmd[cmd.index("--zone") + 1] == "us-east1-b"
 
 
 class _Ssh:

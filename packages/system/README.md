@@ -121,6 +121,7 @@ to the four built-ins alone.
 | `--apply-runtime NAME` | none | Let the storage and instance roots of that runtime apply, as if `apply_storage` and `apply_instances` listed it. Implies `--only-runtime NAME` unless `--only` or `--only-runtime` is given. The generated `apply-check` steps carry it. |
 | `--force-bake NAME` (repeatable) | none | Bake the named image(s) even when current; `all` forces every image in the run's surface. |
 | `--allow-unscoped-bakes` | off | Let a `--no-dry-run` run bake on runtimes outside its apply scope. Without it such a run refuses before any bake. |
+| `--allow-unpinned` | off (`CSIS_ALLOW_UNPINNED` in the environment sets it) | Let a `--commit` run go on when the system running is not the release the tree pins in `.csis-version`, installed from an index: another version, or a development checkout whatever its version says. Without it such a run exits 2 before anything is generated, naming both versions and both remedies. A tree without `.csis-version` and a run without `--commit` are not checked. `lineage restamp --commit` takes the same option; `dispose image --commit` is not held. |
 | `--migrate-state NAME` (repeatable) | none | MOVE the named terraform workspace's state to the backend it now resolves to. Needs `--no-dry-run`: a dry run exits 2 before anything loads further. The root's runner then carries `state-migration begin`, `init -migrate-state -force-copy`, `plan -detailed-exitcode`, the gate and `state-migration finish` (see [the runner scripts](#commands-the-generated-runner-scripts-call)). There is deliberately no flag that merely proceeds past the state-location guard. |
 
 The run summary is printed to standard output as JSON, followed by one
@@ -470,7 +471,7 @@ every real drift line. Exit 2 when the runtime cannot answer (unknown
 runtime, or a runtime whose plugin cannot list its inventory); exit 1 on
 leftovers or real drift; exit 0 when empty.
 
-### `lineage restamp --runtime RT [--series NAME ...] [--commit/--no-commit]`
+### `lineage restamp --runtime RT [--series NAME ...] [--commit/--no-commit] [--allow-unpinned]`
 
 Record the current input fingerprint on series heads whose recorded one
 predates the current fingerprint recipe, keeping the previous value, and
@@ -478,6 +479,18 @@ re-tag the cloud image to match. Prints the plan as JSON. Under the global
 dry run it only reports (`restamp (dry run): N head(s) would be restamped;
 pass --no-dry-run`). `--commit` makes the meta-state commit. Exit 1 on
 error (`restamp: <reason>`, for example an unknown runtime).
+
+The committing form (`--commit` under `--no-dry-run`) is held to the
+release the tree pins in `.csis-version`, as `run --commit` is: started
+by another version, or by a development checkout whatever its version
+says, it exits 2 with `lineage restamp --commit: REFUSED unpinned`
+before anything is computed, written or retagged, because a restamp
+records the fingerprints the code running computes and the pinned
+release may not compute the same. `--allow-unpinned` (or
+`CSIS_ALLOW_UNPINNED=1`) goes on and says so in one line. The dry form
+and a tree without `.csis-version` are not checked. `dispose image
+--commit` is not held: a disposal records what was removed, which does
+not depend on the running code's version.
 
 ### `lineage relabel --runtime RT [--build ID ...]`
 
@@ -694,10 +707,18 @@ script that exists. The scripts call back into this CLI by the bare name
 `cs-image-system` (a committed script names no absolute path), so it must
 be on the `PATH` of whoever runs them: a release installed with `uv tool
 install`, `uv run`, or a configuration repository's `Justfile`, which puts
-a `CSIS` that names a path first on `PATH`. The steps the running process
-spawns itself (`materialize`, `gate-plan`, `prune-attachments`, the
-state-migration steps) are invoked as the running interpreter's own module
-and need no `PATH`. Every deferred command that has a
+a `CSIS` that names a path first on `PATH`. The running process itself
+needs no `PATH` for them: it executes every one of these steps in its own
+process (`run_in_process`, registered with the base's in-process seam),
+over the configuration it already loaded. The one step that needs another
+configuration, the transient-storage teardown (`run storage` under other
+overlays), runs in the same process as well, as a nested run over a
+second context loaded from the line's own arguments (`run_nested`): its
+own run id, journal entry and summary, its log lines in the running
+process's log, what it prints on stdout sent to stderr, and its exit
+code the step's. Only a process with no runner registered (the base
+package embedded without this CLI) starts such a step as a process, as
+the running interpreter's own module. Every deferred command that has a
 working directory is wrapped as
 
 ```sh
@@ -717,7 +738,7 @@ The commands themselves:
 | `cs-image-system --root-dir "$CSIS_ROOT" --no-dry-run [--overlay ...] state-migration begin --workspace <root> --tofu <tofu> --backend-config <root>.tfbackend.hcl --location <type>://... --run <run id>` and, after the gate, `... state-migration finish --workspace <root> --run <run id>` | A root named by `run --migrate-state`: `begin` before its `init -input=false -migrate-state -force-copy`, `finish` after `gate-plan`; the plan in between carries `-detailed-exitcode`. |
 | `cs-image-system --root-dir "$CSIS_ROOT" --no-dry-run [--overlay ...] release --declared` | The release runner, when an image declares `release:`. |
 | `cs-image-system --root-dir "$CSIS_ROOT" --no-dry-run [--overlay ...] dispose image --retention [--runtime RT]` | The retention runner, when retention or an ephemeral runtime is declared; `--runtime` when the run was scoped to one. |
-| `cs-image-system --root-dir "$CSIS_ROOT" --no-dry-run [--overlay <config-only overlays> ...] run storage --only none --no-state-query --no-commit [--apply-runtime RT]` | The retention runner, for transient overlay storages on an ephemeral runtime; the overlays that declared them are left out so the storages are undeclared there and destroyed through the gate. |
+| `cs-image-system --root-dir "$CSIS_ROOT" --no-dry-run [--overlay <config-only overlays> ...] run storage --only none --no-state-query --no-commit [--apply-runtime RT]` | The retention runner, for transient overlay storages on an ephemeral runtime; the overlays that declared them are left out so the storages are undeclared there and destroyed through the gate. A run nested in the one that deferred it: the running process executes it in its own process over a second context, a hand-run script as a process of its own. |
 | `cs-image-system --root-dir "$CSIS_ROOT" --no-dry-run [--overlay ...] verify instance NAME [--record-only]` | The instance-image runner, after an ephemeral instance's launch applied (`--record-only` under the `teardown` failure policy). |
 | `cs-image-system --root-dir "$CSIS_ROOT" --no-dry-run [--overlay ...] unmount storage --instance NAME --storage NAME --mount-point PATH --workdir DIR` | The instance-image runner, before a plan that detaches a storage. |
 | `cs-image-system identity-attributes --probe --dry-run-apply` | The identity runner, after the apply, when users or groups declare attributes. Emitted WITHOUT `--root-dir`; the command loads the configuration from the directory it runs in, which is the root's mirror (see [When it fails](#when-it-fails)). |
@@ -953,7 +974,9 @@ global `--force` (see [Global options](#global-options)).
   initialise with `-backend=false`; pins move nothing; `--commit` still
   commits the emission and records. `--no-dry-run` executes the scripts
   in-process with the builders' finalize hooks; the deferred CLI steps
-  they carry are themselves `--no-dry-run`. `dispose image`, `lineage
+  they carry are themselves `--no-dry-run` and run in the same process,
+  the nested `run storage` of a transient-storage teardown included.
+  `dispose image`, `lineage
   restamp` and `lineage relabel` print their plan and stop under a dry run
   and act under `--no-dry-run`. `run --migrate-state` exits 2 under a dry
   run instead of moving anything.
@@ -995,7 +1018,8 @@ global `--force` (see [Global options](#global-options)).
   generated `apply-check` re-reads the same file at execution (a vanished
   file refuses the apply); its item entries update or add declarations,
   and the retention runner's transient-storage teardown re-passes only the
-  config-only overlays. `--undeclare kind:name` removes an entry without a
+  config-only overlays (it is loaded under them as a second configuration
+  in the running process). `--undeclare kind:name` removes an entry without a
   file. Neither changes the tree.
 - **`preflight` versus `preflight --strict` versus `state query --strict`
   versus the `run`/`state` callback.** `preflight` reads the raw tree and

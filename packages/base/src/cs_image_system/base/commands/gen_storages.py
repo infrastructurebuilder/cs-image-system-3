@@ -11,11 +11,11 @@ log = logging.getLogger(__name__)
 from cs_image_system.contract.lifecycle import ExecutionLifecyclePhase
 
 from ..basic.builder_base_storage import StorageBuilderBase
-from ..global_context import GlobalTypeContext
 from ..in_process import run_executable
+from ..run_context import RunContext
 
 
-def predefined_storage_generation(ctx: GlobalTypeContext,
+def predefined_storage_generation(ctx: RunContext,
                                   phase: ExecutionLifecyclePhase,
                                   is_base_image_phase: bool = False
 ) -> bool:
@@ -27,7 +27,7 @@ def predefined_storage_generation(ctx: GlobalTypeContext,
     return True
 
 
-def generate_storages(ctx: GlobalTypeContext,
+def generate_storages(ctx: RunContext,
                       sbb: StorageBuilderBase,
                       phase: ExecutionLifecyclePhase) -> bool:
     """Drive one storage builder's during-phase generation and commands."""

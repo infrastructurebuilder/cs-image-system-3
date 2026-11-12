@@ -20,15 +20,6 @@ from harness import FIXTURE_CONFIG, copy_config
 REPO = Path(__file__).resolve().parents[1]
 
 
-def _reset_gtc_singleton():
-    """Drop the process's current run context (the context is no
-    singleton -- every load makes a new one -- but the one-release shim
-    ``current_context()`` still remembers the last, and a test must not see
-    an earlier test's)."""
-    from cs_image_system.base.run_context import bind_current
-    bind_current(None)
-
-
 @pytest.fixture
 def cwd_guard():
     prev = os.getcwd()
@@ -87,14 +78,9 @@ def no_cloud(monkeypatch):
 
 def test_pipeline_loads_and_resolves_builders(monkeypatch, cwd_guard, tmp_path):
     monkeypatch.setenv("USER", "testuser")
-    from cs_image_system.base.loader import load_plugins
-    from cs_image_system.base.orchestrator import Orchestrator, TemplateResolver
-    # the loader makes the run's registry; the resolver's map is
-    # still process-wide, so an earlier test's load must not be in it
-    TemplateResolver().flattened_map = {}
-    Orchestrator().invalidate_converter()
-    load_plugins()
-    from cs_image_system.base.global_context import read_config_and_transform
+    # the loader makes the run's registry, catalog and resolver: nothing of
+    # an earlier test's load is in the process to clear first
+    from cs_image_system.base.config_loader import read_config_and_transform
 
     # over a COPY: loading creates the generation directories where it runs,
     # and the frozen fixture must never be written into
@@ -170,15 +156,6 @@ def test_image_to_source_emits_psi_backed_data_block(monkeypatch, cwd_guard, tmp
     the data "amazon-ami" block carries the PSI's resolved image-id filter.
     """
     monkeypatch.setenv("USER", "testuser")
-    from cs_image_system.base.orchestrator import Orchestrator, TemplateResolver
-    from cs_image_system.base.registry import bind_current_registry
-
-    bind_current_registry(None)          # the loader makes the run's registry
-    TemplateResolver().flattened_map = {}
-    Orchestrator().invalidate_converter()
-
-    from cs_image_system.base.loader import load_plugins
-    load_plugins()
 
     # Stub the cloud queries: no EC2/GCE calls during resolution.
     from cs_image_system.aws_runtime.aws_runtime_builders import AwsCloudBuilder
@@ -187,8 +164,6 @@ def test_image_to_source_emits_psi_backed_data_block(monkeypatch, cwd_guard, tmp
                         lambda self, osb: ("ami-0feedfacecafebeef", "amazon", {}))
     monkeypatch.setattr(GCPCloudBuilder, "query_provider_image",
                         lambda self, osb: ("debian-11-v1", "debian-cloud", {}))
-
-    _reset_gtc_singleton()          # an earlier test's context (over the live tree) would leak in
 
     # This test's premise is a base image that still NEEDS a bake (an
     # os-resolved base attached to the image builder). Since convergent bakes
@@ -204,7 +179,7 @@ def test_image_to_source_emits_psi_backed_data_block(monkeypatch, cwd_guard, tmp
                     ignore=shutil.ignore_patterns("generated", ".terraform"))
     for f in ("lineage.yaml", "pins.yaml"):
         (root / "meta-state" / f).unlink(missing_ok=True)
-    from cs_image_system.base.global_context import read_config_and_transform
+    from cs_image_system.base.config_loader import read_config_and_transform
     ctx = read_config_and_transform(cast(Any, types.SimpleNamespace(obj={})),
                                     root, False)
 
@@ -245,16 +220,6 @@ def test_execution_run_defers_base_images_no_query_no_build(monkeypatch, cwd_gua
     consume as an owners=self / most_recent data lookup.
     """
     monkeypatch.setenv("USER", "testuser")
-    from cs_image_system.base.orchestrator import Orchestrator, TemplateResolver
-    from cs_image_system.base.registry import bind_current_registry
-
-    bind_current_registry(None)          # the loader makes the run's registry
-    TemplateResolver().flattened_map = {}
-    Orchestrator().invalidate_converter()
-    _reset_gtc_singleton()
-
-    from cs_image_system.base.loader import load_plugins
-    load_plugins()
 
     from cs_image_system.aws_runtime.aws_runtime_builders import AwsCloudBuilder
     from cs_image_system.gcloud_runtime.gcp_runtime_builders import GCPCloudBuilder
@@ -280,7 +245,7 @@ def test_execution_run_defers_base_images_no_query_no_build(monkeypatch, cwd_gua
     for f in ("lineage.yaml", "pins.yaml"):
         (root / "meta-state" / f).unlink(missing_ok=True)
 
-    from cs_image_system.base.global_context import read_config_and_transform
+    from cs_image_system.base.config_loader import read_config_and_transform
     ctx = read_config_and_transform(cast(Any, types.SimpleNamespace(obj={})),
                                     root, False)
 

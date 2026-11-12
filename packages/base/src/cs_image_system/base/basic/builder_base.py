@@ -23,7 +23,8 @@ from cs_image_system.contract.session import LoadFailureReport
 
 from ..models.builder_model import BuilderModel
 from ..models.executable import ExecutableModel
-from ..run_context import RunContext, current_context
+from ..registry import Registry
+from ..run_context import RunContext
 
 C = TypeVar("C", bound=BuilderModel)
 # class BuilderBase(ABC, Generic[C, ItemT]):
@@ -118,16 +119,16 @@ class BuilderBase(ABC, BuilderProtocol, Generic[C]):
         """The run context this builder was bound to at registration, as the
         contract's :class:`~cs_image_system.contract.context.RunContextProtocol`:
         what a builder may read of the run, and the services it reaches as
-        ``ctx.services.<name>``.
-
-        One-release note: a builder made outside the loader (a
-        unit test's, a plugin's own) has no bound context and falls back to
-        the process's current one; that fallback goes with the next release,
-        when every builder is bound and the shim retires.
+        ``ctx.services.<name>``. A builder made outside the loader (a unit
+        test's, a plugin's own) has no context until its maker binds one
+        (:meth:`bind`); asking before that is refused, since the process
+        keeps no context to fall back to.
         """
         ctx = getattr(self, "_ctx", None)
         if ctx is None:
-            ctx = current_context()
+            raise RuntimeError(
+                f"builder {getattr(self, 'name', type(self).__name__)!r} is bound to no run context: the loader "
+                "binds every builder it registers; a builder made in code is bound with bind(ctx)")
         return ctx
 
     def _run_context(self) -> RunContext:
@@ -135,6 +136,14 @@ class BuilderBase(ABC, BuilderProtocol, Generic[C]):
         alone (the registry behind ``reg``, say): a plugin reads the context
         through ``_get_context()`` and the protocol, never through this."""
         return cast(RunContext, self._get_context())
+
+    def _model_registry(self) -> Registry:
+        """The registry of the run this builder belongs to, read from its
+        model (bound when the run's converter structured it): there before
+        the run context exists, which is when the loader calls
+        ``finalize()``. Once bound, a builder reads ``_run_context().reg``,
+        the same object."""
+        return self.model._reg
     def get_builder_path(self) -> Path:
         return Path(safe_name(self.name))
     def get_discriminator(self) -> str:

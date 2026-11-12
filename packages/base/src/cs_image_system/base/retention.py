@@ -31,7 +31,7 @@ from .lifecycles import register_lifecycle
 from .utils import system_cli_executable, system_cli_executable_with_config
 
 if TYPE_CHECKING:
-    from .global_context import GlobalTypeContext
+    from .run_context import RunContext
 
 log = logging.getLogger(__name__)
 
@@ -39,12 +39,12 @@ RETENTION_LIFECYCLE = LifecycleSpec(name="retention", after="release", phases=()
                                     description="dispose of builds the declared retention no longer keeps")
 
 
-def ephemeral_runtimes(ctx: "GlobalTypeContext") -> list[str]:
+def ephemeral_runtimes(ctx: "RunContext") -> list[str]:
     return sorted(name for name, rtb in ctx.runtime_builders.items()
                   if getattr(getattr(rtb, "model", None), "ephemeral", False))
 
 
-def after_generate(ctx: "GlobalTypeContext", lifecycle: LifecycleLike) -> None:
+def after_generate(ctx: "RunContext", lifecycle: LifecycleLike) -> None:
     if lifecycle.value != RETENTION_LIFECYCLE.name:
         return
     # a run scoped to one runtime (--only-runtime, or --apply-runtime
@@ -58,8 +58,9 @@ def after_generate(ctx: "GlobalTypeContext", lifecycle: LifecycleLike) -> None:
     # transient storages (declared by an overlay) standing on an ephemeral
     # runtime are destroyed by THIS run's closing phase: the storage
     # lifecycle runs again as a deferred step WITHOUT the declaring
-    # overlays, so they are undeclared there and planned as whitelisted
-    # destroys; config-only overlays and --apply-runtime carry over
+    # overlays (a nested run, over a context of its own), so they are
+    # undeclared there and planned as whitelisted destroys; config-only
+    # overlays and --apply-runtime carry over
     transient_on_ephemeral = transient_storages_on_ephemeral_runtimes(ctx)
     for name, rt in transient_on_ephemeral:
         log.info(f"retention: storage {name!r} was declared by an overlay on ephemeral runtime {rt}; "
@@ -83,7 +84,7 @@ def after_generate(ctx: "GlobalTypeContext", lifecycle: LifecycleLike) -> None:
     ctx.extend_finalization_phase(ExecutionLifecyclePhase.INSTANCE_GENERATION, steps)
 
 
-def transient_storages_on_ephemeral_runtimes(ctx: "GlobalTypeContext") -> list[tuple[str, str]]:
+def transient_storages_on_ephemeral_runtimes(ctx: "RunContext") -> list[tuple[str, str]]:
     out: list[tuple[str, str]] = []
     for kind, name in sorted(getattr(ctx, "overlay_declared", set())):
         if kind != "storages":
@@ -96,12 +97,19 @@ def transient_storages_on_ephemeral_runtimes(ctx: "GlobalTypeContext") -> list[t
     return out
 
 
-def transient_storage_teardown_command(ctx: "GlobalTypeContext", wd):
+def transient_storage_teardown_command(ctx: "RunContext", wd):
     """`run storage --only none` WITHOUT the overlays that declare storages
     (the config-only ones stay: they carry the apply flags), so the
     transient storages are undeclared there and destroyed through the
     gate; no state query (this run's already ran), no commit (this run
-    commits at its end)."""
+    commits at its end).
+
+    A run of its own, nested in this one: other overlays are another
+    configuration, so the step cannot read ``ctx``. The command line is
+    all it is given. The running process executes it in this process, over
+    a second context loaded from that command line (the seam in
+    :mod:`~.in_process`; the system's runner); a hand run of the committed
+    script executes the same line as a process of its own."""
     head: list[str] = ["--root-dir", str(ctx.working_path), "--no-dry-run"]
     for path, data in zip(getattr(ctx, "overlays", []), getattr(ctx, "_overlay_data", []), strict=False):
         if not any(k != "config" for k in data):

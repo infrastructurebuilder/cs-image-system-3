@@ -692,7 +692,7 @@ class OktaTfGroupBuilder(GroupBuilderBase[OktaTfGroupBuilderModel], TerraformRoo
             f'  delegated_admin_group_ids = {delegated}',
             f'  account_discovery         = {str(self.model.account_discovery).lower()}',
         ]
-        gateway_selector = self.model.effective_gateway_selector
+        gateway_selector = self.model.effective_gateway_selector(self._get_context().config)
         if gateway_selector:
             lines.append(f'  gateway_selector          = "{gateway_selector}"')
         lines.append("}")

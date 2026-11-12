@@ -6,11 +6,6 @@ from collections.abc import Callable, Mapping
 from typing import Any, TypeVar, cast
 
 from cs_image_system.base.basic.builder_base_state import StateBuilderBase
-
-# a class-level session read, before any run is loaded and with no context
-# to reach a service through: the one kit import this plugin keeps (the
-# contract's committed exception)
-from cs_image_system.base.registry import current_registry
 from cs_image_system.contract.session import SessionStatus
 
 from .tf_s3_state_models import TF_AWS_S3_STATE, TofuS3StateBuilderModel
@@ -30,17 +25,18 @@ class TofuS3StateBuilder(StateBuilderBase[Q]):
         return TF_AWS_S3_STATE
 
     @classmethod
-    def session_status(cls, settings: Mapping[str, Any], executables: Mapping[str, Any]) -> SessionStatus | None:
+    def session_status(cls, settings: Mapping[str, Any], executables: Mapping[str, Any],
+                       runtime_classes: Mapping[str, type] | None = None) -> SessionStatus | None:
         """The AWS session the bucket is reached with: the backend's own
         ``profile`` (else the environment's), read by the SAME session
         function the ``aws`` runtime answers the preflight with -- found
-        through the registry by its type key, so this plugin depends on
-        no other. Without that plugin the session is present and NOT
-        JUDGED, and the line says why."""
-        # the contract's ``session_status`` takes the settings and the
-        # executables alone; the registry is the process's current one
+        by its type key in ``runtime_classes`` (the run's runtime builder
+        classes, which the preflight hands a state builder), so this
+        plugin depends on no other. Without that plugin, or asked without
+        the classes, the session is present and NOT JUDGED, and the line
+        says why."""
         profile = settings.get("profile")
-        runtime = current_registry().runtime_builder_classes().get(AWS_RUNTIME_TYPE)
+        runtime = (runtime_classes or {}).get(AWS_RUNTIME_TYPE)
         hook = cast(Callable[[Mapping[str, Any], Mapping[str, Any]], SessionStatus | None] | None,
                     getattr(runtime, "session_status", None))
         if not callable(hook):

@@ -120,7 +120,7 @@ cs-image-system --root-dir <config root> [--dry-run | --no-dry-run] \
     run [identity] [storage] [base-image] [instance-image] [release] [retention] | --all \
     [--apply | --no-apply] [--commit | --no-commit] [--state-query | --no-state-query] \
     [--only <image>]... [--only-runtime <rt>] [--apply-runtime <rt>] \
-    [--force-bake <image>]... [--allow-unscoped-bakes]
+    [--force-bake <image>]... [--allow-unscoped-bakes] [--allow-unpinned]
 ```
 
 `just cli run …` runs the same command against the live configuration.
@@ -193,16 +193,51 @@ arguments such a line carries describe that very configuration and are
 parsed and ignored in process. The committed script keeps the same lines
 so a hand run of `run-<lc>.sh` still works; there, each `cs-image-system`
 line is a process of its own and loads the configuration once per step,
-as it always did. The one deferred step the running process still spawns
-as a process of its own is the transient-storage teardown at the end of a
-decommission (`run storage --only none --no-state-query --no-commit`): it
-is a nested run under a *different* overlay set (the overlays that
-declared the transient storages are left out, so the storages undeclare
-and destroy through the gate), and a different overlay set is a different
-configuration, which the loaded one cannot stand in for. A command's own
-output (the gate's `Plan passes the apply gate.`, `released: ...`) prints
-as it did; what differs is that it is no longer a captured child's
-output.
+as it always did. A command's own output (the gate's `Plan passes the
+apply gate.`, `released: ...`) prints as it did; what differs is that it
+is no longer a captured child's output.
+
+One deferred step is a whole run of its own: the transient-storage
+teardown in the closing phase of a run that declared a storage through an
+overlay on an ephemeral runtime (`run storage --only none
+--no-state-query --no-commit`). It is a nested run under a *different*
+overlay set (the overlays that declared the transient storages are left
+out, so the storages undeclare and destroy through the gate), and a
+different overlay set is a different configuration, which the loaded one
+cannot stand in for. The running process executes it **in that process**
+too: it loads a second configuration from the line's own `--root-dir`,
+`--no-dry-run` and `--overlay` arguments (for this one line they are
+read, not ignored) and runs the storage lifecycle over it. So no deferred
+step of a run starts another `cs-image-system` process. What to expect of
+the nested run:
+
+- **It is a run of its own, as the child process was.** It has its own
+  start time and so its own run id, its own entry in
+  `meta-state/runs.yaml` (written when it ends, before the outer run's),
+  its transitions recorded in `meta-state/storage-state.yaml` under its
+  own id, and its own `generated/run-summary.json`, which the outer
+  run's replaces when the outer run ends. It regenerates
+  `generated/storage/` without the transient storage, and reports the
+  outer run's other runner scripts as `stale-script-skipped`, because it
+  did not request those lifecycles.
+- **The two runs share nothing in memory.** The outer run still declares
+  the storage after the nested run destroyed it; what it loaded, what it
+  queued and the directory it works in are as they were.
+- **Its log lines are the outer run's log**, as they happen and at the
+  outer run's level (`--verbose` on the outer run shows the nested run's
+  DEBUG lines too). A child's output was shown only afterwards, as a
+  captured tail.
+- **What it prints on standard output goes to standard error**: its
+  summary and its `Run ... completed` line. The outer run's standard
+  output carries one summary, the outer run's own.
+- **Its failure is the outer run's failure.** A nested run that ends
+  nonzero fails the outer run's `retention` lifecycle, as a child that
+  exited nonzero did. Ctrl-C during it interrupts both runs, and each is
+  journalled as interrupted in the lifecycle it was in.
+
+A process that has no in-process runner (an embedding of the base
+package without the CLI) still starts each of these steps, the nested run
+included, as a process of its own.
 
 ### Dry run and real run
 
@@ -440,6 +475,15 @@ After a change to the fingerprint recipe itself,
 tree's current fingerprint on each series head whose recorded one predates
 the change (the previous value kept under `fingerprint_restamped`) and
 re-tags the cloud image, so unchanged images are not re-baked once.
+The fingerprint it records is the one the code RUNNING computes, so the
+committing form (`--no-dry-run ... --commit`) is held to the tree's pin
+as a committing run is ([`--commit`](#--commit)): made by anything but
+the release `.csis-version` names, installed from an index, it is refused
+before it computes or writes anything (`lineage restamp --commit:
+REFUSED unpinned`), because the pinned release may not agree with the
+fingerprints unreleased code records and would then bake those images
+again. `--allow-unpinned`, or `CSIS_ALLOW_UNPINNED=1`, goes on and says
+so in one line. The dry form, which only reports the plan, is not held.
 
 ### How an image is named
 
@@ -1273,7 +1317,9 @@ ephemeral runtime is destroyed by the same run's closing phase: the
 `retention` lifecycle runs `run storage --only none --no-state-query
 --no-commit` once more without the declaring overlay (config-only
 overlays and `--apply-runtime` carry over), so it is undeclared there and
-goes through the gate.
+goes through the gate. That second run is nested in the first and runs
+in the same process, over a configuration it loads for itself
+([what to expect of it](#generation-versus-finalization)).
 
 ### `--commit`
 
@@ -1297,6 +1343,60 @@ The message is templated (`cs-image-system run <id>: <lifecycles>`, or
 `dry-run generation` for a dry run). Every run stamps its id into the
 emission, so a bare `git status` after a run says only that a run
 happened.
+
+**A committing run is held to the tree's pin.** A configuration tree
+names the release it runs in the one-line file `.csis-version` at its
+root; the tree's CI installs exactly that release from the index and, in
+its `live` job, compares the committed emission with the one it generates
+itself (`config-drift`). A recording made by anything else can therefore
+be judged BEHIND there, a failure that appears only after the push. So
+before a `--commit` run generates anything it reads `.csis-version` and
+refuses, with exit 2 and nothing changed, when either is true:
+
+- the version running is not the pinned version;
+- any `cs-image-system*` distribution in the running environment was
+  installed from somewhere other than an index (a development checkout,
+  an editable install, a local directory, an archive or a repository
+  reference), **whatever its version says**. A checkout whose version
+  string equals the pin still holds commits no release carries, and a
+  comparison of versions alone cannot see that. The installer's own
+  record tells the two apart: an install from a path or URL carries
+  `direct_url.json` in its dist-info, and an install from an index
+  carries none.
+
+The refusal begins `run --commit: REFUSED unpinned`, names the pinned
+version, the running version and, for a checkout, its path, and gives
+both ways out (`uv tool install` and `just take` put the release at
+`~/.local/bin/cs-image-system`):
+
+```sh
+CSIS="$HOME/.local/bin/cs-image-system" just record   # with the pinned release
+just take <version>                                   # first, if the tree should move
+CSIS_ALLOW_UNPINNED=1 just record                     # or go on, with what is running
+```
+
+`--allow-unpinned` on the `run` command is the same word as
+`CSIS_ALLOW_UNPINNED=1` in the environment; the variable exists so that
+any recipe of the tree's `Justfile` can be allowed past the pin without
+editing a release-owned file. A run that was allowed past prints one
+line beginning `run --commit: ALLOWED unpinned`, which says what was
+running, and goes on; expect the tree's CI to say BEHIND at
+`config-drift` if the emission differs from the pinned release's, and
+record again with the pinned release before `main` moves. What is not
+checked: a tree without `.csis-version` (the frozen fixture has none), a
+run without `--commit` (a dry run, `just dry`, `config-drift` itself),
+and the pinned release from an index, which is what `uv tool install
+"cs-image-system==<version>"`, `just take` and the tree's CI all produce.
+
+Two commands are held this way, and one that also takes `--commit` is
+deliberately not:
+
+| Command | Held to the pin? | Why |
+| --- | --- | --- |
+| `run ... --commit` (dry or real) | yes, before it generates | it commits an emission the tree's CI compares with the pinned release's |
+| `--no-dry-run lineage restamp ... --commit` | yes, before it computes or writes anything; its lines begin `lineage restamp --commit:` | it records, as each build's current fingerprint, the one the code running computes, and the pinned release may not compute the same: its next run would read those builds as changed and bake them again |
+| `lineage restamp` under the default dry run, or without `--commit` | no | the dry form reports a plan and writes nothing; without `--commit` nothing is committed |
+| `dispose image ... --commit` | no | a disposal records what was removed (the lineage record dropped, the pins at it released), and that does not depend on the version of the code that removed it |
 
 ### Meta-state (`<config root>/meta-state/`)
 
@@ -1677,7 +1777,7 @@ the configuration needs the modules beside it (`cs-image-system modules
 ### What a run's log shows of the commands it ran
 
 Every command the running process spawns in place of a script line
-(`tofu init`/`plan`/`apply`, a packer build, the nested teardown run) has
+(`tofu init`/`plan`/`apply`, a packer build) has
 its captured output in the log: the last 40 lines of stdout and of stderr
 at INFO under the command's name, the whole of it at DEBUG, colour codes
 stripped. That is where tofu's `Plan: 0 to add, 1 to change, 0 to
@@ -1691,7 +1791,12 @@ steps that are the system's own commands (`gate-plan`, `apply-check`,
 itself, so their output is not captured and tailed: a verdict line such
 as `Plan passes the apply gate.` or `released: ...` prints where it is
 produced, on the run's own stdout or stderr, ahead of the step that
-follows it. A script run by hand (`run-*.sh`) shows everything.
+follows it. The nested teardown run is one of those steps: it runs in
+the process itself, so its log lines are in the run's log whole and as
+they happen, the commands IT spawns (its `tofu init`/`plan`/`apply`) are
+captured and tailed in the same way, and what it prints on stdout (its
+summary, its gate verdicts) is sent to stderr. A script run by hand
+(`run-*.sh`) shows everything.
 
 ### `config-drift` and `fixture-live`
 
@@ -1793,6 +1898,19 @@ checkout (`cd ../cs-image-system-testconfig && just cloud-cycle
 gcloud-east1`, with `CSIS` in its `.envrc` pointing at this checkout's
 venv while the system is developed). `just cli ...` here reads it for the
 system's own proofs and nothing more.
+
+Either way the command is then this checkout, a development install, and
+the reference pins a release in `.csis-version`: every committing run
+there (`just record`, the `cloud-*` recipes that run, `just cli run ...
+--commit`), and a committing `lineage restamp`, is refused before it
+does anything unless it is told to go on
+(`CSIS_ALLOW_UNPINNED=1 just record`; [`--commit`](#--commit)). That is
+deliberate. A record made by this checkout is a statement about
+unreleased code, and the reference's CI, which installs the pin, judges
+it BEHIND whenever the emission moved since that release. Use the
+variable for a proof that needs the checkout's code and say so in the
+commit that follows; make the record that `main` will carry with the
+pinned release (`CSIS="$HOME/.local/bin/cs-image-system" just record`).
 
 The fixture carries no `meta-state/` and no generated output; its instance
 subjects (`test`, `test2`, `gce-test`) are declared in its own
@@ -2312,7 +2430,7 @@ in `docs/examples/*/Justfile`; `CSIS` names the command, default
 | `full-test` | `test` + `test-mods --strict` (docker) + a dry run `--all` and `state query --strict` over a private copy | docker, sessions |
 | `release <rt>` | the performing run on one runtime, gated on `full-test`, records committed | write credentials |
 | `validate` / `dry [LIFECYCLES]` / `run +LIFECYCLES` | every rule / a dry run / a REAL run (`--locked --no-dry-run ... --commit`) | sessions; write credentials for `run` |
-| `record` | a dry run of EVERY lifecycle, its emission and meta-state committed (what CI's perform job makes first and last) | sessions |
+| `record` | a dry run of EVERY lifecycle, its emission and meta-state committed (what CI's perform job makes first and last). Like every recipe that passes `--commit` to `run`, refused unless the command is the release `.csis-version` pins, installed from an index; `CSIS_ALLOW_UNPINNED=1 just record` goes on ([`--commit`](#--commit)) | sessions; the pinned release |
 | `preflight` / `state-query *ARGS` / `cloud-preflight` | the sessions, read over the loaded tree without a cloud call / the state query / `state query --strict` | the age identity / sessions / sessions |
 | `cloud-describe <rt>` | the configuration's facts about a runtime as JSON | sessions |
 | `cloud-bake <rt> [yes]` | `run base-image instance-image --only-runtime <rt> --commit`; the roots plan and gate only | `cloud-preflight`; write credentials |
@@ -2903,6 +3021,10 @@ just cloud-preflight                         # reality matches the records
 just cli run --all --no-dry-run --commit
 ```
 
+`just cli` is this checkout, a development install, so over a tree that
+pins a release the last line is refused unless `CSIS_ALLOW_UNPINNED=1`
+is in its environment ([`--commit`](#--commit)).
+
 ### Encrypted values
 
 A value anywhere in the tree may be committed as
@@ -3361,7 +3483,8 @@ operator key: nothing in a run can prompt.
 - **Adopt a foreign image or storage**: `just cli state import`
   (meta-state only); importing into tofu state is a hand step.
 - **After a fingerprint-recipe change**: `just cli --no-dry-run lineage
-  restamp --runtime <rt> --commit`.
+  restamp --runtime <rt> --commit`, made by the pinned release (it is
+  held to `.csis-version` as a recording is; [`--commit`](#--commit)).
 - **Release by hand**: `just cli release <image> [--build <id>] --model
   <m>`; on an ephemeral runtime declare `release: {model: <m>}` on the
   image instead, so the run releases the verified head before retention.

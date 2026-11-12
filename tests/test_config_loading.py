@@ -20,7 +20,7 @@ from pathlib import Path
 
 import pytest
 import yaml
-from harness import copy_config, load_context, reset_singletons, stub_environment
+from harness import copy_config, load_context, stub_environment
 
 
 def test_a_registry_collision_is_named_without_the_models_repr(tmp_path: Path, monkeypatch):
@@ -38,7 +38,6 @@ def test_a_registry_collision_is_named_without_the_models_repr(tmp_path: Path, m
     message = str(exc.value)
     assert "collide" in message, message
     assert "TofuS3StateBuilderModel(" not in message and "bucket=" not in message, "no repr, no field values"
-    reset_singletons()
 
 
 def test_a_python_tag_in_the_configuration_is_refused_not_constructed(tmp_path: Path, monkeypatch):
@@ -48,7 +47,6 @@ def test_a_python_tag_in_the_configuration_is_refused_not_constructed(tmp_path: 
     with pytest.raises(Exception) as exc:
         load_context(root)
     assert "python/object" in str(exc.value) or "could not determine a constructor" in str(exc.value), str(exc.value)
-    reset_singletons()
     from cs_image_system.base import config_loader  # the reader lives in the loader
     src = Path(config_loader.__file__).read_text()
     assert "yaml.unsafe_load(stream)" not in src and "yaml.safe_load(stream)" in src

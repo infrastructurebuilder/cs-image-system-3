@@ -73,7 +73,7 @@ def test_custom_field_kind_dispatched_through_all_hooks(clean_registry):
             @property
             def global_id(self): return f"{self.get_classification()}::{NO_MODEL_ID}::{self.name}"
 
-        tr = clean_registry  # TemplateResolver singleton with a cleared map
+        tr = clean_registry  # a resolver of the test's own, its map empty
         g = Gadget("g1")
         tr.flatten_dataclass(g)
         tr.resolve_all()

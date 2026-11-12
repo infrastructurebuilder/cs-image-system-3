@@ -66,17 +66,12 @@ def test_non_numeric_gids_are_rejected(raw):
 
 @pytest.fixture
 def converter(clean_registry):
-    """A converter built against a freshly-loaded registry.
-
-    `load_plugins` raises "Type Collision" if the registry is already populated,
-    so this leans on `clean_registry` (see conftest) to reset the singleton first
-    and restore it afterward.
-    """
+    """The converter of a registry of the test's own, the installed plugins
+    loaded into it (`clean_registry`, see conftest)."""
     from cs_image_system.base.loader import load_plugins
-    from cs_image_system.base.orchestrator import Orchestrator
 
-    load_plugins()
-    return Orchestrator().get_converter()
+    load_plugins(clean_registry.reg)
+    return clean_registry.converter
 
 
 @pytest.mark.parametrize(

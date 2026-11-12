@@ -26,7 +26,7 @@ from pathlib import Path
 
 import pytest
 import yaml
-from harness import V2Run, copy_config, load_context, reset_singletons, stub_environment
+from harness import V2Run, copy_config, load_context, stub_environment
 
 
 def _edit(path: Path, fn) -> None:
@@ -57,12 +57,9 @@ def test_security_group_ids_is_refused(tmp_path: Path, monkeypatch):
     _edit(root / "cfg" / "runtime-builders.yml",
           lambda d: _runtime(d, "aws-east2-runtime")["networking"].update(security_group_ids=["sg-1"]))
     stub_environment(monkeypatch)
-    try:
-        with pytest.raises(Exception) as exc:
-            load_context(root)
-        assert "security_group_ids" in str(exc.value)
-    finally:
-        reset_singletons()
+    with pytest.raises(Exception) as exc:
+        load_context(root)
+    assert "security_group_ids" in str(exc.value)
 
 
 def test_the_image_query_never_rewrites_the_entrys_own_query(tmp_path: Path, monkeypatch):
@@ -71,16 +68,13 @@ def test_the_image_query_never_rewrites_the_entrys_own_query(tmp_path: Path, mon
     from cs_image_system.aws_runtime.aws_utils import translate_image_query
     stub_environment(monkeypatch)
     ctx = load_context(copy_config(tmp_path))
-    try:
-        osb = ctx.os_builders["basic-rhel-9"]
-        entry = next(e for e in osb.get_configs_for_image_builders().values()
-                     if e.get_image_builder() == "pckr-ebs-ans")
-        before = _copy.deepcopy(dict(entry.query))
-        translate_image_query(entry.image_query())          # the effective query is a new object
-        translate_image_query(entry.image_query())
-        assert dict(entry.query) == before
-    finally:
-        reset_singletons()
+    osb = ctx.os_builders["basic-rhel-9"]
+    entry = next(e for e in osb.get_configs_for_image_builders().values()
+                 if e.get_image_builder() == "pckr-ebs-ans")
+    before = _copy.deepcopy(dict(entry.query))
+    translate_image_query(entry.image_query())          # the effective query is a new object
+    translate_image_query(entry.image_query())
+    assert dict(entry.query) == before
 
 
 # ------------------------------------------------- the OS builder's entry
@@ -118,12 +112,9 @@ def test_image_name_on_an_entry_is_refused(tmp_path: Path, monkeypatch):
     _edit(root / "cfg" / "os-builders.yml",
           lambda d: _osb_entry(d, "basic-rhel-9", "pckr-ebs-ans").update(image_name="RHEL-9*"))
     stub_environment(monkeypatch)
-    try:
-        with pytest.raises(Exception) as exc:
-            load_context(root)
-        assert "image_name" in str(exc.value)
-    finally:
-        reset_singletons()
+    with pytest.raises(Exception) as exc:
+        load_context(root)
+    assert "image_name" in str(exc.value)
 
 
 def test_the_entry_disk_size_is_the_bake_disk_and_the_fingerprints(tmp_path: Path, monkeypatch):
@@ -152,13 +143,10 @@ def test_an_entry_config_reaches_its_own_templates(tmp_path: Path, monkeypatch):
               config={"label": "from-the-entry"}, description="bake {{ config.label }}"))
     stub_environment(monkeypatch)
     ctx = load_context(root)
-    try:
-        osb = ctx.os_builders["basic-rhel-9"]
-        entry = list(osb.get_configs_for_image_builders().values())[0]
-        assert entry.get_description() == "bake from-the-entry"
-        assert entry.get_config() == {"label": "from-the-entry"}
-    finally:
-        reset_singletons()
+    osb = ctx.os_builders["basic-rhel-9"]
+    entry = list(osb.get_configs_for_image_builders().values())[0]
+    assert entry.get_description() == "bake from-the-entry"
+    assert entry.get_config() == {"label": "from-the-entry"}
 
 
 def test_an_unsupported_rhel_major_is_refused_at_load_whatever_the_policy(tmp_path: Path, monkeypatch):
@@ -170,12 +158,9 @@ def test_an_unsupported_rhel_major_is_refused_at_load_whatever_the_policy(tmp_pa
         o["update"] = {"policy": "none"}
     _edit(root / "cfg" / "os-builders.yml", edit)
     stub_environment(monkeypatch)
-    try:
-        with pytest.raises(Exception) as exc:
-            load_context(root)
-        assert "Unsupported RHEL version" in str(exc.value)
-    finally:
-        reset_singletons()
+    with pytest.raises(Exception) as exc:
+        load_context(root)
+    assert "Unsupported RHEL version" in str(exc.value)
 
 
 # ------------------------------------------------------ packer variables

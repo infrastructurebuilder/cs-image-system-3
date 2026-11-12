@@ -8,10 +8,10 @@ log = logging.getLogger(__name__)
 
 from cs_image_system.contract.lifecycle import ExecutionLifecyclePhase
 
-from ..global_context import GlobalTypeContext
+from ..run_context import RunContext
 
 
-def predefined_finalization(ctx: GlobalTypeContext,
+def predefined_finalization(ctx: RunContext,
                             phase: ExecutionLifecyclePhase,
                             is_base_image_phase: bool = False) -> bool:
     """Finalization (legacy single-script flow).
@@ -33,9 +33,9 @@ def predefined_finalization(ctx: GlobalTypeContext,
                 log.info(f"sleep_before_finalization={ctx.sleep_before_finalization} is ignored: "
                          "finalization never waits on a terminal (DESIGN §3G)")
 
-        log.info(f"Finalization commands are recorded at: {ctx.final_execution_path}")
+        log.info(f"Finalization commands are recorded at: {ctx.finalizer.final_execution_path}")
 
-        if not ctx.final_execute():
+        if not ctx.finalizer.final_execute():
             log.error(f"Finalization failed in phase {phase.value}.")
             return False
 

@@ -10,12 +10,12 @@ log = logging.getLogger(__name__)
 from cs_image_system.contract.lifecycle import ExecutionLifecyclePhase
 
 from ..basic.builder_base_group import GroupBuilderBase
-from ..global_context import GlobalTypeContext
 from ..in_process import run_executable
+from ..run_context import RunContext
 
 
 def predefined_group_generation(
-    ctx: GlobalTypeContext,
+    ctx: RunContext,
     phase: ExecutionLifecyclePhase,
     is_base_image_phase: bool = False
 ) -> bool:
@@ -32,7 +32,7 @@ def predefined_group_generation(
 
 
 def generate_groups(
-    ctx: GlobalTypeContext,
+    ctx: RunContext,
     phase: ExecutionLifecyclePhase,
     gbb: GroupBuilderBase) -> bool:
     log.debug(f"Generating groups for group builder {gbb.get_name()} during phase {phase.value}...")

@@ -117,8 +117,8 @@ direction, holds the package to importing nothing from the core, and runs
 `assert_conforms` over every base class and every built-in plugin's models
 and builders; [tests/test_plugin_imports.py](../../tests/test_plugin_imports.py)
 holds what a plugin may import of the core (the base classes, the models,
-the two metadata abstractions) against a committed list of the remaining
-exceptions, which can only shrink.
+the two metadata abstractions) against a committed list of exceptions,
+which can only shrink and is empty today.
 
 ### Version
 

@@ -23,7 +23,7 @@ from pathlib import Path
 
 import pytest
 import yaml
-from harness import copy_config, load_context, reset_singletons, stub_environment
+from harness import copy_config, load_context, stub_environment
 from test_release_whole import _copy_of_committed, _generated_tree
 
 
@@ -134,20 +134,17 @@ def test_a_pinned_gce_image_that_is_not_ready_is_refused(tmp_path: Path, monkeyp
     from cs_image_system.gcloud_runtime import gcp_runtime_builders as g
     stub_environment(monkeypatch)
     ctx = load_context(copy_config(tmp_path))
-    try:
-        rtb = cast(Any, ctx.runtime_builders["gcloud-east1"])
-        entry = next(e for e in ctx.os_builders["basic-rh-10"].get_configs_for_image_builders().values()
-                     if e.get_image_builder() == "pckr-gce-ans")
-        monkeypatch.setattr(g, "query_image", lambda **kw: {"name": "almalinux-10-x", "status": "PENDING",
-                                                              "self_link": "https://x/projects/almalinux-cloud/global/images/almalinux-10-x"})
-        with pytest.raises(ValueError, match="PENDING"):
-            g.GCPCloudBuilder.query_provider_image_by_id(rtb, entry, "almalinux-10-x")
-        monkeypatch.setattr(g, "query_image", lambda **kw: {"name": "almalinux-10-x", "status": "READY",
-                                                              "self_link": "https://x/projects/almalinux-cloud/global/images/almalinux-10-x"})
-        found = g.GCPCloudBuilder.query_provider_image_by_id(rtb, entry, "almalinux-10-x")
-        assert found is not None and found[0] == "almalinux-10-x"
-    finally:
-        reset_singletons()
+    rtb = cast(Any, ctx.runtime_builders["gcloud-east1"])
+    entry = next(e for e in ctx.os_builders["basic-rh-10"].get_configs_for_image_builders().values()
+                 if e.get_image_builder() == "pckr-gce-ans")
+    monkeypatch.setattr(g, "query_image", lambda **kw: {"name": "almalinux-10-x", "status": "PENDING",
+                                                          "self_link": "https://x/projects/almalinux-cloud/global/images/almalinux-10-x"})
+    with pytest.raises(ValueError, match="PENDING"):
+        g.GCPCloudBuilder.query_provider_image_by_id(rtb, entry, "almalinux-10-x")
+    monkeypatch.setattr(g, "query_image", lambda **kw: {"name": "almalinux-10-x", "status": "READY",
+                                                          "self_link": "https://x/projects/almalinux-cloud/global/images/almalinux-10-x"})
+    found = g.GCPCloudBuilder.query_provider_image_by_id(rtb, entry, "almalinux-10-x")
+    assert found is not None and found[0] == "almalinux-10-x"
 
 
 # ----------------------------------- validate: the stand-in, and the family a query names
@@ -176,11 +173,8 @@ def test_validate_prints_the_stand_in_per_os_builder_and_warns_on_a_query_naming
             "name": "AlmaLinux OS 10*x86_64", "publisher": ["764336703387"]}
     _edit_os_builders(root, change)
     ctx = load_context(root)
-    try:
-        with caplog.at_level(logging.INFO, logger="cs_image_system.base.commands.validate"):
-            assert check_image_sources(ctx) == []
-    finally:
-        reset_singletons()
+    with caplog.at_level(logging.INFO, logger="cs_image_system.base.commands.validate"):
+        assert check_image_sources(ctx) == []
     messages = [r.getMessage() for r in caplog.records]
     stand_ins = [m for m in messages if m.startswith("mod-test stand-in:")]
     assert stand_ins and all(any(f"'{n}'" in m for n in ctx.os_builders) for m in stand_ins), stand_ins   # each names a declared builder
@@ -194,9 +188,6 @@ def test_a_family_that_says_what_the_image_is_draws_no_warning(tmp_path, monkeyp
     from cs_image_system.base.commands.validate import check_image_sources
     stub_environment(monkeypatch)
     ctx = load_context(copy_config(tmp_path))                                  # the fixture: alma-linux, the catalog's query
-    try:
-        with caplog.at_level(logging.INFO, logger="cs_image_system.base.commands.validate"):
-            assert check_image_sources(ctx) == []
-    finally:
-        reset_singletons()
+    with caplog.at_level(logging.INFO, logger="cs_image_system.base.commands.validate"):
+        assert check_image_sources(ctx) == []
     assert not [r for r in caplog.records if r.levelno == logging.WARNING and "names" in r.getMessage()]

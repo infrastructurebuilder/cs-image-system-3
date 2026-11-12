@@ -22,7 +22,7 @@ from typing import Any, cast
 
 import pytest
 import yaml
-from harness import copy_config, load_context, reset_singletons, stub_environment
+from harness import copy_config, load_context, stub_environment
 
 
 def _edit(path: Path, fn) -> None:
@@ -94,15 +94,12 @@ def test_a_state_backend_alias_binds(tmp_path: Path, monkeypatch):
               state_configuration="on-disk"))
     stub_environment(monkeypatch)
     ctx = load_context(root)
-    try:
-        from cs_image_system.hashicorp_utils.collector import terraform_collector
-        from cs_image_system.tofu_roots.hooks import state_location_problems
-        reg = terraform_collector(ctx).resolve_backend("on-disk")
-        assert reg is not None and reg.name == "local-dev"
-        errors = [str(e) for e in state_location_problems(ctx)]
-        assert not any("not declared" in e for e in errors), errors
-    finally:
-        reset_singletons()
+    from cs_image_system.hashicorp_utils.collector import terraform_collector
+    from cs_image_system.tofu_roots.hooks import state_location_problems
+    reg = terraform_collector(ctx).resolve_backend("on-disk")
+    assert reg is not None and reg.name == "local-dev"
+    errors = [str(e) for e in state_location_problems(ctx)]
+    assert not any("not declared" in e for e in errors), errors
 
 
 def test_a_state_backends_declared_executable_must_exist(tmp_path: Path, monkeypatch):
@@ -112,11 +109,8 @@ def test_a_state_backends_declared_executable_must_exist(tmp_path: Path, monkeyp
           lambda d: _backend(d, "local-dev").update(executable="no-such-tofu"))
     stub_environment(monkeypatch)
     ctx = load_context(root)
-    try:
-        errors = [str(e) for e in check_state_backend_executables(ctx)]
-        assert len(errors) == 1 and "no-such-tofu" in errors[0] and "local-dev" in errors[0], errors
-    finally:
-        reset_singletons()
+    errors = [str(e) for e in check_state_backend_executables(ctx)]
+    assert len(errors) == 1 and "no-such-tofu" in errors[0] and "local-dev" in errors[0], errors
 
 
 def test_a_decrypted_backend_setting_is_written_as_its_ciphertext():
@@ -132,10 +126,7 @@ def _state_backend_errors(root: Path, monkeypatch) -> list[str]:
     from cs_image_system.base.commands.validate import collect_validation_errors
     stub_environment(monkeypatch)
     ctx = load_context(root)
-    try:
-        return [str(e) for e in collect_validation_errors(ctx) if "use_state_backends" in str(e)]
-    finally:
-        reset_singletons()
+    return [str(e) for e in collect_validation_errors(ctx) if "use_state_backends" in str(e)]
 
 
 def _set_flag(root: Path, value: bool) -> None:

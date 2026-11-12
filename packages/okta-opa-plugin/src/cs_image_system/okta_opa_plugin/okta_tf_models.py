@@ -2,6 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+from collections.abc import Mapping
 from enum import StrEnum
 from typing import Any, Callable
 
@@ -11,8 +12,6 @@ from cs_image_system.base.models.group import Group
 from cs_image_system.base.models.group_builder import GroupBuilderModel
 from cs_image_system.base.models.user import User
 from cs_image_system.base.models.user_builder import UserBuilderModel
-from cs_image_system.base.run_context import current_context  # a model holds no context; it fetches the current one
-from cs_image_system.contract.context import RunContextProtocol
 from cs_image_system.contract.model_config import CSIS_MODEL_CONFIG
 from cs_image_system.contract.names import super_safe_name as ssn
 from cs_image_system.hashicorp_utils.blocks import (
@@ -473,18 +472,17 @@ class OktaGroupBuilderModel(GroupBuilderModel):
     workload_connection: str | None = None
     workload_role: str | None = None
 
-    @property
-    def effective_gateway_selector(self) -> str | None:
-        """The builder's gateway_selector, falling back to the global
-        ``config.okta_gateway_selector`` when unset (PLAN.md local-migration Q6).
+    def effective_gateway_selector(self, config: Mapping[str, Any]) -> str | None:
+        """The builder's gateway_selector, falling back to
+        ``okta_gateway_selector`` in ``config`` (the run's global ``config:``
+        map, which the group builder passes: ``ctx.config``) when unset.
         None when neither is set. A model-field template default cannot do
-        this: the TemplateResolver context has no ``config`` scope, so an
+        this: the template resolver's context has no ``config`` scope, so an
         unresolved ``{{ config.* }}`` would leak into HCL as a literal.
         """
         if self.gateway_selector is not None:
             return self.gateway_selector
-        ctx: RunContextProtocol = current_context()     # typed by the contract; a model holds no context of its own
-        return ctx.config.get(OKTA_GATEWAY_SELECTOR_CONFIG_KEY) or None
+        return config.get(OKTA_GATEWAY_SELECTOR_CONFIG_KEY) or None
 @dataclass(kw_only=True, config=CSIS_MODEL_CONFIG)
 class OktaUserBuilderModel(UserBuilderModel):
     """Dataclass representing an Okta user configuration."""

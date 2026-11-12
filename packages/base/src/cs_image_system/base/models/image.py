@@ -9,7 +9,7 @@ import logging
 from dataclasses import field
 from typing import Annotated, Any
 
-from pydantic import Field
+from pydantic import Field, ValidationInfo, model_validator
 from pydantic.dataclasses import dataclass  # validation at construction
 
 from cs_image_system.contract.fields import deferred_list_field, fk_field, parent_field, templated_field
@@ -19,11 +19,10 @@ log = logging.getLogger(__name__)
 
 from typing import TYPE_CHECKING
 
-from cs_image_system.base.run_context import current_context
 from cs_image_system.contract.constants import DEFAULT, OOPS_DEFAULTS, SELF, VCT
 
 from ..image_names import default_output_image_name
-from ..registry import current_registry
+from ..orchestrator import ModelBinding
 from .builder_model import NameTyped
 from .image_builder_model import ImageBuilderModel
 from .mixins import ParentPropertyHolding, SelfInjectedName
@@ -89,17 +88,26 @@ class ImageImageBuilderSubconfig(NameTyped, ParentPropertyHolding):
     #     self.image_identifier = image_identifier
     #     self.machine_type = machine_type
     #     self.type_ = None
+    @model_validator(mode="before")
+    @classmethod
+    def _default_image_builder(cls, data: Any, info: ValidationInfo) -> Any:
+        """No image_builder given: the registered default of the run that
+        structures this entry, so the entry gets a real identity (its name
+        and type derive from it). The registry is the converter's, handed
+        in as the validation context; an entry made in code names its
+        image builder itself."""
+        binding = info.context
+        if (isinstance(binding, ModelBinding) and isinstance(data, dict)
+                and data.get("image_builder", DEFAULT) in OOPS_DEFAULTS):
+            dflt = binding.reg.get_default_for(VCT.IMAGE_BUILDER_MODEL)
+            if dflt:
+                return {**data, "image_builder": dflt}
+        return data
     def __post_init__(self):
         self._image: Image|None = None
         if self.type_ and self.type_ != DEFAULT:
             log.warning(f"ImageRuntimeSubconfig {self.name} has a 'type' field that is set to {self.type_} "
                         "and will be overridden with the runtime value in finalize.")
-        if self.image_builder in OOPS_DEFAULTS:
-            # No image_builder given: fall back to the registered default so the
-            # subconfig gets a real identity (name/type derive from it below).
-            dflt = current_registry().get_default_for(VCT.IMAGE_BUILDER_MODEL)  # a model holds no context
-            if dflt:
-                self.image_builder = dflt
         self.type_ = self.image_builder # There maybe needs to be a type specified
         self.name = self.image_builder if self.name == DEFAULT else self.name
         if not self.tags:
@@ -316,8 +324,7 @@ class Image(RootItem, SelfInjectedName):
         if not self._image_builder:
             if self.source_image:
                 log.debug(f"Image {self.name} has source image {self.source_image} specified, using this to determine image builder.")
-                reg = current_registry()  # a model holds no context; the current registry is the one
-                inst = reg.get_all_instances_by_classification(VCT.IMAGE_MODEL)
+                inst = self._reg.get_all_instances_by_classification(VCT.IMAGE_MODEL)
                 if self.source_image in inst:
                     source_image = inst[self.source_image]
                     if source_image.image_builder:
@@ -329,9 +336,10 @@ class Image(RootItem, SelfInjectedName):
                     log.warning(f"Source image {self.source_image} for image {self.name} not found in registry. Cannot determine image builder for {self.name}.")
 
             if self._osbuilder:
-                # a model holds no context: the process's current one is the one
-                ctx = current_context().image_builders
-                ib = ctx.get(self._osbuilder.model.get_image_builder(), None)
+                # the run's image builders by name, read from the registry this
+                # image is bound to (what the run context's collection reads)
+                image_builders = self._reg.get_all_instances_by_classification(VCT.IMAGE_BUILDER)
+                ib = image_builders.get(self._osbuilder.model.get_image_builder(), None)
                 if not ib:
                     log.warning(f"OS builder {self._osbuilder.get_name()} specifies image builder "
                                 f" for image {self.name} as {self._osbuilder.model.get_image_builder()} "

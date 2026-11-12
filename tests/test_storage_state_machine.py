@@ -27,7 +27,7 @@ from typing import Any, cast
 
 import pytest
 import yaml
-from harness import V2Run, command_lines, copy_config, load_context, reset_singletons, stub_environment, tree
+from harness import V2Run, command_lines, copy_config, load_context, stub_environment, tree
 
 LITERAL_GID = re.compile(r"\b(?:owner_)?gid\s*=\s*\d+\b")
 
@@ -335,18 +335,15 @@ def test_the_s3_lookup_asks_for_the_storages_own_bucket(tmp_path: Path, monkeypa
     from cs_image_system.tf_ebs_instance_plugin.tf_storage_builder import TofuS3StorageBuilder
     stub_environment(monkeypatch)
     ctx = load_context(copy_config(tmp_path))
-    try:
-        s3b = ctx.storage_builders["aws-s3"]
-        asked: list[str] = []
-        fake = SimpleNamespace(get_bucket_tagging=lambda Bucket: asked.append(Bucket) or {"TagSet": []})
-        monkeypatch.setattr(TofuS3StorageBuilder, "_aws_client", lambda self, service: fake)
-        storage = next(s for s in ctx.storages if str(s.get_type()) == "aws-s3")
-        TofuS3StorageBuilder._lookup(cast(Any, s3b), storage)
-        expected = getattr(storage, "bucket_name", None) or storage.get_name()
-        assert asked == [expected], asked
-        other = SimpleNamespace(bucket_name="second-bucket", get_name=lambda: "second")
-        TofuS3StorageBuilder._lookup(cast(Any, s3b), cast(Any, other))
-        assert asked[-1] == "second-bucket", "a second storage on the same builder is its own bucket"
-    finally:
-        reset_singletons()
+    s3b = ctx.storage_builders["aws-s3"]
+    asked: list[str] = []
+    fake = SimpleNamespace(get_bucket_tagging=lambda Bucket: asked.append(Bucket) or {"TagSet": []})
+    monkeypatch.setattr(TofuS3StorageBuilder, "_aws_client", lambda self, service: fake)
+    storage = next(s for s in ctx.storages if str(s.get_type()) == "aws-s3")
+    TofuS3StorageBuilder._lookup(cast(Any, s3b), storage)
+    expected = getattr(storage, "bucket_name", None) or storage.get_name()
+    assert asked == [expected], asked
+    other = SimpleNamespace(bucket_name="second-bucket", get_name=lambda: "second")
+    TofuS3StorageBuilder._lookup(cast(Any, s3b), cast(Any, other))
+    assert asked[-1] == "second-bucket", "a second storage on the same builder is its own bucket"
 

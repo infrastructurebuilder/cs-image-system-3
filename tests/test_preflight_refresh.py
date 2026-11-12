@@ -20,7 +20,7 @@ import json
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-from harness import copy_config, load_context, reset_singletons, stub_environment
+from harness import copy_config, load_context, stub_environment
 
 from cs_image_system.aws_runtime import session as aws_session
 from cs_image_system.base.commands import preflight
@@ -102,7 +102,6 @@ def _tree_with_profile(tmp_path: Path, monkeypatch) -> Path:
 
 
 def _minutes_left(root: Path) -> float | None:
-    reset_singletons()                     # a fresh load, as load_context makes
     return preflight.session_minutes_left(load_context(root))
 
 
@@ -145,7 +144,6 @@ def test_the_minutes_script_prints_whole_minutes_or_nothing(tmp_path, monkeypatc
     import contextlib
     import io
     out = io.StringIO()
-    reset_singletons()
     with contextlib.redirect_stdout(out):
         assert m.main(["session-minutes-left", str(tree)]) == 0
     assert out.getvalue().strip() in {"39", "40"}

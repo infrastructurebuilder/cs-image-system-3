@@ -19,7 +19,7 @@ from importlib.metadata import version as dist_version
 from pathlib import Path
 
 import pytest
-from harness import FIXTURE_CONFIG, REPO, load_context, reset_singletons
+from harness import FIXTURE_CONFIG, REPO, load_context
 
 from cs_image_system.contract import (
     context,
@@ -122,27 +122,21 @@ def test_the_library_imports_only_the_contract():
 
 
 #: Sources outside the core that still name the kit's context class or
-#: import its module: each entry says why, and goes when the
-#: reason does. The two model methods fetch the process's current context
-#: because a model holds none (the one-release shim); the open hygiene
-#: bundle empties this list.
-KIT_CONTEXT_EXCEPTIONS: tuple[tuple[str, str], ...] = (
-    ("packages/docker-runtime-plugin/src/cs_image_system/docker_runtime/docker_provider_specific_image.py",
-     "a model holds no context: the floating tag fetches the current one (stage 124 shim)"),
-    ("packages/okta-opa-plugin/src/cs_image_system/okta_opa_plugin/okta_tf_models.py",
-     "a model holds no context: the gateway selector fetches the current one (stage 124 shim)"),
-)
+#: import its module: each entry says why, and goes when the reason does.
+#: None is left: a model that needs something of its run is handed it (the
+#: Okta gateway selector takes the run's ``config:`` map, the docker image
+#: is given its repository by the runtime builder that makes it).
+KIT_CONTEXT_EXCEPTIONS: tuple[tuple[str, str], ...] = ()
 
 
 def test_no_plugin_names_the_kits_context():
     """A plugin, the terraform library and the terraform roots know the run
-    context as the contract's ``RunContextProtocol``: no source
-    of theirs names ``GlobalTypeContext`` or ``RunContext``, and none imports
-    ``cs_image_system.base.run_context`` or ``.global_context``, beyond the
-    committed exceptions (each the fetch a model makes because it holds no
-    context). An exception no hit matches any more is stale and goes."""
+    context as the contract's ``RunContextProtocol``: no source of theirs
+    names ``RunContext``, and none imports
+    ``cs_image_system.base.run_context``, beyond the committed exceptions
+    (none today). An exception no hit matches any more is stale and goes."""
     import re
-    names = re.compile(r"\b(GlobalTypeContext|RunContext)\b")
+    names = re.compile(r"\bRunContext\b")
     packages = {p.name for p in (REPO / "packages").iterdir() if p.is_dir()} - {"base", "contract", "system"}
     hits: list[str] = []
     for package in sorted(packages):
@@ -150,7 +144,7 @@ def test_no_plugin_names_the_kits_context():
             rel = str(source.relative_to(REPO))
             text = source.read_text()
             imports = [m for m, level in _imports(source)
-                       if level == 0 and m in ("cs_image_system.base.run_context", "cs_image_system.base.global_context")]
+                       if level == 0 and m == "cs_image_system.base.run_context"]
             if names.search(text) or imports:
                 hits.append(rel)
     excused = {path for path, _ in KIT_CONTEXT_EXCEPTIONS}
@@ -317,9 +311,9 @@ KIND_PROTOCOLS: dict[VCT, tuple[type, type]] = {
 def test_every_built_in_plugin_conforms_to_its_kind():
     """Every built-in plugin's registered model and builder classes conform
     to the protocols of their kind; every shortfall is named at once."""
-    from cs_image_system.base.registry import current_registry, sanitize_classifier
-    reset_singletons()
-    reg = current_registry()             # the process registry the plugins loaded into
+    from cs_image_system.base.loader import installed_registry
+    from cs_image_system.base.registry import sanitize_classifier
+    reg = installed_registry()           # the installed plugins, in a registry of the test's own
     checked = 0
     problems: list[str] = []
     for model_cls, builder_cls in reg.builders.items():
@@ -373,6 +367,7 @@ def test_the_mapper_dispatches_on_the_contracts_surface_not_a_table():
     own is a dispatch point (the nine kind bases); a concrete model, an item
     model (its `type` is a foreign key) and the configuration itself are
     structured as themselves."""
+    from cs_image_system.base.loader import installed_registry
     from cs_image_system.base.models.base_image import BaseImage
     from cs_image_system.base.models.builder_model import BuilderModel, RuntimeEnabledBuilderModel
     from cs_image_system.base.models.executable import ExecutableModel
@@ -392,10 +387,9 @@ def test_the_mapper_dispatches_on_the_contracts_surface_not_a_table():
     from cs_image_system.base.models.storage_builder import StorageBuilderModel
     from cs_image_system.base.models.user import User
     from cs_image_system.base.models.user_builder import UserBuilderModel
-    from cs_image_system.base.orchestrator import Orchestrator
+    from cs_image_system.base.orchestrator import PydanticConverter
     from cs_image_system.local_state_plugin.local_state_models import LocalStateBuilderModel
-    reset_singletons()
-    conv = Orchestrator().get_converter()
+    conv = PydanticConverter(installed_registry())
     assert not hasattr(conv, "_base_vcts")
     from cs_image_system.base.models.cloud_builder import CloudBuilderModel
     from cs_image_system.base.models.container_builder import ContainerBuilderModel

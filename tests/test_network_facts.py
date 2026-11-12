@@ -30,7 +30,6 @@ from harness import (
     copy_config,
     load_context,
     record_network_facts,
-    reset_singletons,
     stub_environment,
 )
 
@@ -74,40 +73,34 @@ def test_loading_the_fixture_never_reaches_a_cloud(tmp_path: Path, monkeypatch):
     stub_environment(monkeypatch)
     calls = _forbid_discovery(monkeypatch)
     root = copy_config(tmp_path)
+    ctx = load_context(root)
+    assert calls == []
+    # the record the harness wrote was adopted: the `default` networks are the recorded ones
+    assert ctx.runtime_builders["west1"].model.networking.network == "default"
+    assert ctx.runtime_builders["gcloud-east1"].model.networking.network == "default"
+    assert ctx.runtime_builders["aws-east2-runtime"].model.networking.network == "vpc-0c78d0d63b7a100df"
+    assert ctx.network_facts_problems == []
+    assert _errors(ctx) == []
+    # the account's inventory was never fetched
+    assert ctx.runtime_builders["aws-east2-runtime"].model.vpc_map is None
+    # a dry run asks nothing either
+    run = V2Run(tmp_path / "dry", monkeypatch)
     try:
-        ctx = load_context(root)
+        summary = run.run("all")
+        assert summary.ok, summary.error
         assert calls == []
-        # the record the harness wrote was adopted: the `default` networks are the recorded ones
-        assert ctx.runtime_builders["west1"].model.networking.network == "default"
-        assert ctx.runtime_builders["gcloud-east1"].model.networking.network == "default"
-        assert ctx.runtime_builders["aws-east2-runtime"].model.networking.network == "vpc-0c78d0d63b7a100df"
-        assert ctx.network_facts_problems == []
-        assert _errors(ctx) == []
-        # the account's inventory was never fetched
-        assert ctx.runtime_builders["aws-east2-runtime"].model.vpc_map is None
-        # a dry run asks nothing either
-        run = V2Run(tmp_path / "dry", monkeypatch)
-        try:
-            summary = run.run("all")
-            assert summary.ok, summary.error
-            assert calls == []
-            assert yaml.safe_load((run.config_root / FACTS).read_text())["runtimes"]["west1"]["checked_at"] == FIXED_CHECKED_AT
-        finally:
-            run.restore_cwd()
+        assert yaml.safe_load((run.config_root / FACTS).read_text())["runtimes"]["west1"]["checked_at"] == FIXED_CHECKED_AT
     finally:
-        reset_singletons()
+        run.restore_cwd()
 
 
 def test_the_frozen_fixture_loads_with_no_record_and_writes_none(monkeypatch):
     """`preflight` loads the frozen fixture itself; a load never writes the record."""
     stub_environment(monkeypatch)
     _forbid_discovery(monkeypatch)
-    try:
-        ctx = load_context(FIXTURE_CONFIG)
-        assert not (FIXTURE_CONFIG / "meta-state").exists()
-        assert any("records nothing" in p for p in ctx.network_facts_problems)
-    finally:
-        reset_singletons()
+    ctx = load_context(FIXTURE_CONFIG)
+    assert not (FIXTURE_CONFIG / "meta-state").exists()
+    assert any("records nothing" in p for p in ctx.network_facts_problems)
 
 
 # ------------------------------- (b) a `default` network with no record fails validate
@@ -117,19 +110,16 @@ def test_validate_names_the_online_flag_for_a_default_network_nothing_recorded(t
     _forbid_discovery(monkeypatch)
     root = copy_config(tmp_path)
     (root / FACTS).unlink()
-    try:
-        ctx = load_context(root)
-        errors = _errors(ctx)
-        west = [e for e in errors if e.startswith("runtime 'west1'")]
-        assert west, errors
-        assert any("`default`" in e and "validate --online" in e for e in west), west
-        # a runtime that declares a concrete network is unchecked too: its subnets were never checked
-        assert any(e.startswith("runtime 'aws-east2-runtime'") and "subnet-09f79018af845358a" in e
-                   and "validate --online" in e for e in errors), errors
-        # the model itself still says `default`: nothing resolved it
-        assert ctx.runtime_builders["west1"].model.networking.network == "default"
-    finally:
-        reset_singletons()
+    ctx = load_context(root)
+    errors = _errors(ctx)
+    west = [e for e in errors if e.startswith("runtime 'west1'")]
+    assert west, errors
+    assert any("`default`" in e and "validate --online" in e for e in west), west
+    # a runtime that declares a concrete network is unchecked too: its subnets were never checked
+    assert any(e.startswith("runtime 'aws-east2-runtime'") and "subnet-09f79018af845358a" in e
+               and "validate --online" in e for e in errors), errors
+    # the model itself still says `default`: nothing resolved it
+    assert ctx.runtime_builders["west1"].model.networking.network == "default"
 
 
 # ------------------------------------- (c) discover writes the record; a later load adopts it
@@ -139,27 +129,24 @@ def test_discover_writes_the_record_and_the_next_offline_load_adopts_it(tmp_path
     stub_environment(monkeypatch)
     root = copy_config(tmp_path)
     (root / FACTS).unlink()
-    try:
-        ctx = load_context(root)
-        assert _errors(ctx)
-        recorded = network_facts.discover(ctx)                   # ONLINE (the harness's stubs answer)
-        assert set(recorded) == {"aws-east2-runtime", "gcloud-east1", "aws-east1", "west1"}
-        assert recorded["west1"]["network"] == "default" and recorded["west1"]["security_groups"] == []
-        assert recorded["aws-east2-runtime"]["security_groups"] == ["sg-03015ec107ae5f81a"]
-        assert recorded["gcloud-east1"]["subnets"] == ["projects/csis-sandbox/regions/us-east1/subnetworks/default"]
-        assert "security_groups" not in recorded["gcloud-east1"]
-        on_disk = yaml.safe_load((root / FACTS).read_text())
-        assert on_disk == {"runtimes": recorded}
-        # small and public-safe: the ids the tree declares, never the account's inventory
-        assert set(recorded["aws-east2-runtime"]) == {"network", "subnets", "security_groups", "checked_at"}
-        assert network_facts.adopt(ctx) == [] and ctx.network_facts_problems == []
-        # the next load asks nothing and adopts what was recorded
-        _forbid_discovery(monkeypatch)
-        again = load_context(root)
-        assert again.network_facts_problems == [] and _errors(again) == []
-        assert again.runtime_builders["west1"].model.networking.network == "default"
-    finally:
-        reset_singletons()
+    ctx = load_context(root)
+    assert _errors(ctx)
+    recorded = network_facts.discover(ctx)                   # ONLINE (the harness's stubs answer)
+    assert set(recorded) == {"aws-east2-runtime", "gcloud-east1", "aws-east1", "west1"}
+    assert recorded["west1"]["network"] == "default" and recorded["west1"]["security_groups"] == []
+    assert recorded["aws-east2-runtime"]["security_groups"] == ["sg-03015ec107ae5f81a"]
+    assert recorded["gcloud-east1"]["subnets"] == ["projects/csis-sandbox/regions/us-east1/subnetworks/default"]
+    assert "security_groups" not in recorded["gcloud-east1"]
+    on_disk = yaml.safe_load((root / FACTS).read_text())
+    assert on_disk == {"runtimes": recorded}
+    # small and public-safe: the ids the tree declares, never the account's inventory
+    assert set(recorded["aws-east2-runtime"]) == {"network", "subnets", "security_groups", "checked_at"}
+    assert network_facts.adopt(ctx) == [] and ctx.network_facts_problems == []
+    # the next load asks nothing and adopts what was recorded
+    _forbid_discovery(monkeypatch)
+    again = load_context(root)
+    assert again.network_facts_problems == [] and _errors(again) == []
+    assert again.runtime_builders["west1"].model.networking.network == "default"
 
 
 def test_validate_online_discovers_then_validates(tmp_path: Path, monkeypatch):
@@ -167,13 +154,10 @@ def test_validate_online_discovers_then_validates(tmp_path: Path, monkeypatch):
     stub_environment(monkeypatch)
     root = copy_config(tmp_path)
     (root / FACTS).unlink()
-    try:
-        ctx = load_context(root)
-        assert validate_only(ctx)                                  # offline: the record is missing
-        assert validate_only(ctx, online=True) == []               # online: discovered, recorded, adopted
-        assert (root / FACTS).is_file()
-    finally:
-        reset_singletons()
+    ctx = load_context(root)
+    assert validate_only(ctx)                                  # offline: the record is missing
+    assert validate_only(ctx, online=True) == []               # online: discovered, recorded, adopted
+    assert (root / FACTS).is_file()
 
 
 def test_a_failing_online_check_is_one_classified_line_with_its_exit_code(tmp_path: Path, monkeypatch):
@@ -183,29 +167,25 @@ def test_a_failing_online_check_is_one_classified_line_with_its_exit_code(tmp_pa
     from cs_image_system.base import network_facts
     stub_environment(monkeypatch)
     root = copy_config(tmp_path)
-    try:
-        ctx = load_context(root)
+    ctx = load_context(root)
 
-        class ProfileNotFound(Exception):          # botocore's class, matched by name
-            pass
+    class ProfileNotFound(Exception):          # botocore's class, matched by name
+        pass
 
-        def lapsed(session_config):
-            raise ProfileNotFound("The config profile (noaa) could not be found")
-        monkeypatch.setattr(aws_utils, "get_vpc_map_and_default_vpc_id", lapsed)
-        with pytest.raises(network_facts.NetworkFactsError) as exc:
-            network_facts.discover(ctx)
-        assert exc.value.runtime == "aws-east1" and isinstance(exc.value.__cause__, ProfileNotFound)
-        assert exc.value.lines[0].startswith("runtime 'aws-east1'")
-        # the CLI prints those lines and exits with that code
-        from typer.testing import CliRunner
+    def lapsed(session_config):
+        raise ProfileNotFound("The config profile (noaa) could not be found")
+    monkeypatch.setattr(aws_utils, "get_vpc_map_and_default_vpc_id", lapsed)
+    with pytest.raises(network_facts.NetworkFactsError) as exc:
+        network_facts.discover(ctx)
+    assert exc.value.runtime == "aws-east1" and isinstance(exc.value.__cause__, ProfileNotFound)
+    assert exc.value.lines[0].startswith("runtime 'aws-east1'")
+    # the CLI prints those lines and exits with that code
+    from typer.testing import CliRunner
 
-        from cs_image_system.system.cli import app
-        reset_singletons()                       # the command's own load, fresh (as load_context does)
-        result = CliRunner().invoke(app, ["--root-dir", str(root), "validate", "--online"])
-        assert result.exit_code == 2, result.output
-        assert "ProfileNotFound" in result.output and "Traceback" not in result.output
-    finally:
-        reset_singletons()
+    from cs_image_system.system.cli import app
+    result = CliRunner().invoke(app, ["--root-dir", str(root), "validate", "--online"])
+    assert result.exit_code == 2, result.output
+    assert "ProfileNotFound" in result.output and "Traceback" not in result.output
 
 
 # ------------------------------------------- (d) a real run refreshes the record
@@ -236,15 +216,12 @@ def test_stale_facts_are_a_validation_error(tmp_path: Path, monkeypatch):
     data["runtimes"]["aws-east2-runtime"]["subnets"].remove("subnet-00075cfbfcbc8f2cf")   # declared, never checked
     data["runtimes"]["aws-east2-runtime"]["security_groups"] = []                           # the declared SG neither
     (root / FACTS).write_text(yaml.safe_dump(data))
-    try:
-        errors = _errors(load_context(root))
-        stale = [e for e in errors if e.startswith("runtime 'aws-east2-runtime'")]
-        assert len(stale) == 1, errors
-        assert "stale" in stale[0] and "subnet-00075cfbfcbc8f2cf" in stale[0] and "sg-03015ec107ae5f81a" in stale[0]
-        assert "validate --online" in stale[0]
-        assert not [e for e in errors if e.startswith("runtime 'aws-east1'")]       # covered: adopts silently
-    finally:
-        reset_singletons()
+    errors = _errors(load_context(root))
+    stale = [e for e in errors if e.startswith("runtime 'aws-east2-runtime'")]
+    assert len(stale) == 1, errors
+    assert "stale" in stale[0] and "subnet-00075cfbfcbc8f2cf" in stale[0] and "sg-03015ec107ae5f81a" in stale[0]
+    assert "validate --online" in stale[0]
+    assert not [e for e in errors if e.startswith("runtime 'aws-east1'")]       # covered: adopts silently
 
 
 def test_a_network_that_changed_since_the_record_is_stale_too(tmp_path: Path, monkeypatch):
@@ -252,12 +229,9 @@ def test_a_network_that_changed_since_the_record_is_stale_too(tmp_path: Path, mo
     _forbid_discovery(monkeypatch)
     root = copy_config(tmp_path)
     _set_network(root, "aws-east1", "vpc-0c78d0d63b7a100df")          # the record checked vpc-0381e9f82c9ae68e7
-    try:
-        errors = _errors(load_context(root))
-        assert any(e.startswith("runtime 'aws-east1'") and "stale" in e and "network vpc-0c78d0d63b7a100df" in e
-                   and "vpc-0381e9f82c9ae68e7" in e for e in errors), errors
-    finally:
-        reset_singletons()
+    errors = _errors(load_context(root))
+    assert any(e.startswith("runtime 'aws-east1'") and "stale" in e and "network vpc-0c78d0d63b7a100df" in e
+               and "vpc-0381e9f82c9ae68e7" in e for e in errors), errors
 
 
 def test_the_record_is_derived_from_the_tree_and_the_hooks_are_optional(tmp_path: Path, monkeypatch):
@@ -289,7 +263,6 @@ def _preflight(monkeypatch, root: Path, *args: str, **env: str):
         monkeypatch.delenv(var, raising=False)
     for k, v in env.items():
         monkeypatch.setenv(k, v)
-    reset_singletons()                           # the command's own load, fresh (as load_context does)
     return CliRunner().invoke(app, ["--root-dir", str(root), "preflight", *args])
 
 
@@ -335,11 +308,8 @@ def test_a_subnet_outside_the_vpc_is_refused(tmp_path: Path, monkeypatch):
         vpcs, default, sgs = real(session_config)
         return ({v: {"subnets": [{"subnet_id": "subnet-somewhere-else"}]} for v in vpcs}, default, sgs)
     monkeypatch.setattr(aws_utils, "get_vpc_map_and_default_vpc_id", with_subnets)
-    try:
-        ctx = load_context(copy_config(tmp_path))          # the load asks nothing
-        with pytest.raises(network_facts.NetworkFactsError) as exc:
-            network_facts.discover(ctx)
-        assert "VPC" in str(exc.value) and "aws-east1" in str(exc.value), str(exc.value)
-        assert isinstance(exc.value.__cause__, ValueError)
-    finally:
-        reset_singletons()
+    ctx = load_context(copy_config(tmp_path))          # the load asks nothing
+    with pytest.raises(network_facts.NetworkFactsError) as exc:
+        network_facts.discover(ctx)
+    assert "VPC" in str(exc.value) and "aws-east1" in str(exc.value), str(exc.value)
+    assert isinstance(exc.value.__cause__, ValueError)

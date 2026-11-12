@@ -24,8 +24,6 @@ from cs_image_system.contract.core import (
     SubItemOverrideProtocol,
 )
 
-from .. import registry
-
 log = logging.getLogger(__name__)
 
 
@@ -57,9 +55,18 @@ class ParentPropertyHolding(ParentPropertyHoldingProtocol):
       ``fields.parent_field``; a protocol cannot carry a dataclass field). The
       ``identified_model`` property resolves the parent model from the registry at
       runtime, and the ``model_id`` setter sets the reference when the child object is
-      created or when the parent model is assigned to the child object."""
+      created or when the parent model is assigned to the child object.
+
+      The registry is the one of the run the object belongs to: the dataclass
+      that mixes this in is a ``NameTyped``, bound by the converter that
+      structured it (``NameTyped.bind_run``)."""
 
     _model_id: str | None = None
+
+    def _own_registry(self) -> Any:
+        """The registry of the run the mixing dataclass is bound to, or
+        None for an object made in code and bound to no run."""
+        return getattr(self, "_run_registry", None)
 
     @property
     def model_id(self) -> str | None:
@@ -77,7 +84,10 @@ class ParentPropertyHolding(ParentPropertyHoldingProtocol):
             metadata = holder.metadata if hasattr(holder, "metadata") else {}
             if not metadata.get(FK_TARGET):
                 raise ValueError(f"No resolvable target type assigned for {self}")
-            model = registry.current_registry().get_instance_by_global_id(self._model_id)  # a model holds no context
+            reg = self._own_registry()
+            if reg is None:
+                raise ValueError(f"{self} is bound to no run, so its parent {self.model_id} cannot be resolved")
+            model = reg.get_instance_by_global_id(self._model_id)
             if model is None:
                 raise ValueError(f"Model with name {self.model_id} not found in registry for {self}")
             return model
@@ -105,8 +115,10 @@ class ParentPropertyHolding(ParentPropertyHoldingProtocol):
             else:
                 log.debug(f"{type(self).__name__} {getattr(self, 'name', '')}: parent {self._model_id!r} refined to {model_name!r}")
         self._model_id = model_name
-        reg = registry.current_registry()  # a model holds no context; the current registry is the one
+        reg = self._own_registry()
+        if reg is None:
+            return      # made in code, outside a load: no run's registry to enter
         try:
-            reg.register_built_instance(self) # Register the child object in the global registry for resolution by other builders that depend on it
+            reg.register_built_instance(self) # Register the child object in its run's registry for resolution by other builders that depend on it
         except Exception:
             pass # Fail silently

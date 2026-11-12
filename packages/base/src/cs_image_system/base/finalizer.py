@@ -17,8 +17,9 @@ lifecycle runner and the legacy single-script flow. A step that is the
 system's own CLI (``gate-plan``, ``prune-attachments``, ``release
 --declared``, ...) runs in this process over the loaded context through
 the seam in :mod:`~.in_process` when the system registered its runner
-there; otherwise, and for the one step that declines (a nested ``run``),
-it is spawned as the executable says. The executor adds no materialisation
+there (a nested ``run`` included: the runner loads a context of its own
+for it); with no runner registered, or for a step a runner declines, it
+is spawned as the executable says. The executor adds no materialisation
 of its own around a command: the private mirror is made by the explicit
 ``cs-image-system materialize`` step where a command list carries one (a
 generation-time plaintext read) and by a hand-run script's own lines, and
@@ -251,10 +252,10 @@ class Finalizer:
         generation directory) and answer with its result (``returncode``):
         :func:`~.in_process.run_executable` over this run's context, so a
         step that is the system's own CLI runs in this process (the
-        configuration is loaded once per run, not once more per step) and
-        every other step, and the one system step that declines (the nested
-        ``run`` of the transient-storage teardown), is spawned as the
-        executable itself does."""
+        configuration is loaded once per run, not once more per step; the
+        nested ``run`` of the transient-storage teardown loads its own,
+        under its own overlays, in this process too) and every other step
+        is spawned as the executable itself does."""
         return run_executable(self.ctx, executable)
 
 
@@ -315,8 +316,8 @@ def script_lines(queue: Any, header: list[str], lifecycle: LifecycleLike | None,
                  script_dir: Path | None = None, *, paths: Any = None) -> list[str]:
     """Phase-ordered shell lines for the deferred executables of ``lifecycle``
     (``None`` = the legacy bucket). Module-level so it works on any object
-    exposing ``get_finalization_executables_for_phase`` (a :class:`Finalizer`,
-    a context through its shim, a stand-in). ``paths`` is the object that
+    exposing ``get_finalization_executables_for_phase`` (a :class:`Finalizer`
+    or a stand-in). ``paths`` is the object that
     knows ``working_path`` and ``generation_path`` -- the run context -- and
     defaults to ``queue`` itself. With ``script_dir`` (where the script will
     live) and a known ``working_path``, the header defines ``CSIS_ROOT`` as

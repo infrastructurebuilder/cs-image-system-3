@@ -179,10 +179,11 @@ class Registry:
 
     One registry per run: the loader makes it, loads the
     installed plugins into it (:func:`~.loader.load_plugins`) and carries it
-    as ``ctx.reg``; a builder reads it through its bound context. The
-    process holds the one made last for the code that has no context handle
-    (a model, a pre-load command) -- :func:`current_registry`, the
-    one-release shim that stands where the ``@singleton`` fetch stood.
+    as ``ctx.reg``. A builder reads it through its bound context; a model
+    holds the one of the run that structured it (the converter binds each
+    model it builds); a command that runs before, or without, a load makes
+    one of its own (:func:`~.loader.installed_registry`). The process holds
+    none: two registries share nothing, and neither do two runs.
     """
 
     # NOTE: state is instance-level (built in __init__), NOT class-level, so
@@ -531,33 +532,3 @@ class Registry:
         :meth:`get_model`."""
         return _resolve(self.registry, classification, type_name)
 
-
-
-# --- the one registry of this process (a one-release shim; see docs/CHANGES.md#s124)
-_CURRENT: Registry | None = None
-
-
-def bind_current_registry(reg: Registry | None) -> None:
-    """Make ``reg`` the registry :func:`current_registry` answers with
-    (``None`` unbinds). The loader binds the one it made for its run before
-    any model of that run is parsed; the test harness unbinds between loads.
-    Nothing else should call this."""
-    global _CURRENT
-    _CURRENT = reg
-
-
-def current_registry() -> Registry:
-    """The registry of the run loaded last in this process, or -- before any
-    run is loaded (a pre-load command: the preflight, the catalog, the
-    scan) -- one made and bound here on the first ask, for the plugins to
-    load into.
-
-    This is the one-release shim that stands in for the retired
-    ``Registry()`` singleton fetch: a caller that reaches for it should hold
-    the registry instead (a builder has ``self._get_context().reg``; a
-    command has ``ctx.reg``; a model holds no context, so a model keeps
-    using this until the models are handed theirs)."""
-    global _CURRENT
-    if _CURRENT is None:
-        _CURRENT = Registry()
-    return _CURRENT

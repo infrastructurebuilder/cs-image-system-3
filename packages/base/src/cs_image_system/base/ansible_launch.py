@@ -30,10 +30,10 @@ from .launch_enrollment import enrollment_kind_for
 from .launch_params import launch_variables, mount_tasks
 
 if TYPE_CHECKING:
-    from .global_context import GlobalTypeContext
+    from .run_context import RunContext
 
 
-def extra_vars(ctx: "GlobalTypeContext") -> tuple[str, ...]:
+def extra_vars(ctx: "RunContext") -> tuple[str, ...]:
     """The extra-vars a playbook takes: the launch template's variables,
     in the same order (``group_gid``, the storage builders' own in
     declaration order, the enrollment token)."""
@@ -54,7 +54,7 @@ def launch_inventory(params_by_instance: dict[str, dict[str, Any]]) -> str:
 
 
 def launch_playbook(params: dict[str, Any], inventory_name: str | None = None,
-                    ctx: "GlobalTypeContext | None" = None) -> str:
+                    ctx: "RunContext | None" = None) -> str:
     """The playbook equivalent of ``user_data_template(params)``.
     ``inventory_name`` is the instance's declared name -- the key
     ``launch_inventory`` uses -- and is what the play TARGETS;

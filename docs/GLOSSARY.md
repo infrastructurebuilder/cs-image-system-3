@@ -339,6 +339,22 @@ alias (an extra name a tree gives its own builder). Read
 [the registry](../packages/base/README.md#the-registry) and
 [CONFIGURATION.md, 1.2](CONFIGURATION.md#12-type-aliases-and-is_default).
 
+### nested run
+
+A nested run is a whole run that another run starts as one of its
+deferred steps, under a different overlay set. There is one today: the
+transient-storage teardown, with which the `retention` lifecycle destroys
+a storage an overlay declared on an ephemeral runtime, by running `run
+storage --only none` once more without the declaring overlay, so that
+the storage is undeclared there and its destroy passes the gate. It is
+not a second process: the running process loads the second configuration
+beside the first and runs it in the same process, and the two runs share
+nothing in memory. It is still a run of its own in the records: its own
+run id, its own entry in `meta-state/runs.yaml`, its own summary. A
+runner script executed by hand runs the same line as a process of its
+own. Read
+[OPERATIONS.md, "Generation versus finalization"](OPERATIONS.md#generation-versus-finalization).
+
 ### overlay
 
 An overlay is a YAML file merged over the configuration tree for one

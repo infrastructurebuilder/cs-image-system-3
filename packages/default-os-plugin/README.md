@@ -256,9 +256,11 @@ are classmethods on the model (declared on the contract's
 `OsBuilderModelProtocol`; the core's `OsBuilderModel` raises
 `NotImplementedError` naming the type for each one it does not implement),
 and the core finds the type from a family with
-`cs_image_system.base.os_types.os_type_for_family(family)` (the class whose
-`families()` names it; a `ValueError` names the family and the families
-every installed type serves when none does).
+`cs_image_system.base.os_types.os_type_for_family(family, reg)` over the
+run's registry (the class whose `families()` names it; a `ValueError`
+names the family and the families every installed type serves when none
+does). A plugin asks the run instead:
+`ctx.services.images.os_type_for_family(family)`.
 
 | Hook | `AptOsBuilderModel` (`debian`, `ubuntu`) | `DnfOsBuilderModel` (`rhel`, `fedora`) | `AlpineOsBuilderModel` |
 |---|---|---|---|

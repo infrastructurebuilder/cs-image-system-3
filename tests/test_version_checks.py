@@ -39,12 +39,10 @@ CANNED = {
 
 @pytest.fixture
 def plugins():
-    from cs_image_system.base.loader import load_plugins
-    from cs_image_system.base.registry import bind_current_registry
-    bind_current_registry(None)          # a fresh process registry for the plugins
-    load_plugins()
-    yield
-    bind_current_registry(None)
+    """The installed plugins in a registry of the test's own: where a
+    checker is looked up, as a run looks it up in ``ctx.reg``."""
+    from cs_image_system.base.loader import installed_registry
+    return installed_registry()
 
 
 def _fake(tmp_path: Path, name: str, output: str) -> str:
@@ -59,7 +57,7 @@ def test_a_checker_is_found_by_name_then_type_then_the_generic_default(plugins):
     from cs_image_system.base.commands.validate import version_checker_for
     from cs_image_system.base.models.executable import ExecutableModel
     def checker(name: str, type_: str) -> str:
-        found = version_checker_for(ExecutableModel(name=name, type_=type_))
+        found = version_checker_for(ExecutableModel(name=name, type_=type_), plugins)
         assert found is not None, name
         return found.__name__
     found = {name: checker(name, type_)
@@ -79,23 +77,23 @@ def test_each_checker_reads_its_tools_version_and_judges_the_requirement(plugins
     type_, output, requirement, version = CANNED[name]
     binary = _fake(tmp_path, name, output)
     checked: list[str] = []
-    assert check_single_version(ExecutableModel(name=name, type_=type_, binary=binary, version=requirement), checked=checked) == []
+    assert check_single_version(ExecutableModel(name=name, type_=type_, binary=binary, version=requirement), plugins, checked=checked) == []
     assert checked == [f"{name} {version} ok ({requirement})"]
-    (error,) = check_single_version(ExecutableModel(name=name, type_=type_, binary=binary, version=f">{version}"))
+    (error,) = check_single_version(ExecutableModel(name=name, type_=type_, binary=binary, version=f">{version}"), plugins)
     assert f"{name} {version}" in str(error) and f">{version}" in str(error)
 
 
 def test_a_missing_binary_an_unparsable_version_and_no_requirement(plugins, tmp_path, caplog):
     from cs_image_system.base.commands.validate import check_single_version
     from cs_image_system.base.models.executable import ExecutableModel
-    (error,) = check_single_version(ExecutableModel(name="docker", type_="executable", binary="/nowhere/docker", version=">=24"))
+    (error,) = check_single_version(ExecutableModel(name="docker", type_="executable", binary="/nowhere/docker", version=">=24"), plugins)
     assert "/nowhere/docker" in str(error) and "executables.yml" in str(error)
-    (error,) = check_single_version(ExecutableModel(name="jq", type_="executable", binary=_fake(tmp_path, "jq", "no numbers here"), version=">=1.7"))
+    (error,) = check_single_version(ExecutableModel(name="jq", type_="executable", binary=_fake(tmp_path, "jq", "no numbers here"), version=">=1.7"), plugins)
     assert "jq" in str(error) and "version" in str(error)
     checked: list[str] = []
     caplog.clear()                                                    # the two refusals above logged their errors
     with caplog.at_level(logging.DEBUG):
-        assert check_single_version(ExecutableModel(name="bash", type_="executable", binary=_fake(tmp_path, "bash", "GNU bash, version 5.3.15(1)-release")), checked=checked) == []
+        assert check_single_version(ExecutableModel(name="bash", type_="executable", binary=_fake(tmp_path, "bash", "GNU bash, version 5.3.15(1)-release")), plugins, checked=checked) == []
     assert checked == ["bash 5.3.15 (no requirement)"]
     assert not [r for r in caplog.records if r.levelno >= logging.WARNING]
 
@@ -107,7 +105,7 @@ def test_the_fixture_declares_a_checked_requirement_for_every_tool(plugins):
     assert [e["name"] for e in entries] == ["aws-cli", "packer", "gcloud", "ansible-playbook", "bash", "docker", "open-tofu-1", "yq", "jq"]
     for e in entries:
         assert e.get("version"), f"{e['name']} declares no requirement"
-        checker = version_checker_for(ExecutableModel(name=e["name"], type_=e.get("type", "executable")))
+        checker = version_checker_for(ExecutableModel(name=e["name"], type_=e.get("type", "executable")), plugins)
         assert checker is not None, e["name"]
     assert not [e for e in entries if e["name"] == "packer-1.9.4"]
     referenced = set()

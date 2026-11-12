@@ -6,8 +6,6 @@ import logging
 from typing import Any
 
 from cs_image_system.base.models.provider_specific_image import ProviderSpecificImage
-from cs_image_system.base.run_context import current_context  # a model holds no context; it fetches the current one
-from cs_image_system.contract.context import RunContextProtocol
 
 from .docker_names import tag_name
 
@@ -20,7 +18,14 @@ class DockerProviderSpecificImage(ProviderSpecificImage):
     our own builds by image id (``sha256:...``). Deferred: the series'
     floating tag ``<repository>:<prefix>``, which every bake of the series
     moves to its newest build -- the daemon has no "newest image matching a
-    name pattern" query, so the tag IS that query."""
+    name pattern" query, so the tag IS that query.
+
+    ``repository`` is where its runtime tags builds: the runtime builder
+    that makes the image sets it (``prepare_provider_specific_image``), so
+    the image asks no run for it; one made without a runtime keeps the
+    plain default."""
+
+    repository: str = "csis"
 
     @classmethod
     def csis_name(cls) -> str:
@@ -30,11 +35,7 @@ class DockerProviderSpecificImage(ProviderSpecificImage):
         """``<repository>:<prefix as a tag>`` for a deferred image."""
         if not self.deferred_name_pattern:
             return None
-        ctx: RunContextProtocol = current_context()     # typed by the contract; a model holds no context of its own
-        rtb = ctx.runtime_builders.get(self.runtime)
-        model = getattr(rtb, "model", None)
-        repo = model.get_repository() if model is not None and hasattr(model, "get_repository") else "csis"
-        return f"{repo}:{tag_name(self.deferred_name_pattern)}"
+        return f"{self.repository}:{tag_name(self.deferred_name_pattern)}"
 
     def get_query_assets(self) -> dict[str, Any] | None:
         if self.is_resolved():

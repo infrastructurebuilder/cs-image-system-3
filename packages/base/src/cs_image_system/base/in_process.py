@@ -28,10 +28,18 @@ context, the executable's arguments as the script line carries them
 (the ``--root-dir``/``--no-dry-run``/``--overlay`` head included) and the
 executable's working directory, relative to the current directory when it
 is not absolute -- and returns the step's exit code, or ``None`` when it
-declines the step: the executor then spawns it as before. The one step
-that is declined by design is a nested ``run`` (the transient-storage
-teardown runs ``run storage ...`` under a DIFFERENT overlay set, so it
-cannot share the loaded context).
+declines the step: the executor then spawns it as before. The system's
+runner declines nothing, so a run with it registered spawns no system
+step at all.
+
+One step cannot read the loaded context: a nested ``run`` (the
+transient-storage teardown runs ``run storage ...`` under a DIFFERENT
+overlay set, and other overlays are another configuration). The system's
+runner runs it in this process too, over a second context it loads from
+the step's own argument list; a load keeps nothing in the process (its
+registry, catalog, resolver, finalizer and context are the load's own),
+so the run that is running and the run nested in it share nothing.
+:func:`names_subcommand` is how a runner tells such a step from the rest.
 """
 
 from __future__ import annotations
@@ -76,12 +84,12 @@ def run_executable(ctx: Any, executable: Any) -> Any:
     carries describes the context that is already loaded and is parsed and
     ignored there) and the working directory as the executable records it
     (relative to the current directory when it is not absolute), and its
-    integer is the step's return code. A runner that declines (``None``:
-    the nested ``run`` of the transient-storage teardown, which needs a
-    different overlay set) and a process with no runner registered leave
-    the step to ``executable.execute()``, which spawns it as it always did.
-    Every other executable is ``execute()``d. Such a system step carries no
-    ``environment`` of its own (none of the sites that make one sets it).
+    integer is the step's return code. A runner that declines (``None``;
+    the system's own declines nothing) and a process with no runner
+    registered leave the step to ``executable.execute()``, which spawns it
+    as it always did. Every other executable is ``execute()``d. Such a
+    system step carries no ``environment`` of its own (none of the sites
+    that make one sets it).
     """
     binary = getattr(executable, "binary", None) or getattr(executable, "name", None)
     if binary == SYSTEM_CLI:

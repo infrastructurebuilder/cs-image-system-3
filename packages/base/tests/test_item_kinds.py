@@ -17,15 +17,13 @@ from typing import Any, cast
 import pytest
 
 from cs_image_system.base import config_loader
-from cs_image_system.base import global_context as gc
-from cs_image_system.base import registry as _registry
 from cs_image_system.base.models.builder_model import NameTyped
 from cs_image_system.contract.constants import NO_MODEL_ID, VCT
 
 
 def _read(stub, spec):
-    # the reader is the loader's function over a context; a
-    # stand-in with the attributes it reads (working_path, reg) is a context
+    # the reader is the loader's function over a context; a stand-in with
+    # the attributes it reads (working_path, reg, template_resolver) is a context
     return config_loader.read_item_kind(cast(Any, stub), spec)
 
 
@@ -68,20 +66,20 @@ def _write_things(tmp_path, *entries):
     return tmp_path
 
 
-def _spec(**over: Any) -> gc.ItemKind:
+def _spec(**over: Any) -> config_loader.ItemKind:
     base: dict[str, Any] = dict(name="things", source_dir="thingsdir", model_cls=_Thing,
                 builder_vct=VCT.STORAGE_BUILDER, attach=lambda b, it: b.add_thing(it))
     base.update(over)
-    return gc.ItemKind(**base)
+    return config_loader.ItemKind(**base)
 
 
 def test_read_item_kind_full_flow(clean_registry, tmp_path):
-    reg = _registry.current_registry()
+    reg = clean_registry.reg
     builder = _FakeBuilder("thing-builder")
     reg.register_built_instance(builder)
     _write_things(tmp_path, ("alpha", "thing-builder"), ("beta", "thing-builder"))
 
-    stub = types.SimpleNamespace(working_path=tmp_path, reg=reg)
+    stub = types.SimpleNamespace(working_path=tmp_path, reg=reg, template_resolver=clean_registry)
     result = _read(stub, _spec())
 
     # structured both items...
@@ -96,19 +94,19 @@ def test_read_item_kind_full_flow(clean_registry, tmp_path):
 
 
 def test_read_item_kind_fills_default_missing_type(clean_registry, tmp_path):
-    reg = _registry.current_registry()
+    reg = clean_registry.reg
     reg.register_built_instance(_FakeBuilder("thing-builder"))
     reg.set_default_for(VCT.STORAGE_BUILDER, "thing-builder")
     _write_things(tmp_path, ("gamma", "default"))  # 'default' is a DEFAULT sentinel
 
-    stub = types.SimpleNamespace(working_path=tmp_path, reg=reg)
+    stub = types.SimpleNamespace(working_path=tmp_path, reg=reg, template_resolver=clean_registry)
     result = _read(stub, _spec(default_missing_type_to=VCT.STORAGE_BUILDER))
 
     assert result[0].type_ == "thing-builder"  # sentinel replaced with the default builder
 
 
 def test_read_item_kind_runs_validate_hook(clean_registry, tmp_path):
-    reg = _registry.current_registry()
+    reg = clean_registry.reg
     reg.register_built_instance(_FakeBuilder("thing-builder"))
     _write_things(tmp_path, ("delta", "thing-builder"))
     seen = {}
@@ -116,14 +114,14 @@ def test_read_item_kind_runs_validate_hook(clean_registry, tmp_path):
     def _validate(ctx, items):
         seen["count"] = len(items)
 
-    stub = types.SimpleNamespace(working_path=tmp_path, reg=reg)
+    stub = types.SimpleNamespace(working_path=tmp_path, reg=reg, template_resolver=clean_registry)
     _read(stub, _spec(validate=_validate))
     assert seen["count"] == 1
 
 
 def test_read_item_kind_errors_on_unconfigured_builder(clean_registry, tmp_path):
-    reg = _registry.current_registry()  # no builder registered
+    reg = clean_registry.reg  # no builder registered
     _write_things(tmp_path, ("epsilon", "missing-builder"))
-    stub = types.SimpleNamespace(working_path=tmp_path, reg=reg)
+    stub = types.SimpleNamespace(working_path=tmp_path, reg=reg, template_resolver=clean_registry)
     with pytest.raises(ValueError, match="not configured"):
         _read(stub, _spec())
