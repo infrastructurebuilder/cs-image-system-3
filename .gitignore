@@ -18,6 +18,9 @@ packages/**/*.code-workspace
 trial
 tfmodules/tftest
 YAML_DUMP.yaml
+# a configuration tree's run-local plaintexts and debug output, wherever a tree
+# sits in this repository (a copy of the frozen fixture included)
+_private/
 .obsidian
 .tofu-plugin-cache/
 _uncommitted/

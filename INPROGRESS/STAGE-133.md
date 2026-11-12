@@ -75,6 +75,21 @@ matter most is item 8.
     seven plugin modules); its import counts were taken before them.
     Re-measure before "do 113" and correct the plan (checked against
     the re-examination, as every plan is).
+23. `SCC_ALL_MAX` in `tests/test_import_closure.py` is 45, above the
+    measured 27: the ceiling falls to the measurement (found by item
+    22).
+24. `docs/DESIGN.md` still says the plugin-import rule has "an
+    exception list of four"; the list is empty (found by item 22).
+25. The contract's module docstrings still say the core re-exports
+    names that were removed with the shims (`constants.py`, `hcl.py`,
+    `names.py`, `fields.py`, `field_kinds.py`, `assets.py`,
+    `lifecycles.py`): they say where the names live now (found by
+    item 22).
+26. This repository's own `.gitignore` names no `_private/`, so a run
+    over a configuration tree inside it (a copy of the frozen fixture
+    under `tests/`) could leave its materialised plaintexts committable;
+    only the verbose dump was covered, by its file name. It ignores
+    `_private/` at any depth (found by item 4).
 
 **Acceptance**: each item its own commit; a fix that moves the golden
 regenerates it in that commit and names every moved line (the
