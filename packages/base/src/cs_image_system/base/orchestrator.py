@@ -275,33 +275,8 @@ class TemplateResolver:
                     structured_mods.append(mod_data)
                     continue
                 
-                # The item's own `type:` names its builder (a configured mod
-                # builder's name or alias). Looking this up under the FIELD
-                # name ('modifications') -- the historical bug -- made every
-                # item resolve to the default builder regardless of type.
-                builder_name = mod_data.get("type", None)
-                if not builder_name:
-                    log.debug(f"Deferred item in '{data_field}' has no type: using {DEFAULT}.")
-                    builder_name = DEFAULT
-                if builder_name == DEFAULT:
-                    # Deferred default doesn't get pre-resolved
-                    builder_name = reg.get_default_for(deferred_builder_vct)  # Ensure default is loaded
-                    if builder_name is None:
-                        if deferred_builder_vct == VCT.MOD_BUILDER_MODEL:
-                            # a modification with no `type` and no default mod
-                            # builder used to be left a plain mapping, and the
-                            # packer builder later died on it with an AttributeError
-                            raise ValueError(
-                                f"modification {mod_data.get('name', '<unnamed>')!r} names no builder "
-                                "(`type`) and no mod builder is `is_default: true`; name one with `type:` "
-                                "or mark a default")
-                        log.debug(f"Default builder for VCT '{deferred_builder_vct}' not found in registry.")
-                        structured_mods.append(mod_data)
-                        continue
-                    # mod_data["type"] = builder_name   # Use the default builder's type for resolution
-                if not builder_name:
-                    # Can't happen because of above logic, but just in case we change that logic later...
-                    log.warning(f"Deferred item missing '{data_field}': {mod_data}")
+                builder_name = self._deferred_builder_name(mod_data, data_field, deferred_builder_vct)
+                if builder_name is None:
                     structured_mods.append(mod_data)
                     continue
 
@@ -310,29 +285,8 @@ class TemplateResolver:
                 if not builder_instance:
                     raise KeyError(f"Could not resolve builder '{builder_name}' referenced in {obj}")
                 
-                # Get the true underlying type: the registry holds a builder or its
-                # model under this classification, and both name their type
-                # (NameTypedProtocol; the protocol check is the dispatch)
-                true_type = builder_instance.get_type() if isinstance(builder_instance, NameTypedProtocol) else None
-                
-                # Get the target model class based on the true type
-                target_cls = reg.get_model(deferred_item_vct, true_type) if true_type else None
-                if target_cls is None:
-                    if deferred_item_vct:
-                        target_cls = deferred_override_types.get(deferred_item_vct, None)
-                    if target_cls is None:
-                        log.debug(f"No item model found for '{true_type}' under '{deferred_item_vct}'. "
-                                    f"Attempting to look up with builder_name '{builder_name}'...")
-                        m1 = reg.get_default_for(deferred_item_vct)
-                        if m1 is None:
-                            log.warning(f"No default model found [yet] for '{deferred_item_vct}' to use as fallback for '{true_type}'.")
-                            # structured_mods.append(mod_data)
-                            # continue
-                        else:
-                            m = reg.get_instance_by_name_or_alias(deferred_item_vct, m1)
-                            target_cls = reg.get_model(deferred_builder_vct, m.type_) if m else None
-                if target_cls is None:
-                    raise KeyError(f"No concrete model registered for underlying deferred type '{true_type}'")
+                target_cls = self._deferred_item_class(builder_instance, builder_name, deferred_builder_vct,
+                                                       deferred_item_vct, deferred_override_types)
                 
                 # the item's `type` becomes the BUILDER's own name, whatever
                 # the item wrote (its name, an alias, `default`
@@ -350,30 +304,110 @@ class TemplateResolver:
                 structured_mods.append(concrete_mod)
                 
                 
-                # 6. CRITICAL: Add the newly structured model to the flattened map
-                # so that TemplateResolver.resolve_all() will process its Jinja tags!
-                if isinstance(concrete_mod, ParentPropertyHoldingProtocol):
-                    try:
-                        # a sub-item its MODEL already claimed (an OS builder's runtime
-                        # subconfig, parented in the model's __post_init__) keeps
-                        # that parent; this used to overwrite it with the builder's id and
-                        # warn four times per load
-                        if isinstance(obj, NameTypedProtocol) and not concrete_mod.model_id:
-                            concrete_mod.model_id = obj.global_id
-                    except Exception as e:
-                        log.warning(f"Structured object {concrete_mod} does not have a valid _model_id. It will not be added to the flattened map for template resolution. Error: {e}")
-                if isinstance(concrete_mod, NameTypedProtocol):
-                    try:
-                        _gid = concrete_mod.global_id
-                        if _gid:
-                            self.flattened_map[_gid] = concrete_mod
-                    except Exception as e:
-                        log.warning(f"Structured object {concrete_mod} does not have a valid global_id. It will not be added to the flattened map for template resolution. Error: {e}")
-                reg.register_built_instance(concrete_mod)  # Register the newly structured model in the registry
+                self._enter_deferred_item(obj, concrete_mod)
                 
             # Replace the raw list with the newly structured list
             setattr(obj, data_field, structured_mods)
         return obj
+
+    def _deferred_builder_name(self, mod_data: dict, data_field: str, deferred_builder_vct: VCT) -> Any:
+        """The builder one raw item of a deferred list names: its own ``type``,
+        or the registry's default for the list's builder classification when
+        the item names none or names ``default``. None when that default does
+        not exist or is empty: the item then stays as it was written. A
+        modification is the exception: one that names no builder where no mod
+        builder is the default is refused."""
+        reg = self.reg
+        # The item's own `type:` names its builder (a configured mod
+        # builder's name or alias). Looking this up under the FIELD
+        # name ('modifications') -- the historical bug -- made every
+        # item resolve to the default builder regardless of type.
+        builder_name = mod_data.get("type", None)
+        if not builder_name:
+            log.debug(f"Deferred item in '{data_field}' has no type: using {DEFAULT}.")
+            builder_name = DEFAULT
+        if builder_name == DEFAULT:
+            # Deferred default doesn't get pre-resolved
+            builder_name = reg.get_default_for(deferred_builder_vct)  # Ensure default is loaded
+            if builder_name is None:
+                if deferred_builder_vct == VCT.MOD_BUILDER_MODEL:
+                    # a modification with no `type` and no default mod
+                    # builder used to be left a plain mapping, and the
+                    # packer builder later died on it with an AttributeError
+                    raise ValueError(
+                        f"modification {mod_data.get('name', '<unnamed>')!r} names no builder "
+                        "(`type`) and no mod builder is `is_default: true`; name one with `type:` "
+                        "or mark a default")
+                log.debug(f"Default builder for VCT '{deferred_builder_vct}' not found in registry.")
+                return None
+            # mod_data["type"] = builder_name   # Use the default builder's type for resolution
+        if not builder_name:
+            # Can't happen because of above logic, but just in case we change that logic later...
+            log.warning(f"Deferred item missing '{data_field}': {mod_data}")
+            return None
+        return builder_name
+
+    def _deferred_item_class(self, builder_instance: Any, builder_name: Any, deferred_builder_vct: VCT,
+                             deferred_item_vct: VCT, deferred_override_types: dict[VCT, type]) -> Any:
+        """The class one raw item of a deferred list structures into: the item
+        model registered for its builder's own type; else the owning model's
+        override for the item classification; else the model the registry
+        holds, under the BUILDER classification, for the type of the item
+        classification's default. A KeyError when none of them answers."""
+        reg = self.reg
+        # Get the true underlying type: the registry holds a builder or its
+        # model under this classification, and both name their type
+        # (NameTypedProtocol; the protocol check is the dispatch)
+        true_type = builder_instance.get_type() if isinstance(builder_instance, NameTypedProtocol) else None
+                
+        # Get the target model class based on the true type
+        target_cls = reg.get_model(deferred_item_vct, true_type) if true_type else None
+        if target_cls is None:
+            if deferred_item_vct:
+                target_cls = deferred_override_types.get(deferred_item_vct, None)
+            if target_cls is None:
+                log.debug(f"No item model found for '{true_type}' under '{deferred_item_vct}'. "
+                            f"Attempting to look up with builder_name '{builder_name}'...")
+                m1 = reg.get_default_for(deferred_item_vct)
+                if m1 is None:
+                    log.warning(f"No default model found [yet] for '{deferred_item_vct}' to use as fallback for '{true_type}'.")
+                    # structured_mods.append(mod_data)
+                    # continue
+                else:
+                    m = reg.get_instance_by_name_or_alias(deferred_item_vct, m1)
+                    target_cls = reg.get_model(deferred_builder_vct, m.type_) if m else None
+        if target_cls is None:
+            raise KeyError(f"No concrete model registered for underlying deferred type '{true_type}'")
+        return target_cls
+
+    def _enter_deferred_item(self, obj: Any, concrete_mod: Any) -> None:
+        """Enter one newly structured item of a deferred list: it takes the
+        owning model's global id as its parent when it holds a parent property
+        and has none, goes into the flat map under its own global id (so its
+        templates are resolved with the rest), and is registered. An id that
+        cannot be read is a warning; the item is registered all the same."""
+        reg = self.reg
+        # 6. CRITICAL: Add the newly structured model to the flattened map
+        # so that TemplateResolver.resolve_all() will process its Jinja tags!
+        if isinstance(concrete_mod, ParentPropertyHoldingProtocol):
+            try:
+                # a sub-item its MODEL already claimed (an OS builder's runtime
+                # subconfig, parented in the model's __post_init__) keeps
+                # that parent; this used to overwrite it with the builder's id and
+                # warn four times per load
+                if isinstance(obj, NameTypedProtocol) and not concrete_mod.model_id:
+                    concrete_mod.model_id = obj.global_id
+            except Exception as e:
+                log.warning(f"Structured object {concrete_mod} does not have a valid _model_id. It will not be added to the flattened map for template resolution. Error: {e}")
+        if isinstance(concrete_mod, NameTypedProtocol):
+            try:
+                _gid = concrete_mod.global_id
+                if _gid:
+                    self.flattened_map[_gid] = concrete_mod
+            except Exception as e:
+                log.warning(f"Structured object {concrete_mod} does not have a valid global_id. It will not be added to the flattened map for template resolution. Error: {e}")
+        reg.register_built_instance(concrete_mod)  # Register the newly structured model in the registry
+
     def upgrade_deferred_list_object(self, obj, dfield):        
         reg = self.reg
         data_field = dfield.name
