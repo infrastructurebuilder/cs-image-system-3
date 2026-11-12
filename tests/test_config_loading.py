@@ -10,11 +10,13 @@
 * preflight finds a runtime declared in any cfg file, because the loaded
   configuration reads every cfg file alike;
 * a load without a root is refused before any plugin loads, and the root
-  is the working directory whatever ``working_directory`` names;
+  is the working directory whatever ``working_directory`` names; a verbose
+  load writes its rendered document under the root's ``_private/``, not
+  into the directory it was started from;
 * ``dateformat`` has one default and it is the one the run uses; an
   executable builds its command once.
 
-History: stage 63 low-hanging items 5, 11 and 13, dead-code item 11; hygiene XXVI item 1.
+History: stage 63 low-hanging items 5, 11 and 13, dead-code item 11; hygiene XXVI items 1 and 4.
 """
 from __future__ import annotations
 
@@ -96,6 +98,23 @@ def test_the_root_is_the_working_directory_whatever_the_configuration_names(tmp_
     assert ctx.working_path == root.resolve()
     assert Path.cwd() == root.resolve()
     assert not (root / "elsewhere").exists() and not (tmp_path / "elsewhere").exists()
+
+
+def test_a_verbose_load_dumps_the_rendered_document_under_the_roots_private_directory(tmp_path: Path, monkeypatch):
+    from cs_image_system.base import config_loader
+    from cs_image_system.base.materialize import PRIVATE_DIRNAME
+    root = copy_config(tmp_path)
+    invoking = tmp_path / "invoking"
+    invoking.mkdir()
+    assert not (root / PRIVATE_DIRNAME).exists()
+    stub_environment(monkeypatch)
+    monkeypatch.chdir(invoking)
+    config_loader.read_config_and_transform(cast(Any, SimpleNamespace(obj={})), root, True,
+                                            dry_run=True, overlays=[], undeclare=[])
+    dump = yaml.safe_load((root / PRIVATE_DIRNAME / config_loader.VERBOSE_DUMP).read_text())
+    assert dump["id"] == yaml.safe_load((root / "cfg" / "_config.yml").read_text())["id"]
+    assert list(invoking.iterdir()) == [], "the invoking directory is left alone"
+    assert not (root / config_loader.VERBOSE_DUMP).exists()
 
 
 # ----------------------------------------------------- the base models

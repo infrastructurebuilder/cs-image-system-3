@@ -136,6 +136,10 @@ from .models.storage import Storage
 from .models.storage_builder import StorageBuilderModel
 from .models.user_builder import UserBuilderModel
 
+#: the file a verbose load writes the rendered document to, in the
+#: configuration root's private directory (``_private/``)
+VERBOSE_DUMP = "YAML_DUMP.yaml"
+
 PLUGIN_TYPEMAP: dict[str, type] = {
     "base" : dict,
     "runtime": RuntimeBuilderModel,
@@ -480,8 +484,13 @@ def read_config_and_transform(
     template_resolver = TemplateResolver(reg, addl=addl, converter=cvt)
     if verbose:
         # the rendered document, the one time it is written out (and before
-        # decryption, so no plaintext lands in it)
-        with open("./YAML_DUMP.yaml", "w+") as f:
+        # decryption, so no plaintext lands in it), under the root's private
+        # directory, which is never committed; the invoking directory is left
+        # alone (the root is not yet the current directory, so a relative
+        # root still resolves against the invoking one here)
+        dump_dir = materialize.private_root(root_dir)
+        dump_dir.mkdir(parents=True, exist_ok=True)
+        with open(dump_dir / VERBOSE_DUMP, "w+") as f:
             yaml.safe_dump(generic_yaml, f, sort_keys=False)
 
     # any value in the base document may be an ENC[age:...] marker.
