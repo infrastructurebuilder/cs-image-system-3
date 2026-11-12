@@ -84,9 +84,9 @@ order (the default), or [§113](STAGE-113.md) first as its file plans it.
   remains (the kit and the engine; a runtime installed from outside):
   planned 2026-11-03, §113 re-planned 2026-11-05 on §124's numbers;
   §114 and §115 landed inside §125; each waits for its "do N".
-- §110 and §111 are landed and released in 0.1.7.dev1 (TestPyPI,
-  2026-11-03); the reference's `develop` and `main` run it. The final
-  0.1.7 is not cut.
+- 0.1.7, the final release, is cut (2026-11-12): it carries §110 and
+  §111 and every stage from §118 to §131; the reference's `develop`
+  and `main` run it (Release, below).
 - Interval checks (the F44 review, the `STARTER_PUSH_TOKEN` renewal)
   live in [REMINDERS.md](../REMINDERS.md).
 
@@ -100,18 +100,35 @@ and validated by the operator before its "do N")
 
 **Release**
 
-- 0.1.6, the latest final release: PyPI and TestPyPI, tag `v0.1.6`
+- 0.1.7, the latest final release: PyPI and TestPyPI, tag `v0.1.7`
+  (42a7b34), 2026-11-12, cut from `main`. Carries §110 and §111
+  (hygiene XXII and XXIII), the stages of the re-examination (§118 to
+  §129 and §131) and §130 (hygiene XXIV); the contract is 0.4.0 and
+  `cs-image-system-tofu-roots` is new on PyPI. Its tag published the
+  five template repositories. A first attempt the day before stopped
+  at its gate with nothing changed: `full-test`'s development-pin leg
+  had asked the release's version of the contract, which keeps its
+  own, since §125 (fixed in 8dddc33; development releases are gated on
+  the bar alone, so the leg had not run since 0.1.6).
+- The reference configuration runs 0.1.7 (tag `v0.1.7-before` =
+  258b75d; take ce727a4, which refreshed the Justfile, `.gitignore`
+  and eight modules and committed the fourteen module stamps for the
+  first time; record a0c51fc, CI green on `develop`). Its `main` took
+  0.1.7 on 2026-11-12 (the operator's push; `perform` green, nothing
+  baked, no machine replaced, the login proof ok, records to af99460,
+  `develop` fast-forwarded to it).
+- 0.1.6, the previous final release: PyPI and TestPyPI, tag `v0.1.6`
   (8ea1dc4), 2026-11-02, the second final release cut from `main` by
   the §107 walk. Carries §103 (the container runtime and its two new
   PyPI projects), §105, §108 and §109. Its tag published the five
   template repositories, the first `standard-docker` one included.
-- The reference configuration runs 0.1.6 (take 0f7773d, tag
+- The reference configuration ran 0.1.6 until 0.1.7 (take 0f7773d, tag
   `v0.1.6-before` = 084cb6a, CI green on `develop`); it declares the
   runtime `docker-orbstack` on the local OrbStack's context (pushed
   with the take of 0.1.6.dev2, 7bc3802). Its `main` took 0.1.6 on
   2026-11-02 (the operator's push; `perform` green, nothing baked,
   records to 933d6fb).
-- 0.1.5, the previous final release: PyPI and TestPyPI, tag `v0.1.5`
+- 0.1.5, the final release before it: PyPI and TestPyPI, tag `v0.1.5`
   (ff2b776), 2026-10-31, cut straight from 0.1.4 on `develop`. Carries
   §106 (the image-source catalog), §104 (hygiene XX) and the §107 plan.
   Its tag published the four template repositories again.

@@ -19,7 +19,8 @@ own commit on the bundle's branch.
    `image_sources`, the two state builders' `session_status`) take
    what they need instead; `version_checker_for(exe)` and the
    `TemplateResolver` (whose `flattened_map` is still process-wide) get
-   a per-run handle. Waits for the final 0.1.7.
+   a per-run handle. 0.1.7 was released on 2026-11-12, so nothing
+   holds this but its "do 132".
 2. The transient-storage teardown (`retention.
    transient_storage_teardown_command`: `run storage --only none` under
    a different overlay set) is the one deferred system step still run
