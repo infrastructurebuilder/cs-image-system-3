@@ -637,21 +637,18 @@ def _take_builder_lists(generic_yaml: dict[str, Any]) -> dict[str, list[dict[str
     return original_yaml_dictionary_lists
 
 
-def _structure_configuration(cvt: PydanticConverter, generic_yaml: dict[str, Any]) -> Any:
+def _structure_configuration(cvt: PydanticConverter, generic_yaml: dict[str, Any]) -> IAConfig:
     """The document, its builder lists taken out, structured as the
-    configuration (:class:`IAConfig`). A document that does not structure is
-    logged as an error and the failure raised as it came."""
+    configuration (:class:`IAConfig`): the document is one mapping
+    (:func:`_single_mapping`), so the configuration is one object. A
+    document that does not structure is logged as an error and the failure
+    raised as it came."""
     try:
         # cattrs.resolve_types(IAConfig)
-        config_data = cvt.structure(generic_yaml, IAConfig)
+        return cvt.structure(generic_yaml, IAConfig)
     except Exception as e:
         log.error(f"Failed to parse configuration: {e}")
         raise
-    if isinstance(config_data, list):
-        if len(config_data) != 1:
-            raise ValueError(f"Expected single config, got {len(config_data)}")
-        config_data = config_data[0]
-    return config_data
 
 
 def _structure_builder_models(
