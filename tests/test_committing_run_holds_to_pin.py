@@ -31,7 +31,7 @@ from importlib import metadata
 from pathlib import Path
 
 import pytest
-from harness import copy_config, load_context, reset_singletons, stub_environment, tree
+from harness import copy_config, load_context, stub_environment, tree
 from typer.testing import CliRunner
 
 from cs_image_system.base import pinned_release
@@ -224,7 +224,6 @@ def recorded_tree(tmp_path, monkeypatch):
     """A copy of the frozen fixture as a git repository with one commit,
     and the environment's word to go on taken away."""
     stub_environment(monkeypatch)
-    reset_singletons()
     monkeypatch.delenv(ALLOW_ENVVAR, raising=False)
     root = copy_config(tmp_path)
     _git(root, "init", "-q")
@@ -345,7 +344,6 @@ def _recorded_head(root: Path) -> None:
             "run": "2026_09_02t00_00_00_000000", "parent": "vendor", "input_fingerprint": OLDER_FINGERPRINT})
     finally:
         os.chdir(here)
-    reset_singletons()
 
 
 def _recorded_fingerprint(root: Path) -> str | None:
@@ -354,7 +352,6 @@ def _recorded_fingerprint(root: Path) -> str | None:
         build = load_context(root).meta_state.build(HEAD_BUILD)
     finally:
         os.chdir(here)
-    reset_singletons()
     return None if build is None else build["input_fingerprint"]
 
 
