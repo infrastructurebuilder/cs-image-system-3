@@ -2363,9 +2363,8 @@ code writes it (values in angle brackets).
   repository's `.envrc` does; a subshell of the tool needs it sourced), or
   `reencrypt` the tree to the current recipients from a holder that can
   open it.
-- `No runtime providers configured.` / `No runtime builders found in
-  config file.` -- no `runtime_builders:` entry, or no runtime plugin
-  installed.
+- `No runtime providers configured.` -- no `runtime_builders:` entry, or
+  no runtime plugin installed.
 - `No default builder found in <classification> list.` / `Multiple default
   builders found: <a> and <b>` -- mark exactly one `is_default: true` per
   builder class.

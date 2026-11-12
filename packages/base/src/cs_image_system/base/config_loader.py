@@ -536,10 +536,6 @@ def read_config_and_transform(
     addl_config.update(config_data.config)
 
 
-    if not config_data.runtime_builders:
-        log.error("No runtime builders found in config file.")
-        raise ValueError("No runtime builders found in config file.")
-
     log.debug(f"Original runtime builders config: {config_data.runtime_builders}")
 
     # config_data.runtime_builders = reprocess_a(config_data.runtime_builders, addl_config)  # type: ignore
