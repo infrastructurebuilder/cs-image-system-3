@@ -89,10 +89,11 @@ from cs_image_system.base.modules import (
     installed_modules,
     materialise_modules,
 )
+from cs_image_system.base.pinned_release import PIN_FILE
 
 from .starter_links import rewrite_tree
 
-VERSION_FILE = ".csis-version"
+VERSION_FILE = PIN_FILE
 #: The file beside the starter trees that names the one a new tree gets when
 #: nobody chose; the trees themselves are the directories beside it that
 #: carry a ``cfg/``. The release ships both, so the system carries no list

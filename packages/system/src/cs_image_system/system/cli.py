@@ -91,6 +91,7 @@ from cs_image_system.base.meta_state import commit_meta_state
 from cs_image_system.base.mod_tests import run_mod_tests
 from cs_image_system.base.modules import installed_modules, materialise_modules
 from cs_image_system.base.network_facts import NetworkFactsError
+from cs_image_system.base.pinned_release import ALLOW_ENVVAR, ALLOW_FLAG, hold_to_pin
 from cs_image_system.base.public_safe import (
     allow_from_config,
     candidate_files,
@@ -157,6 +158,18 @@ def _run(ctx: "GlobalTypeContext", lifecycles, apply: bool, commit: bool, state_
                 fg=typer.colors.GREEN)
 
 
+def _hold_to_pin(root: Path, commit: bool, allow: bool) -> None:
+    """A run that will commit is made by the release the tree pins
+    (``.csis-version``), from an index, or is refused here before anything
+    is generated; ``allow`` is the operator's word to go on, and the run
+    then says in one line what it was allowed past."""
+    verdict = hold_to_pin(root, commit=commit, allow=allow)
+    for line in verdict.lines():
+        typer.secho(line, fg=typer.colors.RED if verdict.refused else typer.colors.YELLOW, err=True)
+    if verdict.refused:
+        raise typer.Exit(code=2)
+
+
 @app.command(name="run")
 def run_command(
     ctx: typer.Context,
@@ -205,8 +218,15 @@ def run_command(
              "root, copies it (init -migrate-state -force-copy), accepts only a clean plan at the "
              "new location and records the move in meta-state. There is deliberately no flag that "
              "merely proceeds past the move guard; giving resources up is a records correction.")] = None,
+    allow_unpinned: Annotated[bool, typer.Option(ALLOW_FLAG, envvar=ALLOW_ENVVAR,
+        help="Let a --commit run go on when the system running is not the release the tree pins in "
+             ".csis-version, installed from an index: another version, or a development checkout "
+             "(whatever its version says). Without it such a run is refused before anything is "
+             "generated, because the tree's CI installs the pin and can judge the recording BEHIND. "
+             "A tree without .csis-version, and a run without --commit, are not checked.")] = False,
 ) -> None:
     """Run one or more lifecycles of the meta-workflow (V2)."""
+    _hold_to_pin(Path(_loaded(ctx).working_path), commit, allow_unpinned)
     # registered lifecycles (release, retention) must exist before `all` /
     # a name is resolved -- found live: a fresh process resolved --all to
     # the four built-ins because the hooks loaded only inside the run

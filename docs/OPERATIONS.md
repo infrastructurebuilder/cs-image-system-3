@@ -120,7 +120,7 @@ cs-image-system --root-dir <config root> [--dry-run | --no-dry-run] \
     run [identity] [storage] [base-image] [instance-image] [release] [retention] | --all \
     [--apply | --no-apply] [--commit | --no-commit] [--state-query | --no-state-query] \
     [--only <image>]... [--only-runtime <rt>] [--apply-runtime <rt>] \
-    [--force-bake <image>]... [--allow-unscoped-bakes]
+    [--force-bake <image>]... [--allow-unscoped-bakes] [--allow-unpinned]
 ```
 
 `just cli run …` runs the same command against the live configuration.
@@ -1298,6 +1298,50 @@ The message is templated (`cs-image-system run <id>: <lifecycles>`, or
 emission, so a bare `git status` after a run says only that a run
 happened.
 
+**A committing run is held to the tree's pin.** A configuration tree
+names the release it runs in the one-line file `.csis-version` at its
+root; the tree's CI installs exactly that release from the index and, in
+its `live` job, compares the committed emission with the one it generates
+itself (`config-drift`). A recording made by anything else can therefore
+be judged BEHIND there, a failure that appears only after the push. So
+before a `--commit` run generates anything it reads `.csis-version` and
+refuses, with exit 2 and nothing changed, when either is true:
+
+- the version running is not the pinned version;
+- any `cs-image-system*` distribution in the running environment was
+  installed from somewhere other than an index (a development checkout,
+  an editable install, a local directory, an archive or a repository
+  reference), **whatever its version says**. A checkout whose version
+  string equals the pin still holds commits no release carries, and a
+  comparison of versions alone cannot see that. The installer's own
+  record tells the two apart: an install from a path or URL carries
+  `direct_url.json` in its dist-info, and an install from an index
+  carries none.
+
+The refusal begins `run --commit: REFUSED unpinned`, names the pinned
+version, the running version and, for a checkout, its path, and gives
+both ways out (`uv tool install` and `just take` put the release at
+`~/.local/bin/cs-image-system`):
+
+```sh
+CSIS="$HOME/.local/bin/cs-image-system" just record   # with the pinned release
+just take <version>                                   # first, if the tree should move
+CSIS_ALLOW_UNPINNED=1 just record                     # or go on, with what is running
+```
+
+`--allow-unpinned` on the `run` command is the same word as
+`CSIS_ALLOW_UNPINNED=1` in the environment; the variable exists so that
+any recipe of the tree's `Justfile` can be allowed past the pin without
+editing a release-owned file. A run that was allowed past prints one
+line beginning `run --commit: ALLOWED unpinned`, which says what was
+running, and goes on; expect the tree's CI to say BEHIND at
+`config-drift` if the emission differs from the pinned release's, and
+record again with the pinned release before `main` moves. What is not
+checked: a tree without `.csis-version` (the frozen fixture has none), a
+run without `--commit` (a dry run, `just dry`, `config-drift` itself),
+and the pinned release from an index, which is what `uv tool install
+"cs-image-system==<version>"`, `just take` and the tree's CI all produce.
+
 ### Meta-state (`<config root>/meta-state/`)
 
 Committed, human-readable, public-safe: every write passes the scanner's
@@ -1793,6 +1837,18 @@ checkout (`cd ../cs-image-system-testconfig && just cloud-cycle
 gcloud-east1`, with `CSIS` in its `.envrc` pointing at this checkout's
 venv while the system is developed). `just cli ...` here reads it for the
 system's own proofs and nothing more.
+
+Either way the command is then this checkout, a development install, and
+the reference pins a release in `.csis-version`: every committing run
+there (`just record`, the `cloud-*` recipes, `just cli run ... --commit`)
+is refused before it generates unless it is told to go on
+(`CSIS_ALLOW_UNPINNED=1 just record`; [`--commit`](#--commit)). That is
+deliberate. A record made by this checkout is a statement about
+unreleased code, and the reference's CI, which installs the pin, judges
+it BEHIND whenever the emission moved since that release. Use the
+variable for a proof that needs the checkout's code and say so in the
+commit that follows; make the record that `main` will carry with the
+pinned release (`CSIS="$HOME/.local/bin/cs-image-system" just record`).
 
 The fixture carries no `meta-state/` and no generated output; its instance
 subjects (`test`, `test2`, `gce-test`) are declared in its own
@@ -2312,7 +2368,7 @@ in `docs/examples/*/Justfile`; `CSIS` names the command, default
 | `full-test` | `test` + `test-mods --strict` (docker) + a dry run `--all` and `state query --strict` over a private copy | docker, sessions |
 | `release <rt>` | the performing run on one runtime, gated on `full-test`, records committed | write credentials |
 | `validate` / `dry [LIFECYCLES]` / `run +LIFECYCLES` | every rule / a dry run / a REAL run (`--locked --no-dry-run ... --commit`) | sessions; write credentials for `run` |
-| `record` | a dry run of EVERY lifecycle, its emission and meta-state committed (what CI's perform job makes first and last) | sessions |
+| `record` | a dry run of EVERY lifecycle, its emission and meta-state committed (what CI's perform job makes first and last). Like every recipe that passes `--commit`, refused unless the command is the release `.csis-version` pins, installed from an index; `CSIS_ALLOW_UNPINNED=1 just record` goes on ([`--commit`](#--commit)) | sessions; the pinned release |
 | `preflight` / `state-query *ARGS` / `cloud-preflight` | the sessions, read over the loaded tree without a cloud call / the state query / `state query --strict` | the age identity / sessions / sessions |
 | `cloud-describe <rt>` | the configuration's facts about a runtime as JSON | sessions |
 | `cloud-bake <rt> [yes]` | `run base-image instance-image --only-runtime <rt> --commit`; the roots plan and gate only | `cloud-preflight`; write credentials |
@@ -2902,6 +2958,10 @@ just cli validate                            # exit 1 on any rule
 just cloud-preflight                         # reality matches the records
 just cli run --all --no-dry-run --commit
 ```
+
+`just cli` is this checkout, a development install, so over a tree that
+pins a release the last line is refused unless `CSIS_ALLOW_UNPINNED=1`
+is in its environment ([`--commit`](#--commit)).
 
 ### Encrypted values
 
