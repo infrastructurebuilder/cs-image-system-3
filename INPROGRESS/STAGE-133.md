@@ -97,6 +97,29 @@ matter most is item 8.
     and five tests). The rule also reads each docstring whole and each
     run of comment lines joined, and the fifteen become the behaviour's
     name (found while doing item 25).
+28. The narration rule does not read the repository's hook
+    (`.githooks/pre-commit`), its `.gitignore`, or the starter trees
+    under `docs/examples/` (their Justfiles, workflows, `.gitignore`s,
+    hooks, `cfg/` and other YAML comments), which every template
+    repository publishes: about a hundred stage, bundle and date tokens
+    sit there. The rule gains those areas and they are cleaned, except
+    the starters' modification files (`playbooks/`, the scripts a mod
+    runs), whose content is hashed into an image's fingerprint and so
+    stays as it is. A starter file is release-owned, so the reference
+    refreshes these at its next take (found while doing item 27).
+29. `base/helpers/config.py` is a dead module (a star import of the
+    contract's constants that nothing imports), and `base/utils.py`
+    calls its `SYSTEM_CLI` import "re-exported for every caller" while
+    every caller imports it from the contract: the module goes, the
+    comment says the import is the module's own, and the contract's
+    `constants.py` docstring stops naming either (found by item 25).
+30. Every run spends four of the resolver's five passes on nothing: an
+    image builder subconfig's `machine_type` renders to `default`, the
+    templated kind's context step turns it back into its template, and
+    each pass reports a change. The output is right; the passes are
+    wasted, and the pass-limit warning of item 9 could fire on a tree
+    with one more level of templates. Make a field that rendered to its
+    own default stay rendered (found by item 9).
 
 **Acceptance**: each item its own commit; a fix that moves the golden
 regenerates it in that commit and names every moved line (the
