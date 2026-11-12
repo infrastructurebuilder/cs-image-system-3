@@ -90,6 +90,13 @@ matter most is item 8.
     under `tests/`) could leave its materialised plaintexts committable;
     only the verbose dump was covered, by its file name. It ignores
     `_private/` at any depth (found by item 4).
+27. The narration rule (`tests/test_sources_do_not_narrate.py`) reads a
+    docstring and a comment one line at a time, so a token split across
+    a line break escapes it: fifteen do today ("stage" at the end of
+    one line, the number at the start of the next, in ten source files
+    and five tests). The rule also reads each docstring whole and each
+    run of comment lines joined, and the fifteen become the behaviour's
+    name (found while doing item 25).
 
 **Acceptance**: each item its own commit; a fix that moves the golden
 regenerates it in that commit and names every moved line (the
