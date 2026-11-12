@@ -534,8 +534,13 @@ fields.
 ### Template resolution
 
 After structuring, the run's resolver (`ctx.template_resolver.resolve_all()`) renders, up to five
-passes, every string and mapping field that still contains `{{`. Each
-object renders in a `SmartContext` that exposes:
+passes, every string and mapping field that still contains `{{`, and
+every templated string value of a plain mapping in its map (the run
+scopes `execution` and `ENV`). Every one of those renders inherits its
+inputs' encryption: a value derived from a decrypted one comes out of
+the resolution carrying a ciphertext built from its pieces
+(`mark_plaintexts`), so the emission writes `ENC[age:...]` where the
+plaintext was. Each object renders in a `SmartContext` that exposes:
 
 | Name | Value |
 | ------ | ------- |

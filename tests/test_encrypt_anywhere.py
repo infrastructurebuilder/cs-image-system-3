@@ -361,6 +361,28 @@ def test_a_username_is_public_by_decision_and_is_not_marked_in_a_derived_value()
     assert out.marker == f"blake.bravo@{domain}", "the username stays in clear, the domain does not"
 
 
+def test_a_templated_value_of_a_plain_mapping_in_the_map_inherits_its_inputs_encryption():
+    """The resolver renders the string values of a plain mapping in its
+    map (the run scopes, ``execution`` and ``ENV``) as it renders a model's
+    fields: a value derived there from a decrypted one comes out of the
+    resolution as a marker, so an emission of it writes ciphertext."""
+    from cs_image_system.base.orchestrator import TemplateResolver
+    from cs_image_system.base.registry import Registry
+    domain = enc("noaa.example")
+    opened = decrypt_tree({"email_domain": domain})["email_domain"]
+    resolver = TemplateResolver(Registry(), addl={
+        "secrets": {"email_domain": opened},
+        "ENV": {"ADDRESS": "blake.bravo@{{ secrets.email_domain }}"},
+    })
+
+    resolver.resolve_all()
+
+    out = resolver.flattened_map["ENV"]["ADDRESS"]
+    assert out == "blake.bravo@noaa.example"
+    assert isinstance(out, Decrypted) and out.marker == f"blake.bravo@{domain}"
+    assert emit(out) == f"blake.bravo@{domain}"
+
+
 def test_decrypt_file_is_the_inverse_of_encrypt_file(tmp_path):
     from cs_image_system.base.encryption import decrypt_fields_in_text, encrypt_fields_in_text
     original = ("users:\n"

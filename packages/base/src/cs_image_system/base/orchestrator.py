@@ -619,13 +619,14 @@ class TemplateResolver:
 
     def _resolve_mapping(self, obj: dict, context: SmartContext) -> bool:
         """Render every templated string value of a plain mapping in the flat
-        map, in place. Returns whether anything changed."""
+        map (the run scopes the loader seeds it with), in place, with
+        :meth:`render_inheriting` as every other render site does: a value
+        derived there from a decrypted one inherits its encryption. Returns
+        whether anything changed."""
         changed = False
         for k, v in obj.items():
             if isinstance(v, str) and "{{" in v:
-                template = self.env.from_string(v)
-                rendered = template.render(context)
-                            
+                rendered = self.render_inheriting(v, context)
                 if rendered != v:
                     obj[k] = rendered
                     changed = True
