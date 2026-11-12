@@ -269,12 +269,11 @@ select = ["F", "E9", "C90", "B", "I"]
 
 [tool.ruff.lint.mccabe]
 # The complexity ceiling (C901) is the measured maximum, so it can only fall
-# from here. Measured over src, packages, tests and scripts: 93 functions
-# above 10, 46 above 12, 21 above 15, 3 above 20, 1 above 25. The three
-# above 20 are the next cuts, highest first: run_lifecycles (28),
-# register_provider_aliases (25), upgrade_deferred_list_generated (23).
-# Lower the number after each cut.
-max-complexity = 28
+# from here. Measured over src, packages, tests and scripts: 92 functions
+# above 10, 45 above 12, 20 above 15, 2 above 20. The two above 20 are
+# the next cuts, highest first: register_provider_aliases (25),
+# upgrade_deferred_list_generated (23). Lower the number after each cut.
+max-complexity = 25
 
 [tool.ruff.lint.isort]
 # The namespace's source roots sit under packages/*/src, which ruff does not

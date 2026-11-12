@@ -479,28 +479,9 @@ def run_lifecycles(ctx: RunContext, requested: list[LifecycleLike], *, apply: bo
     """
     load_hook_plugins()
     ctx.reset_generated_lifecycles()
-    ctx.only_images = None
-    # convergent bakes: a fresh decision cache per run; --force-bake
-    # names images (or `all`) that bake even when current
-    ctx.bake_decisions = {}
-    ctx.force_bake = {f.strip() for f in force_bake if f.strip()} or None if force_bake else None
-    if only and [o.lower() for o in only] == ["none"]:
-        # `--only none`: an explicitly EMPTY bake surface -- the terraform
-        # roots alone (a launch or teardown that must not re-bake)
-        ctx.only_images = set()
-        only = None
-    if only:
-        known = set(ctx.images_map) | set(ctx.os_builders)
-        unknown = []
-        for entry in only:
-            name, _, runtime = entry.partition("@")
-            if name not in known or (runtime and runtime not in ctx.runtime_builders):
-                unknown.append(entry)
-        if unknown:
-            return RunSummary(run_id=ctx.run_id, requested=[], dry_run=ctx.dry_run,
-                              ok=False, error=f"--only names unknown image(s): {', '.join(sorted(unknown))}; "
-                                              f"known: {', '.join(sorted(known))}")
-        ctx.only_images = set(only)
+    refused = _scope_bakes(ctx, only, force_bake)
+    if refused is not None:
+        return refused
     wanted = {lc.value for lc in requested}
     ordered = [lc for lc in all_lifecycles() if lc.value in wanted]
     summary = RunSummary(run_id=ctx.run_id, requested=[lc.value for lc in ordered],
@@ -512,60 +493,7 @@ def run_lifecycles(ctx: RunContext, requested: list[LifecycleLike], *, apply: bo
     _write_gitignore(ctx, root, extra=RUN_LOCAL_FILENAMES)
     interrupted = False
     try:
-        if getattr(ctx, "migrate_state", None) and ctx.dry_run:
-            # the operation needs --no-dry-run; refused here as well
-            # as at the CLI so that no other path moves state dry
-            raise LifecycleRunError("--migrate-state moves state and needs --no-dry-run: a dry run never moves state")
-        if state_query:
-            report = query_state(ctx)
-            write_state_report(ctx, report)
-            summary.state = {**report.as_dict()["summary"], "unavailable": len(report.unavailable),
-                             "hard": len(report.hard)}
-            for u in report.unavailable:
-                log.warning(f"state query: {u}")
-            log.info(f"state query: {summary.state}")
-            lines, blocking = session_lines(ctx)              # warn, never refuse, in a run
-            for line in lines:
-                (log.warning if line in blocking else log.info)(f"preflight {line}")
-        if not ctx.dry_run:
-            # a REAL run checks every runtime's networking against
-            # its account and records what it resolved to; the record is
-            # adopted again so the resolved network reaches THIS run's
-            # emission. A dry run adopts what the last one recorded.
-            network_facts.discover(ctx)
-            network_facts.adopt(ctx)
-        summary.validation_errors = validate(ctx, ordered)
-        if summary.validation_errors:
-            for err in summary.validation_errors:
-                log.error(f"validation: {err}")
-            raise LifecycleRunError(
-                f"Validation failed with {len(summary.validation_errors)} error(s)")
-        if any(lc in (Lifecycle.BASE_IMAGE, Lifecycle.INSTANCE_IMAGE) for lc in ordered):
-            summary.bake_plan = bake_plan(ctx)
-            for key, decision in sorted(summary.bake_plan.items()):
-                log.info(f"bake plan: {key}: {decision}")
-            refusal = check_bake_scope(ctx, summary.bake_plan)   # before any bake
-            if refusal:
-                raise LifecycleRunError(f"run scope: {refusal}")
-        # generated/bootstrap from the tree's
-        # bootstrap.yaml, before the lifecycles -- generation only, every run
-        regenerate_in_run(ctx)
-        for lifecycle in ordered:
-            result = generate_lifecycle(ctx, lifecycle)
-            summary.lifecycles.append(result)
-        summary.state_bindings = collect_state_bindings(ctx)   # the state-isolation evidence
-        ctx.finalizer.write_gating_script()
-        if apply:
-            apply_lifecycles(ctx, summary)
-        else:
-            for lifecycle in all_lifecycles():
-                summary.apply[lifecycle.value] = "not-attempted"
-        if commit:
-            # Journal and summary go INTO the commit (the sha itself is the
-            # commit; it is reported on stdout and in the git log).
-            _record(ctx, summary, root)
-            summary.meta_state_commit = commit_meta_state(
-                ctx.working_path, root, ctx.run_id, summary.requested, ctx.dry_run)
+        _run_requested(ctx, summary, ordered, root, apply=apply, commit=commit, state_query=state_query)
     except Exception as e:
         summary.ok = False
         summary.error = f"{e.__class__.__name__}: {e}"
@@ -605,6 +533,126 @@ def run_lifecycles(ctx: RunContext, requested: list[LifecycleLike], *, apply: bo
     if interrupted:
         raise KeyboardInterrupt
     return summary
+
+
+def _scope_bakes(ctx: RunContext, only: list[str] | None,
+                 force_bake: list[str] | None) -> RunSummary | None:
+    """Set the run's bake surface on the context: no restriction, a fresh
+    decision cache and the forced bakes, then what ``only`` says. ``none``
+    alone is an explicitly empty surface; names restrict the bakes to those
+    images. A name that is neither an image nor an OS builder, or a runtime
+    after ``@`` that is not configured, refuses the run before anything is
+    generated or recorded: the refusal comes back as a failed summary.
+    None when the run goes on."""
+    ctx.only_images = None
+    # convergent bakes: a fresh decision cache per run; --force-bake
+    # names images (or `all`) that bake even when current
+    ctx.bake_decisions = {}
+    ctx.force_bake = {f.strip() for f in force_bake if f.strip()} or None if force_bake else None
+    if only and [o.lower() for o in only] == ["none"]:
+        # `--only none`: an explicitly EMPTY bake surface -- the terraform
+        # roots alone (a launch or teardown that must not re-bake)
+        ctx.only_images = set()
+        only = None
+    if only:
+        known = set(ctx.images_map) | set(ctx.os_builders)
+        unknown = []
+        for entry in only:
+            name, _, runtime = entry.partition("@")
+            if name not in known or (runtime and runtime not in ctx.runtime_builders):
+                unknown.append(entry)
+        if unknown:
+            return RunSummary(run_id=ctx.run_id, requested=[], dry_run=ctx.dry_run,
+                              ok=False, error=f"--only names unknown image(s): {', '.join(sorted(unknown))}; "
+                                              f"known: {', '.join(sorted(known))}")
+        ctx.only_images = set(only)
+    return None
+
+
+def _run_requested(ctx: RunContext, summary: RunSummary, ordered: list[LifecycleLike], root: Path, *,
+                   apply: bool, commit: bool, state_query: bool) -> None:
+    """The run proper, in order: the state query, the network facts of a
+    real run, validation, the bake plan, the bootstrap emission, each
+    requested lifecycle's generation, the gating script, the apply (or
+    every lifecycle marked not attempted) and the committing record. What
+    it learns goes on ``summary``; a refusal or a failure is raised for the
+    caller to record."""
+    if getattr(ctx, "migrate_state", None) and ctx.dry_run:
+        # the operation needs --no-dry-run; refused here as well
+        # as at the CLI so that no other path moves state dry
+        raise LifecycleRunError("--migrate-state moves state and needs --no-dry-run: a dry run never moves state")
+    if state_query:
+        _ask_reality(ctx, summary)
+    if not ctx.dry_run:
+        # a REAL run checks every runtime's networking against
+        # its account and records what it resolved to; the record is
+        # adopted again so the resolved network reaches THIS run's
+        # emission. A dry run adopts what the last one recorded.
+        network_facts.discover(ctx)
+        network_facts.adopt(ctx)
+    _refuse_invalid(ctx, summary, ordered)
+    _plan_bakes(ctx, summary, ordered)
+    # generated/bootstrap from the tree's
+    # bootstrap.yaml, before the lifecycles -- generation only, every run
+    regenerate_in_run(ctx)
+    for lifecycle in ordered:
+        result = generate_lifecycle(ctx, lifecycle)
+        summary.lifecycles.append(result)
+    summary.state_bindings = collect_state_bindings(ctx)   # the state-isolation evidence
+    ctx.finalizer.write_gating_script()
+    if apply:
+        apply_lifecycles(ctx, summary)
+    else:
+        for lifecycle in all_lifecycles():
+            summary.apply[lifecycle.value] = "not-attempted"
+    if commit:
+        # Journal and summary go INTO the commit (the sha itself is the
+        # commit; it is reported on stdout and in the git log).
+        _record(ctx, summary, root)
+        summary.meta_state_commit = commit_meta_state(
+            ctx.working_path, root, ctx.run_id, summary.requested, ctx.dry_run)
+
+
+def _ask_reality(ctx: RunContext, summary: RunSummary) -> None:
+    """The pre-run state query: ask reality (read-only), write the state
+    report, put its counts on the summary and log them, with a warning for
+    each provider that could not answer. Then the preflight session lines,
+    a blocking one as a warning: a run warns and never refuses here."""
+    report = query_state(ctx)
+    write_state_report(ctx, report)
+    summary.state = {**report.as_dict()["summary"], "unavailable": len(report.unavailable),
+                     "hard": len(report.hard)}
+    for u in report.unavailable:
+        log.warning(f"state query: {u}")
+    log.info(f"state query: {summary.state}")
+    lines, blocking = session_lines(ctx)              # warn, never refuse, in a run
+    for line in lines:
+        (log.warning if line in blocking else log.info)(f"preflight {line}")
+
+
+def _refuse_invalid(ctx: RunContext, summary: RunSummary, ordered: list[LifecycleLike]) -> None:
+    """Validate the configuration for the lifecycles in ``ordered``; the
+    errors go on the summary, and any error is logged and refuses the
+    run."""
+    summary.validation_errors = validate(ctx, ordered)
+    if summary.validation_errors:
+        for err in summary.validation_errors:
+            log.error(f"validation: {err}")
+        raise LifecycleRunError(
+            f"Validation failed with {len(summary.validation_errors)} error(s)")
+
+
+def _plan_bakes(ctx: RunContext, summary: RunSummary, ordered: list[LifecycleLike]) -> None:
+    """When an image lifecycle is requested: put the bake plan on the
+    summary, log each decision, and refuse the run, before any bake, when
+    the run-scope rule refuses a bake the plan holds."""
+    if any(lc in (Lifecycle.BASE_IMAGE, Lifecycle.INSTANCE_IMAGE) for lc in ordered):
+        summary.bake_plan = bake_plan(ctx)
+        for key, decision in sorted(summary.bake_plan.items()):
+            log.info(f"bake plan: {key}: {decision}")
+        refusal = check_bake_scope(ctx, summary.bake_plan)   # before any bake
+        if refusal:
+            raise LifecycleRunError(f"run scope: {refusal}")
 
 
 def _record(ctx: RunContext, summary: RunSummary, root: Path) -> None:
