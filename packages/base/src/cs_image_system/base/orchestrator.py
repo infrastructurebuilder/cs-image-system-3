@@ -355,9 +355,10 @@ class TemplateResolver:
             log.debug(f"Deferred item in '{data_field}' has no type: using {DEFAULT}.")
             builder_name = DEFAULT
         if builder_name == DEFAULT:
-            # Deferred default doesn't get pre-resolved
+            # Deferred default doesn't get pre-resolved. No name and an empty
+            # name both mean the registry names no default builder.
             builder_name = reg.get_default_for(deferred_builder_vct)  # Ensure default is loaded
-            if builder_name is None:
+            if not builder_name:
                 if deferred_builder_vct == VCT.MOD_BUILDER_MODEL:
                     # a modification with no `type` and no default mod
                     # builder used to be left a plain mapping, and the
@@ -366,13 +367,10 @@ class TemplateResolver:
                         f"modification {mod_data.get('name', '<unnamed>')!r} names no builder "
                         "(`type`) and no mod builder is `is_default: true`; name one with `type:` "
                         "or mark a default")
-                log.debug(f"Default builder for VCT '{deferred_builder_vct}' not found in registry.")
+                log.debug(f"The registry names no default builder for '{deferred_builder_vct}' "
+                          f"(it answered {builder_name!r}): an item of '{data_field}' that names "
+                          "no builder stays as it was written.")
                 return None
-            # mod_data["type"] = builder_name   # Use the default builder's type for resolution
-        if not builder_name:
-            # Can't happen because of above logic, but just in case we change that logic later...
-            log.warning(f"Deferred item missing '{data_field}': {mod_data}")
-            return None
         return builder_name
 
     def _deferred_item_class(self, builder_instance: Any, builder_name: Any, deferred_builder_vct: VCT,

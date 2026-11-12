@@ -17,7 +17,7 @@ import pytest
 from cs_image_system.base import orchestrator
 from cs_image_system.base.orchestrator import SmartContext
 from cs_image_system.contract.constants import DEFAULT, NO_MODEL_ID, VCT
-from cs_image_system.contract.fields import fk_field, templated_field
+from cs_image_system.contract.fields import deferred_list_field, fk_field, lookup_dataclass_field, templated_field
 
 
 @dataclass
@@ -172,3 +172,39 @@ def test_a_template_settled_within_the_passes_is_not_named(clean_registry, caplo
 
     assert w.machine_type == "t2.micro" and tr.flattened_map["scope"]["a"] == "end"
     assert _unrendered(caplog) == []
+
+
+@dataclass
+class Holder:
+    """A model with one deferred list of each builder classification the
+    resolver treats differently: modifications, and any other."""
+    name: str
+    storages: list = deferred_list_field(builder_vct=VCT.STORAGE_BUILDER_MODEL, item_vct=VCT.STORAGE_MAPPING_ITEM_MODEL)
+    modifications: list = deferred_list_field(builder_vct=VCT.MOD_BUILDER_MODEL, item_vct=VCT.MOD_BUILDER_ITEM_MODEL)
+
+
+def _upgrade(tr, holder: Holder, field_name: str) -> Holder:
+    return tr.upgrade_deferred_list_generated(holder, lookup_dataclass_field(holder, field_name))
+
+
+@pytest.mark.parametrize("no_name", [None, ""])
+def test_an_item_naming_no_builder_stays_as_written_when_no_default_is_named(clean_registry, monkeypatch, caplog, no_name):
+    tr = clean_registry
+    monkeypatch.setattr(tr.reg, "get_default_for", lambda vct: no_name)
+    holder = Holder("h", storages=[{"name": "s1"}])
+
+    with caplog.at_level(logging.DEBUG, logger=orchestrator.__name__):
+        _upgrade(tr, holder, "storages")
+
+    assert holder.storages == [{"name": "s1"}]
+    assert [r for r in caplog.records if r.levelno >= logging.WARNING] == []
+
+
+@pytest.mark.parametrize("no_name", [None, ""])
+def test_a_modification_naming_no_builder_is_refused_when_no_default_is_named(clean_registry, monkeypatch, no_name):
+    tr = clean_registry
+    monkeypatch.setattr(tr.reg, "get_default_for", lambda vct: no_name)
+    holder = Holder("h", modifications=[{"name": "m1"}])
+
+    with pytest.raises(ValueError, match="'m1'"):
+        _upgrade(tr, holder, "modifications")
