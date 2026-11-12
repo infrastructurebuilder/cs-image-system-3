@@ -58,8 +58,9 @@ def after_generate(ctx: "RunContext", lifecycle: LifecycleLike) -> None:
     # transient storages (declared by an overlay) standing on an ephemeral
     # runtime are destroyed by THIS run's closing phase: the storage
     # lifecycle runs again as a deferred step WITHOUT the declaring
-    # overlays, so they are undeclared there and planned as whitelisted
-    # destroys; config-only overlays and --apply-runtime carry over
+    # overlays (a nested run, over a context of its own), so they are
+    # undeclared there and planned as whitelisted destroys; config-only
+    # overlays and --apply-runtime carry over
     transient_on_ephemeral = transient_storages_on_ephemeral_runtimes(ctx)
     for name, rt in transient_on_ephemeral:
         log.info(f"retention: storage {name!r} was declared by an overlay on ephemeral runtime {rt}; "
@@ -101,7 +102,14 @@ def transient_storage_teardown_command(ctx: "RunContext", wd):
     (the config-only ones stay: they carry the apply flags), so the
     transient storages are undeclared there and destroyed through the
     gate; no state query (this run's already ran), no commit (this run
-    commits at its end)."""
+    commits at its end).
+
+    A run of its own, nested in this one: other overlays are another
+    configuration, so the step cannot read ``ctx``. The command line is
+    all it is given. The running process executes it in this process, over
+    a second context loaded from that command line (the seam in
+    :mod:`~.in_process`; the system's runner); a hand run of the committed
+    script executes the same line as a process of its own."""
     head: list[str] = ["--root-dir", str(ctx.working_path), "--no-dry-run"]
     for path, data in zip(getattr(ctx, "overlays", []), getattr(ctx, "_overlay_data", []), strict=False):
         if not any(k != "config" for k in data):

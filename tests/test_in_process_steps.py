@@ -14,11 +14,14 @@ package registers through ``cs_image_system.base.in_process``; the runner
 drives the Typer app in this process with the loaded context in its
 object. The committed runner scripts keep the same lines, so a hand run of
 a script still works (and still loads once per step, as a child of the
-shell). The one step that stays a process of its own is the nested ``run``
-of the transient-storage teardown (a different overlay set: it cannot
-share the loaded context).
+shell). No step stays a process of its own: the nested ``run`` of the
+transient-storage teardown (a different overlay set, so it cannot share
+the loaded context) is handed to the runner's nested form, which loads a
+context of its own in this process; what that does is held in
+``test_nested_run_in_this_process.py``. A runner may still decline a step
+(the seam allows it) and a process with no runner spawns every one.
 
-History: stage 127 item 3.
+History: stage 127 item 3, hygiene XXV item 2.
 """
 from __future__ import annotations
 
@@ -138,7 +141,9 @@ def test_a_registered_runner_gets_the_context_the_arguments_and_the_directory_an
     assert seen == [] and os.getcwd() == cwd                        # nothing spawned, the directory restored
 
 
-def test_a_runner_that_declines_a_nested_run_leaves_the_step_to_the_subprocess_path(tmp_path, monkeypatch):
+def test_a_runner_that_declines_a_step_leaves_it_to_the_subprocess_path(tmp_path, monkeypatch):
+    """The seam's own rule, with a stand-in runner that declines one step
+    (the system's runner declines none)."""
     from cs_image_system.base.utils import system_cli_executable
     seen = _journal_spawns(monkeypatch)
     declined: list[list[str]] = []
@@ -156,7 +161,7 @@ def test_a_runner_that_declines_a_nested_run_leaves_the_step_to_the_subprocess_p
     gate = system_cli_executable(["gate-plan", "--planfile", "tfplan"])
     assert fin.execute_phase(ExecutionLifecyclePhase.INSTANCE_GENERATION, [gate, teardown], label="x") is True
     assert len(declined) == 1
-    assert [c[:3] for c in seen] == [SPAWNED_MODULE] and seen[0][3:] == teardown.args   # the one spawn: the nested run
+    assert [c[:3] for c in seen] == [SPAWNED_MODULE] and seen[0][3:] == teardown.args   # the one spawn: the declined step
 
 
 def test_the_subcommand_is_read_past_the_head_options():
@@ -209,11 +214,20 @@ def test_gate_plan_runs_in_process_and_answers_with_the_gates_exit_code(tmp_path
     assert cli.run_in_process(cast(Any, ctx), [*head, "gate-plan"], None) == 2      # neither a file nor --planfile
 
 
-def test_the_runner_declines_a_nested_run_and_logs_a_usage_error(tmp_path, monkeypatch, caplog):
+def test_the_runner_hands_a_nested_run_to_its_nested_form_and_logs_a_usage_error(tmp_path, monkeypatch, caplog):
+    """A nested ``run`` is not declined: it goes, with its own argument
+    list and the step's directory made absolute, to the form that loads a
+    context of its own, and that form's exit code is the step's. The
+    loaded context is not handed on."""
     from cs_image_system.system import cli
     ctx = SimpleNamespace(working_path=tmp_path)
     head = ["--root-dir", str(tmp_path), "--no-dry-run", "--overlay", str(tmp_path / "o.yml")]
-    assert cli.run_in_process(cast(Any, ctx), [*head, "run", "storage", "--only", "none"], None) is None
+    nested: list[tuple[list[str], Path]] = []
+    monkeypatch.setattr(cli, "run_nested", lambda args, wd: nested.append((list(args), wd)) or 7)
+    monkeypatch.chdir(tmp_path)
+    teardown = [*head, "run", "storage", "--only", "none"]
+    assert cli.run_in_process(cast(Any, ctx), teardown, Path("retention")) == 7
+    assert nested == [(teardown, Path.cwd() / "retention")]
     cwd = os.getcwd()
     assert cli.run_in_process(cast(Any, ctx), [*head, "no-such-command"], None) == 2
     assert "No such command" in caplog.text

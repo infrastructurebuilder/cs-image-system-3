@@ -9,13 +9,15 @@ subset of the four lifecycles -- identity, storage, base-image,
 instance-image -- in declared order, headlessly. The V1 commands remain as
 aliases onto the same runner.
 """
+import contextlib
 import json
 import logging
 import os
 import sys
+from collections.abc import Callable
 from importlib.metadata import entry_points
 from pathlib import Path
-from typing import TYPE_CHECKING, Annotated
+from typing import TYPE_CHECKING, Annotated, Any
 
 import typer
 from rich.logging import RichHandler
@@ -136,6 +138,12 @@ log = logging.getLogger("rich")
 
 app = typer.Typer(help="CLI for managing cloud sandbox image actions.",
                   context_settings={"help_option_names": ["-h", "--help"]})
+
+#: The key in the root context's object that marks an invocation as a nested
+#: run (:func:`run_nested`): the callback then leaves alone what belongs to
+#: the running process (its logging) and does not read that process's
+#: command line for this invocation.
+NESTED_RUN = "nested_run"
 
 
 def _loaded(typer_cntx: typer.Context) -> "RunContext":
@@ -1698,7 +1706,16 @@ def main(
         # is the running process's (its --verbose stays), the lock is the
         # run's, and the runner restores the directory. Nothing re-loads.
         return
-    setup_rich_logging(verbose)
+    # a nested run (`run_nested`) is a whole invocation of its own in a
+    # process that is already inside a run: everything below happens for it
+    # as for any invocation (its own load from its own --root-dir /
+    # --no-dry-run / --overlay, into a context object of its own), except
+    # what belongs to the running process: the logging stays as that process
+    # configured it (its --verbose with it), and that process's command line
+    # says nothing of this invocation
+    nested = bool(typer_cntx.obj and typer_cntx.obj.get(NESTED_RUN))
+    if not nested:
+        setup_rich_logging(verbose)
     if locked:
         # what scripts/with-tofu-lock used to do, held until the
         # context closes, however the command ends
@@ -1727,7 +1744,7 @@ def main(
     # when a state backup pulled from the configuration root instead of the
     # mirror and kept nothing
     typer_cntx.obj["invoked_cwd"] = Path(saved_dir)
-    if any(arg in ("--help", "-h") for arg in sys.argv[1:]):
+    if not nested and any(arg in ("--help", "-h") for arg in sys.argv[1:]):
         return                      # a help request loads nothing: the command's own text answers it
     if typer_cntx.invoked_subcommand in ("test", "cleanup"):
         return                      # retired V1 names: refuse without loading anything
@@ -1832,39 +1849,107 @@ def run_in_process(ctx: "RunContext", args: list[str], working_directory: Path |
     logged, an abort 1; any other exception propagates to the executor,
     which fails the phase as it would for a spawned step.
 
-    The one step DECLINED (``None``) is a nested ``run``: the transient-storage
-    teardown is ``run storage --only none ...`` under a DIFFERENT overlay set
-    (the storage-declaring overlays left out so the storages undeclare and
-    destroy through the gate), which cannot share this run's loaded context,
-    so the executor spawns it as a process of its own as before.
+    No step is declined (the seam's ``None``), so no deferred system step
+    is spawned. The one step that cannot read this run's context is a
+    nested ``run``: the transient-storage teardown is ``run storage --only
+    none ...`` under a DIFFERENT overlay set (the storage-declaring overlays
+    left out so the storages undeclare and destroy through the gate), and a
+    different overlay set is a different configuration. It runs in this
+    process all the same, over a context of its own (:func:`run_nested`);
+    ``ctx`` is not handed to it.
     """
     args = [str(a) for a in args]
-    if names_subcommand(args, "run"):
-        return None
     here = Path(os.getcwd()).absolute()
     wd = here if working_directory is None else (here / working_directory).absolute()
+    if names_subcommand(args, "run"):
+        return run_nested(args, wd)
     obj = {"ctx": ctx, "invoked_cwd": wd, "config_root": Path(ctx.working_path), "base_only": False,
            "in_process": True,
            # a deferred-load sub-app's command asks this for the context: already loaded
            "deferred_load": lambda: ctx}
     command = typer.main.get_command(app)
     with in_directory(wd):
-        try:
-            rv = command.main(args=args, prog_name=SYSTEM_CLI, standalone_mode=False, obj=obj)
-        except typer.Abort:
-            log.error(f"{SYSTEM_CLI} {' '.join(args)}: aborted")
-            return 1
-        except SystemExit as e:
-            return e.code if isinstance(e.code, int) else (0 if e.code is None else 1)
-        except Exception as e:
-            # a usage error (typer vendors its click, so the class is matched by shape)
-            exit_code = getattr(e, "exit_code", None)
-            format_message = getattr(e, "format_message", None)
-            if isinstance(exit_code, int) and callable(format_message):
-                log.error(f"{SYSTEM_CLI} {' '.join(args)}: {format_message()}")
-                return exit_code
-            raise
+        return _exit_code_of(args, lambda: command.main(args=args, prog_name=SYSTEM_CLI, standalone_mode=False,
+                                                        obj=obj))
+
+
+def _exit_code_of(args: list[str], invoke: Callable[[], Any]) -> int:
+    """The exit code of one in-process invocation of the CLI with ``args``:
+    ``None`` from ``invoke`` is success and an integer is itself, an abort
+    is 1, a ``SystemExit`` its code, a usage error its code (2) with the
+    message logged; any other exception propagates."""
+    try:
+        rv = invoke()
+    except typer.Abort:
+        log.error(f"{SYSTEM_CLI} {' '.join(args)}: aborted")
+        return 1
+    except SystemExit as e:
+        return e.code if isinstance(e.code, int) else (0 if e.code is None else 1)
+    except Exception as e:
+        # a usage error (typer vendors its click, so the class is matched by shape)
+        exit_code = getattr(e, "exit_code", None)
+        format_message = getattr(e, "format_message", None)
+        if isinstance(exit_code, int) and callable(format_message):
+            log.error(f"{SYSTEM_CLI} {' '.join(args)}: {format_message()}")
+            return exit_code
+        raise
     return 0 if rv is None else int(rv)
+
+
+def run_nested(args: list[str], wd: Path) -> int:
+    """Run a whole ``run`` of its own IN THIS PROCESS, from the directory
+    ``wd``, and answer with its exit code: what a child process started with
+    ``args`` in ``wd`` would have done and returned.
+
+    ``args`` is the nested run's own command line (``--root-dir R
+    --no-dry-run [--overlay P ...] run <lifecycles> ...``) and nothing else
+    reaches it: the app parses it as it parses any invocation, the callback
+    loads the configuration under THOSE overlays into a context object of
+    its own, and ``run`` drives the lifecycles over that context. The load
+    makes its own registry, image-source catalog, template resolver,
+    finalizer and meta-state handle and takes its own start time, so the
+    nested run has its own run id, journals its own run record, writes its
+    own summary and releases only its own alias draws, as the child did;
+    its deferred system steps reach :func:`run_in_process` with the nested
+    context.
+
+    The run this process is already inside is left as it was, however the
+    nested one ends:
+
+    * the working directory: the nested load changes to its root, and the
+      directory the caller had is restored on the way out;
+    * the logging: the callback configures none for a nested run, so the
+      nested run's lines go where the running process's go, at its level;
+    * standard output: a run prints its summary there, and the running
+      process's standard output carries one summary, its own; what the
+      nested run prints goes to standard error, where a child's captured
+      output went through the log;
+    * the typer context: the nested invocation's is its own and is closed
+      here, so the command that is running keeps its own;
+    * everything the process keeps for all runs (the hook lists, the item
+      kinds, the registered lifecycles, the runner in the seam) is filled
+      once per process and a second load adds nothing to it.
+
+    A failed nested run answers nonzero (1; 2 for a usage error or a
+    refusal that says so), a load failure with its own exit code. An
+    exception the run itself does not turn into a failed summary (an
+    unclassified load failure) propagates to the executor, which fails the
+    phase as a nonzero child would have. An interrupt propagates as
+    ``KeyboardInterrupt`` once the nested run has journalled itself
+    interrupted, so the running run journals its own interruption too, as
+    it did when a child and its parent were both interrupted.
+    """
+    command = typer.main.get_command(app)
+
+    def invoke() -> Any:
+        try:
+            with command.make_context(SYSTEM_CLI, list(args), obj={NESTED_RUN: True}) as nested:
+                return command.invoke(nested)
+        except typer.Exit as e:
+            return e.exit_code
+
+    with in_directory(wd), contextlib.redirect_stdout(sys.stderr):
+        return _exit_code_of(args, invoke)
 
 
 register_system_cli_runner(run_in_process)
