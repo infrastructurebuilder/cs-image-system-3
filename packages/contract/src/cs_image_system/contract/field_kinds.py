@@ -84,6 +84,7 @@ class FieldKindHandler:
         return obj
 
 
+# shared by every run in the process: each hook is handed the run's resolver and registry, so a handler keeps no run
 _HANDLERS: dict[str, FieldKindHandler] = {}
 
 

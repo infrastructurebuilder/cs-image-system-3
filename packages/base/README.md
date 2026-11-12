@@ -1177,6 +1177,53 @@ What the context exposes:
 | `reg`, `image_sources`, `template_resolver` | The run's registry, image-source catalog and template resolver (with its converter): one of each per load. |
 | `finalizer` | The run's deferred-command queue and executor: `get_finalization_executables_for_phase(phase, lifecycle)`, `finalization_phases_for(lifecycle)`, `final_execution_path`, `write_lifecycle_runner_script(lc, header)`, `write_gating_script()`, `final_execute()`. |
 | `extend_finalization_phase(phase, executables)` | Queue executables for a phase on the run's finalizer (the one finalizer verb the contract's context protocol declares). |
+| `plugin_state(key, factory)` | The one object a library or plugin keeps for this run under `key`: made by `factory` on the first ask, the same object after, gone with the context. |
+
+### What a process shares between runs, and what it must not
+
+A process may hold more than one run. A run's transient-storage teardown is
+a nested run of its own (the same root under fewer overlays), loaded and run
+in the same process, and a test loads many trees in one process. So
+anything a run's configuration, credentials, overlays, root, clock or
+meta-state decides belongs to that run: on its context, or on an object the
+run owns. What the process keeps for every run is either a fact of what is
+installed or the process's own by design, and every run shares it safely:
+
+| Where | What it holds | Why sharing it is safe |
+| ----- | ------------- | ---------------------- |
+| `loader._discovered_plugins` | The installed plugins, discovered and held to the contract once. | What is installed does not change under a process; each run replays it into a registry of its own. |
+| `basic.abstract_plugin_metadata._distribution_roots` | Where each installed distribution's files are, and its version. | Installed. |
+| `public_safe._runtime_rules` | The secret shapes the installed runtime classes declare. | Installed; nothing of a run is read. |
+| The hook lists in `commands/run_lifecycles.py` (`_VALIDATORS` to `_STATE_BINDINGS`), `_HOOK_PLUGINS_LOADED` | The run hooks of the core and of the installed hook plugins. | Filled once from code and entry points; every hook is handed the run it serves; registering one again adds nothing. |
+| `lifecycles._REGISTERED` | The lifecycles code and hook plugins register. | Each is registered once and never changed. |
+| `config_loader._ITEM_KINDS` | The domain-item kinds the loader reads. | Registered at import; a run reads its items into its own context. |
+| `helpers.resolution_stages._PASSES` | The string-stage passes. | Registered at import; each pass walks the document it is handed. |
+| The contract's `field_kinds._HANDLERS`, `enrollment._KINDS`, `secrets._decoder` | The field-kind handlers, the launch-enrollment renderers, the core's marker decoder. | Each is handed what it works on (the run's resolver and registry, a launch's parameters, a marker). |
+| `in_process._RUNNER` | The system CLI's in-process runner. | One per process, handed the run's context on every call; a nested run loads a context of its own. |
+| The system CLI's `_DEFERRED_LOAD_COMMANDS` | The plugin sub-apps whose commands load the tree themselves. | Filled at import from the installed command mounts. |
+| `encryption._identities_for` | The age identities `CSIS_CONFIG_IDENTITY` names. | Keyed by the environment's value, which every run in the process reads alike. |
+| `encryption._OPENED`, `_OPENED_KEYS` | Every marker opened in the process and its plaintext, and the keys each plaintext was read under. | A marker opens to one plaintext under the process's one identity, and every reader takes a plaintext more as one more value to hide (a stricter scan of what is written, a derived value marked, a record written as ciphertext), never as one fewer. The nested run reads the same root under some of its outer run's overlays. |
+| The working directory, the logging, standard output, the typer context | The process's own. | A nested run leaves each as it found it (`run_nested` in the system CLI). |
+
+What is a run's own: its registry, image-source catalog, template resolver,
+finalizer and meta-state handle, its run id and start time, its bake
+decisions (`ctx.bake_decisions`), and whatever a library or plugin keeps
+through `ctx.plugin_state(key, factory)`: the terraform and packer
+collectors ([hashicorp-utils](../hashicorp-utils/README.md)) and the alias
+pool's draws (`alias_pool.drawn_this_run(ctx)`). The draws are kept by run,
+not by run id: a run id is the load's start time to the second and names no
+root, so two runs loaded in one second carry one id
+([the test](../../tests/test_two_runs_in_one_process_share_nothing.py)).
+
+For a plugin author: never keep run state at module level. No
+`functools.cache` over anything a run's configuration, credentials or
+overlays decide; no module-level SDK client, session or token built from a
+runtime's settings; no dict of cloud answers keyed by region, project or
+profile, which would serve one run's answer to another run under other
+overlays. Build a client per call from the builder's own model, as every
+built-in runtime does, or keep it for the run through `ctx.plugin_state`,
+which gives one object per run and drops it with the context. Only a fact
+of what is installed may be cached for the process.
 
 ## Meta-state
 

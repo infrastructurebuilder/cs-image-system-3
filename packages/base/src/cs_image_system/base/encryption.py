@@ -71,7 +71,8 @@ class InlineMarkerError(ValueError):
 
 
 #: Declared here, before the PyYAML representer that consults them; the store
-#: itself is populated by the walk further down.
+#: itself is populated by the walk further down. Shared by every run in the
+#: process, as :data:`_OPENED` is: a key more only writes a value as ciphertext.
 _OPENED_KEYS: dict[str, set[str]] = {}
 
 #: Public by decision: "no declared-encrypted value other than a
@@ -119,6 +120,7 @@ def _parse_identity_text(text: str, source: str):
     raise MissingIdentityError(f"{source}: no AGE-SECRET-KEY-1 line")
 
 
+# shared by every run in the process: keyed by the environment's value, which every run in it reads alike
 @lru_cache(maxsize=8)
 def _identities_for(value: str) -> tuple:
     """The identities the environment value names -- the key itself, an
@@ -349,8 +351,15 @@ EXEMPT_ENTRY_KEYS: frozenset[str] = frozenset({"name", "type"})
 #: knows this by construction -- it did the decrypting -- so the emission guard
 #: can search the committed output for those exact plaintexts instead of
 #: guessing at shapes, CI can mask exactly them, and :func:`substitute_markers`
-#: can materialise an emission without decrypting a second time. Run-scoped;
-#: never written anywhere.
+#: can materialise an emission without decrypting a second time. Never
+#: written anywhere.
+#:
+#: Kept for the process, so every run in it shares it: a marker opens to one
+#: plaintext whoever opens it, every run opens with the one identity the
+#: process's environment names, and every reader takes a plaintext more as one
+#: more value to hide (a stricter scan, a derived value marked, a record
+#: written as ciphertext), never as one value fewer; what another run opened
+#: can only tighten a run's guards.
 _OPENED: dict[str, str] = {}
 
 def decrypted_plaintexts(include_public_by_decision: bool = False) -> set[str]:

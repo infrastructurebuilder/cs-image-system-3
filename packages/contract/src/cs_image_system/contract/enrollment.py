@@ -44,6 +44,7 @@ class EnrollmentKind:
     ansible_tasks: AnsibleTasks
 
 
+# shared by every run in the process: the installed identity plugins' renderers, which keep no run state
 _KINDS: dict[str, EnrollmentKind] = {}
 
 

@@ -180,6 +180,7 @@ class ItemKind:
     base_only: bool = False                     # read in base-only mode instead of the normal flow
 
 
+# shared by every run in the process: specs registered by code at import; a run reads its items INTO its own context
 _ITEM_KINDS: list[ItemKind] = []
 
 

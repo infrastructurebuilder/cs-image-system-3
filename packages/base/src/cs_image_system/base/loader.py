@@ -177,6 +177,7 @@ class DiscoveredPlugin(NamedTuple):
     initializer: Callable[[], Any]
 
 
+# shared by every run in the process: the installed plugins, which each run replays into a registry of its own
 @cache
 def _discovered_plugins() -> tuple[DiscoveredPlugin, ...]:
     """Every installed plugin's ``initialize`` by plugin type and name, in

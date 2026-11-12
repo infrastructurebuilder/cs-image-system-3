@@ -95,6 +95,8 @@ _DURING: dict[ExecutionLifecyclePhase, Callable[[RunContext, ExecutionLifecycleP
 # Their shapes, the entry-point group and ``HookSet`` are the contract's
 # (`contract.hooks`), typed over the context protocol; this
 # module keeps the names its callers and the tests read them by.
+# Shared by every run in the process: filled from code and the installed hook
+# plugins, never from a run, and each hook is handed the run it serves.
 
 _VALIDATORS: list[ValidatorHook] = []
 _AFTER_GENERATE: list[LifecycleHook] = []
@@ -694,6 +696,7 @@ def validate_only(ctx: RunContext, *, online: bool = False) -> list[str]:
 
 # ------------------------------------------------ plugin hooks (entry points)
 
+# shared by every run in the process: whether the installed hook plugins were read into the lists above
 _HOOK_PLUGINS_LOADED = False
 
 

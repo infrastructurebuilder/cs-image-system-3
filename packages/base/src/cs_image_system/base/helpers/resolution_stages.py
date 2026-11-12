@@ -23,7 +23,8 @@ from __future__ import annotations
 
 from typing import Any, Callable
 
-# (order, insertion_index, name, fn)
+# (order, insertion_index, name, fn); shared by every run in the process:
+# registered by code at import, and each pass walks the document it is handed
 _PASSES: list[tuple[int, int, str, Callable[..., dict[str, Any]]]] = []
 _counter = 0
 

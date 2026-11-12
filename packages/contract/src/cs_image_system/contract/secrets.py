@@ -55,6 +55,7 @@ class Decrypted(str):
 #: The decoder: a marker in, its plaintext out (or a ``ValueError`` naming
 #: why it could not be opened). Installed by the core.
 SecretDecoder = Callable[[str], str]
+# shared by every run in the process: the core's one function, which reads the process's identity
 _decoder: SecretDecoder | None = None
 
 
