@@ -23,7 +23,7 @@ exists -- the values come back with the instance itself, the claimed set
 comes from the group's server registry, and the write is the
 runtime's session command.
 
-Three rules, in order of how much they matter:
+Four rules, in order of how much they matter:
 
 * **A collision is skipped, and said.** A registry ranks a record's own
   hostname above another record's aliases, so a colliding alias resolves
