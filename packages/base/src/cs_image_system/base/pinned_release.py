@@ -21,6 +21,12 @@ operator goes on deliberately with ``--allow-unpinned`` (or
 ``CSIS_ALLOW_UNPINNED`` in the environment), and the run then says, in one
 line, what it was allowed past.
 
+A committing restamp of lineage is held the same way (:data:`RESTAMP`): it
+records, as each build's current fingerprint, the one the code running
+computes, and the pinned release may not compute the same. A disposal is
+not held: it records what was removed, which no version of the code
+computes differently.
+
 How an install is told from an index install: an installer writes
 ``direct_url.json`` (PEP 610) into the dist-info of whatever it installed
 from a URL or a path -- an editable workspace member, a local directory, an
@@ -61,6 +67,38 @@ SYSTEM_DISTRIBUTION = "cs-image-system-system"
 DIRECTORY, REPOSITORY, ARCHIVE = "directory", "repository", "archive"
 
 _SHOWN = 3
+
+
+@dataclass(frozen=True)
+class HeldCommand:
+    """A committing command the pin holds, in the words its refusal uses:
+    ``name`` begins every line it prints, ``stake`` is what goes wrong when
+    something other than the pinned release makes it (and what was not
+    done), ``verb`` and ``recipe`` are how the tree's shell does it, and
+    ``risk`` closes the one line of a command that was allowed past."""
+    name: str
+    stake: str
+    verb: str
+    recipe: str
+    risk: str
+
+
+#: a run that commits its emission and meta-state
+RUN = HeldCommand(
+    name="run --commit",
+    stake="The tree's CI installs the pinned release and compares the committed emission with its own, so a "
+          "recording made by anything else can be judged BEHIND there. Nothing was generated and nothing was "
+          "committed.",
+    verb="record", recipe="just record",
+    risk="the tree's CI may judge this recording BEHIND")
+#: a restamp that writes fingerprints into lineage and commits them
+RESTAMP = HeldCommand(
+    name="lineage restamp --commit",
+    stake="A restamp records, as each build's current fingerprint, the one the code running computes. The pinned "
+          "release, which the tree's CI and every later run use, may not compute the same, and would then read "
+          "those builds as changed. Nothing was computed, written, retagged or committed.",
+    verb="restamp", recipe="just cli --no-dry-run lineage restamp --runtime <runtime> --commit",
+    risk="the pinned release may not agree with the fingerprints this restamp records")
 
 
 @dataclass(frozen=True)
@@ -179,38 +217,38 @@ class PinVerdict:
             lead = next((s for s in self.sources if s.distribution == RELEASE_DISTRIBUTION), self.sources[0])
             names = ", ".join(s.distribution for s in self.sources[:_SHOWN])
             more = ", ..." if len(self.sources) > _SHOWN else ""
-            said += f", {lead.describe()} ({len(self.sources)} distributions not installed from an index: {names}{more})"
+            count = f"{len(self.sources)} distribution{'' if len(self.sources) == 1 else 's'}"
+            said += f", {lead.describe()} ({count} not installed from an index: {names}{more})"
         return said
 
-    def lines(self, command: str = "run --commit") -> list[str]:
-        """What the run prints: nothing when the pin holds or nothing was
-        checked, ONE line when it was allowed past the pin, the refusal
-        with both remedies otherwise."""
+    def lines(self, held: HeldCommand = RUN) -> list[str]:
+        """What the command prints: nothing when the pin holds or nothing
+        was checked, ONE line when it was allowed past the pin, the refusal
+        with both remedies otherwise. ``held`` is the command that asked."""
         if not self.unpinned:
             return []
         pin = f"this tree pins {RELEASE_DISTRIBUTION} {self.pinned} ({PIN_FILE})"
         if self.allowed:
-            return [f"{command}: {ALLOWED} -- {pin} and what is running is {self.running_as()}; going on because "
-                    f"{ALLOW_FLAG} (or {ALLOW_ENVVAR}) says so, and the tree's CI may judge this recording BEHIND"]
+            return [f"{held.name}: {ALLOWED} -- {pin} and what is running is {self.running_as()}; going on because "
+                    f"{ALLOW_FLAG} (or {ALLOW_ENVVAR}) says so, and {held.risk}"]
         return [
-            f"{command}: {REFUSED} -- {pin} and the system running is not that release installed from an index:",
+            f"{held.name}: {REFUSED} -- {pin} and the system running is not that release installed from an index:",
             f"  running: {self.running_as()}",
-            "  The tree's CI installs the pinned release and compares the committed emission with its own, so a "
-            "recording made by anything else can be judged BEHIND there. Nothing was generated and nothing was "
-            "committed.",
-            "  Either record with the pinned release -- in the tree's shell: "
-            f"CSIS=\"$HOME/.local/bin/{RELEASE_DISTRIBUTION}\" just record -- after `just take <version>` if the tree "
+            f"  {held.stake}",
+            f"  Either {held.verb} with the pinned release -- in the tree's shell: "
+            f"CSIS=\"$HOME/.local/bin/{RELEASE_DISTRIBUTION}\" {held.recipe} -- after `just take <version>` if the tree "
             "should move to another release,",
             f"  or go on deliberately: {ALLOW_FLAG} on this command, or {ALLOW_ENVVAR}=1 in the environment "
-            f"({ALLOW_ENVVAR}=1 just record).",
+            f"({ALLOW_ENVVAR}=1 {held.recipe}).",
         ]
 
 
 def hold_to_pin(root: Path, *, commit: bool, allow: bool = False, installed: Installed | None = None) -> PinVerdict:
-    """Hold a run over the tree at ``root`` to the release the tree pins.
+    """Hold a command over the tree at ``root`` to the release the tree
+    pins (a run, or a restamp of lineage).
 
-    Nothing is checked for a run that does not commit or a tree without a
-    pin. Otherwise the verdict says whether the version running differs
+    Nothing is checked for a command that does not commit or a tree without
+    a pin. Otherwise the verdict says whether the version running differs
     from the pin and which distributions did not come from an index;
     ``allow`` is the operator's word to go on all the same. ``installed``
     is the facts about the install (the environment's unless given). The

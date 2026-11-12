@@ -121,7 +121,7 @@ to the four built-ins alone.
 | `--apply-runtime NAME` | none | Let the storage and instance roots of that runtime apply, as if `apply_storage` and `apply_instances` listed it. Implies `--only-runtime NAME` unless `--only` or `--only-runtime` is given. The generated `apply-check` steps carry it. |
 | `--force-bake NAME` (repeatable) | none | Bake the named image(s) even when current; `all` forces every image in the run's surface. |
 | `--allow-unscoped-bakes` | off | Let a `--no-dry-run` run bake on runtimes outside its apply scope. Without it such a run refuses before any bake. |
-| `--allow-unpinned` | off (`CSIS_ALLOW_UNPINNED` in the environment sets it) | Let a `--commit` run go on when the system running is not the release the tree pins in `.csis-version`, installed from an index: another version, or a development checkout whatever its version says. Without it such a run exits 2 before anything is generated, naming both versions and both remedies. A tree without `.csis-version` and a run without `--commit` are not checked. |
+| `--allow-unpinned` | off (`CSIS_ALLOW_UNPINNED` in the environment sets it) | Let a `--commit` run go on when the system running is not the release the tree pins in `.csis-version`, installed from an index: another version, or a development checkout whatever its version says. Without it such a run exits 2 before anything is generated, naming both versions and both remedies. A tree without `.csis-version` and a run without `--commit` are not checked. `lineage restamp --commit` takes the same option; `dispose image --commit` is not held. |
 | `--migrate-state NAME` (repeatable) | none | MOVE the named terraform workspace's state to the backend it now resolves to. Needs `--no-dry-run`: a dry run exits 2 before anything loads further. The root's runner then carries `state-migration begin`, `init -migrate-state -force-copy`, `plan -detailed-exitcode`, the gate and `state-migration finish` (see [the runner scripts](#commands-the-generated-runner-scripts-call)). There is deliberately no flag that merely proceeds past the state-location guard. |
 
 The run summary is printed to standard output as JSON, followed by one
@@ -471,7 +471,7 @@ every real drift line. Exit 2 when the runtime cannot answer (unknown
 runtime, or a runtime whose plugin cannot list its inventory); exit 1 on
 leftovers or real drift; exit 0 when empty.
 
-### `lineage restamp --runtime RT [--series NAME ...] [--commit/--no-commit]`
+### `lineage restamp --runtime RT [--series NAME ...] [--commit/--no-commit] [--allow-unpinned]`
 
 Record the current input fingerprint on series heads whose recorded one
 predates the current fingerprint recipe, keeping the previous value, and
@@ -479,6 +479,18 @@ re-tag the cloud image to match. Prints the plan as JSON. Under the global
 dry run it only reports (`restamp (dry run): N head(s) would be restamped;
 pass --no-dry-run`). `--commit` makes the meta-state commit. Exit 1 on
 error (`restamp: <reason>`, for example an unknown runtime).
+
+The committing form (`--commit` under `--no-dry-run`) is held to the
+release the tree pins in `.csis-version`, as `run --commit` is: started
+by another version, or by a development checkout whatever its version
+says, it exits 2 with `lineage restamp --commit: REFUSED unpinned`
+before anything is computed, written or retagged, because a restamp
+records the fingerprints the code running computes and the pinned
+release may not compute the same. `--allow-unpinned` (or
+`CSIS_ALLOW_UNPINNED=1`) goes on and says so in one line. The dry form
+and a tree without `.csis-version` are not checked. `dispose image
+--commit` is not held: a disposal records what was removed, which does
+not depend on the running code's version.
 
 ### `lineage relabel --runtime RT [--build ID ...]`
 

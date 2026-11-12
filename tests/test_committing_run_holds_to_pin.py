@@ -2,7 +2,8 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""A committing run is made by the release the tree pins, or says so.
+"""A committing run, and a committing restamp, is made by the release the
+tree pins, or says so.
 
 * a tree pins its release in ``.csis-version``; a run with ``--commit``
   over such a tree is refused, before anything is generated or committed,
@@ -13,6 +14,9 @@
   and neither is a run that does not commit;
 * ``--allow-unpinned``, or ``CSIS_ALLOW_UNPINNED`` in the environment,
   lets the run go on, and it says in one line what it was allowed past;
+* ``lineage restamp --commit`` under ``--no-dry-run`` is held the same
+  way, under its own name, before it computes or writes anything; its dry
+  form is not, and neither is ``dispose image --commit``;
 * what is installed is read from the distributions' own records: a
   ``direct_url.json`` in a dist-info means "not from an index".
 
@@ -21,12 +25,13 @@ history: hygiene XXV item 6.
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 from importlib import metadata
 from pathlib import Path
 
 import pytest
-from harness import copy_config, reset_singletons, stub_environment, tree
+from harness import copy_config, load_context, reset_singletons, stub_environment, tree
 from typer.testing import CliRunner
 
 from cs_image_system.base import pinned_release
@@ -39,6 +44,8 @@ from cs_image_system.base.pinned_release import (
     PIN_FILE,
     REFUSED,
     REPOSITORY,
+    RESTAMP,
+    RUN,
     Installed,
     SourceInstall,
     hold_to_pin,
@@ -125,6 +132,15 @@ def test_the_operators_word_over_the_pinned_release_says_nothing(tmp_path):
 def test_a_run_that_does_not_commit_is_not_checked(tmp_path):
     verdict = hold_to_pin(_pin(tmp_path, OTHER), commit=False, installed=CHECKOUT_AT_THE_PIN)
     assert verdict.pinned is None and not verdict.refused and verdict.lines() == []
+
+
+@pytest.mark.parametrize("held", [RUN, RESTAMP])
+def test_each_held_command_speaks_under_its_own_name_and_names_its_own_recipe(tmp_path, held):
+    refused = hold_to_pin(_pin(tmp_path), commit=True, installed=CHECKOUT_AT_THE_PIN).lines(held)
+    allowed = hold_to_pin(_pin(tmp_path), commit=True, allow=True, installed=CHECKOUT_AT_THE_PIN).lines(held)
+    assert refused[0].startswith(f"{held.name}: {REFUSED}") and held.recipe in "\n".join(refused)
+    assert len(allowed) == 1 and allowed[0].startswith(f"{held.name}: {ALLOWED}")
+    assert RUN.name != RESTAMP.name and RUN.recipe != RESTAMP.recipe
 
 
 def test_two_spellings_of_one_version_are_one_release():
@@ -294,9 +310,111 @@ def test_a_tree_without_a_pin_commits_from_any_install(recorded_tree):
     assert _git(recorded_tree, "rev-parse", "HEAD") != head
 
 
-def test_the_help_of_run_names_the_flag_and_its_variable(monkeypatch):
+@pytest.mark.parametrize("command", [("run",), ("lineage", "restamp")])
+def test_the_help_of_each_held_command_names_the_flag_and_its_variable(monkeypatch, command):
     monkeypatch.setenv("COLUMNS", "200")
-    monkeypatch.setattr("sys.argv", ["cs-image-system", "run", "--help"])
+    monkeypatch.setattr("sys.argv", ["cs-image-system", *command, "--help"])
     from cs_image_system.system.cli import app
-    result = runner.invoke(app, ["run", "--help"], catch_exceptions=False)
+    result = runner.invoke(app, [*command, "--help"], catch_exceptions=False)
     assert result.exit_code == 0 and ALLOW_FLAG in result.output and ALLOW_ENVVAR in result.output
+
+
+def test_the_help_of_a_disposal_offers_no_such_flag(monkeypatch):
+    monkeypatch.setenv("COLUMNS", "200")
+    monkeypatch.setattr("sys.argv", ["cs-image-system", "dispose", "image", "--help"])
+    from cs_image_system.system.cli import app
+    result = runner.invoke(app, ["dispose", "image", "--help"], catch_exceptions=False)
+    assert result.exit_code == 0 and ALLOW_FLAG not in result.output and ALLOW_ENVVAR not in result.output
+
+
+# ------------------------------------------------ a restamp of lineage, and a disposal
+
+RUNTIME = "aws-east2-runtime"
+SERIES = "basic-rh-10"
+HEAD_BUILD = "build-with-an-older-fingerprint"
+OLDER_FINGERPRINT = "0" * 64
+
+
+def _recorded_head(root: Path) -> None:
+    """One recorded build, the head of its series, whose fingerprint is not
+    the one the tree computes now: what a restamp re-records."""
+    here = os.getcwd()
+    try:
+        load_context(root).meta_state.add_build({
+            "build_id": HEAD_BUILD, "series": SERIES, "runtime": RUNTIME, "name": "n",
+            "run": "2026_09_02t00_00_00_000000", "parent": "vendor", "input_fingerprint": OLDER_FINGERPRINT})
+    finally:
+        os.chdir(here)
+    reset_singletons()
+
+
+def _recorded_fingerprint(root: Path) -> str | None:
+    here = os.getcwd()
+    try:
+        build = load_context(root).meta_state.build(HEAD_BUILD)
+    finally:
+        os.chdir(here)
+    reset_singletons()
+    return None if build is None else build["input_fingerprint"]
+
+
+def _restamp(root: Path, *args: str, env: dict[str, str] | None = None):
+    return _invoke(root, *args, "lineage", "restamp", "--runtime", RUNTIME, "--commit", env=env)
+
+
+def test_a_committing_restamp_is_refused_before_it_computes_or_writes(recorded_tree, monkeypatch):
+    from cs_image_system.system import cli
+    root = _pin(recorded_tree)
+    _recorded_head(root)
+    head = _committed(root)
+    before = tree(root, ignore_parts=(".git",))
+    asked: list[str] = []
+    monkeypatch.setattr(cli, "restamp", lambda ctx, runtime, series: asked.append(runtime) or [])
+    _installed_is(monkeypatch, CHECKOUT_AT_THE_PIN)
+    result = _restamp(root, "--no-dry-run")
+    assert result.exit_code == 2, result.output
+    assert f"{RESTAMP.name}: {REFUSED}" in result.output and ALLOWED not in result.output
+    assert asked == [] and tree(root, ignore_parts=(".git",)) == before
+    assert _git(root, "rev-parse", "HEAD") == head and _git(root, "status", "--porcelain") == ""
+
+
+@pytest.mark.parametrize("word", ["flag", "variable"])
+def test_the_operators_word_lets_a_committing_restamp_go_on(recorded_tree, monkeypatch, word):
+    root = _pin(recorded_tree)
+    _recorded_head(root)
+    head = _committed(root)
+    _installed_is(monkeypatch, CHECKOUT_AT_THE_PIN)
+    if word == "flag":
+        result = _invoke(root, "--no-dry-run", "lineage", "restamp", "--runtime", RUNTIME, "--commit", ALLOW_FLAG)
+    else:
+        result = _restamp(root, "--no-dry-run", env={ALLOW_ENVVAR: "1"})
+    assert result.exit_code == 0, result.output
+    assert f"{RESTAMP.name}: {ALLOWED}" in result.output and REFUSED not in result.output
+    assert _git(root, "rev-parse", "HEAD") != head
+    assert _recorded_fingerprint(root) not in (None, OLDER_FINGERPRINT)
+
+
+def test_a_dry_restamp_over_a_pinned_tree_is_not_checked(recorded_tree, monkeypatch):
+    root = _pin(recorded_tree)
+    _recorded_head(root)
+    _installed_is(monkeypatch, CHECKOUT_AT_THE_PIN)
+    result = _restamp(root)                                   # the global dry run: the plan, nothing written
+    assert result.exit_code == 0, result.output
+    assert ALLOWED not in result.output and REFUSED not in result.output
+    assert _recorded_fingerprint(root) == OLDER_FINGERPRINT
+
+
+def test_a_committing_disposal_is_not_held_to_the_pin(recorded_tree, monkeypatch):
+    """A disposal records what was removed, whatever code removed it."""
+    from cs_image_system.aws_runtime.aws_runtime_builders import AwsCloudBuilder
+    root = _pin(recorded_tree)
+    _recorded_head(root)
+    head = _committed(root)
+    removed: list[str] = []
+    monkeypatch.setattr(AwsCloudBuilder, "dispose_image", lambda self, build_id: removed.append(build_id) or True)
+    _installed_is(monkeypatch, CHECKOUT_AT_THE_PIN)
+    result = _invoke(root, "--no-dry-run", "dispose", "image", HEAD_BUILD, "--commit")
+    assert result.exit_code == 0, result.output
+    assert ALLOWED not in result.output and REFUSED not in result.output
+    assert removed == [HEAD_BUILD] and _git(root, "rev-parse", "HEAD") != head
+    assert _recorded_fingerprint(root) is None

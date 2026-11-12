@@ -5,8 +5,8 @@
 # The command comes from a release. Either of:
 #   uv tool install cs-image-system            the CLI on PATH (the default below)
 #   a pyproject.toml here depending on it       then: export CSIS="uv run cs-image-system"
-# The version pin lives in .csis-version: CI installs it (see .github/workflows/ci.yml), and a recipe that
-# commits is refused when the command is not that release from an index (CSIS_ALLOW_UNPINNED=1 goes on).
+# The version pin lives in .csis-version: CI installs it (see .github/workflows/ci.yml), and a committing run
+# or restamp is refused when the command is not that release from an index (CSIS_ALLOW_UNPINNED=1 goes on).
 #
 # The five contract targets come first, in lifecycle order; bare `just` lists them.
 

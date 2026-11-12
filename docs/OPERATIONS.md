@@ -440,6 +440,15 @@ After a change to the fingerprint recipe itself,
 tree's current fingerprint on each series head whose recorded one predates
 the change (the previous value kept under `fingerprint_restamped`) and
 re-tags the cloud image, so unchanged images are not re-baked once.
+The fingerprint it records is the one the code RUNNING computes, so the
+committing form (`--no-dry-run ... --commit`) is held to the tree's pin
+as a committing run is ([`--commit`](#--commit)): made by anything but
+the release `.csis-version` names, installed from an index, it is refused
+before it computes or writes anything (`lineage restamp --commit:
+REFUSED unpinned`), because the pinned release may not agree with the
+fingerprints unreleased code records and would then bake those images
+again. `--allow-unpinned`, or `CSIS_ALLOW_UNPINNED=1`, goes on and says
+so in one line. The dry form, which only reports the plan, is not held.
 
 ### How an image is named
 
@@ -1342,6 +1351,16 @@ run without `--commit` (a dry run, `just dry`, `config-drift` itself),
 and the pinned release from an index, which is what `uv tool install
 "cs-image-system==<version>"`, `just take` and the tree's CI all produce.
 
+Two commands are held this way, and one that also takes `--commit` is
+deliberately not:
+
+| Command | Held to the pin? | Why |
+| --- | --- | --- |
+| `run ... --commit` (dry or real) | yes, before it generates | it commits an emission the tree's CI compares with the pinned release's |
+| `--no-dry-run lineage restamp ... --commit` | yes, before it computes or writes anything; its lines begin `lineage restamp --commit:` | it records, as each build's current fingerprint, the one the code running computes, and the pinned release may not compute the same: its next run would read those builds as changed and bake them again |
+| `lineage restamp` under the default dry run, or without `--commit` | no | the dry form reports a plan and writes nothing; without `--commit` nothing is committed |
+| `dispose image ... --commit` | no | a disposal records what was removed (the lineage record dropped, the pins at it released), and that does not depend on the version of the code that removed it |
+
 ### Meta-state (`<config root>/meta-state/`)
 
 Committed, human-readable, public-safe: every write passes the scanner's
@@ -1840,8 +1859,9 @@ system's own proofs and nothing more.
 
 Either way the command is then this checkout, a development install, and
 the reference pins a release in `.csis-version`: every committing run
-there (`just record`, the `cloud-*` recipes, `just cli run ... --commit`)
-is refused before it generates unless it is told to go on
+there (`just record`, the `cloud-*` recipes that run, `just cli run ...
+--commit`), and a committing `lineage restamp`, is refused before it
+does anything unless it is told to go on
 (`CSIS_ALLOW_UNPINNED=1 just record`; [`--commit`](#--commit)). That is
 deliberate. A record made by this checkout is a statement about
 unreleased code, and the reference's CI, which installs the pin, judges
@@ -2368,7 +2388,7 @@ in `docs/examples/*/Justfile`; `CSIS` names the command, default
 | `full-test` | `test` + `test-mods --strict` (docker) + a dry run `--all` and `state query --strict` over a private copy | docker, sessions |
 | `release <rt>` | the performing run on one runtime, gated on `full-test`, records committed | write credentials |
 | `validate` / `dry [LIFECYCLES]` / `run +LIFECYCLES` | every rule / a dry run / a REAL run (`--locked --no-dry-run ... --commit`) | sessions; write credentials for `run` |
-| `record` | a dry run of EVERY lifecycle, its emission and meta-state committed (what CI's perform job makes first and last). Like every recipe that passes `--commit`, refused unless the command is the release `.csis-version` pins, installed from an index; `CSIS_ALLOW_UNPINNED=1 just record` goes on ([`--commit`](#--commit)) | sessions; the pinned release |
+| `record` | a dry run of EVERY lifecycle, its emission and meta-state committed (what CI's perform job makes first and last). Like every recipe that passes `--commit` to `run`, refused unless the command is the release `.csis-version` pins, installed from an index; `CSIS_ALLOW_UNPINNED=1 just record` goes on ([`--commit`](#--commit)) | sessions; the pinned release |
 | `preflight` / `state-query *ARGS` / `cloud-preflight` | the sessions, read over the loaded tree without a cloud call / the state query / `state query --strict` | the age identity / sessions / sessions |
 | `cloud-describe <rt>` | the configuration's facts about a runtime as JSON | sessions |
 | `cloud-bake <rt> [yes]` | `run base-image instance-image --only-runtime <rt> --commit`; the roots plan and gate only | `cloud-preflight`; write credentials |
@@ -3421,7 +3441,8 @@ operator key: nothing in a run can prompt.
 - **Adopt a foreign image or storage**: `just cli state import`
   (meta-state only); importing into tofu state is a hand step.
 - **After a fingerprint-recipe change**: `just cli --no-dry-run lineage
-  restamp --runtime <rt> --commit`.
+  restamp --runtime <rt> --commit`, made by the pinned release (it is
+  held to `.csis-version` as a recording is; [`--commit`](#--commit)).
 - **Release by hand**: `just cli release <image> [--build <id>] --model
   <m>`; on an ephemeral runtime declare `release: {model: <m>}` on the
   image instead, so the run releases the verified head before retention.
