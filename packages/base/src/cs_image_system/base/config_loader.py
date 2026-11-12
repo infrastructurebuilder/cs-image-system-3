@@ -756,11 +756,26 @@ def _build_builders(
 ) -> list[BuilderBase]:
     """Build and register the builders of every family the configuration
     declares (the runtimes always; another family only when it has entries)
-    and return them as one list: runtimes, state backends, group, user, OS,
-    modification, storage, image and instance builders, in that order, and
-    by name within a family. The families are BUILT in another order than
-    they are listed in: runtimes, state backends, OS, group, user, image,
-    instance, modification, storage."""
+    and return them as one list. The families are built in one order and
+    listed in another, and each order is kept for what depends on it:
+
+    * BUILT: runtimes, state backends, OS, group, user, image, instance,
+      modification, storage. The runtimes must come first: every model
+      that names a runtime resolves the name (or ``default``) against the
+      runtime builders' names, aliases and default, which the runtimes'
+      own build registers.
+    * LISTED (by name within a family): runtimes, state backends, group,
+      user, OS, modification, storage, image, instance. The list is the
+      run's ``all_sorted_builders``, and its order is the run's: every
+      phase hook walks the builders in it (the generation before and after
+      a phase and the deferred commands it collects, the executor's pre-,
+      post- and failed-phase hooks), and the state-location check walks
+      the terraform roots in it, so its refusals come out in this order.
+      Listing in the build order changes no file the installed plugins
+      emit (each family acts in a phase of its own), but it would reorder
+      those refusals (an instance root's ahead of a storage root's) and
+      the hooks of any builder that acts in another family's phase, so
+      the listing keeps its own order."""
     configured_runtime_builders: dict[str, RuntimeBuilderBase] = process_and_register_builders(
         config_data, VCT.RUNTIME_BUILDER, "runtime_builders", addl_config, reg
     )  # type: ignore
