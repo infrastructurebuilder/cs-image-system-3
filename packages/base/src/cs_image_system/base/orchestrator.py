@@ -279,11 +279,13 @@ class TemplateResolver:
         conv = self.converter
         reg = self.reg
         data_field = dfield.name
-        deferred_override_types:dict[VCT,type] = obj.get_subitem_overrides() if isinstance(obj, SubItemOverrideProtocol) else {}
-        field_metadata: dict[str, Any] = dfield.metadata if hasattr(dfield, "metadata") else {} # type: ignore                
-        deferred_builder_vct: VCT | None = field_metadata.get(DEFERRED_BUILDER_VCT, None)
-        deferred_item_vct: VCT | None = field_metadata.get(DEFERRED_ITEM_VCT, None)
+        field_metadata: dict[str, Any] = dfield.metadata if hasattr(dfield, "metadata") else {} # type: ignore
+        # every field of every model passes through here: whether the field is
+        # a deferred list is asked first, and only one pays for the rest
         if field_metadata.get(IS_DEFERRED_LIST_GENERATED, False):
+            deferred_override_types:dict[VCT,type] = obj.get_subitem_overrides() if isinstance(obj, SubItemOverrideProtocol) else {}
+            deferred_builder_vct: VCT | None = field_metadata.get(DEFERRED_BUILDER_VCT, None)
+            deferred_item_vct: VCT | None = field_metadata.get(DEFERRED_ITEM_VCT, None)
             if not isinstance(getattr(obj, data_field), list):
                 raise ValueError(f"Deferred field '{data_field}' in object '{obj}' is expected to be a list, "
                                 f"but got {type(getattr(obj, data_field))}.")

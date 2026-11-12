@@ -273,3 +273,24 @@ def test_an_item_whose_parent_cannot_be_set_enters_the_map_under_its_own_id(clea
     assert tr.flattened_map[item.global_id] is item
     warnings = [r.getMessage() for r in caplog.records if r.levelno == logging.WARNING and r.name == orchestrator.__name__]
     assert len(warnings) == 1 and repr(item.global_id) in warnings[0]
+
+
+@dataclass
+class CountingHolder(Holder):
+    """A holder that counts how often its sub-item overrides are asked for."""
+    asked: int = 0
+    def get_subitem_overrides(self):
+        self.asked += 1
+        return {}
+
+
+def test_only_a_deferred_list_asks_its_model_for_overrides(clean_registry):
+    tr = clean_registry
+    holder = CountingHolder("h")
+
+    _upgrade(tr, holder, "name")
+    _upgrade(tr, holder, "asked")
+    assert holder.asked == 0
+
+    _upgrade(tr, holder, "storages")
+    assert holder.asked == 1
