@@ -239,3 +239,37 @@ def test_an_item_with_no_model_of_its_own_takes_the_item_classifications_default
 
     assert [type(s) for s in holder.storages] == [StorageMapping]
     assert holder.storages[0].type_ == "scratch"
+
+
+class UnparentableItem:
+    """A deferred item whose parent cannot be set."""
+    def __init__(self, name: str):
+        self.name = name
+        self._model_id: str | None = None
+    def get_name(self): return self.name
+    def get_type(self): return "unparentable"
+    def get_description(self): return None
+    def get_aliases(self): return set()
+    def get_classification(self): return VCT.MOD_BUILDER_ITEM_MODEL
+    @property
+    def global_id(self): return f"{self.get_classification()}::{NO_MODEL_ID}::{self.name}"
+    @property
+    def model_id(self): return self._model_id
+    @model_id.setter
+    def model_id(self, model_name): raise ValueError("no parent may be set")
+    @property
+    def identified_model(self): return None
+    @property
+    def builder(self): return None
+
+
+def test_an_item_whose_parent_cannot_be_set_enters_the_map_under_its_own_id(clean_registry, caplog):
+    tr = clean_registry
+    owner, item = Runtime("aws"), UnparentableItem("i1")
+
+    with caplog.at_level(logging.WARNING, logger=orchestrator.__name__):
+        tr._enter_deferred_item(owner, item)
+
+    assert tr.flattened_map[item.global_id] is item
+    warnings = [r.getMessage() for r in caplog.records if r.levelno == logging.WARNING and r.name == orchestrator.__name__]
+    assert len(warnings) == 1 and repr(item.global_id) in warnings[0]
