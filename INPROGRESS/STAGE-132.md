@@ -1,7 +1,9 @@
 # 132. Hygiene bundle XXV
 
-**Status: IN PROGRESS since "do 132", 2026-11-12 (opened 2026-11-07;
-the decisions are under each item).**
+**Status: EXECUTED 2026-11-12 on feature/hygiene-xxv; waits for
+"merge 132". Items 1 to 6 landed (item 5 by decision, with its
+reminder); item 7 lists the cuts' findings for the next bundle. The
+bar and the full-test legs are green.**
 
 The small findings carried out of [§130](../docs/CHANGES.md#s130)
 (hygiene bundle XXIV) and the ones it found, none blocking, each its
