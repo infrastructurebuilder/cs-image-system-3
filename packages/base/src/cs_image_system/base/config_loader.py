@@ -721,9 +721,10 @@ def _structure_builder_model(
             bmpname = bmp.get_name()
             vct = registry.sanitize_classifier(bmp.get_classification())
             if bmpname and vct and bmp.get_is_default():
-                if reg.get_default_for(vct) != None:
+                registered = reg.get_default_for(vct)
+                if registered is not None:
                     log.warning(
-                        f"Default {vct.value} builder already registered: {reg.get_default_for(vct)}. Overwriting with {bmpname} from config."
+                        f"Default {vct.value} builder already registered: {registered}. Overwriting with {bmpname} from config."
                     )
                 reg.set_default_for(vct, bmpname)
         template_resolver.flatten_dataclass(named_obj)
