@@ -136,6 +136,10 @@ class SmartContext(dict):
         if DEFAULT in flattened_map:
             raise ValueError(f"Flattened map cannot have an entry with the key '{DEFAULT}' as it is reserved for default lookups.")
         self._unresolved_fks: list[UnresolvedForeignKey] = unresolved_fks if unresolved_fks is not None else []
+        # field name -> what the field held before the templated kind put its
+        # replace template in its place below; the field pass measures its
+        # change against that value, not against the template text
+        self.replaced_by_template: dict[str, Any] = {}
         # Shallow copy: we need a private dict (so adding 'this' below doesn't mutate
         # the shared flattened_map), but the objects must be shared by reference so
         # Jinja renders against the live, being-resolved instances. A deepcopy here
@@ -229,6 +233,8 @@ class TemplateResolver:
         # (flat-map key, field) of every field already named by the
         # UNRENDERED_TEMPLATE_WARNING, so each is named once per resolver
         self.unrendered_named: set[tuple[str, str]] = set()
+        # the passes each resolve_all call made, in call order
+        self.passes_made: list[int] = []
     def render_inheriting(self, templ: str, context: dict) -> Any:
         """Render ``templ``, and let the result INHERIT its inputs' encryption.
 
@@ -526,17 +532,21 @@ class TemplateResolver:
         the last pass still changed something, every field the passes worked
         on that still holds a template is named in a WARNING
         (:data:`UNRENDERED_TEMPLATE_WARNING`, once per field per resolver)
-        and left as it is; the run goes on.
+        and left as it is; the run goes on. The passes the call made are
+        appended to :attr:`passes_made`.
 
         Returns the foreign keys that named nothing, for the load so far: a
         copy of the resolver's collector after this pass. The loader stores
         it on the run context; `validate` refuses each entry."""
         self.upgrade_deferred_types()
-        for _ in range(MAX_RESOLVE_PASSES):
+        passes = 0
+        while passes < MAX_RESOLVE_PASSES:
+            passes += 1
             if not self._resolve_pass():
                 break
         else:
             self._warn_unrendered_templates()
+        self.passes_made.append(passes)
         for _obj_id, obj in self.flattened_map.items():
             if is_dataclass(obj):
                 cast(Any, obj)._already_resolved = True
@@ -639,7 +649,9 @@ class TemplateResolver:
         templated string whole, set on the model when the rendering differs
         from the text. Any other value is left alone. A failure to render is
         logged as an error and raised as it came. Returns whether anything
-        changed."""
+        changed: for a string whose template the context step put in place
+        of `default`, whether the rendering differs from that `default`, so
+        a field that renders to `default` again settles."""
         changed = False
         if isinstance(val, dict):
             # a mapping-valued field is rendered leaf by leaf, in
@@ -653,11 +665,12 @@ class TemplateResolver:
                 raise # continue
         elif isinstance(val, str):
             if "{{" in val:
+                held = context.replaced_by_template.get(f.name, val)
                 try:
                     rendered = self.render_inheriting(val, context)
                     if rendered != val:
                         setattr(obj, f.name, rendered)
-                        changed = True
+                    changed = rendered != held
                 except Exception as e:
                     log.error(f"Error rendering template for field '{f.name}' in object '{obj}' with field val {val}: {e}")
                     raise # continue
@@ -981,7 +994,8 @@ class _FkFieldHandler(field_kinds.FieldKindHandler):
 
 
 class _TemplatedFieldHandler(field_kinds.FieldKindHandler):
-    """Built-in ``templated`` kind: substitute the replace-template for a DEFAULT value."""
+    """Built-in ``templated`` kind: substitute the replace-template for a DEFAULT value,
+    noting the value it replaced on the context (``replaced_by_template``)."""
     def contribute_context(self, ctx, obj, field, reg) -> None:
         fk_id = getattr(obj, field.name)
         repl_value = field.metadata.get(REPLACE_VALUE, None)
@@ -990,6 +1004,7 @@ class _TemplatedFieldHandler(field_kinds.FieldKindHandler):
                              "'is_replace' but has no 'replace_value' metadata.")
         if fk_id == DEFAULT:
             if repl_value:
+                ctx.replaced_by_template[field.name] = fk_id
                 fk_id = repl_value
         setattr(obj, field.name, fk_id)
 

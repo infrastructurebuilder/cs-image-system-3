@@ -129,6 +129,24 @@ def test_a_replace_template_that_does_not_compile_is_logged_and_raised(clean_reg
     assert "machine_type" in errors[0].getMessage() and BROKEN_REPLACE in errors[0].getMessage()
 
 
+@pytest.mark.parametrize(("model", "passes"), [
+    (Widget, 1),             # the context step swaps the template in for `default`
+    (NoneDefaultWidget, 2),  # the field pass renders it once; the next pass finds it settled
+])
+def test_a_templated_field_that_renders_to_default_settles(clean_registry, model, passes):
+    tr = clean_registry
+    rt = Runtime("aws", machine=DEFAULT)
+    tr.reg.register_built_instance(rt)
+    tr.flattened_map[rt.global_id] = rt
+    w = model("w1", runtime="aws")
+    tr.flatten_dataclass(w)
+
+    tr.resolve_all()
+
+    assert w.machine_type == DEFAULT
+    assert tr.passes_made == [passes] and passes < orchestrator.MAX_RESOLVE_PASSES
+
+
 @dataclass
 class Echo:
     """A model whose one templated field renders to a new template every

@@ -93,6 +93,26 @@ def test_pipeline_loads_and_resolves_builders(monkeypatch, cwd_guard, tmp_path):
     assert len(ctx.os_builders) >= 1
 
 
+def test_every_resolution_of_the_load_settles_before_the_pass_limit(monkeypatch, cwd_guard, tmp_path):
+    """Each ``resolve_all`` call of a load ends on a pass that changed
+    nothing, before the pass limit: an image builder subconfig's
+    ``machine_type`` that rendered to `default` stays rendered, and no
+    later pass counts rendering its template back to `default` as a
+    change."""
+    monkeypatch.setenv("USER", "testuser")
+    from cs_image_system.base.config_loader import read_config_and_transform
+    from cs_image_system.base.models.image import ImageImageBuilderSubconfig
+    from cs_image_system.base.orchestrator import MAX_RESOLVE_PASSES
+    from cs_image_system.contract.constants import DEFAULT
+
+    ctx = read_config_and_transform(cast(Any, types.SimpleNamespace(obj={})), copy_config(tmp_path), False)
+
+    resolver = ctx.template_resolver
+    subconfigs = [o for o in resolver.flattened_map.values() if isinstance(o, ImageImageBuilderSubconfig)]
+    assert any(o.machine_type == DEFAULT for o in subconfigs)
+    assert resolver.passes_made and all(n < MAX_RESOLVE_PASSES for n in resolver.passes_made), resolver.passes_made
+
+
 def test_string_stage_resolves_config_document(monkeypatch):
     """The string stage (``string_stage`` over the ONE parsed tree) resolves
     ENV/config over the real cfg; the files are parsed once, here, and

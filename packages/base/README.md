@@ -553,6 +553,14 @@ pass left and the run goes on. A replace template that names something
 not yet defined is logged as an error and tried again in the next pass;
 one that does not compile is logged the same way and fails the load.
 
+A change is measured against what the field held when the pass began.
+A templated field that holds `default` gets its replace template back
+in every pass and is rendered again, so a value its inputs gained since
+can still reach it; a rendering back to `default` is not a change, so
+such a field (an image builder subconfig's `machine_type` when no
+machine type is named anywhere) holds no pass open. The resolver keeps
+the number of passes each call made (`passes_made`).
+
 Each object renders in a `SmartContext` that exposes:
 
 | Name | Value |
