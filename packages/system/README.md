@@ -955,7 +955,7 @@ base and the plugins ([docs/CONFIGURATION.md](../../docs/CONFIGURATION.md)).
 | `config.apply_<lifecycle>` | `cfg/_config.yml`, then each `--overlay` | bool or list of root/runtime names | `false` | `apply-check` |
 | `encryption.recipients` | `cfg/_config.yml` | list of age recipients | none (an error) | `encrypt`, `reencrypt` |
 | `public_safe.allow` | the `--config` file, else the tree's `cfg/_config.yml`, else the fixture's inside the system repository | list | none | `public-safe` |
-| `dateformat`, `working_directory`, `generation_directory` | the merged tree | strings | `%Y%m%d_%H%M%S`, `./workdir`, `generated` | the load (base). The callback always supplies a root (`--root-dir` or the current directory) as the working directory, so `working_directory` is never consulted through the CLI; `generation_directory` is resolved under that root |
+| `dateformat`, `working_directory`, `generation_directory` | the merged tree | strings | `%Y%m%d_%H%M%S`, `./workdir`, `generated` | the load (base). The callback always supplies a root (`--root-dir` or the current directory), and the load takes the root it is handed as the working directory, so `working_directory` is accepted and never read; `generation_directory` is resolved under that root |
 
 Accepted, not read, anywhere in this package: `apply-check --lifecycle release` (the help lists it;
 nothing emits it, and the release lifecycle's cloud marking runs under the

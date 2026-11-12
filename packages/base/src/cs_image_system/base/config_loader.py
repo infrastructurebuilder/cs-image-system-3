@@ -417,7 +417,9 @@ def read_config_and_transform(
     Parameters
     ----------
     root_dir : Path
-        The root directory containing the configuration files.
+        The root directory containing the configuration files, and the
+        run's working directory. Required: a load without one is refused
+        before anything is loaded or changed.
     reg : Registry, optional
         A prepared registry to load this run into (a test's); by default
         the run gets a registry of its own with the installed plugins
@@ -427,6 +429,10 @@ def read_config_and_transform(
     -------
         The global configuration instance.
     """
+    # refused first: no plugin is loaded, no catalog made and the typer
+    # context's object is left as the caller had it
+    if not root_dir:
+        raise ValueError("Root directory must be provided")
     run_start_time = datetime.now()
     typer_cntx.obj = {"run_start_time": run_start_time}   # the CLI sets "base_only" itself
     env = os.environ.copy()
@@ -438,8 +444,6 @@ def read_config_and_transform(
     # read from this registry's runtimes, the tree's layer set below once
     # the configuration is parsed
     catalog = ImageSourceCatalog(reg)
-    if not root_dir:
-        raise ValueError("Root directory must be provided")
     _config_dir = root_dir / "cfg"
     orig = read_and_process(_config_dir)
     if not orig:
@@ -647,9 +651,6 @@ def _structure_configuration(cvt: PydanticConverter, generic_yaml: dict[str, Any
     except Exception as e:
         log.error(f"Failed to parse configuration: {e}")
         raise
-    assert (
-        config_data.working_directory is not None
-    ), "working_directory is required in config"
     if isinstance(config_data, list):
         if len(config_data) != 1:
             raise ValueError(f"Expected single config, got {len(config_data)}")
@@ -825,19 +826,12 @@ def _build_builders(
 
 
 def _enter_working_directory(root_dir: Path, config_data: IAConfig) -> tuple[Path, Path]:
-    """Resolve the working path, refuse one that does not exist, make it the
-    process's current directory, and return it with the generation path
-    under it."""
-    # If a root_dir is supplied
-    if root_dir:
-        # Use the supplied root_dir
-        working_dir = root_dir
-    else:
-        # Use the root_dir from the config file, or default to "."
-        working_dir = (
-            config_data.working_directory if config_data.working_directory else "."
-        )
-    wpath = Path(working_dir).resolve()
+    """The root is the working path: resolved, refused when it does not
+    exist, made the process's current directory, and returned with the
+    generation path under it. The configuration's ``working_directory`` is
+    accepted and not read: every load is handed its root, and the root is
+    where the run works."""
+    wpath = Path(root_dir).resolve()
     if not wpath.exists():
         raise FileNotFoundError(f"Working directory {wpath} does not exist.")
     # Deliberately NOT a scoped change: the loaded configuration is used from

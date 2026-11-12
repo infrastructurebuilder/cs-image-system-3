@@ -175,10 +175,11 @@ calls, in order:
    `scripts` to `<block_dir>/<script path>` and returns
    `{script: script path}`. The source is resolved against the process's
    current working directory; the configuration load has already changed
-   directory to the configuration root (`--root-dir`, else
-   `working_directory` in `cfg/_config.yml`, else `.`), so in practice the
-   path is root-relative. A missing file raises `FileNotFoundError`; an
-   absolute path is not copied and is left in place.
+   directory to the configuration root (`--root-dir`, else the directory
+   the command was started from; `working_directory` in `cfg/_config.yml`
+   is not read), so the path is root-relative. A missing file raises
+   `FileNotFoundError`; an absolute path is not copied and is left in
+   place.
 2. `mod.remap_self_with_copied_assets(mapping)` on the item. Because the
    mapping's value is the same relative path the copy was placed at, the
    item's `scripts` entries keep their text; the emitted `scripts = [...]`
@@ -356,8 +357,8 @@ in `ensure` lines works there too.
 **How the plugin finds things.** The builder by the item's `type:` (the
 builder's name); the item class by the builder's `type: bash-remote`; the
 `bash` entry by the builder's `executable:`; script files by path relative
-to the configuration root (the working directory the load selects from
-`--root-dir`, else `cfg/_config.yml`'s `working_directory`, else `.`); the
+to the configuration root (the working directory the load changes into:
+`--root-dir`, else the directory the command was started from); the
 build VM through the image builder that hosts the emission. No environment
 variable, profile or file of its own.
 
