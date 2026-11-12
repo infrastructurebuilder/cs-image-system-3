@@ -7,7 +7,7 @@ import logging
 log = logging.getLogger(__name__)
 
 
-from dataclasses import MISSING, dataclass, fields, is_dataclass
+from dataclasses import MISSING, Field, dataclass, fields, is_dataclass
 from typing import Any, cast
 
 import jinja2
@@ -458,93 +458,142 @@ class TemplateResolver:
         copy of the resolver's collector after this pass. The loader stores
         it on the run context; `validate` refuses each entry."""
         self.upgrade_deferred_types()
-        reg = self.reg
         for _ in range(5):  # Max depth to prevent infinite loops
-            any_changed = False
-            for _obj_id, obj in self.flattened_map.items():
-                if hasattr(obj, "_already_resolved"):
-                    if obj._already_resolved:
-                        continue
-                context = SmartContext(obj, self.flattened_map, reg, unresolved_fks=self.unresolved_foreign_keys)
-                if is_dataclass(obj):
-                    for f in fields(obj):
-                        val = getattr(obj, f.name)
-                        target: VCT | None = f.metadata.get(FK_TARGET,None)
-                        if field_set_to_default(f, val):
-                            if target:
-                                val = default_fk_value(reg, obj, target) or DEFAULT
-                            if f.metadata.get(IS_REPLACE) and f.metadata.get(REPLACE_VALUE):
-                                templ = f.metadata[REPLACE_VALUE]
-                                if isinstance(templ, str) and "{{" in templ:
-                                    template = self.env.from_string(templ)
-                                    try:
-                                        rendered = self.render_inheriting(templ, context)
-                                        if rendered != templ:
-                                            val = rendered
-                                            setattr(obj, f.name, val)
-                                            any_changed = True
-                                    except jinja2.UndefinedError as e:
-                                        log.error(f"Error rendering template for field '{f.name}' in object '{obj}' with template {templ}: {e}")
-#                                        raise e # continue
-                                        continue
-                                if val == DEFAULT:
-                                    # `default` here is the declared meaning -- the consumer
-                                    # decides (a machine type the runtime supplies at bake
-                                    # time); a warning per field would say nothing actionable
-                                    log.debug(f"Field '{f.name}' of {type(obj).__name__} '{getattr(obj, 'name', '')}' stays `default`: the consumer resolves it")
-                        # NOTE: I have to split this off to two paths
-                        # if isinstance(val, list):
-                        #     log.debug("Debugging here")
-                        if isinstance(val, dict):
-                            # a mapping-valued field is rendered leaf by leaf, in
-                            # place: each derived leaf inherits its inputs'
-                            # encryption, and nothing is serialised and parsed back
-                            try:
-                                if self.render_tree_inheriting(val, context):
-                                    any_changed = True
-                            except Exception as e:
-                                log.error(f"Error rendering template for field '{f.name}' in object '{obj}' with field val {val}: {e}")
-                                raise # continue
-                        elif isinstance(val, str):
-                            if "{{" in val:
-                                try:
-                                    rendered = self.render_inheriting(val, context)
-                                    if rendered != val:
-                                        setattr(obj, f.name, rendered)
-                                        any_changed = True
-                                except Exception as e:
-                                    log.error(f"Error rendering template for field '{f.name}' in object '{obj}' with field val {val}: {e}")
-                                    raise # continue
-                        if f.metadata.get(IS_FK,False):
-                            if not field_set_to_default(f, val):
-                                if isinstance(obj, ParentPropertyHoldingProtocol):
-                                    curval = getattr(obj, f.name)
-                                    if curval and curval != val:
-                                        log.warning(
-                                            f"Model {obj} already has a model assigned: "
-                                            f"{curval}. Overwriting with {val}."
-                                        )                                    
-                                    setattr(obj, f.name, val)
-                        # Extension seam: plugin-registered field kinds resolve here
-                        # (built-in fk/templated kinds no-op; their logic is inline above).
-                        _h = field_kinds.handler_for(f.metadata)
-                        if _h is not None and _h.resolve(self, obj, f, context, reg):
-                            any_changed = True
-                elif isinstance(obj, dict):
-                    for k, v in obj.items():
-                        if isinstance(v, str) and "{{" in v:
-                            template = self.env.from_string(v)
-                            rendered = template.render(context)
-                            
-                            if rendered != v:
-                                obj[k] = rendered
-                                any_changed = True
-            if not any_changed:
+            if not self._resolve_pass():
                 break
         for _obj_id, obj in self.flattened_map.items():
             if is_dataclass(obj):
                 cast(Any, obj)._already_resolved = True
         return list(self.unresolved_foreign_keys)
+
+    def _resolve_pass(self) -> bool:
+        """One pass over the flat map: every model not yet marked resolved has
+        each of its fields resolved against a context built for it, and every
+        plain mapping in the map has its templated string values rendered.
+        Returns whether the pass changed anything."""
+        reg = self.reg
+        any_changed = False
+        for _obj_id, obj in self.flattened_map.items():
+            if hasattr(obj, "_already_resolved"):
+                if obj._already_resolved:
+                    continue
+            context = SmartContext(obj, self.flattened_map, reg, unresolved_fks=self.unresolved_foreign_keys)
+            if is_dataclass(obj):
+                for f in fields(obj):
+                    if self._resolve_field(obj, f, context):
+                        any_changed = True
+            elif isinstance(obj, dict):
+                if self._resolve_mapping(obj, context):
+                    any_changed = True
+        return any_changed
+
+    def _resolve_field(self, obj: Any, f: Field[Any], context: SmartContext) -> bool:
+        """One field of one model, in one pass. A field left at its default
+        takes its foreign key's default (the registry's for the target, a
+        root's runtime's state backend) as the value the rest of the pass
+        works with, and its replace template, when it has one, is rendered
+        and set on the model; a replace template that names something
+        undefined is logged as an error and ends the field for this pass.
+        Then the value is rendered when it is a templated string or a
+        mapping, a written foreign key is kept on a model that holds a
+        parent property, and the field's registered kind resolves it.
+        Returns whether anything changed."""
+        reg = self.reg
+        changed = False
+        val = getattr(obj, f.name)
+        target: VCT | None = f.metadata.get(FK_TARGET,None)
+        if field_set_to_default(f, val):
+            if target:
+                val = default_fk_value(reg, obj, target) or DEFAULT
+            if f.metadata.get(IS_REPLACE) and f.metadata.get(REPLACE_VALUE):
+                templ = f.metadata[REPLACE_VALUE]
+                if isinstance(templ, str) and "{{" in templ:
+                    self.env.from_string(templ)
+                    try:
+                        rendered = self.render_inheriting(templ, context)
+                        if rendered != templ:
+                            val = rendered
+                            setattr(obj, f.name, val)
+                            changed = True
+                    except jinja2.UndefinedError as e:
+                        log.error(f"Error rendering template for field '{f.name}' in object '{obj}' with template {templ}: {e}")
+#                                        raise e # continue
+                        return changed
+                if val == DEFAULT:
+                    # `default` here is the declared meaning -- the consumer
+                    # decides (a machine type the runtime supplies at bake
+                    # time); a warning per field would say nothing actionable
+                    log.debug(f"Field '{f.name}' of {type(obj).__name__} '{getattr(obj, 'name', '')}' stays `default`: the consumer resolves it")
+        # NOTE: I have to split this off to two paths
+        # if isinstance(val, list):
+        #     log.debug("Debugging here")
+        if self._render_field_value(obj, f, val, context):
+            changed = True
+        self._keep_written_foreign_key(obj, f, val)
+        # Extension seam: plugin-registered field kinds resolve here
+        # (built-in fk/templated kinds no-op; their logic is inline above).
+        _h = field_kinds.handler_for(f.metadata)
+        if _h is not None and _h.resolve(self, obj, f, context, reg):
+            changed = True
+        return changed
+
+    def _render_field_value(self, obj: Any, f: Field[Any], val: Any, context: SmartContext) -> bool:
+        """Render the value of one field: a mapping leaf by leaf in place, a
+        templated string whole, set on the model when the rendering differs
+        from the text. Any other value is left alone. A failure to render is
+        logged as an error and raised as it came. Returns whether anything
+        changed."""
+        changed = False
+        if isinstance(val, dict):
+            # a mapping-valued field is rendered leaf by leaf, in
+            # place: each derived leaf inherits its inputs'
+            # encryption, and nothing is serialised and parsed back
+            try:
+                if self.render_tree_inheriting(val, context):
+                    changed = True
+            except Exception as e:
+                log.error(f"Error rendering template for field '{f.name}' in object '{obj}' with field val {val}: {e}")
+                raise # continue
+        elif isinstance(val, str):
+            if "{{" in val:
+                try:
+                    rendered = self.render_inheriting(val, context)
+                    if rendered != val:
+                        setattr(obj, f.name, rendered)
+                        changed = True
+                except Exception as e:
+                    log.error(f"Error rendering template for field '{f.name}' in object '{obj}' with field val {val}: {e}")
+                    raise # continue
+        return changed
+
+    def _keep_written_foreign_key(self, obj: Any, f: Field[Any], val: Any) -> None:
+        """A foreign-key field that is not at its default, on a model that
+        holds a parent property: the value the pass worked with is set on the
+        field, with a warning when the field held a different one."""
+        if f.metadata.get(IS_FK,False):
+            if not field_set_to_default(f, val):
+                if isinstance(obj, ParentPropertyHoldingProtocol):
+                    curval = getattr(obj, f.name)
+                    if curval and curval != val:
+                        log.warning(
+                            f"Model {obj} already has a model assigned: "
+                            f"{curval}. Overwriting with {val}."
+                        )                                    
+                    setattr(obj, f.name, val)
+
+    def _resolve_mapping(self, obj: dict, context: SmartContext) -> bool:
+        """Render every templated string value of a plain mapping in the flat
+        map, in place. Returns whether anything changed."""
+        changed = False
+        for k, v in obj.items():
+            if isinstance(v, str) and "{{" in v:
+                template = self.env.from_string(v)
+                rendered = template.render(context)
+                            
+                if rendered != v:
+                    obj[k] = rendered
+                    changed = True
+        return changed
 
     def flatten_dataclass(self, obj):
       """Recursively crawls nested dataclasses to build a flat ID map."""
