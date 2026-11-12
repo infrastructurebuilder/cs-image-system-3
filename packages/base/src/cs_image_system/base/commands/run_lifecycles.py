@@ -574,7 +574,8 @@ def _scope_bakes(ctx: RunContext, only: list[str] | None,
     # convergent bakes: a fresh decision cache per run; --force-bake
     # names images (or `all`) that bake even when current
     ctx.bake_decisions = {}
-    ctx.force_bake = {f.strip() for f in force_bake if f.strip()} or None if force_bake else None
+    forced = {f.strip() for f in force_bake or () if f.strip()}
+    ctx.force_bake = forced or None   # no names (none given, or blanks alone): no forced bake
     if _empty_bake_surface(only):
         ctx.only_images = set()
     elif only:
