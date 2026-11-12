@@ -51,6 +51,31 @@ from .registry import NAMESPACE_SEPARATOR, UnknownTypeError, split_qualified
 # them on the run context and `validate` refuses them.
 UnresolvedForeignKey = tuple[str, str, str, str, str]
 
+#: The passes ``resolve_all`` makes over the flat map at most: a template
+#: whose rendering feeds another needs one pass per link of the chain.
+MAX_RESOLVE_PASSES = 5
+#: The WARNING for one field still holding a template after a last pass that
+#: still changed something (the limit, not a settled map, ended the
+#: resolution). Its arguments: the pass count, the flat-map key of the
+#: object (a model's global id, or a run scope's name) and the field (a
+#: mapping's key). Never the value, which may be derived from a decrypted one.
+UNRENDERED_TEMPLATE_WARNING = "a template is still unrendered after %d resolution passes: %s, field %s"
+
+
+def _holds_template(value: Any, nested: bool = False) -> bool:
+    """Whether a field's value is one the field pass renders and would render
+    again: a string carrying ``{{``, or a mapping with such a string among
+    its leaves (in the lists and mappings inside it too, as
+    :meth:`TemplateResolver.render_tree_inheriting` walks them). A list
+    that is the field's own value is not rendered, so it holds none."""
+    if isinstance(value, str):
+        return "{{" in value
+    if isinstance(value, dict):
+        return any(_holds_template(v, nested=True) for v in value.values())
+    if nested and isinstance(value, list):
+        return any(_holds_template(v, nested=True) for v in value)
+    return False
+
 
 @dataclass(frozen=True)
 class ModelBinding:
@@ -201,6 +226,9 @@ class TemplateResolver:
         # (the loader starts a load with a fresh list; every SmartContext this
         # resolver builds records into it; resolve_all returns it)
         self.unresolved_foreign_keys: list[UnresolvedForeignKey] = []
+        # (flat-map key, field) of every field already named by the
+        # UNRENDERED_TEMPLATE_WARNING, so each is named once per resolver
+        self.unrendered_named: set[tuple[str, str]] = set()
     def render_inheriting(self, templ: str, context: dict) -> Any:
         """Render ``templ``, and let the result INHERIT its inputs' encryption.
 
@@ -486,19 +514,45 @@ class TemplateResolver:
         #                 "There may still be unresolved deferred fields.")
 
     def resolve_all(self) -> list[UnresolvedForeignKey]:
-        """Iterates until no more templates exist (handles cascading dependencies).
+        """Iterates until a pass changes nothing (handles cascading
+        dependencies), for :data:`MAX_RESOLVE_PASSES` passes at most. When
+        the last pass still changed something, every field the passes worked
+        on that still holds a template is named in a WARNING
+        (:data:`UNRENDERED_TEMPLATE_WARNING`, once per field per resolver)
+        and left as it is; the run goes on.
 
         Returns the foreign keys that named nothing, for the load so far: a
         copy of the resolver's collector after this pass. The loader stores
         it on the run context; `validate` refuses each entry."""
         self.upgrade_deferred_types()
-        for _ in range(5):  # Max depth to prevent infinite loops
+        for _ in range(MAX_RESOLVE_PASSES):
             if not self._resolve_pass():
                 break
+        else:
+            self._warn_unrendered_templates()
         for _obj_id, obj in self.flattened_map.items():
             if is_dataclass(obj):
                 cast(Any, obj)._already_resolved = True
         return list(self.unresolved_foreign_keys)
+
+    def _warn_unrendered_templates(self) -> None:
+        """Name, in one WARNING each, every field still holding a template
+        on an object the passes worked on (a model not yet marked resolved,
+        or a plain mapping, whose fields are its keys); a field already
+        named by this resolver is not named again."""
+        for obj_id, obj in self.flattened_map.items():
+            if getattr(obj, "_already_resolved", False):
+                continue
+            if is_dataclass(obj):
+                held = [f.name for f in fields(obj) if _holds_template(getattr(obj, f.name))]
+            elif isinstance(obj, dict):
+                held = [str(k) for k, v in obj.items() if isinstance(v, str) and "{{" in v]
+            else:
+                held = []
+            for name in held:
+                if (str(obj_id), name) not in self.unrendered_named:
+                    self.unrendered_named.add((str(obj_id), name))
+                    log.warning(UNRENDERED_TEMPLATE_WARNING, MAX_RESOLVE_PASSES, obj_id, name)
 
     def _resolve_pass(self) -> bool:
         """One pass over the flat map: every model not yet marked resolved has

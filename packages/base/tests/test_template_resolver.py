@@ -127,3 +127,48 @@ def test_a_replace_template_that_does_not_compile_is_logged_and_raised(clean_reg
     errors = [r for r in caplog.records if r.levelno == logging.ERROR and r.name == orchestrator.__name__]
     assert len(errors) == 1
     assert "machine_type" in errors[0].getMessage() and BROKEN_REPLACE in errors[0].getMessage()
+
+
+@dataclass
+class Echo:
+    """A model whose one templated field renders to a new template every
+    pass: it cannot settle, whatever the pass limit."""
+    name: str
+    text: str = "{{ this.text }}!"
+
+
+def _unrendered(caplog) -> list[tuple]:
+    return [r.args for r in caplog.records
+            if r.name == orchestrator.__name__ and r.levelno == logging.WARNING
+            and r.msg == orchestrator.UNRENDERED_TEMPLATE_WARNING]
+
+
+def test_a_field_still_templated_after_the_last_pass_is_named_once(clean_registry, caplog):
+    tr = clean_registry
+    echo = Echo("e")
+    tr.flattened_map["echo"] = echo
+    tr.flattened_map["scope"] = {"x": "{{ x }}!", "settled": "plain"}
+
+    with caplog.at_level(logging.WARNING, logger=orchestrator.__name__):
+        unresolved = tr.resolve_all()
+        tr.resolve_all()                    # the mapping is worked on again; nothing is named twice
+
+    passes = orchestrator.MAX_RESOLVE_PASSES
+    assert sorted(_unrendered(caplog)) == [(passes, "echo", "text"), (passes, "scope", "x")]
+    # the run goes on: the field keeps what the last pass left (each pass
+    # doubles the suffix, so exactly the limit's passes ran)
+    assert unresolved == []
+    assert echo.text == "{{ this.text }}" + "!" * 2 ** passes
+
+
+def test_a_template_settled_within_the_passes_is_not_named(clean_registry, caplog):
+    tr = _resolver_with_runtime(clean_registry)
+    w = Widget("w1", runtime="aws")
+    tr.flatten_dataclass(w)
+    tr.flattened_map["scope"] = {"a": "{{ b }}", "b": "{{ c }}", "c": "end"}
+
+    with caplog.at_level(logging.WARNING, logger=orchestrator.__name__):
+        tr.resolve_all()
+
+    assert w.machine_type == "t2.micro" and tr.flattened_map["scope"]["a"] == "end"
+    assert _unrendered(caplog) == []

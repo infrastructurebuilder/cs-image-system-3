@@ -540,7 +540,20 @@ scopes `execution` and `ENV`). Every one of those renders inherits its
 inputs' encryption: a value derived from a decrypted one comes out of
 the resolution carrying a ciphertext built from its pieces
 (`mark_plaintexts`), so the emission writes `ENC[age:...]` where the
-plaintext was. Each object renders in a `SmartContext` that exposes:
+plaintext was.
+
+A pass that changes nothing ends the resolution. A template whose
+rendering feeds another needs one pass per link, so a chain longer than
+five, or a template that renders to a new template every time, is still
+unrendered when the fifth pass ends: then a WARNING names each field
+the passes worked on that still holds `{{` (the object's flat-map key, a
+model's global id or a run scope's name, and the field), once per field
+for the run's resolver, never its value. The field keeps what the last
+pass left and the run goes on. A replace template that names something
+not yet defined is logged as an error and tried again in the next pass;
+one that does not compile is logged the same way and fails the load.
+
+Each object renders in a `SmartContext` that exposes:
 
 | Name | Value |
 | ------ | ------- |
@@ -2184,7 +2197,9 @@ journaled under `bake_plan`) and applies the scope check.
   `image_id`); no image builder, no runtime builder, no resolved
   identifier for an OS builder, or a pinned id the provider does not know
   raises and the lifecycle is recorded `failed`. Template resolution runs up to five passes; what
-  still carries `{{` stays as written.
+  still carries `{{` stays as written, and when the fifth pass still
+  changed something each such field is named in a warning (see
+  [Template resolution](#template-resolution)).
 - **The phases**: a before-hook, generator or after-hook returning false,
   or a build executable exiting non-zero, raises `LifecycleRunError`
   (`[<lifecycle>] before-phase hooks failed for <phase>` and so on); the
