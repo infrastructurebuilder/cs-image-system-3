@@ -14,6 +14,7 @@ Providers are faked at the runtime and group-builder hook seams.
 """
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 from typing import Any
 
@@ -205,6 +206,24 @@ def test_a_machine_its_registry_does_not_list_waits_and_is_said(world, monkeypat
     assert f.scripts == []
     said = [r for r in caplog.records if r.name == pa.log.name and pa.NOT_LISTED in r.getMessage()]
     assert [r.levelname for r in said] == ["INFO"]
+
+
+@pytest.mark.parametrize("rc, out", [(1, None), (0, None), (0, "")])
+def test_a_session_command_with_no_output_is_a_failed_write_never_a_raise(world, monkeypatch, caplog, rc, out):
+    """A runtime that answers the alias write with no output at all (None
+    or empty), whatever the exit status, takes the failure path: one ERROR
+    record of the module's logger, and nothing raised out of the
+    after-apply hook."""
+    from cs_image_system.aws_runtime.aws_runtime_builders import AwsCloudBuilder
+    Fakes(monkeypatch, servers=[OWN])
+    sent: list[str] = []
+    monkeypatch.setattr(AwsCloudBuilder, "run_session_command",
+                        lambda s, n, script, timeout=300: sent.append(n) or (rc, out))
+    _launched(world.ctx)
+    with caplog.at_level("INFO", logger=pa.log.name):
+        pa.register_provider_aliases(world.ctx, Lifecycle.INSTANCE_IMAGE)
+    assert sent == ["test"]
+    assert [r.levelname for r in caplog.records if r.name == pa.log.name and r.levelno >= logging.WARNING] == ["ERROR"]
 
 
 def test_reality_that_already_agrees_sends_no_command(world, monkeypatch):

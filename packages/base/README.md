@@ -2668,7 +2668,9 @@ lifecycle `failed` or the apply `failed`; exit 1):
   claimed by <id> (OPA would resolve it to that record, or refuse as
   ambiguous)` / `group '<g>''s server registry could not be asked; skipping
   alias [...] -- silence is not a free name` / `could not write its aliases
-  [...]: <e>` / `alias write failed (<rc>): <tail>`.
+  [...]: <e>` / `alias write failed (<rc>): <tail>` (also when the
+  command answered with no output at all, whatever its exit status: the
+  tail then reads `no output`).
 - `Instance <n>: the machine bearing this name is <id2>, not <id1> --
   generation <kind> <k> closed as replaced out of band, <kind> <k+1>
   opened. Nothing in this system did that.` -- a WARNING: a taint, a

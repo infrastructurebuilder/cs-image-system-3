@@ -278,7 +278,10 @@ def _write_aliases(rtb: RuntimeBuilderProtocol, gb: GroupBuilderProtocol, name: 
     """Render the group builder's alias script for ``final`` and run it on
     the machine through the runtime's session command, saying what came of
     it. A script that cannot be rendered, a builder that writes no aliases
-    and a command that fails are reported and never raised."""
+    and a command that fails are reported and never raised; a command that
+    answers with no output at all is a failure too, whatever its exit
+    status, since the script always prints one of the contract's two
+    words."""
     try:
         # the script is the identity plugin's: it knows its agent's
         # configuration file and how the agent is told about a new name
@@ -294,8 +297,8 @@ def _write_aliases(rtb: RuntimeBuilderProtocol, gb: GroupBuilderProtocol, name: 
     except Exception as e:  # noqa: BLE001 - reported, never fatal to the run
         log.error(f"Instance {name}: could not write its aliases {final}: {e}")
         return
-    if rc != 0:
-        log.error(f"Instance {name}: alias write failed ({rc}): {out.strip()[-300:]}")
+    if rc != 0 or not out:
+        log.error(f"Instance {name}: alias write failed ({rc}): {(out or '').strip()[-300:] or 'no output'}")
     elif ALIASES_CHANGED in out:
         log.info(f"Instance {name}: now also answers to {final} (the identity agent restarted)")
     else:
