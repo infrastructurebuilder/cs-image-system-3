@@ -130,6 +130,17 @@ matter most is item 8.
     what the template was meant to name and render it, or drop the
     template (found by item 30). Carried to the next bundle: it was
     found as this one's last batch ran.
+32. The CI runner image's sources (`ci/runner-image/Dockerfile` and
+    `probe.sh`) carry eight narration tokens (a stage number and the
+    dates its pins were read) that no area of the rule reads. A comment
+    change in the Dockerfile changes the image's build context, so the
+    cleanup goes with the next image change and its proof, not alone
+    (found by item 28). Carried to the next bundle.
+33. Several skeleton recipes' `just --list` lines show only the last
+    line of a wrapped comment (`cloud-relabel`, `ci-login-proof`,
+    `bootstrap`, `cloud-upgrade`), as the system's own recipes did
+    before each got a `[doc]` attribute; the skeleton's get one too
+    (found by item 28). Carried to the next bundle.
 
 **Acceptance**: each item its own commit; a fix that moves the golden
 regenerates it in that commit and names every moved line (the
