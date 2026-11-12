@@ -37,7 +37,9 @@ What is read, and where:
   paragraph;
 - the workflows, ``.github/workflows/*.yml``: the ``#`` comments;
 - the scripts under ``scripts/``: comments and docstrings of a Python
-  file, the ``#`` comment lines of a shell script.
+  file, the ``#`` comment lines of a shell script;
+- this repository's hook, ``.githooks/pre-commit``, and its
+  ``.gitignore``: the ``#`` comment lines.
 
 A docstring is read whole, a run of comments on consecutive lines as one
 text and a file read whole as one text, so a token a line break splits
@@ -89,6 +91,8 @@ AREAS: dict[str, str] = {
     "tests": "comments and docstrings of tests/ and packages/*/tests, history: lines (wrapped or not) excepted",
     "workflows": "the # comments of .github/workflows/*.yml",
     "scripts": "comments and docstrings of every file under scripts/ (Python, or a shell script's # lines)",
+    "hook": "the # comment lines of .githooks/pre-commit, a shell script",
+    "gitignore": "the # comment lines of .gitignore",
 }
 
 
@@ -197,7 +201,7 @@ def _whole_file_hits(path: Path) -> list[str]:
 
 
 def _comment_hits(path: Path) -> list[str]:
-    """``#`` and ``//`` comments of a YAML, HCL or terraform file."""
+    """``#`` and ``//`` comments of a YAML, HCL, terraform, shell or ignore file."""
     return _report(path.relative_to(REPO), _comment_blocks(path.read_text(errors="replace")))
 
 
@@ -234,6 +238,10 @@ def hits(area: str) -> list[str]:
             python = p.suffix == ".py" or (shebang.startswith("#!") and "python" in shebang)
             out += _python_hits(p, except_history=False) if python else _comment_hits(p)
         return out
+    if area == "hook":
+        return _comment_hits(REPO / ".githooks/pre-commit")
+    if area == "gitignore":
+        return _comment_hits(REPO / ".gitignore")
     raise KeyError(area)
 
 
