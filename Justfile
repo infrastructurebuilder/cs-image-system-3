@@ -203,7 +203,7 @@ format:
 # copyright and licence information (an SPDX header, or a REUSE.toml declaration)
 [doc("The linter (ruff, blocking, as CI runs it), then the licensing check: an SPDX header or a REUSE.toml declaration on every file")]
 lint:
-	@uv run ruff check src packages tests
+	@uv run ruff check src packages tests scripts
 	@uv run reuse lint
 
 # Licence headers (REUSE): the SPDX two-liner, holder and licence, on every source file that lacks one.
@@ -226,11 +226,11 @@ reuse-live: config-guard
 
 # Fix linting issues automatically (safe fixes)
 lint-fix:
-	@uv run ruff check --fix src packages tests
+	@uv run ruff check --fix src packages tests scripts
 
 [doc("Fix linting issues automatically, unsafe fixes included; review the diff")]
 lint-unsafe-fix:
-	@uv run ruff check --fix --unsafe-fixes src packages tests
+	@uv run ruff check --fix --unsafe-fixes src packages tests scripts
 
 # Type check with pyright (standard mode; see [tool.pyright] in pyproject.toml)
 typecheck:

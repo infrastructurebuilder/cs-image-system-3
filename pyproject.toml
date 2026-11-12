@@ -253,6 +253,9 @@ dev = [
 target-version = "py313"
 line-length = 120
 extend-exclude = [".venv", "generated", "**/generated"]
+# The helper scripts carry no .py suffix (they are run by name), so ruff is
+# told they are Python; `just lint` names the directory.
+extend-include = ["scripts/*"]
 
 [tool.ruff.lint]
 # Every rule blocking, no rule ignored: pyflakes (unused imports and locals,
