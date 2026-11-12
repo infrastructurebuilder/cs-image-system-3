@@ -2,11 +2,12 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""The field helpers a model is declared with (moved here from
-``cs_image_system.base.helpers.field_helpers``, which re-exports them): a
-foreign key the resolver turns into the object it names, a templated value
-the resolver renders, a deferred list the resolver structures late, and the
-``_model_id`` field of an item that holds its parent model by reference."""
+"""The field helpers a model is declared with: a foreign key the resolver
+turns into the object it names, a templated value the resolver renders, a
+deferred list the resolver structures late, and the ``_model_id`` field of
+an item that holds its parent model by reference. They are defined here
+alone; the core's own models import them from here as a plugin's do, and
+no module of the core re-exports them."""
 
 from dataclasses import MISSING, field
 from typing import Any

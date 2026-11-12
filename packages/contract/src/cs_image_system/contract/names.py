@@ -2,11 +2,12 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""The two name normalisations the system applies everywhere (moved
-here from ``cs_image_system.base.utils``, which re-exports them). A
-model's ``name`` is ``safe_name`` of what was written; a name that becomes a
-terraform label, a file name or a state key goes through
-``super_safe_name``."""
+"""The two name normalisations the system applies everywhere, defined
+here alone: the core imports them from here as a plugin does
+(``cs_image_system.base.utils`` imports ``safe_name`` for its own name
+checks and re-exports neither). A model's ``name`` is ``safe_name`` of
+what was written; a name that becomes a terraform label, a file name or a
+state key goes through ``super_safe_name``."""
 
 from __future__ import annotations
 
