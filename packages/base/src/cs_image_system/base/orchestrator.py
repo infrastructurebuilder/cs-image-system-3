@@ -313,8 +313,7 @@ class TemplateResolver:
                 if not builder_instance:
                     raise KeyError(f"Could not resolve builder '{builder_name}' referenced in {obj}")
                 
-                target_cls = self._deferred_item_class(builder_instance, builder_name, deferred_builder_vct,
-                                                       deferred_item_vct, deferred_override_types)
+                target_cls = self._deferred_item_class(builder_instance, deferred_item_vct, deferred_override_types)
                 
                 # the item's `type` becomes the BUILDER's own name, whatever
                 # the item wrote (its name, an alias, `default`
@@ -373,13 +372,15 @@ class TemplateResolver:
                 return None
         return builder_name
 
-    def _deferred_item_class(self, builder_instance: Any, builder_name: Any, deferred_builder_vct: VCT,
-                             deferred_item_vct: VCT, deferred_override_types: dict[VCT, type]) -> Any:
+    def _deferred_item_class(self, builder_instance: Any, deferred_item_vct: VCT,
+                             deferred_override_types: dict[VCT, type]) -> Any:
         """The class one raw item of a deferred list structures into: the item
-        model registered for its builder's own type; else the owning model's
-        override for the item classification; else the model the registry
-        holds, under the BUILDER classification, for the type of the item
-        classification's default. A KeyError when none of them answers."""
+        model registered under the item classification for its builder's own
+        type; else the owning model's override for the item classification;
+        else the item classification's default model, the one a plugin's
+        metadata injected as that classification's default (registered under
+        the item classification by its own name, which the default is). A
+        KeyError when none of them answers."""
         reg = self.reg
         # Get the true underlying type: the registry holds a builder or its
         # model under this classification, and both name their type
@@ -392,16 +393,13 @@ class TemplateResolver:
             if deferred_item_vct:
                 target_cls = deferred_override_types.get(deferred_item_vct, None)
             if target_cls is None:
-                log.debug(f"No item model found for '{true_type}' under '{deferred_item_vct}'. "
-                            f"Attempting to look up with builder_name '{builder_name}'...")
-                m1 = reg.get_default_for(deferred_item_vct)
-                if m1 is None:
+                default_model = reg.get_default_for(deferred_item_vct)
+                if default_model is None:
                     log.warning(f"No default model found [yet] for '{deferred_item_vct}' to use as fallback for '{true_type}'.")
-                    # structured_mods.append(mod_data)
-                    # continue
                 else:
-                    m = reg.get_instance_by_name_or_alias(deferred_item_vct, m1)
-                    target_cls = reg.get_model(deferred_builder_vct, m.type_) if m else None
+                    log.debug(f"No item model registered for '{true_type}' under '{deferred_item_vct}' and no "
+                              f"override: using that classification's default model '{default_model}'.")
+                    target_cls = reg.get_model(deferred_item_vct, default_model)
         if target_cls is None:
             raise KeyError(f"No concrete model registered for underlying deferred type '{true_type}'")
         return target_cls

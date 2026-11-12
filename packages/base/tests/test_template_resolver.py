@@ -208,3 +208,34 @@ def test_a_modification_naming_no_builder_is_refused_when_no_default_is_named(cl
 
     with pytest.raises(ValueError, match="'m1'"):
         _upgrade(tr, holder, "modifications")
+
+
+@dataclass
+class UnmappedStorageBuilder:
+    """A storage builder model whose type no item model is registered for."""
+    name: str
+    def get_name(self): return self.name
+    def get_type(self): return "unmapped-storage"
+    def get_description(self): return None
+    def get_aliases(self): return set()
+    def get_classification(self): return VCT.STORAGE_BUILDER_MODEL
+    @property
+    def global_id(self): return f"{self.get_classification()}::{NO_MODEL_ID}::{self.name}"
+
+
+def test_an_item_with_no_model_of_its_own_takes_the_item_classifications_default_model(clean_registry):
+    """The base plugin injects StorageMapping as the default model of the
+    storage mapping item classification; a model with no override whose
+    storage builder's type has no item model structures its storages
+    into that default."""
+    from cs_image_system.base.init import BaseInitTypes
+    from cs_image_system.base.models.instance import StorageMapping
+    tr = clean_registry
+    tr.reg.register_plugin_metadata(BaseInitTypes(), namespace="base")
+    tr.reg.register_built_instance(UnmappedStorageBuilder("scratch"))
+    holder = Holder("h", storages=[{"name": "vol1", "type": "scratch"}])
+
+    _upgrade(tr, holder, "storages")
+
+    assert [type(s) for s in holder.storages] == [StorageMapping]
+    assert holder.storages[0].type_ == "scratch"

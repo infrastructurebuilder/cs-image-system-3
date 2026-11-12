@@ -525,7 +525,7 @@ The kinds:
 | --------- | ------ | ----------- |
 | `fk_field(target, also_set_on_update=None, ...)` | `fk` | The value names an object of classification `target`. A `default` value resolves to the registered default. In templates the field name yields the object itself (`{{ runtime.get_default_machine_type() }}`). With `also_set_on_update`, the named attribute (used as `model_id`) is set to the target's `global_id` and `builder` is put in the template context. |
 | `templated_field(replace_value, ...)` | `templated` | When the value is `default`, `replace_value` (a Jinja string) is rendered in its place. |
-| `deferred_list_field(builder_vct, item_vct)` | `deferred_list` | A list of mappings structured late, after every builder is registered: each entry's `type` selects a builder of `builder_vct`; the entry is structured as the item class registered under `item_vct` (or the owning model's `get_subitem_overrides()`). Used for `modifications:` and `storages:`. |
+| `deferred_list_field(builder_vct, item_vct)` | `deferred_list` | A list of mappings structured late, after every builder is registered: each entry's `type` selects a builder of `builder_vct`; the entry is structured as the item class registered under `item_vct` for that builder's type, else the owning model's `get_subitem_overrides()` entry for `item_vct`, else `item_vct`'s default model (the item model a plugin's metadata injected as that classification's default, such as the base's `storage_mapping`). Used for `modifications:` and `storages:`. |
 | `deferred_list_fk_field(target)` | `deferred_list_fk` | A list of foreign keys resolved late. |
 
 A plugin may register a new kind and stamp `field_kind` metadata on its own
