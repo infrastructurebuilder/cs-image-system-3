@@ -1,7 +1,8 @@
 # 133. Hygiene bundle XXVI
 
-**Status: IN PROGRESS since "do 133", 2026-11-12 (opened the same
-day; the decisions are under each item).**
+**Status: EXECUTED 2026-11-12 on feature/hygiene-xxvi; waits for
+"merge 133". Items 1 to 30 landed; items 31 to 35, found during the
+last batch, carry to the next bundle at the merge.**
 
 The findings carried out of [§132](../docs/CHANGES.md#s132)
 (hygiene bundle XXV), none blocking, each its own commit on the
@@ -141,6 +142,17 @@ matter most is item 8.
     `bootstrap`, `cloud-upgrade`), as the system's own recipes did
     before each got a `[doc]` attribute; the skeleton's get one too
     (found by item 28). Carried to the next bundle.
+34. The store of opened encryption markers (`encryption._OPENED` and
+    `_OPENED_KEYS`) is shared by every run in a process and outlives
+    each: safe today (one identity per process, and an extra plaintext
+    only makes every reader hide more), but a long-lived process keeps
+    every plaintext it ever opened. Making it per run means the
+    resolver's `mark_plaintexts` and the YAML representer (registered
+    globally, with no run) take the run's store (found by item 21).
+    Carried to the next bundle.
+35. `config_loader.py` passes `collect=decrypted_plaintexts()`, a fresh
+    copy on every call, so the `collect` argument does nothing there
+    (found by item 21). Carried to the next bundle.
 
 **Acceptance**: each item its own commit; a fix that moves the golden
 regenerates it in that commit and names every moved line (the
