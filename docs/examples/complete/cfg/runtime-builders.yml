@@ -120,7 +120,7 @@ runtime_builders:
           is_default: true
           public: true
   # ----------------------------------------------------------------- docker
-  # 4.6 (stage 103): a durable host's container daemon, reached through the
+  # 4.6: a durable host's container daemon, reached through the
   # Docker Engine API by the `docker` CLI; never a cloud API. Docker Engine,
   # Docker Desktop, OrbStack, colima and Podman's API service all qualify.
   - name: docker-host

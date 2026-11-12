@@ -6,7 +6,7 @@
 os_builders:
   # ------------------------------------------------ the default base: EL 10
   - name: basic-rh-10
-    type: rhel                     # the dnf family; also fedora; debian/ubuntu are apt; alpine is apk. Optional since stage 106 when the family's catalog entry says what it is
+    type: rhel                     # the dnf family; also fedora; debian/ubuntu are apt; alpine is apk. Optional when the family's catalog entry says what it is
     family: alma-linux             # required: what the vendor image IS; the catalog (5a) says alma-linux IS rhel
     family_version: 10             # required; rhel accepts 8, 9 or 10
     is_default: true               # `source_image: default` resolves here

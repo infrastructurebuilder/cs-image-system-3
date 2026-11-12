@@ -28,7 +28,7 @@ encryption:
 public_safe:
   allow:
     - ".iam.gserviceaccount.com"    # a service account's address is an identifier, not a person
-    - "mykelalvis@infrastructurebuilder.org"   # the copyright holder's address in the SPDX header of every release-owned file (hygiene XII item 1); not a person of this tree
+    - "mykelalvis@infrastructurebuilder.org"   # the copyright holder's address in the SPDX header of every release-owned file; not a person of this tree
     - "path:.age-identity"          # the TEST identity, committed on purpose
     - "path:meta-state/aliases.txt" # a pool of animal names; nothing in it is a person or a secret
 

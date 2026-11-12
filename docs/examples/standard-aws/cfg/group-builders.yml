@@ -10,7 +10,7 @@ group_builders:
     executable: open-tofu
     org: REPLACE-ME-org          # REPLACE: the Okta org name (the `okta` provider's org_name)
     team: REPLACE-ME-team        # REPLACE: the OPA team; it also names the credential variables TF_VAR_<team>_key / _secret
-    # DECISION (stage 75, REQUIRED): the posix group builder that makes these
+    # DECISION (REQUIRED): the posix group builder that makes these
     # groups exist on the machines of their images -- created after each
     # applying run with OPA's gid, members joined at each login (OPA's agent
     # makes accounts at a login and drops their groups when it deletes them).
@@ -25,7 +25,7 @@ group_builders:
       - name: oktapam
         source: okta/oktapam
         version: ">= 0.6.3"
-  # stage 75: the posix group builder `posix:` above names. No terraform root,
+  # the posix group builder `posix:` above names. No terraform root,
   # no credentials; it creates groups (and, for its own groups, accounts) on
   # the machines. Reference: the posix-identity-plugin README.
   - name: posix-local

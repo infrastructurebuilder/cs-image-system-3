@@ -10,11 +10,11 @@
 users:
   # Names are the bare OPA usernames -- exactly what
   # oktapam_user_group_attachment and group members/admins lists use, matching
-  # the OPA team's user list (verified 2026-08-21). Email is used ONLY to look
+  # the OPA team's user list. Email is used ONLY to look
   # the user up in the parent Okta org: explicit `email:` when given, otherwise
   # derived from the builder's default_user_email_template (name@example.invalid).
   # first_name/last_name are required data (never derived from 'name').
-  # A `name` is committed in clear by decision (2026-10-14): the identity roots and the
+  # A `name` is committed in clear by decision (section 11.6): the identity roots and the
   # records carry it in clear whatever the roster does. The personal fields may be markers.
   - name: avery.alpha
     first_name: Avery
@@ -69,8 +69,8 @@ users:
     first_name: Oakley
     last_name: Oscar
     email: ENC[age:YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSBGTktqVnVsaHI4bG84SGhZS1RDMDFya20raDVqSDhjMGdQU0NCL245bWhRCi81aUhhdUEvWkRyTnpDTFFIV2VydXVBM21VRnk0ZGZnd1NBbXpoSS9OSUUKLS0tIGN3cjdqZmRpc2FSZ2RYMmJmdTNLTzNJdEtxd3M4enViMWl0bm5lRnRUZmcKt9lMEBu9GpPu8FCCUJxxtnrFvgrUUAahOHEnpPLh5eheec33te6lX9H68vFQJ1h5LSE=]
-  # Added 2026-09-05 (tcmet reconciliation): live OPA tcmet membership;
-  # details read from the OPA user records
+  # The tcmet group's people (groups/group-tcmet.yaml), with details in the
+  # shape of the OPA user records
   # (GET /v1/teams/{team}/users/{user}, read-only).
   - name: parker
     first_name: Parker

@@ -39,7 +39,18 @@ What is read, and where:
 - the scripts under ``scripts/``: comments and docstrings of a Python
   file, the ``#`` comment lines of a shell script;
 - this repository's hook, ``.githooks/pre-commit``, and its
-  ``.gitignore``: the ``#`` comment lines.
+  ``.gitignore``: the ``#`` comment lines;
+- the starter trees under ``docs/examples/`` (the skeleton and every
+  starter's overlay), which every template repository publishes: the
+  ``Justfile`` whole, as the root's is; the Markdown pages whole, as the
+  fixture's README is (an IAM policy document's ``Version`` literal is a
+  dated value AWS requires); the alias pool's ``#`` lines but its spent
+  ones (``# <name> -- <what took it>`` is the record the system writes, not
+  a comment); and the ``#`` comments of everything else (the YAML, a
+  workflow's ``run:`` scripts included, the ignore file, the hook). Not
+  read: the modification content (``STARTER_HASHED``), hashed into the
+  fingerprint of every image a team bakes from the starter, and the files
+  that are values (``STARTER_VALUES``).
 
 A docstring is read whole, a run of comments on consecutive lines as one
 text and a file read whole as one text, so a token a line break splits
@@ -62,6 +73,7 @@ import tokenize
 from pathlib import Path
 
 import pytest
+import yaml
 
 REPO = Path(__file__).resolve().parents[1]
 
@@ -81,6 +93,26 @@ COMMENT = re.compile(r"(?:^|\s)(?:#|//)(.*)$")
 HASHED_CONTENT = {f"tests/fixtures/config/{name}" for name in
                   ("mod_image.sh", "modify_image.yml", "setup_dask.yml", "setup_data_science.yml")}
 
+EXAMPLES = REPO / "docs" / "examples"
+#: starter files a modification runs or copies onto an image (the ``playbooks:`` and ``scripts:`` of an image's
+#: ``modifications:`` items): their bytes are hashed into the image's input fingerprint, so a comment cleaned here
+#: would re-bake every image a team builds from the starter. Unlike the fixture's, they are not read.
+STARTER_HASHED = {f"docs/examples/{tree}/{f}" for tree, files in (
+    ("complete", ("playbooks/modify_image.yml", "playbooks/setup_dask.yml", "playbooks/setup_data_science.yml",
+                  "scripts/mod_image.sh")),
+    *((tree, ("playbooks/setup-node.yml", "scripts/post-install.sh"))
+      for tree in ("standard-aws", "standard-aws-posix", "standard-docker", "standard-gce")),
+) for f in files}
+#: starter files that are values, not prose, and are not read: the TEST age identity and its recipient (byte for
+#: byte the frozen fixture's, which a test pins) and the marker naming the default starter
+STARTER_VALUES = {f"docs/examples/{name}" for name in ("_skeleton/.age-identity", "_skeleton/.age-recipient", "DEFAULT")}
+#: what a run or a tool leaves inside a starter's directory: never a file of the starter
+STARTER_LITTER = {".DS_Store", "__pycache__", "generated", "_private", "tfmodules"}
+#: a dated value, not narration: the policy language version every IAM policy document carries
+IAM_POLICY_VERSION = re.compile(r'"Version":\s*"2012-10-17"')
+#: an alias pool's spent line, ``# <name> -- <what took it, and when>``: the system's record, not a comment
+ALIAS_SPENT = re.compile(r"^\s*#\s*[A-Za-z0-9][A-Za-z0-9-]*\s+--\s")
+
 #: area -> what it reads
 AREAS: dict[str, str] = {
     "sources": "comments and docstrings of packages/*/src/**/*.py",
@@ -93,6 +125,8 @@ AREAS: dict[str, str] = {
     "scripts": "comments and docstrings of every file under scripts/ (Python, or a shell script's # lines)",
     "hook": "the # comment lines of .githooks/pre-commit, a shell script",
     "gitignore": "the # comment lines of .gitignore",
+    "starters": "docs/examples: each Justfile and Markdown page whole, the # comments of the rest, "
+                "the hashed modification content and the value files excepted",
 }
 
 
@@ -205,6 +239,33 @@ def _comment_hits(path: Path) -> list[str]:
     return _report(path.relative_to(REPO), _comment_blocks(path.read_text(errors="replace")))
 
 
+def _starter_blocks(name: str, text: str) -> list[Block]:
+    """One starter file, by its NAME, as the rule reads it: a Justfile whole,
+    a Markdown page whole with an IAM policy's ``Version`` value blanked, the
+    alias pool's comments with its spent lines blanked, and the ``#``
+    comments of anything else. A blanked line keeps its place, so the line
+    numbers stay the file's."""
+    if name == "Justfile":
+        return _whole_blocks(text)
+    if name.endswith(".md"):
+        return _whole_blocks(IAM_POLICY_VERSION.sub('"Version": ""', text))
+    if name == "aliases.txt":
+        text = "\n".join("" if ALIAS_SPENT.match(line) else line for line in text.splitlines())
+    return _comment_blocks(text)
+
+
+def _starter_files() -> list[Path]:
+    """Every file of every starter tree, the skeleton included, but the
+    hashed modification content, the value files and a run's litter."""
+    skipped = STARTER_HASHED | STARTER_VALUES
+    return sorted(p for p in EXAMPLES.rglob("*")
+                  if p.is_file() and not STARTER_LITTER.intersection(p.parts) and str(p.relative_to(REPO)) not in skipped)
+
+
+def _starter_hits(path: Path) -> list[str]:
+    return _report(path.relative_to(REPO), _starter_blocks(path.name, path.read_text(errors="replace")))
+
+
 def _src_files() -> list[Path]:
     return sorted(p for p in REPO.glob("packages/*/src/**/*") if p.is_file() and "__pycache__" not in p.parts)
 
@@ -242,6 +303,8 @@ def hits(area: str) -> list[str]:
         return _comment_hits(REPO / ".githooks/pre-commit")
     if area == "gitignore":
         return _comment_hits(REPO / ".gitignore")
+    if area == "starters":
+        return [h for p in _starter_files() for h in _starter_hits(p)]
     raise KeyError(area)
 
 
@@ -309,6 +372,53 @@ def test_a_token_a_line_break_splits_is_found():
     assert found == [(1, "stage 128")], found
     wrapped_reference: Block = [(1, "a page reference that wraps: DESIGN"), (2, "§3A stays")]
     assert NARRATION.search(wrapped_reference[1][1]) and not _block_tokens(wrapped_reference)
+
+
+_POOL = "# the alias pool, named by stage\n# 59 here\n# cod -- instance x as x-001 2026-09-23 run r1\neel\n"
+#: one sample per reader of a starter file: (the file's name, its text, the tokens the rule finds there)
+_STARTER_SAMPLES = [
+    ("Justfile", "# a recipe\nr:\n\techo stage 5\n", [(3, "stage 5")]),                         # whole: a body too
+    ("CI_SETUP.md", '{"Version": "2012-10-17"}\nfound 2026-09-22\n', [(2, "2026-09-22")]),      # the policy's is a value
+    ("aliases.txt", _POOL, [(1, "stage 59")]),                                                  # a spent line is a record
+    ("other.txt", _POOL, [(1, "stage 59"), (3, "2026-09-23")]),                                 # ... read as a comment elsewhere
+    ("ci.yml", "key: stage 7  # a value\nrun: |\n  # hygiene XIV in a script\n", [(3, "hygiene XIV")]),
+]
+
+
+@pytest.mark.parametrize(("name", "text", "want"), _STARTER_SAMPLES, ids=[s[0] for s in _STARTER_SAMPLES])
+def test_a_starter_file_is_read_as_its_kind(name: str, text: str, want: list[tuple[int, str]]):
+    assert [(n, t) for n, t, _ in _tokens(_starter_blocks(name, text))] == want
+
+
+def _modification_files(tree: Path) -> set[str]:
+    """Every file the ``modifications:`` items of TREE's YAML name under
+    ``playbooks:`` or ``scripts:`` (a path relative to the tree's root)."""
+    named: set[str] = set()
+
+    def walk(node: object) -> None:
+        if isinstance(node, dict):
+            for key, value in node.items():
+                if key == "modifications" and isinstance(value, list):
+                    named.update(str(f) for item in value if isinstance(item, dict)
+                                 for f in (item.get("playbooks") or []) + (item.get("scripts") or []))
+                walk(value)
+        elif isinstance(node, list):
+            for value in node:
+                walk(value)
+    for p in sorted(tree.rglob("*.y*ml")):
+        for doc in yaml.safe_load_all(p.read_text()):
+            walk(doc)
+    return {str((tree / f).relative_to(REPO)) for f in named}
+
+
+def test_the_starter_files_left_unread_are_the_hashed_content_and_the_values():
+    """``STARTER_HASHED`` is exactly what the starters' modification items
+    name, every listed file exists, and the area reads none of them."""
+    named = set().union(*(_modification_files(t) for t in sorted(EXAMPLES.iterdir()) if t.is_dir()))
+    assert named == STARTER_HASHED, sorted(named ^ STARTER_HASHED)
+    unread = STARTER_HASHED | STARTER_VALUES
+    assert [f for f in sorted(unread) if not (REPO / f).is_file()] == []
+    assert not {str(p.relative_to(REPO)) for p in _starter_files()} & unread
 
 
 if __name__ == "__main__":

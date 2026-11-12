@@ -89,7 +89,7 @@ full-test: test
 release runtime: full-test
 	@{{cli}} --locked --no-dry-run run base-image instance-image release retention --only-runtime {{runtime}} --commit
 
-# Take a release (hygiene XXI): the whole walk of moving this tree onto VERSION, in one box. The
+# Take a release: the whole walk of moving this tree onto VERSION, in one box. The
 # first act is the catch-up guard (fetch, `merge --ff-only origin/main`, `merge-base
 # --is-ancestor`); then the release is installed (unless CSIS names another command), the files the
 # release owns are listed against the previous release (`init-config --changes-since`) and the
@@ -117,7 +117,7 @@ take version patched="no":
 		git merge-base --is-ancestor origin/main HEAD || { echo "take: origin/main is not an ancestor of develop -- nothing was changed"; exit 1; }
 	fi
 	old=$(git show HEAD:.csis-version 2>/dev/null | head -1 || true)
-	# a development release is on TestPyPI only, with PyPI as the extra index (stage 99)
+	# a development release is on TestPyPI only, with PyPI as the extra index
 	test_index=(--index-url https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple/ --index-strategy unsafe-first-match)
 	index=(); [[ "$version" == *.dev* ]] && index=("${test_index[@]}")
 	oldindex=(); [[ "$old" == *.dev* ]] && oldindex=("${test_index[@]}")
@@ -128,7 +128,7 @@ take version patched="no":
 	fi
 	have=$({{csis}} --version 2>/dev/null | awk '{print $NF}')
 	if [ "$have" != "$version" ]; then
-		# hygiene XXII item 1: a CSIS in a checkout's venv answers with the version the venv was last synced to
+		# a CSIS in a checkout's venv answers with the version the venv was last synced to
 		case "${CSIS:-}" in
 			*/.venv/bin/*) echo "take: '$CSIS' reports '$have', not $version -- it lies in the venv of ${CSIS%%/.venv/bin/*}, which has not been synced to that release: run \`just init\` THERE, then run this again; nothing was changed" ;;
 			*) echo "take: '{{csis}}' reports '$have', not $version -- point CSIS at that release, or install it; nothing was changed" ;;
@@ -143,7 +143,7 @@ take version patched="no":
 			exit 1
 		fi
 	fi
-	# hygiene XXII item 2: a failure after the pin is written puts the pin back, so the same command runs again
+	# a failure after the pin is written puts the pin back, so the same command runs again
 	had=no; prior=
 	if [ -f .csis-version ]; then had=yes; prior=$(cat .csis-version); fi
 	printf '%s\n' "$version" > .csis-version
@@ -272,9 +272,9 @@ cloud-upgrade runtime instance to="": cloud-preflight
 	just cloud-verify {{runtime}} {{instance}}
 	{{cli}} --locked --no-dry-run run release --only-runtime {{runtime}} --commit
 	just cloud-launch {{runtime}}
-	# hygiene XIII item 1: the last run regenerates the instance lifecycle alone, so the release
-	# read-model the release run moved reaches the committed emission only with a full record
-	# (until 2026-10-15 `live` on main failed on config-drift until one was made by hand)
+	# the last run regenerates the instance lifecycle alone, so the release read-model the
+	# release run moved reaches the committed emission only with a full record (without one,
+	# `live` on main fails on config-drift until a record is made by hand)
 	just record
 	echo "cloud-upgrade: {{instance}} stands on its released build, recorded; run 'just ci-login-proof {{instance}}' to log in by name"
 
@@ -287,7 +287,7 @@ cloud-dispose-images runtime dry="no":
 	@{{cli}} {{ if dry == "yes" { "--dry-run" } else { "--no-dry-run" } }} dispose image --runtime {{runtime}} --all --commit
 
 # Re-tag cloud images whose lineage tags disagree with their record, from the record, and give the
-# configuration's id (csis_config) to standing storages and machines that lack it (stage 93). Dry by default.
+# configuration's id (csis_config) to standing storages and machines that lack it. Dry by default.
 cloud-relabel runtime dry="yes":
 	@{{cli}} {{ if dry == "yes" { "--dry-run" } else { "--no-dry-run" } }} lineage relabel --runtime {{runtime}}
 
@@ -303,7 +303,7 @@ ci-login-proof *ARGS:
 			OPA_TOKEN=$({{cli}} workload token)
 			export OPA_TOKEN
 		else
-			# stage 75: no group builder names an OPA workload connection (a posix-only tree):
+			# no group builder names an OPA workload connection (a posix-only tree):
 			# no token to mint; a posix group's proof logs in with CSIS_PROOF_SSH_KEY
 			echo "ci-login-proof: no workload connection is named -- no OPA token to mint" >&2
 		fi
@@ -339,7 +339,7 @@ test-mods *ARGS:
 public-safe *ARGS:
 	@{{cli}} public-safe --tree "{{root}}" {{ARGS}}
 
-# The one-time initialisation as terraform, from an interview (stage 70): the answers go to bootstrap.yaml at the
+# The one-time initialisation as terraform, from an interview: the answers go to bootstrap.yaml at the
 # root of the tree, generated/bootstrap/ is written from them (and rewritten by every run); applying it is yours
 bootstrap *ARGS:
 	@{{cli}} bootstrap {{ARGS}}
