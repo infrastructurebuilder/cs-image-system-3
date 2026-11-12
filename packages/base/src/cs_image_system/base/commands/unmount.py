@@ -23,7 +23,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
-    from ..global_context import GlobalTypeContext
+    from ..run_context import RunContext
 
 log = logging.getLogger(__name__)
 
@@ -75,7 +75,7 @@ def read_receipt(workdir: Path, instance: str, storage: str) -> dict[str, Any] |
         return None
 
 
-def unmount_storage(ctx: "GlobalTypeContext", instance: str, storage: str, mount_point: str, workdir: Path,
+def unmount_storage(ctx: "RunContext", instance: str, storage: str, mount_point: str, workdir: Path,
                     confirm: bool = False, timeout: int = 300) -> dict[str, Any]:
     """Run the unmount through the runtime, or record the operator's
     confirmation; either way a receipt is written. Raises on failure."""

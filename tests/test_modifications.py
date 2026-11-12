@@ -38,7 +38,7 @@ from typing import Any, cast
 
 import pytest
 import yaml
-from harness import V2Run, copy_config, load_context, reset_singletons, stub_environment
+from harness import V2Run, copy_config, load_context, stub_environment
 
 BUILD = Path("instance-image/pckr-ebs-ans/image-generation/block-000/pckr-ebs-ans-image-generation-block-000-build.pkr.hcl")
 
@@ -249,7 +249,6 @@ def test_an_alias_on_a_modification_type_is_rewritten_to_the_builders_name(tmp_p
                        if not isinstance(m, dict) and m.get_name() == "derivative-setup"]
     assert mods, "the fixture's bash item is gone"
     assert {m.get_type() for m in mods} == {"bash-remote"}
-    reset_singletons()
 
 
 def test_an_aliased_modification_generates(tmp_path: Path, monkeypatch):
@@ -386,16 +385,13 @@ def test_a_modification_with_no_builder_and_no_default_is_a_named_refusal(tmp_pa
     root = copy_config(tmp_path)
     _edit(root / "cfg" / "mod-builders.yml", lambda d: _mod_builder(d, "ansible-default").update(is_default=False))
     stub_environment(monkeypatch)
-    try:
-        with pytest.raises(Exception) as exc:
-            load_context(root)
-        # refused by name at load (the builder-list check fires first; the
-        # orchestrator's own refusal covers an item that reaches it anyway),
-        # never an AttributeError at generation
-        message = str(exc.value)
-        assert "builder" in message and "AttributeError" not in message, message
-    finally:
-        reset_singletons()
+    with pytest.raises(Exception) as exc:
+        load_context(root)
+    # refused by name at load (the builder-list check fires first; the
+    # orchestrator's own refusal covers an item that reaches it anyway),
+    # never an AttributeError at generation
+    message = str(exc.value)
+    assert "builder" in message and "AttributeError" not in message, message
 
 
 def test_bash_configuration_user_runs_the_lines_as_that_user(tmp_path: Path, monkeypatch):

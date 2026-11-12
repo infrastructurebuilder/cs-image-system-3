@@ -28,7 +28,7 @@ from typing import Any, cast
 
 import pytest
 import yaml
-from harness import V2Run, command_lines, copy_config, load_context, reset_singletons, stub_environment, tree
+from harness import V2Run, command_lines, copy_config, load_context, stub_environment, tree
 
 LITERAL_GID = re.compile(r"\b(?:owner_)?gid\s*=\s*\d+\b")
 
@@ -147,29 +147,26 @@ def test_the_read_only_group_builder_answers_the_read_only_truth(monkeypatch):
     from tests.harness import FIXTURE_CONFIG
     stub_environment(monkeypatch)
     ctx = load_context(FIXTURE_CONFIG)
-    try:
-        ro = ctx.group_builders["okta-groups-ro"]
-        managed = ctx.group_builders["oktagroups"]
-        assert [g.get_name() for g in ro.get_groups_for_builder()] == ["readers"]
-        assert ro.manages_groups() is False and managed.manages_groups() is True
+    ro = ctx.group_builders["okta-groups-ro"]
+    managed = ctx.group_builders["oktagroups"]
+    assert [g.get_name() for g in ro.get_groups_for_builder()] == ["readers"]
+    assert ro.manages_groups() is False and managed.manages_groups() is True
 
-        def no_opa(*a, **kw):
-            raise AssertionError("the read-only builder asked OPA")
-        monkeypatch.setattr(type(ro), "_resolver", no_opa)
-        assert ro.query_state() == {}
-        assert ro.enrollment_token_reference("readers") is None
-        assert ro.can_query_servers() is False
-        assert ro.can_manage_workload_access() is False
-        with pytest.raises(NotImplementedError):
-            ro.query_attributes(ro.get_groups_for_builder()[0])
-        with pytest.raises(NotImplementedError):
-            ro.attribute_conflicts()
+    def no_opa(*a, **kw):
+        raise AssertionError("the read-only builder asked OPA")
+    monkeypatch.setattr(type(ro), "_resolver", no_opa)
+    assert ro.query_state() == {}
+    assert ro.enrollment_token_reference("readers") is None
+    assert ro.can_query_servers() is False
+    assert ro.can_manage_workload_access() is False
+    with pytest.raises(NotImplementedError):
+        ro.query_attributes(ro.get_groups_for_builder()[0])
+    with pytest.raises(NotImplementedError):
+        ro.attribute_conflicts()
 
-        model = identity_read_model(ctx)["groups"]
-        assert model["readers"]["managed"] is False and model["readers"]["builder"] == "okta-groups-ro"
-        assert model["coops"]["managed"] is True
-    finally:
-        reset_singletons()
+    model = identity_read_model(ctx)["groups"]
+    assert model["readers"]["managed"] is False and model["readers"]["builder"] == "okta-groups-ro"
+    assert model["coops"]["managed"] is True
 
 
 def test_a_read_only_group_is_looked_up_and_never_drifts(tmp_path: Path, monkeypatch):

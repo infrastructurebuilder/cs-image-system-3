@@ -61,12 +61,11 @@ from .. import (
 from ..alias_pool import release_unlaunched
 from ..basic.builder_base import BuilderBase
 from ..bootstrap.generate import regenerate_in_run
-from ..global_context import GlobalTypeContext
 from ..in_process import run_executable
 from ..lifecycles import all_lifecycles, phases_of, register_lifecycle
 from ..lineage import bake_plan, validate_policies
 from ..meta_state import commit_meta_state
-from ..orchestrator import TemplateResolver
+from ..run_context import RunContext
 from ..state_query import query_state, write_state_report
 from ..utils import in_directory
 from .gen_groups import predefined_group_generation
@@ -83,7 +82,7 @@ log = logging.getLogger(__name__)
 
 
 # Per-phase "during" step: the existing predefined generation functions.
-_DURING: dict[ExecutionLifecyclePhase, Callable[[GlobalTypeContext, ExecutionLifecyclePhase], bool]] = {
+_DURING: dict[ExecutionLifecyclePhase, Callable[[RunContext, ExecutionLifecyclePhase], bool]] = {
     ExecutionLifecyclePhase.USER_GENERATION: predefined_user_generation,
     ExecutionLifecyclePhase.GROUP_GENERATION: predefined_group_generation,
     ExecutionLifecyclePhase.STORAGE_GENERATION: predefined_storage_generation,
@@ -184,7 +183,7 @@ class LifecycleRunError(RuntimeError):
 
 # ----------------------------------------------------------------- helpers
 
-def _write_gitignore(ctx: GlobalTypeContext, directory: Path, extra: tuple[str, ...] = ()) -> None:
+def _write_gitignore(ctx: RunContext, directory: Path, extra: tuple[str, ...] = ()) -> None:
     """The ignore policy (the defaults plus the configuration's list) as a
     ``.gitignore`` in ``directory``; ``extra`` names what only THIS directory
     ignores -- the root adds the run-local files."""
@@ -203,7 +202,7 @@ def _wipe(path: Path) -> None:
         shutil.rmtree(path)
 
 
-def out_of_scope_builder_dirs(ctx: GlobalTypeContext) -> set[str]:
+def out_of_scope_builder_dirs(ctx: RunContext) -> set[str]:
     """The builder directories a runtime-scoped run must leave alone: every
     image, storage and instance builder bound to a runtime OTHER than the
     scope. Empty for an unscoped run. A builder's emission lives
@@ -227,7 +226,7 @@ def out_of_scope_builder_dirs(ctx: GlobalTypeContext) -> set[str]:
     return out
 
 
-def _wipe_in_scope(ctx: GlobalTypeContext, lc_path: Path) -> list[str]:
+def _wipe_in_scope(ctx: RunContext, lc_path: Path) -> list[str]:
     """Wipe a lifecycle directory within the run's scope: an
     unscoped run wipes it whole, as Q5 says; a run under ``--only-runtime``
     (explicit, or implied by ``--apply-runtime``) emits nothing for the other
@@ -246,7 +245,7 @@ def _wipe_in_scope(ctx: GlobalTypeContext, lc_path: Path) -> list[str]:
     return kept
 
 
-def validate(ctx: GlobalTypeContext, requested: list[LifecycleLike]) -> list[str]:
+def validate(ctx: RunContext, requested: list[LifecycleLike]) -> list[str]:
     """Shared validation: V1 checks (unique names, executables) + registered
     V2 validators. Touches no generated output."""
     errors: list[str] = [str(e) for e in collect_validation_errors(ctx)]
@@ -256,7 +255,7 @@ def validate(ctx: GlobalTypeContext, requested: list[LifecycleLike]) -> list[str
     return errors
 
 
-def _resolve_for(ctx: GlobalTypeContext, lifecycle: LifecycleLike) -> None:
+def _resolve_for(ctx: RunContext, lifecycle: LifecycleLike) -> None:
     """Resolution is per lifecycle (DESIGN §3A precedent generalized).
 
     identity/storage need only template resolution; base-image queries the
@@ -265,7 +264,7 @@ def _resolve_for(ctx: GlobalTypeContext, lifecycle: LifecycleLike) -> None:
     provider-specific images for the base artifacts it chains from.
     """
     if not isinstance(lifecycle, Lifecycle) or lifecycle in (Lifecycle.IDENTITY, Lifecycle.STORAGE):
-        TemplateResolver().resolve_all()
+        ctx.template_resolver.resolve_all()
         return
     is_base = lifecycle == Lifecycle.BASE_IMAGE
     if not predefined_resolve(ctx, ExecutionLifecyclePhase.RESOLUTION, is_base):
@@ -273,7 +272,7 @@ def _resolve_for(ctx: GlobalTypeContext, lifecycle: LifecycleLike) -> None:
 
 
 def execute_before_or_after_phase(
-    ctx: GlobalTypeContext, is_before: bool, phase: ExecutionLifecyclePhase, verbose: bool,
+    ctx: RunContext, is_before: bool, phase: ExecutionLifecyclePhase, verbose: bool,
 ) -> bool:
     """
     Execute all commands registered to run before a specific lifecycle phase.
@@ -329,7 +328,7 @@ def execute_before_or_after_phase(
     return True
 
 
-def _run_phase(ctx: GlobalTypeContext, lifecycle: LifecycleLike, phase: ExecutionLifecyclePhase) -> None:
+def _run_phase(ctx: RunContext, lifecycle: LifecycleLike, phase: ExecutionLifecyclePhase) -> None:
     log.info(f"[{lifecycle.value}] phase {phase.value}")
     if not execute_before_or_after_phase(ctx, True, phase, ctx.verbose):
         raise LifecycleRunError(f"[{lifecycle.value}] before-phase hooks failed for {phase.value}")
@@ -346,7 +345,7 @@ def _run_phase(ctx: GlobalTypeContext, lifecycle: LifecycleLike, phase: Executio
 _LAST_LIFECYCLE: dict[str, str] = {}
 
 
-def generate_lifecycle(ctx: GlobalTypeContext, lifecycle: LifecycleLike) -> LifecycleResult:
+def generate_lifecycle(ctx: RunContext, lifecycle: LifecycleLike) -> LifecycleResult:
     """Wipe-and-regenerate exactly one lifecycle (Q5)."""
     result = LifecycleResult(lifecycle=lifecycle.value)
     ctx.current_lifecycle = lifecycle
@@ -365,11 +364,11 @@ def generate_lifecycle(ctx: GlobalTypeContext, lifecycle: LifecycleLike) -> Life
             _run_phase(ctx, lifecycle, phase)
         for hook in _AFTER_GENERATE:
             hook(ctx, lifecycle)
-        script = ctx.write_lifecycle_runner_script(lifecycle, _script_header(ctx, lifecycle))
+        script = ctx.finalizer.write_lifecycle_runner_script(lifecycle, _script_header(ctx, lifecycle))
         result.runner_script = str(script) if script else None
         result.deferred_commands = sum(
-            len(ctx.get_finalization_executables_for_phase(p, lifecycle))
-            for p in ctx.finalization_phases_for(lifecycle))
+            len(ctx.finalizer.get_finalization_executables_for_phase(p, lifecycle))
+            for p in ctx.finalizer.finalization_phases_for(lifecycle))
         result.status = "generated"
         ctx.mark_generated(lifecycle)
     finally:
@@ -377,7 +376,7 @@ def generate_lifecycle(ctx: GlobalTypeContext, lifecycle: LifecycleLike) -> Life
     return result
 
 
-def collect_state_bindings(ctx: GlobalTypeContext) -> dict[str, dict[str, str]]:
+def collect_state_bindings(ctx: RunContext) -> dict[str, dict[str, str]]:
     """``{lifecycle: {workspace: state file}}`` -- the state-isolation
     evidence, every lifecycle named, merged from the registered
     state-bindings hooks. The core manages no state itself: a tree whose
@@ -389,14 +388,14 @@ def collect_state_bindings(ctx: GlobalTypeContext) -> dict[str, dict[str, str]]:
     return out
 
 
-def _script_header(ctx: GlobalTypeContext, lifecycle: LifecycleLike) -> list[str]:
+def _script_header(ctx: RunContext, lifecycle: LifecycleLike) -> list[str]:
     """Runner-script header lines listing the state files this lifecycle's
     workspaces bind to."""
     bindings = collect_state_bindings(ctx).get(lifecycle.value, {})
     return [f"# state: workspace {ws} -> {key}" for ws, key in bindings.items()]
 
 
-def _execute_in_process(ctx: GlobalTypeContext, lifecycle: LifecycleLike) -> bool:
+def _execute_in_process(ctx: RunContext, lifecycle: LifecycleLike) -> bool:
     """Run a lifecycle generated THIS run: its deferred executables, phase by
     phase, with every builder's pre/post finalize hooks around each phase.
     The loop itself is the finalizer's one executor
@@ -406,8 +405,8 @@ def _execute_in_process(ctx: GlobalTypeContext, lifecycle: LifecycleLike) -> boo
     ctx.current_lifecycle = lifecycle
     _LAST_LIFECYCLE["name"] = f"the apply of {lifecycle.value}"
     try:
-        for phase in ctx.finalization_phases_for(lifecycle):
-            executables = ctx.get_finalization_executables_for_phase(phase, lifecycle)
+        for phase in ctx.finalizer.finalization_phases_for(lifecycle):
+            executables = ctx.finalizer.get_finalization_executables_for_phase(phase, lifecycle)
             if not ctx.finalizer.execute_phase(phase, executables, label=f"{lifecycle.value}/{phase.value}"):
                 return False
         return True
@@ -415,7 +414,7 @@ def _execute_in_process(ctx: GlobalTypeContext, lifecycle: LifecycleLike) -> boo
         ctx.current_lifecycle = None
 
 
-def apply_lifecycles(ctx: GlobalTypeContext, summary: RunSummary) -> None:
+def apply_lifecycles(ctx: RunContext, summary: RunSummary) -> None:
     """GOALS.md 5.5 as amended: within a REQUESTED
     lifecycle, a runner script exists -> it runs; absent -> no-op. A script
     left behind by an earlier run of an UNREQUESTED lifecycle is skipped
@@ -460,7 +459,7 @@ def apply_lifecycles(ctx: GlobalTypeContext, summary: RunSummary) -> None:
                 hook(ctx, lifecycle)
 
 
-def run_lifecycles(ctx: GlobalTypeContext, requested: list[LifecycleLike], *, apply: bool = True,
+def run_lifecycles(ctx: RunContext, requested: list[LifecycleLike], *, apply: bool = True,
                    commit: bool = False, state_query: bool = True,
                    only: list[str] | None = None,
                    force_bake: list[str] | None = None) -> RunSummary:
@@ -555,7 +554,7 @@ def run_lifecycles(ctx: GlobalTypeContext, requested: list[LifecycleLike], *, ap
             result = generate_lifecycle(ctx, lifecycle)
             summary.lifecycles.append(result)
         summary.state_bindings = collect_state_bindings(ctx)   # the state-isolation evidence
-        ctx.write_gating_script()
+        ctx.finalizer.write_gating_script()
         if apply:
             apply_lifecycles(ctx, summary)
         else:
@@ -608,7 +607,7 @@ def run_lifecycles(ctx: GlobalTypeContext, requested: list[LifecycleLike], *, ap
     return summary
 
 
-def _record(ctx: GlobalTypeContext, summary: RunSummary, root: Path) -> None:
+def _record(ctx: RunContext, summary: RunSummary, root: Path) -> None:
     try:
         summary.write(root / RUN_SUMMARY_FILENAME)
         ctx.meta_state.record_run({
@@ -620,7 +619,7 @@ def _record(ctx: GlobalTypeContext, summary: RunSummary, root: Path) -> None:
         log.error(f"Could not write run summary: {e}")
 
 
-def validate_only(ctx: GlobalTypeContext, *, online: bool = False) -> list[str]:
+def validate_only(ctx: RunContext, *, online: bool = False) -> list[str]:
     """Every rule over the loaded configuration. ``online`` (`validate
     --online`) first checks every runtime's networking against
     its account, records the facts and adopts them; offline, the rules read

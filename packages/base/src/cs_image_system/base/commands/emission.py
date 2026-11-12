@@ -48,7 +48,7 @@ from cs_image_system.contract.constants import RUN_LOCAL_FILENAMES
 from .runtime_facts import emission_dirs
 
 if TYPE_CHECKING:
-    from ..global_context import GlobalTypeContext
+    from ..run_context import RunContext
 
 #: terraform's forced getter: a `<getter>::` prefix on a module source (any getter)
 _FORCED_GETTER = re.compile(r"^[a-z0-9]+::")
@@ -411,7 +411,7 @@ def vendor_image_moves(lines: list[str]) -> list[str]:
     return moves
 
 
-def runtime_unchanged(ctx: "GlobalTypeContext", runtime: str, ref: str = "HEAD") -> tuple[int, list[str]]:
+def runtime_unchanged(ctx: "RunContext", runtime: str, ref: str = "HEAD") -> tuple[int, list[str]]:
     """0 when the runtime's emission directories (``runtime describe`` ->
     ``emission``) in the working tree equal the same paths at ``ref`` once
     normalised, or differ only by the vendor's newest image under a base not

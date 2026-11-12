@@ -57,7 +57,7 @@ from .launch_params import canonical_hostname, hostname_problems
 from .utils import apply_enabled
 
 if TYPE_CHECKING:
-    from .global_context import GlobalTypeContext
+    from .run_context import RunContext
     from .state_query import StateReport
 
 log = logging.getLogger(__name__)
@@ -116,7 +116,7 @@ def own_record(servers: list[dict[str, Any]], instance_id: str) -> dict[str, Any
 
 
 # -------------------------------------------------------- the reconciler
-def _group_of(ctx: "GlobalTypeContext", instance: Any) -> str:
+def _group_of(ctx: "RunContext", instance: Any) -> str:
     image = ctx.images_map.get(str(instance.image))
     return str(getattr(image, "group", None) or "") if image is not None else ""
 
@@ -138,7 +138,7 @@ def _wait_for_registration(gb: Any, group: str, instance_id: str) -> list[dict[s
     return servers
 
 
-def register_provider_aliases(ctx: "GlobalTypeContext", lifecycle: Lifecycle) -> None:
+def register_provider_aliases(ctx: "RunContext", lifecycle: Lifecycle) -> None:
     """After the instance-image runner applied for real: every launched
     instance whose root applied gets its provider-hostname alias, unless the
     name is claimed, the registry is silent, or the machine is off."""
@@ -236,7 +236,7 @@ def register_provider_aliases(ctx: "GlobalTypeContext", lifecycle: Lifecycle) ->
 
 
 # ----------------------------------------------------- the state query
-def instance_identity_notes(ctx: "GlobalTypeContext", report: "StateReport") -> None:
+def instance_identity_notes(ctx: "RunContext", report: "StateReport") -> None:
     """What each launched machine answers to, from the provider and the
     registry -- reality, not a record of our own. A running machine whose
     provider-hostname alias is absent gets a note; one that is off is

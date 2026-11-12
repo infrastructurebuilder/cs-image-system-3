@@ -30,7 +30,7 @@ import shlex
 import shutil
 import subprocess
 import tempfile
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from dataclasses import asdict, field
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Protocol
@@ -43,13 +43,13 @@ from cs_image_system.contract.errors import (
 from cs_image_system.contract.model_config import CSIS_MODEL_CONFIG
 
 from .capabilities import image_chain
-from .image_sources import _runtime_classes, container_reference, stand_in_runtime_type
+from .image_sources import container_reference, stand_in_runtime_type
 from .lineage import mod_records
 from .meta_state import MOD_TESTS
 from .os_types import os_type_for_family
 
 if TYPE_CHECKING:
-    from .global_context import GlobalTypeContext
+    from .run_context import RunContext
 
 log = logging.getLogger(__name__)
 
@@ -110,11 +110,10 @@ class LocalTarget(Protocol):
 TargetFactory = Callable[..., "LocalTarget | None"]
 
 
-def stand_in_target_factory() -> tuple[str, TargetFactory] | None:
+def stand_in_target_factory(classes: Mapping[str, type]) -> tuple[str, TargetFactory] | None:
     """The runtime type that offers the local test target and its factory,
-    read from the registered runtime builder classes; None when no
-    installed runtime offers one."""
-    classes = _runtime_classes()
+    read from the runtime builder classes in ``classes`` (the run's:
+    ``ctx.reg.runtime_builder_classes()``); None when none offers one."""
     runtime_type = stand_in_runtime_type(classes)
     if runtime_type is None:
         return None
@@ -143,7 +142,7 @@ class ModTestResult:
 
 # ----------------------------------------------------------- plugin side
 
-def test_image_for(ctx: "GlobalTypeContext", image: Any) -> str | None:
+def test_image_for(ctx: "RunContext", image: Any) -> str | None:
     """The container image for the instance image's root OS family."""
     _, root = image_chain(ctx, image)
     osb = ctx.os_builders.get(root) if root else None
@@ -156,13 +155,13 @@ def test_image_for(ctx: "GlobalTypeContext", image: Any) -> str | None:
     return container_reference(block) if block is not None else None
 
 
-def ansible_prep_command(ctx: "GlobalTypeContext", image: Any) -> str:
+def ansible_prep_command(ctx: "RunContext", image: Any) -> str:
     """The line that readies the instance image's stand-in for ansible:
     the OS type's (resolved from the image's root OS family)."""
     _, root = image_chain(ctx, image)
     osb = ctx.os_builders.get(root) if root else None
     family = osb.get_family() if osb is not None else None
-    return os_type_for_family(family).ansible_python_install_command()
+    return os_type_for_family(family, ctx.reg).ansible_python_install_command()
 
 
 def _inline_lines(mod: Any) -> list[str]:
@@ -189,7 +188,7 @@ def bash_test_commands(mod: Any, staged: Path) -> list[str]:
     return cmds
 
 
-def _stage_mod(ctx: "GlobalTypeContext", mod: Any) -> Path:
+def _stage_mod(ctx: "RunContext", mod: Any) -> Path:
     """Copy a mod's files to a temp dir (the container gets /tmp/csis-test)."""
     d = Path(tempfile.mkdtemp(prefix="csis-mod-test-"))
     for src in list(getattr(mod, "playbooks", None) or []) + list(getattr(mod, "scripts", None) or []):
@@ -204,7 +203,7 @@ def _stage_mod(ctx: "GlobalTypeContext", mod: Any) -> Path:
     return d
 
 
-def apply_mod(ctx: "GlobalTypeContext", mod: Any, target: LocalTarget, staged: Path) -> tuple[int, str]:
+def apply_mod(ctx: "RunContext", mod: Any, target: LocalTarget, staged: Path) -> tuple[int, str]:
     """Apply one modification to the target once. Ansible mods run through
     the target's ansible connection plugin; bash mods exec."""
     playbooks = list(getattr(mod, "playbooks", None) or [])
@@ -231,7 +230,7 @@ def apply_mod(ctx: "GlobalTypeContext", mod: Any, target: LocalTarget, staged: P
     return rc_total, out_total
 
 
-def test_mod(ctx: "GlobalTypeContext", image: Any, mod: Any, record: dict[str, Any],
+def test_mod(ctx: "RunContext", image: Any, mod: Any, record: dict[str, Any],
              target: LocalTarget) -> ModTestResult:
     result = ModTestResult(image=image.get_name(), mod=mod.get_name(), type=mod.get_type(),
                            content_hash=record["content_hash"], target=target.name, status="fail",
@@ -269,7 +268,7 @@ def test_mod(ctx: "GlobalTypeContext", image: Any, mod: Any, record: dict[str, A
         shutil.rmtree(staged, ignore_errors=True)
 
 
-def run_mod_tests(ctx: "GlobalTypeContext", images: list[str] | None = None,
+def run_mod_tests(ctx: "RunContext", images: list[str] | None = None,
                   make_target=None, force: bool = False) -> list[ModTestResult]:
     """Test every modification of every (selected) instance image. Results
     keyed by content hash are cached in meta-state; ``force`` re-tests."""
@@ -297,7 +296,7 @@ def run_mod_tests(ctx: "GlobalTypeContext", images: list[str] | None = None,
             # it; the tree's executables (cfg/executables.yml) tell its factory
             # which CLI to run
             if offered is None:
-                offered = stand_in_target_factory()
+                offered = stand_in_target_factory(ctx.reg.runtime_builder_classes())
             if offered is None:
                 for mod, rec in zip(mods, records, strict=False):
                     results.append(ModTestResult(image=image.get_name(), mod=mod.get_name(), type=mod.get_type(),

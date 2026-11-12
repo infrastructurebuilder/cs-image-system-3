@@ -315,8 +315,8 @@ def script_lines(queue: Any, header: list[str], lifecycle: LifecycleLike | None,
                  script_dir: Path | None = None, *, paths: Any = None) -> list[str]:
     """Phase-ordered shell lines for the deferred executables of ``lifecycle``
     (``None`` = the legacy bucket). Module-level so it works on any object
-    exposing ``get_finalization_executables_for_phase`` (a :class:`Finalizer`,
-    a context through its shim, a stand-in). ``paths`` is the object that
+    exposing ``get_finalization_executables_for_phase`` (a :class:`Finalizer`
+    or a stand-in). ``paths`` is the object that
     knows ``working_path`` and ``generation_path`` -- the run context -- and
     defaults to ``queue`` itself. With ``script_dir`` (where the script will
     live) and a known ``working_path``, the header defines ``CSIS_ROOT`` as

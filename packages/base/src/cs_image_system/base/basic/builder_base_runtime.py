@@ -449,6 +449,14 @@ class RuntimeBuilderBase(BuilderBase[R], RuntimeBuilderProtocol):
         """
         return GenericProviderSpecificImage
 
+    def prepare_provider_specific_image(self, psi: ProviderSpecificImage) -> None:
+        """Hook: what this runtime gives an image it just made, before the
+        image is registered (a container runtime's repository, which the
+        image's floating tag is read from). An image holds no context, so
+        what it needs of its runtime is handed to it here. Nothing by
+        default."""
+        return None
+
     def create_provider_specific_image_resolved(
         self,
         *,
@@ -469,6 +477,7 @@ class RuntimeBuilderBase(BuilderBase[R], RuntimeBuilderProtocol):
             raw_query_result=raw_query_result,
             architecture=architecture,
         )
+        self.prepare_provider_specific_image(psi)
         self._run_context().reg.register_built_instance(psi)
         log.debug(f"Registered resolved provider-specific image {psi.get_name()} -> {identifier}")
         return psi
@@ -495,6 +504,7 @@ class RuntimeBuilderBase(BuilderBase[R], RuntimeBuilderProtocol):
             architecture=(architecture if architecture is not None
                           else getattr(image, "architecture", None)),
         )
+        self.prepare_provider_specific_image(psi)
         self._run_context().reg.register_built_instance(psi)
         log.debug(f"Registered deferred provider-specific image {psi.get_name()} "
                   f"with pattern {psi.deferred_name_pattern}")

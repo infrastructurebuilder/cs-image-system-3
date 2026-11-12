@@ -227,7 +227,7 @@ def _has_init_system(ctx: "RunContext", runtime_name: str | None) -> bool:
 
 
 def _os_type_of(ctx: "RunContext", osb: Any) -> type | None:
-    return os_type_for_family(osb.get_family()) if osb is not None else None
+    return os_type_for_family(osb.get_family(), ctx.reg) if osb is not None else None
 
 
 def base_image_verify_commands(ctx: "RunContext", base: Any, runtime_name: str) -> list[str]:

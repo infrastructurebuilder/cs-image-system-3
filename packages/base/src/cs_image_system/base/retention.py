@@ -31,7 +31,7 @@ from .lifecycles import register_lifecycle
 from .utils import system_cli_executable, system_cli_executable_with_config
 
 if TYPE_CHECKING:
-    from .global_context import GlobalTypeContext
+    from .run_context import RunContext
 
 log = logging.getLogger(__name__)
 
@@ -39,12 +39,12 @@ RETENTION_LIFECYCLE = LifecycleSpec(name="retention", after="release", phases=()
                                     description="dispose of builds the declared retention no longer keeps")
 
 
-def ephemeral_runtimes(ctx: "GlobalTypeContext") -> list[str]:
+def ephemeral_runtimes(ctx: "RunContext") -> list[str]:
     return sorted(name for name, rtb in ctx.runtime_builders.items()
                   if getattr(getattr(rtb, "model", None), "ephemeral", False))
 
 
-def after_generate(ctx: "GlobalTypeContext", lifecycle: LifecycleLike) -> None:
+def after_generate(ctx: "RunContext", lifecycle: LifecycleLike) -> None:
     if lifecycle.value != RETENTION_LIFECYCLE.name:
         return
     # a run scoped to one runtime (--only-runtime, or --apply-runtime
@@ -83,7 +83,7 @@ def after_generate(ctx: "GlobalTypeContext", lifecycle: LifecycleLike) -> None:
     ctx.extend_finalization_phase(ExecutionLifecyclePhase.INSTANCE_GENERATION, steps)
 
 
-def transient_storages_on_ephemeral_runtimes(ctx: "GlobalTypeContext") -> list[tuple[str, str]]:
+def transient_storages_on_ephemeral_runtimes(ctx: "RunContext") -> list[tuple[str, str]]:
     out: list[tuple[str, str]] = []
     for kind, name in sorted(getattr(ctx, "overlay_declared", set())):
         if kind != "storages":
@@ -96,7 +96,7 @@ def transient_storages_on_ephemeral_runtimes(ctx: "GlobalTypeContext") -> list[t
     return out
 
 
-def transient_storage_teardown_command(ctx: "GlobalTypeContext", wd):
+def transient_storage_teardown_command(ctx: "RunContext", wd):
     """`run storage --only none` WITHOUT the overlays that declare storages
     (the config-only ones stay: they carry the apply flags), so the
     transient storages are undeclared there and destroyed through the

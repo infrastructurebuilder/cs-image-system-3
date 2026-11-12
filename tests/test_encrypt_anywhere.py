@@ -329,11 +329,12 @@ def test_a_derived_value_inherits_its_inputs_encryption():
     from types import SimpleNamespace
 
     from cs_image_system.base.orchestrator import TemplateResolver
+    from cs_image_system.base.registry import Registry
     domain = enc("noaa.example")
     decrypt_tree({"email_domain": domain})          # so the map knows it
     ctx = {"user": SimpleNamespace(name="blake.bravo"),
            "builder": SimpleNamespace(domain="noaa.example")}
-    out = TemplateResolver().render_inheriting("{{ user.name }}@{{ builder.domain }}", ctx)
+    out = TemplateResolver(Registry()).render_inheriting("{{ user.name }}@{{ builder.domain }}", ctx)
     assert out == "blake.bravo@noaa.example"
     assert isinstance(out, Decrypted)
     assert out.marker == f"blake.bravo@{domain}"
@@ -341,8 +342,9 @@ def test_a_derived_value_inherits_its_inputs_encryption():
 
 def test_a_render_with_no_encrypted_input_stays_a_plain_string():
     from cs_image_system.base.orchestrator import TemplateResolver
+    from cs_image_system.base.registry import Registry
     decrypt_tree({"k": enc("something-else")})
-    out = TemplateResolver().render_inheriting("{{ a }}-suffix", {"a": "plain"})
+    out = TemplateResolver(Registry()).render_inheriting("{{ a }}-suffix", {"a": "plain"})
     assert out == "plain-suffix" and not isinstance(out, Decrypted)
 
 
@@ -350,10 +352,11 @@ def test_a_username_is_public_by_decision_and_is_not_marked_in_a_derived_value()
     """A username is the join key between a roster and an access grant, so it
     is emitted in clear -- the stage-34 decision, kept."""
     from cs_image_system.base.orchestrator import TemplateResolver
+    from cs_image_system.base.registry import Registry
     name = enc("blake.bravo")
     domain = enc("noaa.example")
     decrypt_tree({"users": [{"name": name}], "email_domain": domain})
-    out = TemplateResolver().render_inheriting(
+    out = TemplateResolver(Registry()).render_inheriting(
         "{{ a }}@{{ b }}", {"a": "blake.bravo", "b": "noaa.example"})
     assert out.marker == f"blake.bravo@{domain}", "the username stays in clear, the domain does not"
 

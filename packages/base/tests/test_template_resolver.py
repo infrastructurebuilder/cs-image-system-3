@@ -10,7 +10,6 @@ reproduce byte-for-byte.
 """
 from dataclasses import dataclass
 
-from cs_image_system.base import registry as _registry
 from cs_image_system.base.orchestrator import SmartContext
 from cs_image_system.contract.constants import DEFAULT, NO_MODEL_ID, VCT
 from cs_image_system.contract.fields import fk_field, templated_field
@@ -46,12 +45,12 @@ class Widget:
 
 
 def test_smartcontext_resolves_fk_string_to_object(clean_registry):
-    reg = _registry.current_registry()
+    reg = clean_registry.reg
     rt = Runtime("aws")
     reg.register_built_instance(rt)
     w = Widget("w1", runtime="aws")
 
-    ctx = SmartContext(w, {rt.global_id: rt})
+    ctx = SmartContext(w, {rt.global_id: rt}, reg)
 
     # The FK field name now dereferences to the actual Runtime object in Jinja context.
     assert ctx["runtime"].get_name() == "aws"
@@ -59,8 +58,8 @@ def test_smartcontext_resolves_fk_string_to_object(clean_registry):
 
 
 def test_templated_field_resolves_via_method_call_on_fk_object(clean_registry):
-    tr = clean_registry  # the fixture yields the TemplateResolver singleton (map cleared)
-    reg = _registry.current_registry()
+    tr = clean_registry  # the fixture yields a resolver of the test's own (map empty)
+    reg = tr.reg
     rt = Runtime("aws")
     reg.register_built_instance(rt)
     tr.flattened_map[rt.global_id] = rt

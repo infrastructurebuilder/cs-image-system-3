@@ -24,12 +24,12 @@ from .storage_state import all_transitions, attachments, record_applied_transiti
 from .utils import apply_enabled
 
 if TYPE_CHECKING:
-    from .global_context import GlobalTypeContext
+    from .run_context import RunContext
 
 log = logging.getLogger(__name__)
 
 
-def _groups_seen(ctx: "GlobalTypeContext") -> set[str]:
+def _groups_seen(ctx: "RunContext") -> set[str]:
     """Groups the identity provider has been SEEN to carry: those the
     previous read-model already marked, and those the run's
     own state query just found present. Observation, never inference: a
@@ -42,7 +42,7 @@ def _groups_seen(ctx: "GlobalTypeContext") -> set[str]:
     return seen
 
 
-def identity_read_model(ctx: "GlobalTypeContext") -> dict[str, Any]:
+def identity_read_model(ctx: "RunContext") -> dict[str, Any]:
     groups: dict[str, Any] = {}
     seen = _groups_seen(ctx)
     for builder in ctx.group_builders.values():
@@ -76,7 +76,7 @@ def identity_read_model(ctx: "GlobalTypeContext") -> dict[str, Any]:
     }
 
 
-def storage_read_model(ctx: "GlobalTypeContext") -> dict[str, Any]:
+def storage_read_model(ctx: "RunContext") -> dict[str, Any]:
     attached = attachments(ctx)
     storages: dict[str, Any] = {}
     for s in ctx.storages:
@@ -101,7 +101,7 @@ def storage_read_model(ctx: "GlobalTypeContext") -> dict[str, Any]:
     return {"run": ctx.run_id, "storages": storages}
 
 
-def write_read_model(ctx: "GlobalTypeContext", lifecycle: Lifecycle) -> None:
+def write_read_model(ctx: "RunContext", lifecycle: Lifecycle) -> None:
     if lifecycle == Lifecycle.IDENTITY:
         p = ctx.meta_state.write_identity_read_model(identity_read_model(ctx))
         log.info(f"Wrote identity read-model to {p}")
@@ -110,7 +110,7 @@ def write_read_model(ctx: "GlobalTypeContext", lifecycle: Lifecycle) -> None:
         log.info(f"Wrote storage read-model to {p}")
 
 
-def record_storage_transitions(ctx: "GlobalTypeContext", lifecycle: Lifecycle) -> None:
+def record_storage_transitions(ctx: "RunContext", lifecycle: Lifecycle) -> None:
     """After the storage runner completed for real, requested states become
     authoritative and the read-model reflects them."""
     if lifecycle != Lifecycle.STORAGE:

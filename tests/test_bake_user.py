@@ -20,7 +20,7 @@ from typing import Any
 
 import yaml
 
-from tests.harness import V2Run, copy_config, load_context, reset_singletons, stub_environment
+from tests.harness import V2Run, copy_config, load_context, stub_environment
 
 
 def _edit(path: Path, fn) -> None:
@@ -59,14 +59,11 @@ def _resolve(ctx: Any, image_name: str, runtime: str) -> str:
 def test_the_fixture_resolves_as_it_always_baked(tmp_path: Path, monkeypatch):
     """Pins what held: the golden did not move, and these are its users."""
     ctx = _ctx(copy_config(tmp_path), monkeypatch)
-    try:
-        assert _resolve(ctx, "basic-rhel-9", "aws-east2-runtime") == "ec2-user"   # family default
-        assert _resolve(ctx, "my-deb-12", "aws-east2-runtime") == "admin"
-        assert _resolve(ctx, "basic-rh-10", "gcloud-east1") == "packer"           # the entry
-        assert _resolve(ctx, "imgfile-basic-dask", "gcloud-east1") == "packer"    # via its root
-        assert _resolve(ctx, "imgfile-data-science", "aws-east2-runtime") == "admin"
-    finally:
-        reset_singletons()
+    assert _resolve(ctx, "basic-rhel-9", "aws-east2-runtime") == "ec2-user"   # family default
+    assert _resolve(ctx, "my-deb-12", "aws-east2-runtime") == "admin"
+    assert _resolve(ctx, "basic-rh-10", "gcloud-east1") == "packer"           # the entry
+    assert _resolve(ctx, "imgfile-basic-dask", "gcloud-east1") == "packer"    # via its root
+    assert _resolve(ctx, "imgfile-data-science", "aws-east2-runtime") == "admin"
 
 
 # ------------------------------- 22. the two config_username fields live
@@ -77,12 +74,9 @@ def test_config_username_is_read_and_beats_the_runtimes_ssh_username(tmp_path: P
     _edit(root / "cfg" / "runtime-builders.yml",
           lambda d: _runtime(d, "aws-east2-runtime").update(ssh_username="runtime-user"))
     ctx = _ctx(root, monkeypatch)
-    try:
-        assert _resolve(ctx, "basic-rhel-9", "aws-east2-runtime") == "cloud-user"
-        # an OS builder without config_username falls to the runtime's user
-        assert _resolve(ctx, "basic-rh-10", "aws-east2-runtime") == "runtime-user"
-    finally:
-        reset_singletons()
+    assert _resolve(ctx, "basic-rhel-9", "aws-east2-runtime") == "cloud-user"
+    # an OS builder without config_username falls to the runtime's user
+    assert _resolve(ctx, "basic-rh-10", "aws-east2-runtime") == "runtime-user"
 
 
 def test_default_config_username_is_the_runtimes_fallback(tmp_path: Path, monkeypatch):
@@ -90,11 +84,8 @@ def test_default_config_username_is_the_runtimes_fallback(tmp_path: Path, monkey
     _edit(root / "cfg" / "runtime-builders.yml",
           lambda d: _runtime(d, "aws-east2-runtime").update(default_config_username="rocky"))
     ctx = _ctx(root, monkeypatch)
-    try:
-        assert _resolve(ctx, "basic-rhel-9", "aws-east2-runtime") == "rocky"
-        assert _resolve(ctx, "my-deb-12", "aws-east2-runtime") == "rocky"
-    finally:
-        reset_singletons()
+    assert _resolve(ctx, "basic-rhel-9", "aws-east2-runtime") == "rocky"
+    assert _resolve(ctx, "my-deb-12", "aws-east2-runtime") == "rocky"
 
 
 def test_a_runtimes_default_owners_join_the_entrys_owners(tmp_path: Path, monkeypatch):
@@ -102,14 +93,11 @@ def test_a_runtimes_default_owners_join_the_entrys_owners(tmp_path: Path, monkey
     _edit(root / "cfg" / "runtime-builders.yml",
           lambda d: _runtime(d, "aws-east2-runtime").update(default_owners=["111122223333"]))
     ctx = _ctx(root, monkeypatch)
-    try:
-        osb = ctx.os_builders["basic-rhel-9"]
-        entry = next(e for e in osb.get_configs_for_image_builders().values()
-                     if e.get_image_builder() == "pckr-ebs-ans")
-        owners = list(entry.get_owners())
-        assert "111122223333" in owners and len(owners) == len(set(owners)), owners
-    finally:
-        reset_singletons()
+    osb = ctx.os_builders["basic-rhel-9"]
+    entry = next(e for e in osb.get_configs_for_image_builders().values()
+                 if e.get_image_builder() == "pckr-ebs-ans")
+    owners = list(entry.get_owners())
+    assert "111122223333" in owners and len(owners) == len(set(owners)), owners
 
 
 def test_nothing_to_name_a_user_is_refused_at_validate(tmp_path: Path, monkeypatch):
@@ -117,11 +105,8 @@ def test_nothing_to_name_a_user_is_refused_at_validate(tmp_path: Path, monkeypat
     from cs_image_system.base.commands.validate import check_bake_users
     monkeypatch.setattr(AwsCloudBuilder, "default_bake_user", lambda self, family: None)
     ctx = _ctx(copy_config(tmp_path), monkeypatch)
-    try:
-        errors = [str(e) for e in check_bake_users(ctx)]
-        assert any("basic-rhel-9" in e and "aws-east2-runtime" in e and "config_username" in e for e in errors), errors
-    finally:
-        reset_singletons()
+    errors = [str(e) for e in check_bake_users(ctx)]
+    assert any("basic-rhel-9" in e and "aws-east2-runtime" in e and "config_username" in e for e in errors), errors
 
 
 # ------------------------------------ 23. the entry wins; one user per chain
@@ -131,11 +116,8 @@ def test_the_entry_beats_the_runtimes_ssh_username(tmp_path: Path, monkeypatch):
     _edit(root / "cfg" / "runtime-builders.yml",
           lambda d: _runtime(d, "gcloud-east1").update(ssh_username="runtime-user"))
     ctx = _ctx(root, monkeypatch)
-    try:
-        # the GCE entry declares `packer`; the runtime's value used to override it
-        assert _resolve(ctx, "basic-rh-10", "gcloud-east1") == "packer"
-    finally:
-        reset_singletons()
+    # the GCE entry declares `packer`; the runtime's value used to override it
+    assert _resolve(ctx, "basic-rh-10", "gcloud-east1") == "packer"
 
 
 def test_the_gce_provisioner_connects_as_the_user_the_source_bakes_as(tmp_path: Path, monkeypatch):
@@ -162,23 +144,17 @@ def test_a_gce_image_naming_another_user_than_its_root_is_refused(tmp_path: Path
         next(r for r in dask["runtimes"] if r["image_builder"] == "pckr-gce-ans")["ssh_username"] = "other"
     _edit(root / "images" / "image1.yaml", edit)
     ctx = _ctx(root, monkeypatch)
-    try:
-        errors = [str(e) for e in check_bake_users(ctx)]
-        assert any("imgfile-basic-dask" in e and "'other'" in e and "gcloud-east1" in e
-                   and "'basic-rh-10'" in e and "'packer'" in e for e in errors), errors
-        # the same pair on AWS is allowed: AWS needs no one-user chain
-        assert not any("aws-east2-runtime" in e for e in errors), errors
-    finally:
-        reset_singletons()
+    errors = [str(e) for e in check_bake_users(ctx)]
+    assert any("imgfile-basic-dask" in e and "'other'" in e and "gcloud-east1" in e
+               and "'basic-rh-10'" in e and "'packer'" in e for e in errors), errors
+    # the same pair on AWS is allowed: AWS needs no one-user chain
+    assert not any("aws-east2-runtime" in e for e in errors), errors
 
 
 def test_the_fixture_has_no_bake_user_finding(tmp_path: Path, monkeypatch):
     from cs_image_system.base.commands.validate import check_bake_users
     ctx = _ctx(copy_config(tmp_path), monkeypatch)
-    try:
-        assert check_bake_users(ctx) == []
-    finally:
-        reset_singletons()
+    assert check_bake_users(ctx) == []
 
 
 def test_an_aws_image_entry_user_is_the_most_specific(tmp_path: Path, monkeypatch):
@@ -189,10 +165,7 @@ def test_an_aws_image_entry_user_is_the_most_specific(tmp_path: Path, monkeypatc
         next(r for r in dask["runtimes"] if r["image_builder"] == "pckr-ebs-ans")["ssh_username"] = "dask-user"
     _edit(root / "images" / "image1.yaml", edit)
     ctx = _ctx(root, monkeypatch)
-    try:
-        assert _resolve(ctx, "imgfile-basic-dask", "aws-east2-runtime") == "dask-user"
-    finally:
-        reset_singletons()
+    assert _resolve(ctx, "imgfile-basic-dask", "aws-east2-runtime") == "dask-user"
 
 
 def test_the_resolver_is_what_both_sources_emit(tmp_path: Path, monkeypatch):

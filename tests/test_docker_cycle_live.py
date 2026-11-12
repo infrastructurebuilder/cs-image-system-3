@@ -29,7 +29,7 @@ from pathlib import Path
 
 import pytest
 import yaml
-from harness import copy_config, docker_binary, load_context, modules_beside, reset_singletons
+from harness import copy_config, docker_binary, load_context, modules_beside
 from test_docker_bake_live import (
     ALMA,
     DEB,
@@ -142,7 +142,6 @@ def test_the_docker_cycle_from_nothing_to_nothing(tmp_path, monkeypatch):
         # 2. the real run: the bakes, the volume, the two containers, the launch scripts, the accounts
         res = _cli(root, "--no-dry-run", "run", *lifecycles, env=env)
         assert res.returncode == 0, _tail(res)
-        reset_singletons()
         ctx = load_context(root, dry_run=True)
         ms = ctx.meta_state
         builds = {str(b["series"]): b for b in ms.builds() if b.get("runtime") == RUNTIME}
@@ -179,7 +178,6 @@ def test_the_docker_cycle_from_nothing_to_nothing(tmp_path, monkeypatch):
         # 3. the verification, through the CLI: the marker, the mount, the image, the declared tests
         ver = _cli(root, "--no-dry-run", "verify", "instance", A, env=env, timeout=900)
         assert ver.returncode == 0, _tail(ver)
-        reset_singletons()
         ctx = load_context(root, dry_run=True)
         last = [v for v in ctx.meta_state.verifications() if v["instance"] == A][-1]
         assert last["ok"] is True and {c["name"] for c in last["checks"]} >= {"launch script", "booted image", "data disks mounted"}
@@ -209,7 +207,6 @@ def test_the_docker_cycle_from_nothing_to_nothing(tmp_path, monkeypatch):
         _write(root / "images" / "leg.yaml", images)
         res = _cli(root, "--no-dry-run", "run", "base-image", "instance-image", env=env)
         assert res.returncode == 0, _tail(res)
-        reset_singletons()
         ctx = load_context(root, dry_run=True)
         heads = [str(b["build_id"]) for b in ctx.meta_state.builds() if b.get("series") == IMAGE]
         assert len(heads) == 2 and build_v1 in heads, heads
@@ -225,7 +222,6 @@ def test_the_docker_cycle_from_nothing_to_nothing(tmp_path, monkeypatch):
         assert replaced["State"]["Status"] == "running"
         rc, out = _exec(A, "cat /etc/leg-shell /var/lib/csis/launch-applied")
         assert rc == 0 and "second edition" in out, out                          # the new build, launched again
-        reset_singletons()
         ctx = load_context(root, dry_run=True)
         ms = ctx.meta_state
         assert ms.instance_pin(A) == build_v2 and ms.instance_pin(B) == build_v1
@@ -239,7 +235,6 @@ def test_the_docker_cycle_from_nothing_to_nothing(tmp_path, monkeypatch):
         res = _cli(root, "--no-dry-run", "run", "instance-image", env=env)
         assert res.returncode == 0, _tail(res)
         assert _inspect(A) is None and _inspect(B) is None
-        reset_singletons()
         ctx = load_context(root, dry_run=True)
         assert not ctx.meta_state.launch_params() and ctx.meta_state.current_generation(A) is None
         # 9. the volume: requested destroyed, removed with its data
@@ -249,7 +244,6 @@ def test_the_docker_cycle_from_nothing_to_nothing(tmp_path, monkeypatch):
         res = _cli(root, "--no-dry-run", "run", "storage", env=env)
         assert res.returncode == 0, _tail(res)
         assert subprocess.run([DOCKER, "volume", "inspect", STORAGE], capture_output=True).returncode != 0
-        reset_singletons()
         ctx = load_context(root, dry_run=True)
         assert ctx.meta_state.storage_state(STORAGE) == "destroyed"
         # 10. the builds, disposed through the runtime: the children first

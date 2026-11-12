@@ -10,7 +10,6 @@ import logging
 import pprint
 
 from .. import utils
-from ..orchestrator import Orchestrator, TemplateResolver
 
 log = logging.getLogger(__name__)
 from typing import TYPE_CHECKING, Any, Mapping, Sequence, TypeVar
@@ -95,9 +94,9 @@ class OsBuilderBase(BuilderBase[TOS], OsBuilderProtocol):
         # (execution runs, where the base run already built the artifact and no
         # vendor-image query is made) — image_identifier stays None.
         ctx = self._run_context()
-        cvt = Orchestrator().get_converter()
         reg = ctx.reg
-        template_resolver = TemplateResolver() # Already has 'addl' fields registered
+        template_resolver = ctx.template_resolver   # the run's: its map already holds the run's scopes
+        cvt = template_resolver.converter
         rt_list = []
         img_bldr: ImageBuilderBase | None = None
         for os_imgbld_name, os_img_subconfig in self.get_configs_for_image_builders().items():

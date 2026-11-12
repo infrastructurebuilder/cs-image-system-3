@@ -7,10 +7,11 @@ import logging
 log = logging.getLogger(__name__)
 
 
-from dataclasses import MISSING, fields, is_dataclass
+from dataclasses import MISSING, dataclass, fields, is_dataclass
 from typing import Any, cast
 
 import jinja2
+from pydantic import TypeAdapter
 
 from cs_image_system.contract import field_kinds
 from cs_image_system.contract.constants import (
@@ -40,8 +41,8 @@ from cs_image_system.contract.fields import lookup_dataclass_field
 
 from . import registry, template_utils
 from .encryption import Decrypted, mark_plaintexts
+from .image_sources import ImageSourceCatalog
 from .registry import NAMESPACE_SEPARATOR, UnknownTypeError, split_qualified
-from .singleton import singleton
 
 # a foreign key that named nothing during resolution -- (object class,
 # object name, field, value, target). The object stage collects them
@@ -49,6 +50,17 @@ from .singleton import singleton
 # ``SmartContext`` it builds), ``resolve_all`` returns them, the loader puts
 # them on the run context and `validate` refuses them.
 UnresolvedForeignKey = tuple[str, str, str, str, str]
+
+
+@dataclass(frozen=True)
+class ModelBinding:
+    """What a run's converter hands every model it structures, as the
+    validation context: the run's registry and its image-source catalog.
+    A model keeps both (``NameTyped.bind_run``), so a model method reads
+    its own run's and no process-wide one exists to read instead."""
+
+    reg: registry.Registry
+    image_sources: ImageSourceCatalog
 
 
 def default_fk_value(reg: Any, obj: Any, target: VCT) -> str | None:
@@ -87,16 +99,18 @@ class SmartContext(dict):
     
     """A dictionary that swaps string IDs for actual objects when Jinja asks.
 
-    ``unresolved_fks`` is the load's collector of foreign keys that name
-    nothing: the resolver hands in its own, and the fk field kind records
-    into it (:meth:`record_unresolved_fk`); built without one, the context
-    keeps its own list."""
-    def __init__(self, obj, flattened_map, unresolved_fks: list[UnresolvedForeignKey] | None = None):
+    ``reg`` is the registry the foreign keys of ``obj`` are looked up in
+    (the resolver hands in its run's). ``unresolved_fks`` is the load's
+    collector of foreign keys that name nothing: the resolver hands in its
+    own, and the fk field kind records into it
+    (:meth:`record_unresolved_fk`); built without one, the context keeps
+    its own list."""
+    def __init__(self, obj, flattened_map, reg: registry.Registry,
+                 unresolved_fks: list[UnresolvedForeignKey] | None = None):
         super().__init__(this=obj)
         if DEFAULT in flattened_map:
             raise ValueError(f"Flattened map cannot have an entry with the key '{DEFAULT}' as it is reserved for default lookups.")
         self._unresolved_fks: list[UnresolvedForeignKey] = unresolved_fks if unresolved_fks is not None else []
-        reg = registry.current_registry()   # the resolver holds no context; the registry is the run's
         # Shallow copy: we need a private dict (so adding 'this' below doesn't mutate
         # the shared flattened_map), but the objects must be shared by reference so
         # Jinja renders against the live, being-resolved instances. A deepcopy here
@@ -168,10 +182,19 @@ def field_set_to_default(fld, val: Any) -> bool:
     return default == val
 
     
-@singleton
 class TemplateResolver:
-    def __init__(self, addl: dict | None = None):
-        self.flattened_map = addl or {}
+    """The object stage of one load: the flat map of every structured model
+    by global id, the Jinja environment its templates render in, and the
+    converter that structures the run's models. One per run: the loader
+    makes it over the run's registry and hands it to the run context as
+    ``ctx.template_resolver``; ``addl`` seeds the map with the run's own
+    scopes (``execution``, ``ENV``). Two resolvers share nothing."""
+
+    def __init__(self, reg: registry.Registry, addl: dict | None = None,
+                 converter: "PydanticConverter | None" = None):
+        self.reg = reg
+        self.converter: PydanticConverter = converter if converter is not None else PydanticConverter(reg)
+        self.flattened_map: dict[str, Any] = dict(addl or {})
         self.env = jinja2.Environment(undefined=template_utils.KeepUndefined)
         self.deferred_fields: dict[str, VCT] = {"modifications": VCT.MOD_BUILDER_ITEM_MODEL}  # List of fields that require late-stage structuring into concrete types due to dependencies on the registry
         # the foreign keys that named nothing, collected per load
@@ -225,8 +248,8 @@ class TemplateResolver:
         return changed
 
     def upgrade_deferred_list_generated(self, obj, dfield):
-        conv = Orchestrator().get_converter() 
-        reg = registry.current_registry()   # the resolver holds no context; the registry is the run's
+        conv = self.converter
+        reg = self.reg
         data_field = dfield.name
         deferred_override_types:dict[VCT,type] = obj.get_subitem_overrides() if isinstance(obj, SubItemOverrideProtocol) else {}
         field_metadata: dict[str, Any] = dfield.metadata if hasattr(dfield, "metadata") else {} # type: ignore                
@@ -352,7 +375,7 @@ class TemplateResolver:
             setattr(obj, data_field, structured_mods)
         return obj
     def upgrade_deferred_list_object(self, obj, dfield):        
-        reg = registry.current_registry()   # the resolver holds no context; the registry is the run's
+        reg = self.reg
         data_field = dfield.name
         field_metadata: dict[str, Any] = dfield.metadata if hasattr(dfield, "metadata") else {} # type: ignore                
         target_fk: VCT | None = field_metadata.get(FK_TARGET, None)
@@ -394,7 +417,7 @@ class TemplateResolver:
         Deep-casts generic dictionaries (like modifications) into concrete dataclasses 
         now that all builders are safely loaded into the Registry.
         """
-        reg = registry.current_registry()   # the resolver holds no context; the registry is the run's
+        reg = self.reg
         # We need to iterate over a static list of the map's values because 
         # we will be adding new items to self.flattened_map during the loop.
         cnt = 0
@@ -435,14 +458,14 @@ class TemplateResolver:
         copy of the resolver's collector after this pass. The loader stores
         it on the run context; `validate` refuses each entry."""
         self.upgrade_deferred_types()
-        reg = registry.current_registry()   # the resolver holds no context; the registry is the run's
+        reg = self.reg
         for _ in range(5):  # Max depth to prevent infinite loops
             any_changed = False
             for _obj_id, obj in self.flattened_map.items():
                 if hasattr(obj, "_already_resolved"):
                     if obj._already_resolved:
                         continue
-                context = SmartContext(obj, self.flattened_map, unresolved_fks=self.unresolved_foreign_keys)
+                context = SmartContext(obj, self.flattened_map, reg, unresolved_fks=self.unresolved_foreign_keys)
                 if is_dataclass(obj):
                     for f in fields(obj):
                         val = getattr(obj, f.name)
@@ -618,10 +641,18 @@ def _str_collection_kind(ann: Any) -> str | None:
 
 
 class PydanticConverter:
-    """Mapping and validation on pydantic, exposing cattrs' two verbs."""
+    """Mapping and validation on pydantic, exposing cattrs' two verbs.
 
-    def __init__(self, reg: registry.Registry) -> None:
+    One per run, held by the run's :class:`TemplateResolver`: it dispatches
+    on, and registers into, the registry it was made with, and every model
+    it structures is bound to that registry and to the run's image-source
+    catalog (:class:`ModelBinding`, handed to pydantic as the validation
+    context). Made with a registry alone, the catalog is one over that
+    registry with no tree entries."""
+
+    def __init__(self, reg: registry.Registry, image_sources: ImageSourceCatalog | None = None) -> None:
         self._reg = reg
+        self.binding = ModelBinding(reg, image_sources if image_sources is not None else ImageSourceCatalog(reg))
         self._adapters: dict[Any, Any] = {}
         self._dispatch_vcts: dict[Any, VCT | None] = {}
 
@@ -657,7 +688,6 @@ class PydanticConverter:
     def _adapter(self, cls: Any) -> Any:
         ta = self._adapters.get(cls)
         if ta is None:
-            from pydantic import TypeAdapter
             ta = TypeAdapter(cls)
             self._adapters[cls] = ta
         return ta
@@ -702,7 +732,7 @@ class PydanticConverter:
             if vct is not None:
                 return self._dispatch(data, cls, vct)
             data = self._coerce_collections(cls, data)
-        obj = self._adapter(cls).validate_python(data)
+        obj = self._adapter(cls).validate_python(data, context=self.binding)
         self._register(obj)
         return obj
 
@@ -740,43 +770,17 @@ class PydanticConverter:
         return keys
 
     def unstructure(self, obj: Any) -> Any:
-        import dataclasses
-        if not dataclasses.is_dataclass(obj):
+        if not is_dataclass(obj):
             return obj
         return self._adapter(type(obj)).dump_python(obj, by_alias=True, exclude_defaults=True)
 
 
-class Orchestrator:
-    """The Orchestrator is responsible for managing the overall configuration and state of the system.
-    It hands out the one converter that structures YAML into the models and
-    unstructures them back (pydantic behind two verbs).
-    """
-    def __init__(self):
-        # Built lazily on first get_converter() -- after plugins have registered
-        # their model/builder classes -- and memoized. Previously this rebuilt the
-        # entire cattrs Converter (re-registering every hook) on *every* call.
-        self._converter: Any = None          # a PydanticConverter
-
-    def get_converter(self, ignore_collections: bool = False) -> Any:
-        """Return the cached converter, building it once on first use.
-
-        The converter depends on the set of registered model/builder classes, so it
-        is built lazily and memoized. Call :meth:`invalidate_converter` if the
-        registered model schema changes (e.g. after loading more plugins).
-        """
-        reg = registry.current_registry()   # the orchestrator holds no context; the registry is the run's
-        if self._converter is None or self._converter._reg is not reg:
-            # pydantic behind the same two verbs. The cattrs builder it
-            # replaced was kept for one release and then removed (it is in
-            # the history before the first published version).
-            # One registry per run -- a converter built against an earlier
-            # run's registry is rebuilt against this one.
-            self._converter = PydanticConverter(reg)
-        return self._converter
-
-    def invalidate_converter(self) -> None:
-        """Drop the cached converter so it rebuilds on the next ``get_converter``."""
-        self._converter = None
+def unstructure(obj: Any) -> Any:
+    """A model as the mapping it was written as (by alias, defaults left
+    out). It reads no registry, so it needs no run's converter."""
+    if not is_dataclass(obj):
+        return obj
+    return TypeAdapter(type(obj)).dump_python(obj, by_alias=True, exclude_defaults=True)
 
 
 class _FkFieldHandler(field_kinds.FieldKindHandler):

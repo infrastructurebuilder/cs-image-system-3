@@ -25,7 +25,7 @@ import re
 from pathlib import Path
 
 import yaml
-from harness import FIXED_TIMESTAMP, copy_config, load_context, reset_singletons, stub_environment
+from harness import FIXED_TIMESTAMP, copy_config, load_context, stub_environment
 
 REPO = Path(__file__).resolve().parents[1]
 AWS, GCE = "aws-east2-runtime", "gcloud-east1"
@@ -89,22 +89,19 @@ def test_the_fixture_declares_the_seven_names_without_a_timestamp():
 def test_the_fixtures_prefixes_resolve_as_declared_and_have_no_finding(tmp_path: Path, monkeypatch, caplog):
     stub_environment(monkeypatch)
     ctx = load_context(copy_config(tmp_path))
-    try:
-        aws = _names(ctx, AWS)
-        assert aws["OS builder 'my-deb-12'"] == ("AWS-aws-my-deb-12BB-debian-12", True)     # the entry's, over the builder's
-        assert aws["OS builder 'basic-rhel-9'"] == ("NOSCSB-AWS-RHEL9-aws-my-rhel9", True)
-        assert aws["OS builder 'basic-rh-10'"] == ("NOSCSB-AWS-RH10-basic-rh-10-aws-my-rhel8", True)
-        assert aws["image 'imgfile-basic-dask'"] == ("imgfile-basic-dask-pckr-ebs-ans", False)
-        gce = _names(ctx, GCE)
-        assert gce["OS builder 'basic-rh-10'"] == ("noscsb-gcp-rh10-gcp-my-rh10", True)
-        assert gce["image 'imgfile-basic-dask'"] == ("imgfile-basic-dask-pckr-gce-ans", False)
-        with caplog.at_level(logging.INFO, logger="cs_image_system.base.commands.validate"):
-            assert _findings(ctx) == []
-        lines = [r.getMessage() for r in caplog.records if r.getMessage().startswith("image name:")]
-        assert any("imgfile-basic-dask-pckr-ebs-ans-<timestamp>" in ln and AWS in ln and "declared" not in ln for ln in lines), lines
-        assert any("NOSCSB-AWS-RH10-basic-rh-10-aws-my-rhel8-<timestamp>" in ln and "declared" in ln for ln in lines), lines
-    finally:
-        reset_singletons()
+    aws = _names(ctx, AWS)
+    assert aws["OS builder 'my-deb-12'"] == ("AWS-aws-my-deb-12BB-debian-12", True)     # the entry's, over the builder's
+    assert aws["OS builder 'basic-rhel-9'"] == ("NOSCSB-AWS-RHEL9-aws-my-rhel9", True)
+    assert aws["OS builder 'basic-rh-10'"] == ("NOSCSB-AWS-RH10-basic-rh-10-aws-my-rhel8", True)
+    assert aws["image 'imgfile-basic-dask'"] == ("imgfile-basic-dask-pckr-ebs-ans", False)
+    gce = _names(ctx, GCE)
+    assert gce["OS builder 'basic-rh-10'"] == ("noscsb-gcp-rh10-gcp-my-rh10", True)
+    assert gce["image 'imgfile-basic-dask'"] == ("imgfile-basic-dask-pckr-gce-ans", False)
+    with caplog.at_level(logging.INFO, logger="cs_image_system.base.commands.validate"):
+        assert _findings(ctx) == []
+    lines = [r.getMessage() for r in caplog.records if r.getMessage().startswith("image name:")]
+    assert any("imgfile-basic-dask-pckr-ebs-ans-<timestamp>" in ln and AWS in ln and "declared" not in ln for ln in lines), lines
+    assert any("NOSCSB-AWS-RH10-basic-rh-10-aws-my-rhel8-<timestamp>" in ln and "declared" in ln for ln in lines), lines
 
 
 def test_a_tree_that_declares_nothing_keeps_todays_names(tmp_path: Path, monkeypatch):
@@ -113,14 +110,11 @@ def test_a_tree_that_declares_nothing_keeps_todays_names(tmp_path: Path, monkeyp
     f.write_text(re.sub(r"^\s+output_image_name: .*\n", "", f.read_text(), flags=re.M))
     stub_environment(monkeypatch)
     ctx = load_context(root)
-    try:
-        for runtime, who in ((AWS, "OS builder 'my-deb-12'"), (AWS, "OS builder 'basic-rh-10'"), (GCE, "OS builder 'basic-rh-10'")):
-            osb = who.split("'")[1]
-            assert _names(ctx, runtime)[who] == (f"{osb}-{runtime}", False)
-        assert _names(ctx, AWS)["image 'imgfile-basic-dask-two'"] == ("imgfile-basic-dask-two-pckr-ebs-ans", False)
-        assert _findings(ctx) == []
-    finally:
-        reset_singletons()
+    for runtime, who in ((AWS, "OS builder 'my-deb-12'"), (AWS, "OS builder 'basic-rh-10'"), (GCE, "OS builder 'basic-rh-10'")):
+        osb = who.split("'")[1]
+        assert _names(ctx, runtime)[who] == (f"{osb}-{runtime}", False)
+    assert _names(ctx, AWS)["image 'imgfile-basic-dask-two'"] == ("imgfile-basic-dask-two-pckr-ebs-ans", False)
+    assert _findings(ctx) == []
 
 
 def test_the_os_builders_name_is_the_entrys_when_the_entry_names_none(tmp_path: Path, monkeypatch):
@@ -132,10 +126,7 @@ def test_the_os_builders_name_is_the_entrys_when_the_entry_names_none(tmp_path: 
     _edit(root / "cfg" / "os-builders.yml", edit)
     stub_environment(monkeypatch)
     ctx = load_context(root)
-    try:
-        assert _names(ctx, AWS)["OS builder 'basic-rhel-9'"] == ("NOSCSB-basic-rhel-9-rhel-9", True)
-    finally:
-        reset_singletons()
+    assert _names(ctx, AWS)["OS builder 'basic-rhel-9'"] == ("NOSCSB-basic-rhel-9-rhel-9", True)
 
 
 def test_an_images_entry_names_its_builds_and_the_deferred_lookup(tmp_path: Path, monkeypatch):
@@ -143,26 +134,26 @@ def test_an_images_entry_names_its_builds_and_the_deferred_lookup(tmp_path: Path
     _declare(root, "imgfile-basic-dask", "pckr-ebs-ans", "coops-dask-{{ this.name }}")
     stub_environment(monkeypatch)
     ctx = load_context(root)
-    try:
-        sub = ctx.images_map["imgfile-basic-dask"]._runtime_map[AWS]
-        assert sub.get_image_output_name() == "coops-dask-pckr-ebs-ans"            # `this` is the entry
-        # the timestamp tag stays in `_final_name` until the packer builder renders the run's values
-        assert sub.get_final_name() == "coops-dask-pckr-ebs-ans-{{ execution.timestamp }}"
-        from cs_image_system.packer_plugin.packer_image_builder import PackerEbsImageBuilder
-        assert PackerEbsImageBuilder._final_name(ctx, sub) == f"coops-dask-pckr-ebs-ans-{FIXED_TIMESTAMP}"
-        rtb = ctx.runtime_builders[AWS]
-        psi = rtb.create_provider_specific_image_deferred(image=ctx.images_map["imgfile-basic-dask"], subconfig=sub)
-        assert psi.deferred_name_pattern == "coops-dask-pckr-ebs-ans"
-        assert ctx.images_map["imgfile-basic-dask"]._runtime_map[GCE].get_image_output_name() == "imgfile-basic-dask-pckr-gce-ans"
-    finally:
-        reset_singletons()
+    sub = ctx.images_map["imgfile-basic-dask"]._runtime_map[AWS]
+    assert sub.get_image_output_name() == "coops-dask-pckr-ebs-ans"            # `this` is the entry
+    # the object stage renders the run's timestamp into `_final_name` at load (the run's `execution`
+    # scope is in every load's resolver map, as it is in a CLI process's); the packer builder's own
+    # rendering of the name then finds nothing left to render
+    assert sub.get_final_name() == f"coops-dask-pckr-ebs-ans-{FIXED_TIMESTAMP}"
+    from cs_image_system.packer_plugin.packer_image_builder import PackerEbsImageBuilder
+    assert PackerEbsImageBuilder._final_name(ctx, sub) == f"coops-dask-pckr-ebs-ans-{FIXED_TIMESTAMP}"
+    rtb = ctx.runtime_builders[AWS]
+    psi = rtb.create_provider_specific_image_deferred(image=ctx.images_map["imgfile-basic-dask"], subconfig=sub)
+    assert psi.deferred_name_pattern == "coops-dask-pckr-ebs-ans"
+    assert ctx.images_map["imgfile-basic-dask"]._runtime_map[GCE].get_image_output_name() == "imgfile-basic-dask-pckr-gce-ans"
 
 
 # ------------------------------------------------------------------ the rules
 def test_a_template_naming_the_timestamp_is_refused(tmp_path: Path, monkeypatch):
     root = copy_config(tmp_path)
-    # an image's entry keeps the tag (the collections are not string-cycled); an OS builder's
-    # entry in cfg/ has it rendered to the stamp at load. Both are the same refusal.
+    # the run's timestamp is rendered at load wherever it is written: an OS builder's entry in
+    # cfg/ by the string stage, an image's entry (the collections are not string-cycled) by the
+    # object stage. Both are the same refusal, and each names the stamp it would carry twice.
     _declare(root, "imgfile-basic-dask", "pckr-ebs-ans", "dask-{{ execution.timestamp }}")
 
     def edit(d):
@@ -171,16 +162,13 @@ def test_a_template_naming_the_timestamp_is_refused(tmp_path: Path, monkeypatch)
     _edit(root / "cfg" / "os-builders.yml", edit)
     stub_environment(monkeypatch)
     ctx = load_context(root)
-    try:
-        found = _findings(ctx)
-        assert len(found) == 2, found
-        img = next(f for f in found if f.startswith("image 'imgfile-basic-dask'"))
-        assert AWS in img and "dask-{{ execution.timestamp }}" in img and FIXED_TIMESTAMP in img
-        osb = next(f for f in found if f.startswith("OS builder 'basic-rhel-9'"))
-        assert f"rhel9-{FIXED_TIMESTAMP}" in osb
-        assert all("execution.timestamp" in f for f in found)       # the remedy is named
-    finally:
-        reset_singletons()
+    found = _findings(ctx)
+    assert len(found) == 2, found
+    img = next(f for f in found if f.startswith("image 'imgfile-basic-dask'"))
+    assert AWS in img and f"dask-{FIXED_TIMESTAMP}" in img
+    osb = next(f for f in found if f.startswith("OS builder 'basic-rhel-9'"))
+    assert f"rhel9-{FIXED_TIMESTAMP}" in osb
+    assert all("execution.timestamp" in f for f in found)       # the remedy is named
 
 
 def test_a_template_nothing_renders_is_refused(tmp_path: Path, monkeypatch):
@@ -188,11 +176,8 @@ def test_a_template_nothing_renders_is_refused(tmp_path: Path, monkeypatch):
     _declare(root, "imgfile-basic-dask", "pckr-ebs-ans", "dask-{{ nobody.home }}")
     stub_environment(monkeypatch)
     ctx = load_context(root)
-    try:
-        found = _findings(ctx)
-        assert len(found) == 1 and "nobody.home" in found[0], found
-    finally:
-        reset_singletons()
+    found = _findings(ctx)
+    assert len(found) == 1 and "nobody.home" in found[0], found
 
 
 def test_a_prefix_that_begins_anothers_on_one_runtime_is_refused(tmp_path: Path, monkeypatch):
@@ -200,13 +185,10 @@ def test_a_prefix_that_begins_anothers_on_one_runtime_is_refused(tmp_path: Path,
     _declare(root, "imgfile-basic-dask-two", "pckr-ebs-ans", "imgfile-basic-dask-pckr-ebs-ans-two")
     stub_environment(monkeypatch)
     ctx = load_context(root)
-    try:
-        found = _findings(ctx)
-        assert len(found) == 1, found
-        assert found[0].startswith("image 'imgfile-basic-dask' and image 'imgfile-basic-dask-two'")
-        assert AWS in found[0] and "'imgfile-basic-dask-pckr-ebs-ans-two'" in found[0]
-    finally:
-        reset_singletons()
+    found = _findings(ctx)
+    assert len(found) == 1, found
+    assert found[0].startswith("image 'imgfile-basic-dask' and image 'imgfile-basic-dask-two'")
+    assert AWS in found[0] and "'imgfile-basic-dask-pckr-ebs-ans-two'" in found[0]
 
 
 def test_two_names_that_collapse_to_one_gce_name_are_refused_and_aws_keeps_case(tmp_path: Path, monkeypatch):
@@ -214,15 +196,12 @@ def test_two_names_that_collapse_to_one_gce_name_are_refused_and_aws_keeps_case(
     _declare(root, "imgfile-basic-dask", "pckr-gce-ans", "NOSCSB.GCP.RH10.GCP.MY.RH10")
     stub_environment(monkeypatch)
     ctx = load_context(root)
-    try:
-        found = _findings(ctx)
-        assert len(found) == 1, found
-        assert f"OS builder 'basic-rh-10' and image 'imgfile-basic-dask' on runtime {GCE}" in found[0]
-        assert "collapse" in found[0]
-        assert ctx.runtime_builders[GCE].image_name_as_made("NOSCSB.GCP.RH10.GCP.MY.RH10") == "noscsb-gcp-rh10-gcp-my-rh10"
-        assert ctx.runtime_builders[AWS].image_name_as_made("NOSCSB.GCP") == "NOSCSB.GCP"
-    finally:
-        reset_singletons()
+    found = _findings(ctx)
+    assert len(found) == 1, found
+    assert f"OS builder 'basic-rh-10' and image 'imgfile-basic-dask' on runtime {GCE}" in found[0]
+    assert "collapse" in found[0]
+    assert ctx.runtime_builders[GCE].image_name_as_made("NOSCSB.GCP.RH10.GCP.MY.RH10") == "noscsb-gcp-rh10-gcp-my-rh10"
+    assert ctx.runtime_builders[AWS].image_name_as_made("NOSCSB.GCP") == "NOSCSB.GCP"
 
 
 def test_a_name_the_runtime_cannot_take_is_refused_naming_the_rule(tmp_path: Path, monkeypatch):
@@ -232,15 +211,12 @@ def test_a_name_the_runtime_cannot_take_is_refused_naming_the_rule(tmp_path: Pat
     _declare(root, "imgfile-basic-dask", "pckr-gce-ans", "x" * 60)
     stub_environment(monkeypatch)
     ctx = load_context(root)
-    try:
-        found = _findings(ctx)
-        assert len(found) == 2, found
-        aws = next(f for f in found if f"on runtime {AWS}" in f)
-        assert f"'dask:head-{FIXED_TIMESTAMP}'" in aws and "':'" in aws
-        gce = next(f for f in found if f"on runtime {GCE}" in f)
-        assert "63" in gce
-    finally:
-        reset_singletons()
+    found = _findings(ctx)
+    assert len(found) == 2, found
+    aws = next(f for f in found if f"on runtime {AWS}" in f)
+    assert f"'dask:head-{FIXED_TIMESTAMP}'" in aws and "':'" in aws
+    gce = next(f for f in found if f"on runtime {GCE}" in f)
+    assert "63" in gce
 
 
 def test_the_runtime_rules_themselves():

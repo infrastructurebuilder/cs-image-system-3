@@ -32,7 +32,7 @@ from . import power_state
 from .utils import apply_enabled
 
 if TYPE_CHECKING:
-    from .global_context import GlobalTypeContext
+    from .run_context import RunContext
 
 log = logging.getLogger(__name__)
 
@@ -57,7 +57,7 @@ def _session_delivered(rtb: Any) -> bool:
     return callable(fn) and str(fn()) == LAUNCH_DELIVERY_SESSION
 
 
-def deliver_launch_scripts(ctx: "GlobalTypeContext", lifecycle: Lifecycle) -> None:
+def deliver_launch_scripts(ctx: "RunContext", lifecycle: Lifecycle) -> None:
     if lifecycle != Lifecycle.INSTANCE_IMAGE:
         return
     if not apply_enabled(ctx, "instances"):

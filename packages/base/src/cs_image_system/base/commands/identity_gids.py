@@ -18,15 +18,13 @@ from typing import Any
 from cs_image_system.contract.constants import VCT
 
 from ..basic.builder_base_group import GroupBuilderBase
-from ..loader import load_plugins
-from ..registry import current_registry
+from ..loader import installed_registry
 
 
 def group_builder_class_for(identity_type: str) -> type[GroupBuilderBase]:
-    reg = current_registry()          # standalone (from terraform): no run is loaded
-    if not reg.vct_type_registry.get(VCT.GROUP_BUILDER):
-        # Standalone invocation (from terraform): plugins are not loaded yet.
-        load_plugins()
+    # standalone (from terraform): no run is loaded, so the installed
+    # plugins are read into a registry of this lookup's own
+    reg = installed_registry()
     for cls in reg.vct_type_registry.get(VCT.GROUP_BUILDER, []):
         if issubclass(cls, GroupBuilderBase) and cls.identity_type() == identity_type:
             return cls

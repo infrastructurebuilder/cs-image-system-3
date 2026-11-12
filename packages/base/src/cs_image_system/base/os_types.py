@@ -12,24 +12,25 @@ to that type. The core never branches on a family name.
 """
 from __future__ import annotations
 
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from cs_image_system.contract.constants import VCT
 
-from .loader import load_plugins
-from .registry import current_registry
+if TYPE_CHECKING:
+    from .registry import Registry
 
 
-def os_type_for_family(family: str | None) -> type:
-    """The registered OS builder model class whose ``families()`` names
-    ``family`` (case does not matter). Every installed plugin is loaded
-    first, so a plugin's type counts. Raises ``ValueError`` when no family
-    is given or no type serves it: a bake cannot guess a package manager."""
+def os_type_for_family(family: str | None, reg: Registry) -> type:
+    """The OS builder model class registered in ``reg`` whose
+    ``families()`` names ``family`` (case does not matter). ``reg`` is the
+    run's registry (``ctx.reg``; a plugin asks through
+    ``ctx.services.images.os_type_for_family``), which holds every
+    installed plugin's types. Raises ``ValueError`` when no family is
+    given or no type serves it: a bake cannot guess a package manager."""
     token = str(family or "").strip().lower()
     if not token:
         raise ValueError("no OS family given: a package-manager line needs the image's family to pick its OS type")
-    load_plugins()
-    types = current_registry().models_under(VCT.OS_BUILDER_MODEL)
+    types = reg.models_under(VCT.OS_BUILDER_MODEL)
 
     def served_by(cls: type) -> tuple[str, ...]:
         families = getattr(cls, "families", None)

@@ -4,20 +4,19 @@
 
 """The run context: what one run KNOWS.
 
-:class:`RunContext` is the read side of what ``GlobalTypeContext`` used to
-be: the merged configuration, the collections (read live from the
-registry), the paths, the run id and start time, the scoping flags and the
-per-run state a library or plugin keeps beside it. Nothing here loads a
-configuration or executes a command: loading is
+:class:`RunContext` holds the merged configuration, the collections (read
+live from the registry), the paths, the run id and start time, the scoping
+flags and the per-run state a library or plugin keeps beside it. Nothing
+here loads a configuration or executes a command: loading is
 :mod:`cs_image_system.base.config_loader`'s, which constructs this object
 and hands it out; the deferred-command queue and its executor are
 :mod:`cs_image_system.base.finalizer`'s, reached through ``ctx.finalizer``.
 
-The context is no singleton. A process holds the one the loader made last,
-reachable through :func:`current_context` -- the one-release shim that
-replaces ``GlobalTypeContext()``: every fetch through it is a site that
-should receive the context as an argument instead, and the shim goes with
-the next release.
+The context is passed, never fetched: a command takes it as ``ctx``, a
+builder holds the one it was bound to (``_get_context()``), a model holds
+its run's registry. The process keeps no current context, so a process may
+hold several, each with a registry, an image-source catalog and a template
+resolver of its own, and none reads another's.
 """
 
 from __future__ import annotations
@@ -38,8 +37,7 @@ from cs_image_system.contract.names import super_safe_name
 from cs_image_system.contract.state import StateBuilderProtocol
 
 from . import registry
-from .finalizer import render_executable_line
-from .image_sources import ImageSourceCatalog, current_catalog
+from .image_sources import ImageSourceCatalog
 from .lifecycles import runner_script_name
 from .meta_state import META_STATE_DIRNAME, MetaState
 from .models.provider_specific_image import ProviderSpecificImage
@@ -63,6 +61,7 @@ if TYPE_CHECKING:
     from .models.instance import Instance
     from .models.storage import Storage
     from .models.user import User
+    from .orchestrator import TemplateResolver
 
 log = logging.getLogger(__name__)
 
@@ -76,7 +75,9 @@ class RunContext(RunContextProtocol):
     finalizer, the scoping flags), which is the engine's.
 
     Constructed by the loader (:func:`~.config_loader.read_config_and_transform`)
-    with the full configuration; there is no partial construction and no
+    with the full configuration and the three objects the loader made for
+    this run before it (the registry, the image-source catalog and the
+    template resolver); there is no partial construction and no
     no-argument accessor on this class. The builder collections and the
     domain-item collections are not cached here -- every property reads
     the registry, the single source of truth.
@@ -89,19 +90,21 @@ class RunContext(RunContextProtocol):
                  working_path: Path,
                  generation_directory: Path,
                  all_sorted_builders: list[BuilderBase],
+                 *,
+                 reg: registry.Registry,
+                 image_sources: ImageSourceCatalog,
+                 template_resolver: TemplateResolver,
                  dry_run: bool = True,
                  overlays: list[Path] | None = None,
                  overlay_data: list[dict[str, Any]] | None = None,
                  undeclared: list[tuple[str, str]] | None = None,
                  run_start_time: datetime | None = None,
-                 reg: registry.Registry | None = None,
-                 image_sources: ImageSourceCatalog | None = None,
                  ) -> None:
-        # the run's registry: the loader makes one per run and hands it in;
-        # without one, the process's current (the shim)
-        self.reg: registry.Registry = reg if reg is not None else registry.current_registry()
-        # the run's image-source catalog, made beside the registry the same way
-        self._image_sources: ImageSourceCatalog = image_sources if image_sources is not None else current_catalog()
+        # the run's registry, image-source catalog and template resolver: the
+        # loader makes one of each per run and hands them in
+        self.reg: registry.Registry = reg
+        self._image_sources: ImageSourceCatalog = image_sources
+        self._template_resolver: TemplateResolver = template_resolver
         self._dry_run = dry_run
         self._verbose = verbose or False
         self._run_start_time = run_start_time or datetime.now()
@@ -181,6 +184,13 @@ class RunContext(RunContextProtocol):
         """This run's image-source catalog: the release's entries over the
         registry's runtimes, the tree's entries on them."""
         return self._image_sources
+
+    @property
+    def template_resolver(self) -> TemplateResolver:
+        """This run's object stage: the flat map of its structured models,
+        and the converter that structures more of them (a base image an OS
+        builder synthesises, the item kinds the loader reads)."""
+        return self._template_resolver
 
     # --- the finalizer handle
     @property
@@ -338,8 +348,8 @@ class RunContext(RunContextProtocol):
         """The one object a library or plugin keeps for this run under
         ``key``: made by ``factory`` on the first ask, the same object after,
         and gone when the context is. The core names none of them; this is
-        how a collector or a cache lives beside the context without being a
-        process singleton."""
+        how a collector or a cache lives beside the context without being
+        process-wide state."""
         if key not in self._plugin_state:
             self._plugin_state[key] = factory()
         return self._plugin_state[key]
@@ -442,84 +452,13 @@ class RunContext(RunContextProtocol):
                 raise ValueError("No 'root' group found in groups list, expected one ")
         return self._root_group
 
-    # --- one-release shims: the finalizer's API, reached as it was on the
-    # old context. Each delegates to ``self.finalizer``; a caller should hold
-    # the finalizer (or the context) and call it directly. Gone next release.
+    # --- the one finalizer verb a plugin reaches through the context (the
+    # contract's ``RunContextProtocol`` declares it); everything else of the
+    # finalizer is reached as ``ctx.finalizer.<name>``
     def extend_finalization_phase(
         self, phase: ExecutionLifecyclePhase, executables: Sequence[ExecutableProtocol]
     ) -> None:
-        """Shim: ``ctx.finalizer.extend_finalization_phase``.
-        Takes the contract's executables: what a plugin queues
-        comes from this run's ``executables`` map, the kit's models."""
+        """Queue ``executables`` for ``phase`` on this run's finalizer.
+        Takes the contract's executables: what a plugin queues comes from
+        this run's ``executables`` map, the kit's models."""
         self.finalizer.extend_finalization_phase(phase, cast("list[ExecutableModel]", list(executables)))
-
-    def get_finalization_executables_for_phase(
-        self, phase: ExecutionLifecyclePhase, lifecycle: LifecycleLike | None | str = "current",
-    ) -> list[ExecutableModel]:
-        """Shim: ``ctx.finalizer.get_finalization_executables_for_phase``."""
-        return self.finalizer.get_finalization_executables_for_phase(phase, lifecycle)
-
-    def finalization_phases_for(self, lifecycle: LifecycleLike | None) -> list[ExecutionLifecyclePhase]:
-        """Shim: ``ctx.finalizer.finalization_phases_for``."""
-        return self.finalizer.finalization_phases_for(lifecycle)
-
-    @property
-    def final_execution_path(self) -> Path:
-        """Shim: ``ctx.finalizer.final_execution_path``."""
-        return self.finalizer.final_execution_path
-
-    @staticmethod
-    def render_executable_line(executable: ExecutableModel) -> str:
-        """Shim: :func:`~.finalizer.render_executable_line`."""
-        return render_executable_line(executable)
-
-    def write_final_execution_script(self) -> Path:
-        """Shim: ``ctx.finalizer.write_final_execution_script``."""
-        return self.finalizer.write_final_execution_script()
-
-    def write_lifecycle_runner_script(self, lifecycle: LifecycleLike,
-                                      extra_header: list[str] | None = None) -> Path | None:
-        """Shim: ``ctx.finalizer.write_lifecycle_runner_script``."""
-        return self.finalizer.write_lifecycle_runner_script(lifecycle, extra_header)
-
-    def write_gating_script(self) -> Path:
-        """Shim: ``ctx.finalizer.write_gating_script``."""
-        return self.finalizer.write_gating_script()
-
-    def after_failed_phase(self, phase: ExecutionLifecyclePhase) -> None:
-        """Shim: ``ctx.finalizer.after_failed_phase``."""
-        self.finalizer.after_failed_phase(phase)
-
-    def final_execute(self) -> bool:
-        """Shim: ``ctx.finalizer.final_execute``."""
-        return self.finalizer.final_execute()
-
-
-# --- the one context of this process (a one-release shim; see docs/CHANGES.md#s124)
-_CURRENT: RunContext | None = None
-
-
-def bind_current(ctx: RunContext | None) -> None:
-    """Make ``ctx`` the context :func:`current_context` answers with (``None``
-    unbinds). The loader binds the context it made; the test harness unbinds
-    between loads. Nothing else should call this."""
-    global _CURRENT
-    _CURRENT = ctx
-
-
-def current_context() -> RunContext:
-    """The context the loader made last in this process.
-
-    This is the one-release shim that stands in for the retired
-    ``GlobalTypeContext()`` singleton fetch: a caller that reaches for it
-    should be handed the context instead (a builder has ``_get_context()``,
-    bound at registration; a command takes ``ctx``). It raises when no
-    configuration has been loaded, where the singleton used to raise its
-    "must be constructed with its full configuration" error.
-    """
-    if _CURRENT is None:
-        raise RuntimeError(
-            "no run context is bound: load a configuration first "
-            "(config_loader.read_config_and_transform) or pass the context in"
-        )
-    return _CURRENT

@@ -59,6 +59,7 @@ from cs_image_system.base.commands.state_migration import backup, begin, finish
 from cs_image_system.base.commands.unmount import read_receipt, unmount_storage
 from cs_image_system.base.commands.upgrade import upgrade
 from cs_image_system.base.commands.verify_instance import VerificationFailed, assert_last_verification, verify_instance
+from cs_image_system.base.config_loader import read_config_and_transform
 from cs_image_system.base.encryption import (
     INLINE_MARKER_RE,
     decrypt_fields_in_text,
@@ -73,7 +74,6 @@ from cs_image_system.base.encryption import (
     reset_decrypted_plaintexts,
     rotate_text,
 )
-from cs_image_system.base.global_context import read_config_and_transform
 from cs_image_system.base.identity_attributes import (
     AttributeApplyDisabled,
     apply,
@@ -85,7 +85,7 @@ from cs_image_system.base.identity_attributes import (
 )
 from cs_image_system.base.in_process import names_subcommand, register_system_cli_runner
 from cs_image_system.base.lifecycles import all_lifecycles, parse_lifecycles
-from cs_image_system.base.loader import load_plugins
+from cs_image_system.base.loader import discover_plugins
 from cs_image_system.base.materialize import PRIVATE_DIRNAME, ensure_ignored, materialize, mirror_path, sync_back
 from cs_image_system.base.meta_state import commit_meta_state
 from cs_image_system.base.mod_tests import run_mod_tests
@@ -112,7 +112,6 @@ from cs_image_system.system.starters import changes_since as _changes_since
 from cs_image_system.system.starters import init_config
 
 if TYPE_CHECKING:
-    from cs_image_system.base.global_context import GlobalTypeContext
     from cs_image_system.base.run_context import RunContext
 
 DEFAULT_CONFIG_FILE = "./image-actions.yml"
@@ -139,13 +138,13 @@ app = typer.Typer(help="CLI for managing cloud sandbox image actions.",
                   context_settings={"help_option_names": ["-h", "--help"]})
 
 
-def _loaded(typer_cntx: typer.Context) -> "GlobalTypeContext":
+def _loaded(typer_cntx: typer.Context) -> "RunContext":
     """The context the callback's load returned (a command PASSES the
     context to every base function; nothing fetches it)."""
     return typer_cntx.obj["ctx"]
 
 
-def _run(ctx: "GlobalTypeContext", lifecycles, apply: bool, commit: bool, state_query: bool = True,
+def _run(ctx: "RunContext", lifecycles, apply: bool, commit: bool, state_query: bool = True,
          only: list[str] | None = None, force_bake: list[str] | None = None) -> None:
     """Run lifecycles; nonzero exit on any failure (DESIGN §3G)."""
     summary = run_lifecycles(ctx, lifecycles, apply=apply, commit=commit, state_query=state_query,
@@ -1761,8 +1760,8 @@ def main(
         # is missing; its `workload describe` loads at once). The sub-app's
         # commands call the load themselves because click hands the callback
         # no sub-subcommand name.
-        def deferred_load() -> "GlobalTypeContext":
-            load_plugins()
+        def deferred_load() -> "RunContext":
+            discover_plugins()
             loaded = read_config_and_transform(typer_cntx, root_dir or Path(os.getcwd()), verbose, dry_run=dry_run,
                                                overlays=[p.resolve() for p in (overlay or [])],
                                                undeclare=list(undeclare or []))
@@ -1772,7 +1771,10 @@ def main(
             return loaded
         typer_cntx.obj["deferred_load"] = deferred_load
         return
-    load_plugins()
+    # the installed plugins are discovered (and held to the contract) before
+    # the load, so a plugin that is refused says so outside the load's own
+    # failure handling; the load replays them into the run's registry
+    discover_plugins()
     if not root_dir:
         root_dir = Path(os.getcwd())
     # no session is read before the load any more -- the load

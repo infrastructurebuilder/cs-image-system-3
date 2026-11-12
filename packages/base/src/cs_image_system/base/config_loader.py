@@ -6,11 +6,15 @@
 
 :func:`read_config_and_transform` reads the tree under ``<root>/cfg``,
 renders and structures it, builds and registers every builder, constructs
-the :class:`~.run_context.RunContext`, binds the context to each builder
-and to the process (:func:`~.run_context.bind_current`), makes the run's
-:class:`~.finalizer.Finalizer`, and reads the domain-item kinds
-(:class:`ItemKind`) into the registry. The context it returns knows
+the :class:`~.run_context.RunContext`, binds the context to each builder,
+makes the run's :class:`~.finalizer.Finalizer`, and reads the domain-item
+kinds (:class:`ItemKind`) into the registry. The context it returns knows
 everything and loads nothing; the loading lives here.
+
+Every load makes its own registry, image-source catalog and template
+resolver and hands them to the context it returns; nothing of a load is
+kept by the process, so a second load in the same process (another tree,
+or the same tree under other overlays) shares nothing with the first.
 """
 
 from __future__ import annotations
@@ -34,7 +38,7 @@ from cs_image_system.contract.model_config import CSIS_MODEL_CONFIG
 
 from .models.ia_config import IAConfig
 from .models.user import User
-from .orchestrator import Orchestrator, TemplateResolver
+from .orchestrator import PydanticConverter, TemplateResolver
 
 if TYPE_CHECKING:
     from .basic.builder_base_image import ImageBuilderBase
@@ -89,12 +93,12 @@ from . import image_sources as _image_sources
 from . import lifecycles as _lifecycles
 from .encryption import decrypt_tree, decrypted_plaintexts, refuse_markers_at
 from .finalizer import Finalizer
-from .image_sources import ImageSourceCatalog, bind_current_catalog, default_os_type
+from .image_sources import ImageSourceCatalog, default_os_type
 from .loader import load_plugins
 from .models.ia_config import DEFAULT_DATEFORMAT
 from .network_facts import adopt as adopt_network_facts
 from .reserved_names import refuse_invalid_config_keys, refuse_reserved_names
-from .run_context import RunContext, bind_current
+from .run_context import RunContext
 from .template_utils import read_and_preprocess_yaml_files, string_stage
 
 log = logging.getLogger(__name__)
@@ -218,8 +222,8 @@ def read_item_kind(ctx: RunContext, spec: ItemKind) -> list[Any]:
     to be the context's own ``_read_item_kind`` method.
     """
     yaml_files = get_files_by_extensions(ctx.working_path / spec.source_dir)
-    cvt = Orchestrator().get_converter()
-    template_resolver = TemplateResolver()
+    template_resolver = ctx.template_resolver
+    cvt = template_resolver.converter
     reg = ctx.reg
     items: list[NameTyped] = []
     model_cls = item_model_class(reg, spec)
@@ -426,19 +430,14 @@ def read_config_and_transform(
     run_start_time = datetime.now()
     typer_cntx.obj = {"run_start_time": run_start_time}   # the CLI sets "base_only" itself
     env = os.environ.copy()
-    # the run's registry: one per run, the plugins loaded into
-    # it, and the process's current one from here on -- bound BEFORE any
-    # model of this run is parsed, since a model holds no context and reads
-    # the registry through the shim (current_registry)
+    # the run's registry: one per run, the plugins loaded into it
     if reg is None:
         reg = registry.Registry()
     load_plugins(reg)
-    registry.bind_current_registry(reg)
-    # the run's image-source catalog beside its registry: the release layer
+    # the run's image-source catalog over its registry: the release layer
     # read from this registry's runtimes, the tree's layer set below once
-    # the configuration is parsed; current for the models that read it
+    # the configuration is parsed
     catalog = ImageSourceCatalog(reg)
-    bind_current_catalog(catalog)
     if not root_dir:
         raise ValueError("Root directory must be provided")
     _config_dir = root_dir / "cfg"
@@ -468,11 +467,13 @@ def read_config_and_transform(
     generic_yaml: Any = string_stage(orig, addl=addl)
     log.debug("string stage result:\n%s", pformat(generic_yaml, indent=2, width=163))
 
-    template_resolver = TemplateResolver(addl=addl)
-    # the object stage collects the foreign keys that name nothing for THIS
-    # load (the context receives them when the item kinds are read; `validate`
-    # refuses them); a fresh load starts with none
-    template_resolver.unresolved_foreign_keys = []
+    # the run's object stage and its converter: every model the converter
+    # structures is bound to this run's registry and catalog, and the
+    # resolver's map starts with this run's own scopes. It collects the
+    # foreign keys that name nothing for THIS load (the context receives
+    # them when the item kinds are read; `validate` refuses them)
+    cvt = PydanticConverter(reg, catalog)
+    template_resolver = TemplateResolver(reg, addl=addl, converter=cvt)
     if verbose:
         # the rendered document, the one time it is written out (and before
         # decryption, so no plaintext lands in it)
@@ -522,7 +523,7 @@ def read_config_and_transform(
     # generic_yaml no longer contains the plugin-typed builder models
     try:
         # cattrs.resolve_types(IAConfig)
-        config_data = Orchestrator().get_converter().structure(generic_yaml, IAConfig)
+        config_data = cvt.structure(generic_yaml, IAConfig)
     except Exception as e:
         log.error(f"Failed to parse configuration: {e}")
         raise
@@ -538,8 +539,6 @@ def read_config_and_transform(
     # builder structures, so a missing `type` can be defaulted from what the
     # family IS and every family reader sees the catalog
     catalog.set_tree(list(config_data.image_sources or []))
-
-    cvt = Orchestrator().get_converter()
 
 
     for plugin_name, plugin_key in PLUGIN_TYPES:
@@ -635,7 +634,6 @@ def read_config_and_transform(
     # # for q in config_data.os_builders or []:
     # #     log.debug(f"OS builder {q.name} runtime provider before reprocessing")
     # #     scan_for_trouble(q)
-    # #     # d = Orchestrator().get_converter().unstructure(q)
     # config_data.os_builders = reprocess_a(config_data.os_builders, addl_config) if config_data.os_builders else []  # type: ignore
     # config_data.group_builders = reprocess_a(config_data.group_builders, addl_config) if config_data.group_builders else []  # type: ignore
     # config_data.user_builders = reprocess_a(config_data.user_builders, addl_config) if config_data.user_builders else []  # type: ignore
@@ -747,27 +745,26 @@ def read_config_and_transform(
         wpath,
         gen_path,
         builders,
+        reg=reg,
+        image_sources=catalog,
+        template_resolver=template_resolver,
         dry_run=dry_run,
         overlays=overlay_paths,
         overlay_data=overlay_data,
         undeclared=parse_undeclare(undeclare),
         run_start_time=run_start_time,
-        reg=reg,
-        image_sources=catalog,
     )
     ctx.bind_finalizer(Finalizer(ctx))
     ctx.bind_services(RunServices(ctx))
     # the context is passed (DESIGN's phrase): every builder holds the one it
-    # was registered into, and the process holds it for the one-release shim
-    # (current_context) -- bound BEFORE the kinds are read, as the singleton
-    # was reachable then and a model may still fetch it during the read
+    # was registered into, bound BEFORE the kinds are read, since attaching
+    # an item to its builder may ask the builder for its run
     for b in builders:
         # a builder that satisfies the contract structurally (the contract
         # example's) carries no bind; it reads nothing from the context
         bind = getattr(b, "bind", None)
         if callable(bind):
             bind(ctx)
-    bind_current(ctx)
     # the network facts a real run or `validate --online` recorded
     # are adopted OFFLINE here (a `default` network becomes the recorded one);
     # what the record leaves unanswered waits on the context for `validate`.
@@ -1138,7 +1135,7 @@ class ImagesService(_Service, ImagesServiceProtocol):
         return bake_user.resolve_bake_user(self._ctx, image, runtime)
 
     def os_type_for_family(self, family: str | None) -> type:
-        return os_types.os_type_for_family(family)
+        return os_types.os_type_for_family(family, self._ctx.reg)
 
     def packaged_entries_of(self, package: str) -> list[Mapping[str, Any]]:
         return _image_sources.packaged_entries_of(package)

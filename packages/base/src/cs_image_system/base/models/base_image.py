@@ -20,7 +20,6 @@ from cs_image_system.contract.constants import DEFAULT, SELF, VCT
 from cs_image_system.contract.fields import fk_field, parent_field, templated_field
 
 from ..image_names import default_output_image_name
-from ..registry import current_registry
 from .builder_model import NameTyped
 from .mixins import ParentPropertyHolding, SelfInjectedName
 from .root_item import RootItem
@@ -279,8 +278,7 @@ class BaseImage(RootItem, SelfInjectedName):
         if not self._image_builder:
             if self.source_image:
                 log.debug(f"Image {self.name} has source image {self.source_image} specified, using this to determine image builder.")
-                reg = current_registry()  # a model holds no context; the current registry is the one
-                inst = reg.get_all_instances_by_classification(VCT.BASE_IMAGE_MODEL)
+                inst = self._reg.get_all_instances_by_classification(VCT.BASE_IMAGE_MODEL)
                 if self.source_image in inst:
                     source_image = inst[self.source_image]
                     if source_image.image_builder:
@@ -292,8 +290,7 @@ class BaseImage(RootItem, SelfInjectedName):
                     log.warning(f"Source image {self.source_image} for image {self.name} not found in registry. Cannot determine image builder for {self.name}.")
 
             # if self._osbuilder:
-            #     from cs_image_system.base.global_context import GlobalTypeContext
-            #     _ctx = GlobalTypeContext() #     ctx =  _ctx.image_builders
+            #     ctx = self._reg.get_all_instances_by_classification(VCT.IMAGE_BUILDER)
             #     ib = ctx.get(self._osbuilder.model.get_image_builder(), None)
             #     if not ib:
             #         log.warning(f"OS builder {self._osbuilder.get_name()} specifies image builder "

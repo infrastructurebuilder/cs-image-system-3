@@ -204,7 +204,7 @@ def _preflight(monkeypatch, daemon: bool = False, **env: str):
     identity and dummies open the tree) and reads the sessions from it.
     ``daemon`` makes the fixture's synthetic docker daemon (docker-fixture,
     a context that exists nowhere) answer its probe."""
-    from harness import reset_singletons, stub_environment
+    from harness import stub_environment
     from typer.testing import CliRunner
 
     from cs_image_system.docker_runtime import docker_runtime_builders
@@ -216,7 +216,6 @@ def _preflight(monkeypatch, daemon: bool = False, **env: str):
         monkeypatch.delenv(var, raising=False)
     for k, v in env.items():
         monkeypatch.setenv(k, v)
-    reset_singletons()                           # the command's own load, fresh (as load_context does)
     return CliRunner().invoke(app, ["--root-dir", str(FIXTURE_CONFIG), "preflight"])
 
 
@@ -249,10 +248,8 @@ def test_preflight_fails_on_a_credential_that_is_set_but_empty(monkeypatch, tmp_
     green CI jobs that ran nothing -- the variable existed and its value was "".
     Set-but-empty is a failure, reported by NAME, never by value."""
     from cs_image_system.base.commands.preflight import empty_environment_credentials
-    from cs_image_system.base.loader import load_plugins
-    from cs_image_system.base.registry import current_registry
-    load_plugins()
-    assert empty_environment_credentials(current_registry(),
+    from cs_image_system.base.loader import installed_registry
+    assert empty_environment_credentials(installed_registry(),
                                          {"TF_VAR_X": "", "OKTA_API_TOKEN": "", "AWS_PROFILE": "p", "HOME": ""}) == \
         ["OKTA_API_TOKEN", "TF_VAR_X"]
     adc = tmp_path / "adc.json"

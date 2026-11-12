@@ -24,8 +24,8 @@ from pydantic.dataclasses import dataclass  # validation at construction
 
 from cs_image_system.contract.model_config import CSIS_MODEL_CONFIG
 
-from ..global_context import GlobalTypeContext
 from ..release import releases
+from ..run_context import RunContext
 
 log = logging.getLogger(__name__)
 
@@ -43,7 +43,7 @@ class Disposal:
                 "deleted": self.deleted, "unpinned": list(self.unpinned)}
 
 
-def select_builds(ctx: GlobalTypeContext, build_ids: list[str] | None,
+def select_builds(ctx: RunContext, build_ids: list[str] | None,
                   runtime: str | None, all_on_runtime: bool) -> list[dict[str, Any]]:
     ms = ctx.meta_state
     if all_on_runtime:
@@ -67,7 +67,7 @@ def select_builds(ctx: GlobalTypeContext, build_ids: list[str] | None,
     return out
 
 
-def refuse_if_in_use(ctx: GlobalTypeContext, records: list[dict[str, Any]]) -> None:
+def refuse_if_in_use(ctx: RunContext, records: list[dict[str, Any]]) -> None:
     ms = ctx.meta_state
     ids = {str(r.get("build_id")) for r in records}
     pinned = {name: b for name, b in ms.instance_pins().items() if b in ids}
@@ -84,7 +84,7 @@ def refuse_if_in_use(ctx: GlobalTypeContext, records: list[dict[str, Any]]) -> N
             raise ValueError(f"dispose: build {rec.get('build_id')!r} records runtime {rt!r}, which is not configured")
 
 
-def retention_keep_for(ctx: GlobalTypeContext, series: str, runtime: str) -> int | None:
+def retention_keep_for(ctx: RunContext, series: str, runtime: str) -> int | None:
     """How many builds of ``series`` survive on ``runtime``: 0 on an ephemeral
     runtime, else the image's ``retention.keep``,
     else the runtime's ``retention_keep``, else None = keep everything."""
@@ -100,7 +100,7 @@ def retention_keep_for(ctx: GlobalTypeContext, series: str, runtime: str) -> int
     return int(keep) if keep is not None else None
 
 
-def retention_plan(ctx: GlobalTypeContext, runtime: str | None = None
+def retention_plan(ctx: RunContext, runtime: str | None = None
                    ) -> tuple[list[dict[str, Any]], list[tuple[dict[str, Any], str]]]:
     """``(disposable, debt)``: the recorded builds retention no longer keeps
     (oldest first within a series), and those retention would drop but an
@@ -135,7 +135,7 @@ def retention_plan(ctx: GlobalTypeContext, runtime: str | None = None
     return disposable, debt
 
 
-def dispose_images(ctx: GlobalTypeContext, build_ids: list[str] | None = None, runtime: str | None = None,
+def dispose_images(ctx: RunContext, build_ids: list[str] | None = None, runtime: str | None = None,
                    all_on_runtime: bool = False, retention: bool = False) -> list[Disposal]:
     ms = ctx.meta_state
     if retention:

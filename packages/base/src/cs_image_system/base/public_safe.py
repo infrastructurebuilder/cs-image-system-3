@@ -34,13 +34,14 @@ import re
 import subprocess
 import zipfile
 from dataclasses import dataclass
+from functools import cache
 from pathlib import Path
-from typing import Any, Callable, Iterable, Sequence
+from types import MappingProxyType
+from typing import Any, Callable, Iterable, Mapping, Sequence
 
 import yaml
 
-from .loader import load_plugins
-from .registry import current_registry
+from .loader import installed_registry
 
 # ----------------------------------------------------------------- by path
 # Never committed, by name at any depth: plans and state hold the decrypted
@@ -107,16 +108,19 @@ _OWN_RULES: dict[str, Rule] = {
 }
 
 
-def _runtime_rules() -> dict[str, Rule]:
+@cache
+def _runtime_rules() -> Mapping[str, Rule]:
     """The secret shapes every installed runtime plugin declares, by rule
-    name; the plugins are loaded here so the scan sees them whether or not
-    a configuration was loaded first."""
-    load_plugins()
+    name. Read from the installed plugins themselves (a registry of the
+    scan's own), so the scan sees them whether or not a configuration was
+    loaded, and once per process: what is installed does not change under
+    a process, the scan runs on every meta-state write, and nothing of a
+    run is kept here."""
     out: dict[str, Rule] = {}
-    for cls in current_registry().runtime_builder_classes().values():
+    for cls in installed_registry().runtime_builder_classes().values():
         for name, pattern in cls.secret_patterns().items():
             out[str(name)] = _regex(str(pattern).encode())
-    return out
+    return MappingProxyType(out)
 
 
 def hard_rules() -> dict[str, Rule]:

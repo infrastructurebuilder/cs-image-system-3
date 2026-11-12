@@ -7,6 +7,7 @@ from pathlib import Path
 from types import SimpleNamespace
 from typing import Any, cast
 
+from cs_image_system.base.bake_steps import execute_command_line
 from cs_image_system.bash_mod_plugin.bash_builder import BashModBuilder
 from cs_image_system.bash_mod_plugin.bash_models import BashModItemModel
 from cs_image_system.contract.lifecycle import ExecutionLifecyclePhase
@@ -20,6 +21,11 @@ def _builder(**model_fields):
     model.effective_execute_command = lambda: model.execute_command
     b = BashModBuilder.__new__(BashModBuilder)
     b._model = model  # type: ignore[attr-defined]
+    # the builder asks its run's commands service for the execute_command
+    # line; a builder made here is bound to a stand-in that answers with the
+    # kit's own (the loader binds a real one)
+    b.bind(cast(Any, SimpleNamespace(services=SimpleNamespace(
+        commands=SimpleNamespace(execute_command_line=execute_command_line)))))
     return b
 
 

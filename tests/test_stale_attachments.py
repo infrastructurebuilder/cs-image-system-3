@@ -218,8 +218,7 @@ def test_the_migration_commands_run_from_the_directory_the_runner_entered(tmp_pa
     from typer.testing import CliRunner
 
     from cs_image_system.system import cli as climod
-    from tests.harness import FIXTURE_CONFIG, reset_singletons, stub_environment
-    reset_singletons()                      # the CLI loads the fixture into the singletons itself
+    from tests.harness import FIXTURE_CONFIG, stub_environment
     stub_environment(monkeypatch)
     monkeypatch.delenv("CSIS_CONFIG_ROOT", raising=False)
     seen: dict[str, Path] = {}
@@ -231,4 +230,3 @@ def test_the_migration_commands_run_from_the_directory_the_runner_entered(tmp_pa
                                             "--workspace", "ws", "--run", "r1", "--tofu", "/usr/bin/false"])
     assert result.exit_code == 0, result.output[-800:]
     assert seen["cwd"] == started_in, "the step acts where it was started, not in the configuration root"
-    reset_singletons()                      # leave the singletons as the next test's harness expects

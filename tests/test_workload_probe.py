@@ -15,7 +15,7 @@ history: bundle XII item 14 (walk finding F35).
 from __future__ import annotations
 
 import pytest
-from harness import V2Run, copy_config, reset_singletons, stub_environment
+from harness import V2Run, copy_config, stub_environment
 from test_release_whole import _job_env, _stub_minting
 from typer.testing import CliRunner
 
@@ -63,7 +63,6 @@ def test_the_probe_command_prints_both_verdicts_and_exits_0(tmp_path, monkeypatc
     from cs_image_system.okta_opa_plugin import workload_token as wt
     from cs_image_system.system.cli import app
     stub_environment(monkeypatch)
-    reset_singletons()
     root = copy_config(tmp_path)
     _stub_minting(monkeypatch)
     _job_env(monkeypatch, OPA_WORKLOAD_CONNECTION="conn", OPA_WORKLOAD_ROLE="role", SFT_TEAM="team",
@@ -78,11 +77,9 @@ def test_the_probe_command_prints_both_verdicts_and_exits_0(tmp_path, monkeypatc
     assert "stofs" in result.stdout and resolves == ["h.example.invalid"]
     assert "opa-token-value" not in result.stdout                        # the token is discarded, never printed
     monkeypatch.setattr(wt, "sft_resolve", lambda n, token, host: (125, "no server found"))
-    reset_singletons()
     result = runner.invoke(app, ["--root-dir", str(root), "workload", "probe"])
     assert result.exit_code == 0 and "role role: not granted" in result.stdout
     monkeypatch.setattr(wt, "probe_target", lambda ctx: None)
-    reset_singletons()
     result = runner.invoke(app, ["--root-dir", str(root), "workload", "probe"])
     assert result.exit_code == 0 and "role role: not judged" in result.stdout
 

@@ -13,25 +13,24 @@ from __future__ import annotations
 
 import pytest
 
-from cs_image_system.base.loader import load_plugins
+from cs_image_system.base.loader import installed_registry
 from cs_image_system.base.models.credentials import CredentialsBase
+from cs_image_system.base.orchestrator import PydanticConverter
 
 
 def _aws_model():
-    load_plugins()
     from cs_image_system.aws_runtime.aws_runtime_models import AwsCloudBuilderModel
     return AwsCloudBuilderModel
 
 
 def _converter():
-    load_plugins()
-    from cs_image_system.base.orchestrator import Orchestrator
-    return Orchestrator().get_converter()
+    """A converter over a registry of the call's own, the installed plugins
+    loaded into it: what it structures is registered there and nowhere else."""
+    return PydanticConverter(installed_registry())
 
 
 def _base(name: str) -> dict:
-    """The registry is a process-wide singleton and refuses a duplicate name,
-    so each test declares its own runtime."""
+    """One runtime entry; each test names its own."""
     return {"name": name, "type": "aws", "region": "us-east-2",
             "default_machine_type": "t3.micro"}
 

@@ -14,15 +14,15 @@ from typing import Any
 
 from cs_image_system.contract.constants import NONE
 
-from ..global_context import GlobalTypeContext
 from ..lifecycles import all_lifecycles
 from ..lineage import base_image_runtimes, configuration_tag
 from ..release import releases
+from ..run_context import RunContext
 
 log = logging.getLogger(__name__)
 
 
-def images_on_runtime(ctx: GlobalTypeContext, runtime: str) -> list[str]:
+def images_on_runtime(ctx: RunContext, runtime: str) -> list[str]:
     """Every series baked on the runtime: base images with a runtime entry
     there, instance images with an image builder there."""
     out: list[str] = []
@@ -39,7 +39,7 @@ def images_on_runtime(ctx: GlobalTypeContext, runtime: str) -> list[str]:
     return out
 
 
-def runtime_bake_selection(ctx: GlobalTypeContext, runtime: str, only: list[str] | None) -> list[str]:
+def runtime_bake_selection(ctx: RunContext, runtime: str, only: list[str] | None) -> list[str]:
     """The bake surface of a run given ``--only-runtime <runtime>``, as the
     ``--only`` entries the run takes (the operator's decision).
 
@@ -73,7 +73,7 @@ def runtime_bake_selection(ctx: GlobalTypeContext, runtime: str, only: list[str]
     return selected
 
 
-def declared_storage_names(ctx: GlobalTypeContext, runtime: str) -> dict[str, dict[str, Any]]:
+def declared_storage_names(ctx: RunContext, runtime: str) -> dict[str, dict[str, Any]]:
     """``{storage: {"builder", "type", "cloud_name"}}`` for storages declared
     on the runtime, with the name the cloud knows them by (a disk name, a
     bucket name) from the builder's module arguments."""
@@ -97,7 +97,7 @@ def declared_storage_names(ctx: GlobalTypeContext, runtime: str) -> dict[str, di
     return out
 
 
-def describe_runtime(ctx: GlobalTypeContext, runtime: str) -> dict[str, Any]:
+def describe_runtime(ctx: RunContext, runtime: str) -> dict[str, Any]:
     rtb = ctx.runtime_builders.get(runtime)
     if rtb is None:
         raise ValueError(f"unknown runtime {runtime!r}; known: {sorted(ctx.runtime_builders)}")
@@ -119,7 +119,7 @@ def describe_runtime(ctx: GlobalTypeContext, runtime: str) -> dict[str, Any]:
     return facts
 
 
-def builders_on_runtime(ctx: GlobalTypeContext, runtime: str) -> dict[str, list[str]]:
+def builders_on_runtime(ctx: RunContext, runtime: str) -> dict[str, list[str]]:
     """``{"image": [...], "storage": [...], "instance": [...]}`` -- the
     builders bound to the runtime. Each emits under
     ``generated/<lifecycle>/<builder name>/``, so this is also the map of
@@ -140,7 +140,7 @@ def builders_on_runtime(ctx: GlobalTypeContext, runtime: str) -> dict[str, list[
     return out
 
 
-def emission_dirs(ctx: GlobalTypeContext, runtime: str) -> list[str]:
+def emission_dirs(ctx: RunContext, runtime: str) -> list[str]:
     """The ``<lifecycle>/<builder>`` directories under ``generated/`` that
     hold the runtime's emission and exist right now: what a run
     scoped to another runtime leaves untouched, and what the CI job compares
@@ -155,7 +155,7 @@ def emission_dirs(ctx: GlobalTypeContext, runtime: str) -> list[str]:
     return out
 
 
-def emptiness(ctx: GlobalTypeContext, runtime: str) -> dict[str, Any]:
+def emptiness(ctx: RunContext, runtime: str) -> dict[str, Any]:
     """Reality on the runtime minus what the tree declares there: instances
     (any), images (any custom), disks and buckets other than the declared
     storages' cloud names. ``leftovers`` empty = empty."""

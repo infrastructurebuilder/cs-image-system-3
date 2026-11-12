@@ -9,13 +9,12 @@ from cs_image_system.contract.constants import OOPS_DEFAULTS, VCT
 from cs_image_system.contract.image import PSISourceKind
 from cs_image_system.contract.lifecycle import ExecutionLifecyclePhase
 
-from ..global_context import GlobalTypeContext
-from ..orchestrator import TemplateResolver
+from ..run_context import RunContext
 
 log = logging.getLogger(__name__)
 
 
-def _create_deferred_psis(ctx: GlobalTypeContext) -> None:
+def _create_deferred_psis(ctx: RunContext) -> None:
     """Create deferred provider-specific images for user-declared Images.
 
     These images don't exist yet (a later build produces them), so their
@@ -39,7 +38,7 @@ def _create_deferred_psis(ctx: GlobalTypeContext) -> None:
             rtb.create_provider_specific_image_deferred(image=img, subconfig=subconfig)
 
 
-def predefined_resolve(ctx: GlobalTypeContext, 
+def predefined_resolve(ctx: RunContext, 
                        phase: ExecutionLifecyclePhase,
                        is_base_image_phase: bool = False) -> bool:
     """Resolve
@@ -173,7 +172,7 @@ def predefined_resolve(ctx: GlobalTypeContext,
             added_images.append(i)
     if not is_base_image_phase:
         _create_deferred_psis(ctx)
-    TemplateResolver().resolve_all()
+    ctx.template_resolver.resolve_all()
 
     if not retval:
         log.error("Resolution failed for one or more OS builders.")

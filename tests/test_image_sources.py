@@ -26,7 +26,7 @@ from pathlib import Path
 
 import pytest
 import yaml
-from harness import FIXTURE_CONFIG, copy_config, load_context, reset_singletons, stub_environment
+from harness import FIXTURE_CONFIG, copy_config, load_context, stub_environment
 
 from cs_image_system.contract.image import QUERY_KEYS, ImageQuery
 
@@ -56,10 +56,7 @@ def _edit_os_builders(root: Path, change) -> None:
 def ctx(tmp_path, monkeypatch):
     stub_environment(monkeypatch)
     c = load_context(copy_config(tmp_path))
-    try:
-        yield c
-    finally:
-        reset_singletons()
+    yield c
 
 
 # ------------------------------------------------------------- the vocabulary
@@ -97,7 +94,8 @@ def test_an_override_lands_on_a_query_key_by_key():
 # ----------------------------------------------------------------- the catalog
 def test_the_release_catalog_knows_the_families_the_plugins_serve():
     from cs_image_system.base.image_sources import packaged_default_entries
-    entries = packaged_default_entries()
+    from cs_image_system.base.loader import installed_registry
+    entries = packaged_default_entries(installed_registry().runtime_builder_classes())
     families = {e.family for e in entries}
     assert {"rhel", "alma-linux", "rocky-linux", "debian", "ubuntu", "fedora"} <= families
     assert all(e.block("docker") is not None for e in entries if e.family in ("rhel", "alma-linux", "debian"))
@@ -134,7 +132,8 @@ IS_BEFORE_THE_SPLIT = {"alma-linux": "rhel", "rocky-linux": "rhel", "centos-stre
 
 def test_the_split_catalog_merges_back_to_exactly_what_the_one_file_held():
     from cs_image_system.base.image_sources import packaged_default_entries
-    entries = packaged_default_entries()
+    from cs_image_system.base.loader import installed_registry
+    entries = packaged_default_entries(installed_registry().runtime_builder_classes())
     merged = {(e.family, tuple(e.versions), rt) for e in entries for rt in e.sources}
     assert len(CATALOG_BEFORE_THE_SPLIT) == 19
     assert merged == {(f, v, rt) for f, v, rt, _ in CATALOG_BEFORE_THE_SPLIT}
@@ -169,9 +168,9 @@ def test_each_runtime_ships_only_its_own_blocks(package: str, runtime_type: str)
 
 def test_the_stand_in_runtime_is_the_one_that_offers_a_local_target():
     from cs_image_system.base.image_sources import ImageSourceCatalog, stand_in_runtime_type
-    from cs_image_system.base.registry import current_registry
-    assert stand_in_runtime_type() == "docker"
-    assert stand_in_runtime_type(current_registry().runtime_builder_classes()) == "docker"
+    from cs_image_system.base.loader import installed_registry
+    installed = installed_registry()
+    assert stand_in_runtime_type(installed.runtime_builder_classes()) == "docker"
     # a registry holding no runtime that offers one: no stand-in at all
     from cs_image_system.aws_runtime.aws_runtime_builders import AwsCloudBuilder
     assert stand_in_runtime_type({"aws": AwsCloudBuilder}) is None
@@ -180,7 +179,7 @@ def test_the_stand_in_runtime_is_the_one_that_offers_a_local_target():
     from cs_image_system.base.image_sources import packaged_default_entries
     only_aws = packaged_default_entries({"aws": AwsCloudBuilder})
     assert {rt for e in only_aws for rt in e.runtime_types()} == {"aws"}
-    assert ImageSourceCatalog().stand_in_block("debian", "12") is not None
+    assert ImageSourceCatalog(installed).stand_in_block("debian", "12") is not None
 
 
 def test_a_conflict_between_two_runtimes_parts_keeps_the_first_and_says_so(caplog):
@@ -299,10 +298,7 @@ def _errors(tmp_path, monkeypatch, change) -> list[str]:
     root = copy_config(tmp_path)
     _edit_os_builders(root, change)
     c = load_context(root)
-    try:
-        return [str(e) for e in check_image_sources(c)]
-    finally:
-        reset_singletons()
+    return [str(e) for e in check_image_sources(c)]
 
 
 def test_validate_refuses_a_key_the_runtime_cannot_translate(tmp_path, monkeypatch):
@@ -351,11 +347,8 @@ def test_the_type_is_defaulted_from_what_the_family_is(tmp_path, monkeypatch):
                 del e["type"]
     _edit_os_builders(root, change)
     c = load_context(root)
-    try:
-        assert isinstance(c.os_builders["basic-rh-10"].model, RhelOsBuilderModel)      # alma-linux IS rhel
-        assert isinstance(c.os_builders["my-deb-12"].model, DebianOsBuilderModel)
-    finally:
-        reset_singletons()
+    assert isinstance(c.os_builders["basic-rh-10"].model, RhelOsBuilderModel)      # alma-linux IS rhel
+    assert isinstance(c.os_builders["my-deb-12"].model, DebianOsBuilderModel)
 
 
 def test_a_type_that_does_not_serve_the_family_is_refused(tmp_path, monkeypatch):
@@ -367,7 +360,6 @@ def test_a_type_that_does_not_serve_the_family_is_refused(tmp_path, monkeypatch)
     _edit_os_builders(root, change)
     with pytest.raises(Exception, match="family 'alma-linux' is 'rhel'.*which type 'debian' does not serve"):
         load_context(root)
-    reset_singletons()
 
 
 def test_a_family_nobody_serves_needs_a_declared_type(tmp_path, monkeypatch):
@@ -381,7 +373,6 @@ def test_a_family_nobody_serves_needs_a_declared_type(tmp_path, monkeypatch):
     _edit_os_builders(root, change)
     with pytest.raises(Exception, match="declare `type`"):
         load_context(root)
-    reset_singletons()
 
 
 def test_the_frozen_fixture_carries_the_trees_layer_and_nothing_else_changed():

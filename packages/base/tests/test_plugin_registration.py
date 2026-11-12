@@ -45,7 +45,7 @@ def _fake_metadata(namespace: str | None = None):
 
 
 def test_register_plugin_metadata_registers_model_builder_and_injected(clean_registry):
-    reg = _registry.current_registry()
+    reg = clean_registry.reg
     # in-process metadata has no distribution behind it: the namespace is passed
     reg.register_plugin_metadata(cast(Any, _fake_metadata()), namespace="fake")
 
@@ -66,7 +66,7 @@ def test_register_plugin_metadata_registers_model_builder_and_injected(clean_reg
 
 def test_metadata_without_a_namespace_is_refused_unless_it_names_one(clean_registry):
     import pytest
-    reg = _registry.current_registry()
+    reg = clean_registry.reg
     with pytest.raises(ValueError, match="PluginMetadata.namespace"):
         reg.register_plugin_metadata(cast(Any, _fake_metadata()))
     reg.register_plugin_metadata(cast(Any, _fake_metadata(namespace="named")))

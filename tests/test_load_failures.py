@@ -18,7 +18,7 @@ from pathlib import Path
 
 import pytest
 import yaml
-from harness import copy_config, reset_singletons, stub_environment
+from harness import copy_config, stub_environment
 from typer.testing import CliRunner
 
 runner = CliRunner()
@@ -32,7 +32,6 @@ def _invoke(root: Path, *args: str, catch: bool = False):
 @pytest.fixture
 def cli_root(tmp_path, monkeypatch):
     stub_environment(monkeypatch)
-    reset_singletons()
     return copy_config(tmp_path)
 
 
@@ -98,7 +97,6 @@ def test_an_unknown_failure_keeps_its_traceback_and_so_does_verbose(cli_root, mo
     p.write_text(yaml.safe_dump(data, sort_keys=False))
     monkeypatch.undo()
     stub_environment(monkeypatch)
-    reset_singletons()
     result = _invoke(cli_root, "--verbose", "validate", catch=True)
     assert result.exit_code == 1 and type(result.exception).__name__ == "ReservedNameError"
     assert "Validation failed" in result.output

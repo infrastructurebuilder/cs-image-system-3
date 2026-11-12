@@ -24,8 +24,8 @@ from pydantic.dataclasses import dataclass  # validation at construction
 
 from cs_image_system.contract.model_config import CSIS_MODEL_CONFIG
 
-from ..global_context import GlobalTypeContext
 from ..lineage import FINGERPRINT_TAG_LENGTH, TAG_PREFIX, find_image, input_fingerprint
+from ..run_context import RunContext
 
 log = logging.getLogger(__name__)
 
@@ -44,7 +44,7 @@ class Restamp:
                 "previous": self.previous[:16], "current": self.current[:16], "retagged": self.retagged}
 
 
-def restamp_plan(ctx: GlobalTypeContext, runtime: str, series: list[str] | None = None) -> list[Restamp]:
+def restamp_plan(ctx: RunContext, runtime: str, series: list[str] | None = None) -> list[Restamp]:
     ms = ctx.meta_state
     if runtime not in ctx.runtime_builders:
         raise ValueError(f"restamp: unknown runtime {runtime!r}; known: {sorted(ctx.runtime_builders)}")
@@ -69,7 +69,7 @@ def restamp_plan(ctx: GlobalTypeContext, runtime: str, series: list[str] | None 
     return out
 
 
-def restamp(ctx: GlobalTypeContext, runtime: str, series: list[str] | None = None) -> list[Restamp]:
+def restamp(ctx: RunContext, runtime: str, series: list[str] | None = None) -> list[Restamp]:
     ms = ctx.meta_state
     plan = restamp_plan(ctx, runtime, series)
     if ctx.dry_run:

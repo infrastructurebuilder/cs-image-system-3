@@ -26,12 +26,13 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-from harness import REPO, copy_config, reset_singletons, stub_environment
+from harness import REPO, copy_config, stub_environment
 from typer.testing import CliRunner
 
 from cs_image_system import extras
 from cs_image_system.base import loader
-from cs_image_system.base.registry import UnknownTypeError, current_registry
+from cs_image_system.base.loader import installed_registry
+from cs_image_system.base.registry import UnknownTypeError
 from cs_image_system.contract.constants import VCT
 
 SKELETON_JUSTFILE = REPO / "docs/examples/_skeleton/Justfile"
@@ -47,10 +48,9 @@ def _installed_words() -> dict[tuple[str, str], str]:
     by the rule the table states: every ``type:`` word of a builder, its
     model or a state backend; the version checkers and the injected item
     models left out."""
-    reset_singletons()
     namespace_to_extra = {ns: extra for extra, namespaces in extras.EXTRAS.items() for ns in namespaces}
     out: dict[tuple[str, str], str] = {}
-    for key in current_registry().registration_keys():
+    for key in installed_registry().registration_keys():
         extra = namespace_to_extra.get(key.namespace)
         if extra is None or not extras.is_type_word_classification(key.classification.value):
             continue
@@ -71,13 +71,12 @@ def test_the_static_table_is_what_the_installed_plugins_register():
 
 
 def test_every_extras_namespace_is_an_installed_plugin_and_nothing_of_the_core_needs_one():
-    reset_singletons()
-    namespaces = {k.namespace for k in current_registry().registration_keys()}
+    namespaces = {k.namespace for k in installed_registry().registration_keys()}
     for extra, members in extras.EXTRAS.items():
         for ns in members:
             assert ns in namespaces, f"[{extra}] names {ns}, which no installed plugin registers as"
     # a word the bare install carries is never an extra's
-    for key in current_registry().registration_keys():
+    for key in installed_registry().registration_keys():
         if key.namespace not in {ns for members in extras.EXTRAS.values() for ns in members}:
             assert (key.classification.value, key.name) not in extras.WORDS, key.qualified
     assert list(extras.EXTRAS) == ["aws", "gcloud", "docker", "okta"] == list(extras.EXTRA_ORDER)
@@ -204,13 +203,11 @@ def without_gcloud(monkeypatch):
         monkeypatch.undo()
         loader._discovered_plugins.cache_clear()
         loader.discover_plugins()
-        reset_singletons()
 
 
 def test_validate_names_the_missing_extra_in_one_line(without_gcloud, tmp_path, monkeypatch):
     stub_environment(monkeypatch)
-    reset_singletons()
-    assert "gcloud-runtime" not in {k.namespace for k in current_registry().registration_keys()}
+    assert "gcloud-runtime" not in {k.namespace for k in installed_registry().registration_keys()}
     root = copy_config(tmp_path)
     from cs_image_system.system.cli import app
     result = runner.invoke(app, ["--root-dir", str(root), "validate"], catch_exceptions=False, input="")
@@ -222,7 +219,6 @@ def test_validate_names_the_missing_extra_in_one_line(without_gcloud, tmp_path, 
 
 def test_a_word_no_extra_carries_is_unknown_with_the_registered_words_listed(tmp_path, monkeypatch):
     stub_environment(monkeypatch)
-    reset_singletons()
     root = copy_config(tmp_path)
     rb = root / "cfg" / "runtime-builders.yml"
     rb.write_text(rb.read_text().replace("type: gcloud", "type: nonsense", 1))

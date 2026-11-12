@@ -13,12 +13,11 @@ from cs_image_system.contract.fields import fk_field
 
 log = logging.getLogger(__name__)
 from dataclasses import field
-from typing import Annotated, Any
+from typing import TYPE_CHECKING, Annotated, Any
 
-from pydantic import Field, model_validator
+from pydantic import Field, ValidationInfo, model_validator
 from pydantic.dataclasses import dataclass  # validation at construction
 
-from cs_image_system.base.registry import current_registry
 from cs_image_system.contract.constants import DEFAULT, NO_MODEL_ID, OOPS_DEFAULTS, UNSET_MODEL_ID, VCT
 from cs_image_system.contract.core import (
     BuilderModelProtocol,
@@ -28,7 +27,11 @@ from cs_image_system.contract.core import (
 from cs_image_system.contract.model_config import CSIS_MODEL_CONFIG
 from cs_image_system.contract.names import safe_name
 
-from ..orchestrator import Orchestrator
+from ..orchestrator import ModelBinding, unstructure
+
+if TYPE_CHECKING:
+    from ..image_sources import ImageSourceCatalog
+    from ..registry import Registry
 
 
 @dataclass(kw_only=True, config=CSIS_MODEL_CONFIG)
@@ -66,9 +69,54 @@ class NameTyped(NameTypedProtocol):
         classifier = self.get_classification() if hasattr(self, "get_classification") else VCT.UNCLASSIFIED.value
         mid = getattr(self, "model_id", UNSET_MODEL_ID) if hasattr(self, "model_id") else NO_MODEL_ID
         return f"{classifier}::{mid}::{self.get_name()}"
+    # --- the run a model belongs to
+    # A model holds no context. The converter that structures it hands it
+    # the run's registry and image-source catalog (the validation context,
+    # a ModelBinding), after ``__post_init__`` and after every model nested
+    # in it was bound; a model made in code is bound by its maker
+    # (``bind_run``). A copy shares its original's binding: the registry
+    # and the catalog are identity objects.
+    @model_validator(mode="after")
+    def _bound_by_the_converter(self, info: ValidationInfo) -> Any:
+        binding = info.context
+        if isinstance(binding, ModelBinding):
+            self.bind_run(binding.reg, binding.image_sources)
+        return self
+    def bind_run(self, reg: Registry, image_sources: ImageSourceCatalog | None = None) -> None:
+        """Bind this model to its run: the registry it resolves names in
+        and, for a model that reads it, the image-source catalog; then
+        :meth:`on_bound` runs. This model alone: the converter binds each
+        nested model as it builds it, and a maker that builds a tree of
+        models in code binds each one."""
+        self._run_registry = reg
+        if image_sources is not None:
+            self._run_image_sources = image_sources
+        self.on_bound()
+    def on_bound(self) -> None:
+        """What a model checks or derives as soon as it knows its run (the
+        part of its construction that reads the registry or the catalog).
+        Nothing here; a subclass that overrides it calls ``super()``."""
+        return None
+    @property
+    def _reg(self) -> Registry:
+        """The registry of the run this model belongs to."""
+        reg: Registry | None = getattr(self, "_run_registry", None)
+        if reg is None:
+            raise RuntimeError(
+                f"{type(self).__name__} {getattr(self, 'name', '')!r} is bound to no run: it was made in code, "
+                "outside a load; bind it with bind_run(registry) before asking it what the registry knows")
+        return reg
+    @property
+    def _image_sources(self) -> ImageSourceCatalog:
+        """The image-source catalog of the run this model belongs to."""
+        catalog: ImageSourceCatalog | None = getattr(self, "_run_image_sources", None)
+        if catalog is None:
+            raise RuntimeError(
+                f"{type(self).__name__} {getattr(self, 'name', '')!r} is bound to no image-source catalog: it was "
+                "made in code, outside a load; bind it with bind_run(registry, image_sources)")
+        return catalog
     def __post_init__(self) -> None:
         # No super().__post_init__() because this is the base class
-        self._reg = current_registry()  # a model holds no context; the current registry is the one
         self._finalized:bool = False
         # Preserve the original name (case/spacing) before it is normalized below.
         self._display_name = self.name
@@ -200,7 +248,7 @@ class BuilderModel(NameTyped, BuilderModelProtocol):
                                addl_this: dict[str, Any]) -> Any:
         """Hook for processing an individual extracted item.  By default, this
         hook checks for "modifications" and "runtimes" and processes them as best it can.
-        Remember that the GlobalTypeContext still has not been instantiated, but the registry is available, so you can look up other builders if needed.  You also have access to the reloaded YAML as a dict, the classification for this recycle operation, any additional config that was passed in, and an additional "this" dict that can be used to pass information
+        Remember that the RunContext still has not been instantiated, but the registry is available, so you can look up other builders if needed.  You also have access to the reloaded YAML as a dict, the classification for this recycle operation, any additional config that was passed in, and an additional "this" dict that can be used to pass information
         """
         if key == "modifications":
             value = self.process_modifications(value, original_value, reloaded_dict, classification, addl_config, addl_this)
@@ -289,7 +337,7 @@ class BuilderModel(NameTyped, BuilderModelProtocol):
         return exported_yaml
     def export_self_to_dict(self) -> dict[str, Any]:
         """Export the object to a dictionary, applying any necessary transformations in the process."""
-        return Orchestrator().get_converter().unstructure(self)
+        return unstructure(self)
     
 
     

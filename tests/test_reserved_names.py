@@ -27,7 +27,7 @@ from cs_image_system.base.reserved_names import (
     reserved_name_problems,
 )
 from cs_image_system.contract.constants import NONE, OOPS_DEFAULTS
-from tests.harness import FIXTURE_CONFIG, copy_config, load_context, reset_singletons, stub_environment
+from tests.harness import FIXTURE_CONFIG, copy_config, load_context, stub_environment
 
 
 def _variants(word: str | None) -> list[str | None]:
@@ -130,12 +130,9 @@ KINDS = [
 
 def _load_refused(root: Path, monkeypatch) -> str:
     stub_environment(monkeypatch)
-    try:
-        with pytest.raises(ReservedNameError) as e:
-            load_context(root)
-        return str(e.value)
-    finally:
-        reset_singletons()
+    with pytest.raises(ReservedNameError) as e:
+        load_context(root)
+    return str(e.value)
 
 
 @pytest.mark.parametrize("rel,key", KINDS, ids=[k for _, k in KINDS])
@@ -157,7 +154,7 @@ def test_every_word_is_refused_as_a_name_and_as_an_alias_through_a_load(word, tm
 
 
 def test_an_overlay_naming_an_item_none_is_refused(tmp_path, monkeypatch):
-    from cs_image_system.base.global_context import load_overlay
+    from cs_image_system.base.config_loader import load_overlay
     overlay = tmp_path / "overlay.yaml"
     overlay.write_text(yaml.safe_dump({"instances": [{"name": "none", "image": "x"}]}))
     with pytest.raises(ReservedNameError, match=r"instances\[0\]\.name: a name may not be 'none'"):
@@ -183,35 +180,32 @@ def test_every_named_model_class_refuses_every_word_as_a_name_and_an_alias(monke
     image's per-runtime subconfig takes its image builder's name) passes if
     the name it ends with is not reserved."""
     stub_environment(monkeypatch)
-    try:
-        ctx = load_context(FIXTURE_CONFIG)
-        models = _loaded_models(ctx)
-        # a plugin may load its own subclass of a core item model (an identity
-        # plugin's user with its profile fields): the base class's name counts
-        names = {base.__name__ for cls in models for base in cls.__mro__}
-        assert {"Group", "User", "Storage", "Image", "Instance"} <= names, names
-        assert len(models) >= 30, names                     # 31 when this was written
-        accepted: list[str] = []
-        for cls, model in models.items():
-            for value in VARIANTS:
-                try:
-                    built = dataclasses.replace(model, name=value)
-                except Exception:
-                    pass                                     # refused
-                else:
-                    if is_reserved(built.name):
-                        accepted.append(f"{cls.__name__} name={value!r} -> {built.name!r}")
-                if not isinstance(value, str):
-                    continue
-                try:
-                    built = dataclasses.replace(model, aliases={value})
-                except Exception:
-                    pass
-                else:
-                    accepted.append(f"{cls.__name__} alias={value!r}")
-        assert accepted == []
-    finally:
-        reset_singletons()
+    ctx = load_context(FIXTURE_CONFIG)
+    models = _loaded_models(ctx)
+    # a plugin may load its own subclass of a core item model (an identity
+    # plugin's user with its profile fields): the base class's name counts
+    names = {base.__name__ for cls in models for base in cls.__mro__}
+    assert {"Group", "User", "Storage", "Image", "Instance"} <= names, names
+    assert len(models) >= 30, names                     # 31 when this was written
+    accepted: list[str] = []
+    for cls, model in models.items():
+        for value in VARIANTS:
+            try:
+                built = dataclasses.replace(model, name=value)
+            except Exception:
+                pass                                     # refused
+            else:
+                if is_reserved(built.name):
+                    accepted.append(f"{cls.__name__} name={value!r} -> {built.name!r}")
+            if not isinstance(value, str):
+                continue
+            try:
+                built = dataclasses.replace(model, aliases={value})
+            except Exception:
+                pass
+            else:
+                accepted.append(f"{cls.__name__} alias={value!r}")
+    assert accepted == []
 
 
 # --------------------- (c) a reference written `none` names nothing, and is refused
@@ -222,10 +216,7 @@ def _validation_errors(root: Path, monkeypatch) -> list[str]:
     loads the hook plugins) is the whole of what `validate` says."""
     from cs_image_system.base.commands.run_lifecycles import validate_only
     stub_environment(monkeypatch)
-    try:
-        return [str(e) for e in validate_only(load_context(root))]
-    finally:
-        reset_singletons()
+    return [str(e) for e in validate_only(load_context(root))]
 
 
 def test_a_foreign_key_written_none_is_refused_and_default_still_resolves(tmp_path, monkeypatch):
@@ -282,7 +273,6 @@ def test_only_none_is_an_explicitly_empty_bake_surface(tmp_path, monkeypatch):
         assert run.ctx.only_images == set()
     finally:
         run.restore_cwd()
-        reset_singletons()
 
 # ------------------- step 6: the `config:` key guard, switched on as written
 
@@ -304,15 +294,12 @@ def test_a_config_key_from_the_guard_is_refused_where_its_file_is_read(tmp_path,
     root = copy_config(tmp_path)
     _edit_yaml(root / "cfg" / "_config.yml", lambda d: d["config"].__setitem__("runtime", "x"))
     stub_environment(monkeypatch)
-    try:
-        with pytest.raises(InvalidConfigKeyError, match=r"_config\.yml: config\.runtime: 'runtime' may not be"):
-            load_context(root)
-    finally:
-        reset_singletons()
+    with pytest.raises(InvalidConfigKeyError, match=r"_config\.yml: config\.runtime: 'runtime' may not be"):
+        load_context(root)
 
 
 def test_an_overlay_config_key_from_the_guard_is_refused(tmp_path):
-    from cs_image_system.base.global_context import load_overlay
+    from cs_image_system.base.config_loader import load_overlay
     from cs_image_system.base.reserved_names import InvalidConfigKeyError
     overlay = tmp_path / "overlay.yaml"
     overlay.write_text(yaml.safe_dump({"config": {"self": 1}}))

@@ -203,28 +203,14 @@ def bare_run(**attrs: Any) -> BareRun:
     return BareRun(**attrs)
 
 
-def reset_singletons() -> None:
-    """Fresh process-wide state between loads. The run context is NO
-    singleton (a new context per load; the loader binds the
-    one it makes as the process's current); only the process binding is
-    dropped here so a test that forgets to load cannot see an earlier test's."""
-    from cs_image_system.base.orchestrator import Orchestrator, TemplateResolver
-    from cs_image_system.base.registry import bind_current_registry
-    from cs_image_system.base.run_context import bind_current
-    # the registry is per run too: the loader makes the next one;
-    # the process binding is dropped so `load_plugins()` below fills a fresh one
-    bind_current_registry(None)
-    from cs_image_system.base.image_sources import bind_current_catalog
-    bind_current_catalog(None)   # per run too: the loader makes the next one beside the registry
-    TemplateResolver().flattened_map = {}
-    TemplateResolver().unresolved_foreign_keys = []   # the loader starts each load with a fresh list too
-    Orchestrator().invalidate_converter()
-    # the terraform and packer collectors are per-run instances kept beside
-    # the context (plugin_state): a new context starts with none, so nothing
-    # of theirs is reset here
-    bind_current(None)
-    from cs_image_system.base.loader import load_plugins
-    load_plugins()
+def os_type_for_family(family: str | None) -> type:
+    """The OS type that serves ``family`` among the INSTALLED plugins' types
+    (a registry of the lookup's own): what a loaded run answers through
+    ``ctx.services.images.os_type_for_family``, for a test that drives no
+    run."""
+    from cs_image_system.base import os_types
+    from cs_image_system.base.loader import installed_registry
+    return os_types.os_type_for_family(family, installed_registry())
 
 
 def stub_environment(monkeypatch) -> list[str]:
@@ -373,12 +359,12 @@ def stub_environment(monkeypatch) -> list[str]:
 
 def load_context(config_root: Path, dry_run: bool = True, overlays: list[Path] | None = None,
                  undeclare: list[str] | None = None):
-    """Fresh singletons + the loader's run context over ``config_root`` (plus
-    any transient ``--overlay`` files and ``--undeclare`` specs). A new
-    context per load: the returned one is THE context of the
-    run the test drives (and the process's current one, for the shim)."""
-    reset_singletons()
-    from cs_image_system.base.global_context import read_config_and_transform
+    """The loader's run context over ``config_root`` (plus any transient
+    ``--overlay`` files and ``--undeclare`` specs). A new context per load,
+    with a registry, an image-source catalog and a template resolver of its
+    own: the returned one is THE context of the run the test drives, and
+    nothing of an earlier load is left in the process to reset."""
+    from cs_image_system.base.config_loader import read_config_and_transform
     return read_config_and_transform(cast(Any, types.SimpleNamespace(obj={})),
                                      config_root, False, dry_run=dry_run,
                                      overlays=list(overlays or []), undeclare=list(undeclare or []))

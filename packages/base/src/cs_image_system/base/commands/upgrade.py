@@ -14,13 +14,13 @@ from __future__ import annotations
 
 import logging
 
-from ..global_context import GlobalTypeContext
 from ..lineage import primary_runtime_of
+from ..run_context import RunContext
 
 log = logging.getLogger(__name__)
 
 
-def upgrade(ctx: GlobalTypeContext, kind: str, name: str, to: str | None = None,
+def upgrade(ctx: RunContext, kind: str, name: str, to: str | None = None,
             runtime: str | None = None) -> tuple[str | None, str]:
     ms = ctx.meta_state
     kind = kind.strip().lower()

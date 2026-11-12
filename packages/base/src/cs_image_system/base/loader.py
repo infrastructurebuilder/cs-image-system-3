@@ -9,7 +9,6 @@ from importlib.metadata import entry_points
 from typing import Any, NamedTuple
 
 from cs_image_system.base import registry
-from cs_image_system.base.orchestrator import Orchestrator
 from cs_image_system.contract.constants import PLUGIN_TYPES, VCT
 from cs_image_system.contract.core import PluginArtifactProtocol, PluginMetadataProtocol
 from cs_image_system.contract.testing import conformance_problems, protocol_for
@@ -239,21 +238,30 @@ def discover_plugins() -> None:
     _discovered_plugins()
 
 
-def load_plugins(reg: "registry.Registry | None" = None) -> None:
+def installed_registry() -> "registry.Registry":
+    """A registry of its own with every installed plugin loaded into it and
+    nothing of any run: what a command reads the installed classes from
+    before, or without, a load (the public-safe scan, the standalone gid
+    lookup, the classification of a failed load). A new one on every call:
+    no caller shares it, so nothing one registers reaches another. A
+    loaded run reads its own, ``ctx.reg``. The replay is not announced at
+    INFO: that line is the run's own load's."""
+    reg = registry.Registry()
+    load_plugins(reg, announce=False)
+    return reg
+
+
+def load_plugins(reg: "registry.Registry", *, announce: bool = True) -> None:
     """Register every installed plugin's models, builders and checkers into
-    ``reg`` -- the registry of the run being loaded (the loader
-    makes one per run and loads the plugins into it) -- or, with no
-    registry given, into the process's current one
-    (:func:`~.registry.current_registry`): a pre-load command (the
-    preflight, the catalog, the scan) and the CLI callback load that way."""
-    # Discovery via entry_points
-    if reg is None:
-        reg = registry.current_registry()
+    ``reg``: the registry of the run being loaded (the loader makes one per
+    run and loads the plugins into it), or one a pre-load command made for
+    itself (:func:`installed_registry`). ``announce`` says whether the one
+    line counting what registered is logged at INFO (a run's load) or at
+    DEBUG."""
     if reg.vct_type_registry:
         # Idempotent: plugins register exactly once per registry lifetime.
-        # A second call on the same registry within one process -- the CLI
-        # callback after a library caller already loaded, or a test
-        # harness -- must not raise type collisions.
+        # A second call on the same registry -- a caller that prepared one
+        # and handed it to the loader -- must not raise type collisions.
         log.debug("Plugins already loaded; skipping discovery")
         return
     registered_by_namespace: dict[str, list[str]] = {}
@@ -284,9 +292,6 @@ def load_plugins(reg: "registry.Registry | None" = None) -> None:
     # `--verbose` run reads it (at INFO it was a hundred lines on every command)
     for namespace, words in sorted(registered_by_namespace.items()):
         log.debug(f"namespace {namespace}: registered {', '.join(words) or 'nothing'}")
-    log.info(f"registered {sum(len(w) for w in registered_by_namespace.values())} classes "
-             f"under {len(registered_by_namespace)} namespaces")
-
-    # All plugin model/builder classes are now registered; drop any cached cattrs
-    # Converter so it rebuilds against the full plugin set on next use.
-    Orchestrator().invalidate_converter()
+    log.log(logging.INFO if announce else logging.DEBUG,
+            f"registered {sum(len(w) for w in registered_by_namespace.values())} classes "
+            f"under {len(registered_by_namespace)} namespaces")

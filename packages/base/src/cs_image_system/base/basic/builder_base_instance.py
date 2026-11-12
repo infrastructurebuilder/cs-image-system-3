@@ -4,7 +4,6 @@
 
 from typing import TypeVar
 
-from cs_image_system.base.registry import current_registry
 from cs_image_system.contract.constants import VCT
 from cs_image_system.contract.instance import InstanceBuilderProtocol
 
@@ -29,9 +28,9 @@ class InstanceBuilderBase(BuilderBase[TINSTANCE], InstanceBuilderProtocol):
             return
         super().finalize()
         # finalize runs in the loader before the run context exists and is
-        # bound; the loader bound the run's registry first, so the current
-        # registry is the one to read
-        reg = current_registry()
+        # bound; the model was bound to the run's registry when it was
+        # structured, so that is the one to read
+        reg = self._model_registry()
         rtb = self.model.get_runtime_provider()
         if not rtb:
             raise ValueError(

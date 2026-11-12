@@ -17,13 +17,14 @@ The contract surface emptied the list of every function a plugin
 reached by import -- they are members of ``ctx.services`` now, or the
 contract's own (the enrollment registry, the hostname rule, the secret
 marker's opening, the catalog words, the hook set, the bootstrap's facts
-protocol) -- down to the four entries that stay, each a read made where
-no context exists to reach a service through: two models fetching the
-current context (the docker floating tag, the Okta gateway selector; the
-one-release shim, pinned by their tests), and two state backends reading the
-registry from a class-level ``session_status`` before any run is loaded.
-A package that imports nothing from the kit (hashicorp-utils,
-contract-example-plugin) has no entry.
+protocol). The last four went when the process stopped keeping a current
+context and registry to fetch: a model is handed what it needs of its run
+(the docker floating tag reads the repository its runtime builder gave
+the image, the Okta gateway selector takes the run's ``config:`` map),
+and a state backend's class-level ``session_status`` is handed the run's
+runtime classes by the preflight. The list is empty, and stays so unless
+an entry is argued for here. A package that imports nothing from the kit
+(hashicorp-utils, contract-example-plugin) has no entry.
 """
 from __future__ import annotations
 
@@ -40,12 +41,7 @@ METADATA_ABSTRACTIONS = (f"{KIT}.basic.abstract_plugin_metadata", f"{KIT}.basic.
 #: ``import cs_image_system.base...``. Generated from the sources; pruned as
 #: the vocabulary and the services move.
 # --- exceptions begin
-EXCEPTIONS: frozenset[tuple[str, str, str]] = frozenset({
-    ('docker-runtime-plugin', 'cs_image_system.base.run_context', 'current_context'),
-    ('gcs-state-plugin', 'cs_image_system.base.registry', 'current_registry'),
-    ('okta-opa-plugin', 'cs_image_system.base.run_context', 'current_context'),
-    ('tf-s3-state-plugin', 'cs_image_system.base.registry', 'current_registry'),
-})
+EXCEPTIONS: frozenset[tuple[str, str, str]] = frozenset()
 # --- exceptions end
 
 

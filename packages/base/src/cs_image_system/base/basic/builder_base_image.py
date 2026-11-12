@@ -19,7 +19,6 @@ from ..models.image_builder_model import ImageBuilderModel
 if TYPE_CHECKING:
     from .builder_base_os import OsBuilderBase
 
-from cs_image_system.base.registry import current_registry
 from cs_image_system.contract.constants import DEFAULT, VCT
 from cs_image_system.contract.lifecycle import ExecutionLifecyclePhase
 
@@ -31,7 +30,7 @@ class ImageBuilderBase(BuilderBase[TIMAGE], ImageBuilderProtocol):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         # Per-instance: class-level lists would be shared by every image
-        # builder (and leak images across GlobalTypeContext rebuilds).
+        # builder (and leak images across RunContext rebuilds).
         self.local_items: list[Image] = []
         self.local_os_builder_items: list[BaseImage] = []
 
@@ -65,9 +64,9 @@ class ImageBuilderBase(BuilderBase[TIMAGE], ImageBuilderProtocol):
             return
         super().finalize()
         # finalize runs in the loader before the run context exists and is
-        # bound; the loader bound the run's registry first, so the current
-        # registry is the one to read
-        reg = current_registry()
+        # bound; the model was bound to the run's registry when it was
+        # structured, so that is the one to read
+        reg = self._model_registry()
         rt = self.model.get_runtime_provider()
         if not rt:
             raise ValueError(

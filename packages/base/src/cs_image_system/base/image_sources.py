@@ -36,7 +36,7 @@ import logging
 from collections.abc import Mapping
 from dataclasses import field
 from importlib.resources import files
-from typing import Annotated, Any
+from typing import TYPE_CHECKING, Annotated, Any
 
 import yaml
 from pydantic import Field, TypeAdapter
@@ -51,8 +51,8 @@ from cs_image_system.contract.image_sources import (  # noqa: F401 - re-exported
 from cs_image_system.contract.model_config import CSIS_MODEL_CONFIG
 from cs_image_system.contract.names import safe_name
 
-from .loader import load_plugins
-from .registry import Registry, current_registry
+if TYPE_CHECKING:
+    from .registry import Registry
 
 log = logging.getLogger(__name__)
 
@@ -132,14 +132,6 @@ def packaged_entries_of(package: str) -> list[Mapping[str, Any]]:
     return [dict(e) for e in (doc.get(IMAGE_SOURCES_KEY) or []) if isinstance(e, Mapping)]
 
 
-def _runtime_classes() -> dict[str, type]:
-    """Every registered runtime builder class by name, the plugins loaded
-    first (idempotent), so the catalog is the INSTALLED runtimes' and never
-    depends on which a tree declares."""
-    load_plugins()
-    return dict(current_registry().runtime_builder_classes())
-
-
 def _runtime_entries(classes: Mapping[str, type]) -> list[tuple[str, list[ImageSource]]]:
     """Each runtime's part, structured so that an error names the runtime
     whose file carries it, in name order for a deterministic merge."""
@@ -187,19 +179,21 @@ def merge_entries(parts: list[tuple[str, list[ImageSource]]]) -> list[ImageSourc
     return structure_entries(list(merged.values()), where="the release's image-source catalog")
 
 
-def packaged_default_entries(classes: Mapping[str, type] | None = None) -> list[ImageSource]:
-    """The release-owned catalog: the parts every installed runtime plugin
-    ships, merged by family (``classes`` overrides the registry's runtime
-    builder classes, for tests)."""
-    return merge_entries(_runtime_entries(_runtime_classes() if classes is None else classes))
+def packaged_default_entries(classes: Mapping[str, type]) -> list[ImageSource]:
+    """The release-owned catalog: the parts the runtime builder classes in
+    ``classes`` ship (a registry's ``runtime_builder_classes()``: the
+    INSTALLED runtimes', never only those a tree declares), merged by
+    family."""
+    return merge_entries(_runtime_entries(classes))
 
 
-def stand_in_runtime_type(classes: Mapping[str, type] | None = None) -> str | None:
+def stand_in_runtime_type(classes: Mapping[str, type]) -> str | None:
     """The runtime type whose catalog block the local modification tests
-    read: the ``csis_name()`` of the first registered runtime builder class
-    (by name) whose ``local_test_target()`` is not None; None when no
-    installed runtime offers a local target."""
-    for _name, cls in sorted((_runtime_classes() if classes is None else classes).items()):
+    read: the ``csis_name()`` of the first runtime builder class in
+    ``classes`` (a registry's ``runtime_builder_classes()``, by name) whose
+    ``local_test_target()`` is not None; None when none offers a local
+    target."""
+    for _name, cls in sorted(classes.items()):
         hook = getattr(cls, "local_test_target", None)
         if callable(hook) and hook() is not None:
             return str(cls.csis_name())
@@ -208,20 +202,28 @@ def stand_in_runtime_type(classes: Mapping[str, type] | None = None) -> str | No
 
 class ImageSourceCatalog:
     """The two layers and the lookups over them. One per run, like the
-    registry: the loader makes it beside the run's registry (whose runtime
-    classes the release layer is read from), binds it as the process's
-    current one (:func:`bind_current_catalog`) and hands it to the run
-    context as ``ctx.image_sources``; the tree's entries are set on it
-    once the configuration is parsed. Without a registry it reads the
-    process's current one."""
+    registry: the loader makes it over the run's registry (whose runtime
+    classes the release layer is read from) and hands it to the run
+    context as ``ctx.image_sources`` and, through the run's converter, to
+    every OS model it structures; the tree's entries are set on it once
+    the configuration is parsed. The process holds none."""
 
-    def __init__(self, reg: Registry | None = None) -> None:
+    def __init__(self, reg: Registry) -> None:
         self._reg = reg
         self._default: list[ImageSource] | None = None
         self._tree: list[ImageSource] = []
 
+    # A catalog is an identity object, like the registry it reads: a model
+    # copy keeps its handle to the run's catalog and never clones it.
+    def __deepcopy__(self, memo: dict[int, Any]) -> ImageSourceCatalog:
+        memo[id(self)] = self
+        return self
+
+    def __copy__(self) -> ImageSourceCatalog:
+        return self
+
     def _classes(self) -> dict[str, type]:
-        return dict(self._reg.runtime_builder_classes()) if self._reg is not None else _runtime_classes()
+        return dict(self._reg.runtime_builder_classes())
 
     # ------------------------------------------------------------ the layers
     def default_entries(self) -> list[ImageSource]:
@@ -296,28 +298,6 @@ class ImageSourceCatalog:
                 if e.family not in out:
                     out.append(e.family)
         return out
-
-
-_CURRENT: ImageSourceCatalog | None = None
-
-
-def bind_current_catalog(catalog: ImageSourceCatalog | None) -> None:
-    """Make ``catalog`` the process's current image-source catalog (the
-    loader binds the run's beside its registry; None drops the binding)."""
-    global _CURRENT
-    _CURRENT = catalog
-
-
-def current_catalog() -> ImageSourceCatalog:
-    """The process's current catalog: the one the loader bound for the run
-    being loaded, or a fresh one over the current registry when none is
-    bound. Code that holds a context reads ``ctx.image_sources``; a model,
-    which holds no context, reaches the current one here, as it reaches
-    the registry through ``current_registry()``."""
-    global _CURRENT
-    if _CURRENT is None:
-        _CURRENT = ImageSourceCatalog()
-    return _CURRENT
 
 
 def default_os_type(catalog: ImageSourceCatalog, family: str, version: str | None,

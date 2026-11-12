@@ -31,16 +31,16 @@ from .storage_state import attachments, validate_transitions
 from .utils import module_source_overrides
 
 if TYPE_CHECKING:
-    from .global_context import GlobalTypeContext
+    from .run_context import RunContext
 
 log = logging.getLogger(__name__)
 
 
-def _group_names(ctx: "GlobalTypeContext") -> set[str]:
+def _group_names(ctx: "RunContext") -> set[str]:
     return {g.get_name() for g in ctx.groups}
 
 
-def validate_identity(ctx: "GlobalTypeContext", requested: list[Lifecycle]) -> list[str]:
+def validate_identity(ctx: "RunContext", requested: list[Lifecycle]) -> list[str]:
     """N19: groups are never destroyed and never renamed in place. A group the
     identity read-model records as managed may not silently disappear."""
     errors: list[str] = []
@@ -57,7 +57,7 @@ def validate_identity(ctx: "GlobalTypeContext", requested: list[Lifecycle]) -> l
     return errors
 
 
-def validate_storages(ctx: "GlobalTypeContext", requested: list[Lifecycle]) -> list[str]:
+def validate_storages(ctx: "RunContext", requested: list[Lifecycle]) -> list[str]:
     """Q3/N2/N3/N10/N16/N19/N22: allowed groups exist, the strict attach rule,
     attachment cardinality, and the storage state machine."""
     errors: list[str] = []
@@ -114,7 +114,7 @@ def validate_storages(ctx: "GlobalTypeContext", requested: list[Lifecycle]) -> l
     return errors
 
 
-def validate_image_groups(ctx: "GlobalTypeContext", requested: list[Lifecycle]) -> list[str]:
+def validate_image_groups(ctx: "RunContext", requested: list[Lifecycle]) -> list[str]:
     """DESIGN Q4, DESIGN §3F2: an instance image's owning group must be a known group."""
     errors: list[str] = []
     groups = _group_names(ctx)
@@ -131,7 +131,7 @@ def validate_image_groups(ctx: "GlobalTypeContext", requested: list[Lifecycle]) 
     return errors
 
 
-def validate_base_images(ctx: "GlobalTypeContext", requested: list[Lifecycle]) -> list[str]:
+def validate_base_images(ctx: "RunContext", requested: list[Lifecycle]) -> list[str]:
     """DESIGN §3F1, N9, N12: declared types resolve to configured plugins; the admin
     user's keys are public keys; every base image has a debug path (keys
     or a session mechanism) -- the dead end fails loudly."""
@@ -168,7 +168,7 @@ def validate_base_images(ctx: "GlobalTypeContext", requested: list[Lifecycle]) -
     return errors
 
 
-def validate_capabilities(ctx: "GlobalTypeContext", requested: list[Lifecycle]) -> list[str]:
+def validate_capabilities(ctx: "RunContext", requested: list[Lifecycle]) -> list[str]:
     """DESIGN §3F2 (both axes, hard stop): an instance image whose group resolves to
     an identity type its root base does not carry, or whose attached
     storages are of an undeclared type, breaks the whole cycle. Resolution is
@@ -207,7 +207,7 @@ def validate_capabilities(ctx: "GlobalTypeContext", requested: list[Lifecycle]) 
     return errors
 
 
-def validate_test_specs(ctx: "GlobalTypeContext", requested: list[Lifecycle]) -> list[str]:
+def validate_test_specs(ctx: "RunContext", requested: list[Lifecycle]) -> list[str]:
     errors: list[str] = []
     for name in sorted(ctx.os_builders):
         errors += validate_tests_spec(getattr(ctx.os_builders[name].model, "tests", None) or {}, f"base image '{name}'")
@@ -221,7 +221,7 @@ def validate_test_specs(ctx: "GlobalTypeContext", requested: list[Lifecycle]) ->
     return errors
 
 
-def validate_update_policies(ctx: "GlobalTypeContext", requested: list[Lifecycle]) -> list[str]:
+def validate_update_policies(ctx: "RunContext", requested: list[Lifecycle]) -> list[str]:
     errors: list[str] = []
     for name in sorted(ctx.os_builders):
         try:
@@ -233,7 +233,7 @@ def validate_update_policies(ctx: "GlobalTypeContext", requested: list[Lifecycle
     return errors
 
 
-def validate_module_sources(ctx: "GlobalTypeContext", requested: list[Lifecycle]) -> list[str]:
+def validate_module_sources(ctx: "RunContext", requested: list[Lifecycle]) -> list[str]:
     """``config: module_sources`` is a mapping of module name to path or URL;
     the names are not checked (an override may name a module of a plugin
     that is not installed here)."""
@@ -244,7 +244,7 @@ def validate_module_sources(ctx: "GlobalTypeContext", requested: list[Lifecycle]
     return []
 
 
-def validate_network_facts(ctx: "GlobalTypeContext", requested: list[Lifecycle]) -> list[str]:
+def validate_network_facts(ctx: "RunContext", requested: list[Lifecycle]) -> list[str]:
     """What the adoption of ``meta-state/runtime-facts.yaml`` left unanswered
     at load (a `default` network nothing recorded, a declared subnet or
     security group the record never checked): each one names `validate

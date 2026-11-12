@@ -20,8 +20,9 @@ from __future__ import annotations
 
 import subprocess
 
+from harness import os_type_for_family
+
 from cs_image_system.base.image_tests import declared_test_commands as _declared
-from cs_image_system.base.os_types import os_type_for_family
 
 SENTINEL = "REACHED-THE-LINE-AFTER"
 

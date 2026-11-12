@@ -150,7 +150,7 @@ def test_undeclare_flag_decommissions_like_the_overlay_form(prepared, tmp_path, 
 
 
 def test_undeclare_is_validated_up_front():
-    from cs_image_system.base.global_context import parse_undeclare
+    from cs_image_system.base.config_loader import parse_undeclare
     assert parse_undeclare(["instance:gce-test", "storages:scratch"]) == [("instances", "gce-test"), ("storages", "scratch")]
     with pytest.raises(ValueError, match="expected <kind>:<name>"):
         parse_undeclare(["gce-test"])
@@ -185,7 +185,7 @@ def test_storage_teardown_overlay_tombstones_the_cycle_storages(prepared):
 
 
 def test_overlays_are_validated_up_front(tmp_path: Path):
-    from cs_image_system.base.global_context import load_overlay
+    from cs_image_system.base.config_loader import load_overlay
     bad = tmp_path / "bad.yaml"
     bad.write_text("instnaces: []\n")
     with pytest.raises(ValueError, match="unknown top-level key"):

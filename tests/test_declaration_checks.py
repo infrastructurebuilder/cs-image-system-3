@@ -94,19 +94,16 @@ def test_the_builders_bucket_is_the_default_for_storages_naming_none(tmp_path, m
     from types import SimpleNamespace
     from typing import Any, cast
 
-    from harness import load_context, reset_singletons, stub_environment
+    from harness import load_context, stub_environment
 
     from cs_image_system.tf_ebs_instance_plugin.tf_storage_builder import TofuS3StorageBuilder
     stub_environment(monkeypatch)
     ctx = load_context(copy_config(tmp_path))
-    try:
-        s3b = cast(Any, ctx.storage_builders["aws-s3"])
-        bucket = TofuS3StorageBuilder._bucket_for
-        named = cast(Any, SimpleNamespace(bucket_name="its-own", get_name=lambda: "s"))
-        unnamed = cast(Any, SimpleNamespace(bucket_name=None, get_name=lambda: "s"))
-        assert bucket(s3b, named) == "its-own"
-        assert bucket(s3b, unnamed) == s3b.model.bucket_name, "the builder's bucket is the default"
-        s3b.model.bucket_name = ""
-        assert bucket(s3b, unnamed) == "s"
-    finally:
-        reset_singletons()
+    s3b = cast(Any, ctx.storage_builders["aws-s3"])
+    bucket = TofuS3StorageBuilder._bucket_for
+    named = cast(Any, SimpleNamespace(bucket_name="its-own", get_name=lambda: "s"))
+    unnamed = cast(Any, SimpleNamespace(bucket_name=None, get_name=lambda: "s"))
+    assert bucket(s3b, named) == "its-own"
+    assert bucket(s3b, unnamed) == s3b.model.bucket_name, "the builder's bucket is the default"
+    s3b.model.bucket_name = ""
+    assert bucket(s3b, unnamed) == "s"

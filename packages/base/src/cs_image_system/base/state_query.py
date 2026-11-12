@@ -82,7 +82,7 @@ from .provider_aliases import instance_identity_notes
 if TYPE_CHECKING:
     from cs_image_system.contract.lifecycles import Lifecycle
 
-    from .global_context import GlobalTypeContext
+    from .run_context import RunContext
 
 log = logging.getLogger(__name__)
 
@@ -197,7 +197,7 @@ def is_refusal(exc: BaseException) -> bool:
     return any(m in text for m in _REFUSAL_MARKS) or code in ("AccessDenied", "UnauthorizedOperation", "AccessDeniedException")
 
 
-def query_images(ctx: "GlobalTypeContext", report: StateReport) -> dict[str, list[dict[str, Any]]]:
+def query_images(ctx: "RunContext", report: StateReport) -> dict[str, list[dict[str, Any]]]:
     """``{runtime builder: [image records]}`` -- every image in reality that
     carries our lineage tags, per runtime."""
     series = sorted({str(b.get("series")) for b in ctx.meta_state.builds() if b.get("series")}
@@ -212,7 +212,7 @@ def query_images(ctx: "GlobalTypeContext", report: StateReport) -> dict[str, lis
     return out
 
 
-def query_storages(ctx: "GlobalTypeContext", report: StateReport) -> dict[str, dict[str, Any]]:
+def query_storages(ctx: "RunContext", report: StateReport) -> dict[str, dict[str, Any]]:
     """``{storage name: record}`` from every storage builder (``present`` is
     always set; the rest is provider metadata)."""
     out: dict[str, dict[str, Any]] = {}
@@ -233,7 +233,7 @@ def query_storages(ctx: "GlobalTypeContext", report: StateReport) -> dict[str, d
     return out
 
 
-def query_groups(ctx: "GlobalTypeContext", report: StateReport) -> dict[str, dict[str, Any]]:
+def query_groups(ctx: "RunContext", report: StateReport) -> dict[str, dict[str, Any]]:
     """``{group name: record}`` from every identity builder."""
     out: dict[str, dict[str, Any]] = {}
     for name, gb in sorted(ctx.group_builders.items()):
@@ -247,7 +247,7 @@ def query_groups(ctx: "GlobalTypeContext", report: StateReport) -> dict[str, dic
 
 # -------------------------------------------------------------- drift rules
 
-def image_drift(ctx: "GlobalTypeContext", images: dict[str, list[dict[str, Any]]]) -> list[Drift]:
+def image_drift(ctx: "RunContext", images: dict[str, list[dict[str, Any]]]) -> list[Drift]:
     ms = ctx.meta_state
     drift: list[Drift] = []
     pinned = set(ms.instance_pins().values()) | set(ms.image_pins().values())
@@ -310,7 +310,7 @@ def image_drift(ctx: "GlobalTypeContext", images: dict[str, list[dict[str, Any]]
     return drift
 
 
-def storage_drift(ctx: "GlobalTypeContext", storages: dict[str, dict[str, Any]]) -> list[Drift]:
+def storage_drift(ctx: "RunContext", storages: dict[str, dict[str, Any]]) -> list[Drift]:
     ms = ctx.meta_state
     drift: list[Drift] = []
     recorded = ms.storage_states()
@@ -413,7 +413,7 @@ def module_drift(name: str, objects: Any) -> list[Drift]:
 
 
 def workload_notes(groups: dict[str, dict[str, Any]], report: StateReport,
-                   ctx: "GlobalTypeContext | None" = None) -> None:
+                   ctx: "RunContext | None" = None) -> None:
     """A connection that is present but not active is true, and
     neither drift nor silence -- activating it is the operator's act -- so
     it is a note, in the group builder's words."""
@@ -432,7 +432,7 @@ def workload_notes(groups: dict[str, dict[str, Any]], report: StateReport,
             report.notes.append(f"groups/{name}: " + _workload_detail(gb, WORKLOAD_CONNECTION_UNREAD, expected, real))
 
 
-def group_drift(ctx: "GlobalTypeContext", groups: dict[str, dict[str, Any]],
+def group_drift(ctx: "RunContext", groups: dict[str, dict[str, Any]],
                 report: StateReport | None = None) -> list[Drift]:
     """Each managed group's provider record against the identity read-model.
     A record carrying an ``error`` is a group the provider could not be ASKED
@@ -503,7 +503,7 @@ def group_drift(ctx: "GlobalTypeContext", groups: dict[str, dict[str, Any]],
     return drift
 
 
-def pin_drift(ctx: "GlobalTypeContext") -> list[Drift]:
+def pin_drift(ctx: "RunContext") -> list[Drift]:
     """Pins that name builds lineage never recorded (meta-state internally
     inconsistent -- e.g. a hand-edited pins.yaml)."""
     ms = ctx.meta_state
@@ -517,7 +517,7 @@ def pin_drift(ctx: "GlobalTypeContext") -> list[Drift]:
     return drift
 
 
-def instance_boot_drift(ctx: "GlobalTypeContext", report: StateReport) -> list[Drift]:
+def instance_boot_drift(ctx: "RunContext", report: StateReport) -> list[Drift]:
     """Each pinned instance's BOOTED image against its pin (finding 49: a
     pin moved to a new series head while the instance kept running the old
     image, and nothing compared the two). The pin's runtime is the pinned
@@ -576,7 +576,7 @@ def instance_boot_drift(ctx: "GlobalTypeContext", report: StateReport) -> list[D
 
 # --------------------------------------------------------------- assembly
 
-def storage_state_notes(ctx: "GlobalTypeContext", report: StateReport) -> None:
+def storage_state_notes(ctx: "RunContext", report: StateReport) -> None:
     """An instance root reads its storages' root through
     ``terraform_remote_state``, and a tree made from a
     starter declares the instance and its storage from the first commit with
@@ -593,7 +593,7 @@ def storage_state_notes(ctx: "GlobalTypeContext", report: StateReport) -> None:
                                     "lifecycle has applied once (apply_storage; the daily driver, 3.2)")
 
 
-def standing_ephemeral_drift(ctx: "GlobalTypeContext", report: StateReport) -> list[Drift]:
+def standing_ephemeral_drift(ctx: "RunContext", report: StateReport) -> list[Drift]:
     """An ephemeral instance still exists in reality: its
     verification failed, or its teardown never ran. Informational, never
     hard; the operator decommissions it (undeclare, or the decommission
@@ -633,7 +633,7 @@ def standing_ephemeral_drift(ctx: "GlobalTypeContext", report: StateReport) -> l
     return drift
 
 
-def query_state(ctx: "GlobalTypeContext") -> StateReport:
+def query_state(ctx: "RunContext") -> StateReport:
     report = StateReport(run=ctx.run_id)
     images = query_images(ctx, report)
     storages = query_storages(ctx, report)
@@ -652,18 +652,18 @@ def query_state(ctx: "GlobalTypeContext") -> StateReport:
     return report
 
 
-def state_report_path(ctx: "GlobalTypeContext") -> Path:
+def state_report_path(ctx: "RunContext") -> Path:
     return ctx.root_generation_path / STATE_REPORT_FILENAME
 
 
-def write_state_report(ctx: "GlobalTypeContext", report: StateReport) -> Path:
+def write_state_report(ctx: "RunContext", report: StateReport) -> Path:
     p = state_report_path(ctx)
     p.parent.mkdir(parents=True, exist_ok=True)
     p.write_text(json.dumps(report.as_dict(), indent=2, sort_keys=True) + "\n")
     return p
 
 
-def read_state_report(ctx: "GlobalTypeContext") -> dict[str, Any] | None:
+def read_state_report(ctx: "RunContext") -> dict[str, Any] | None:
     p = state_report_path(ctx)
     if not p.is_file():
         return None
@@ -676,7 +676,7 @@ def read_state_report(ctx: "GlobalTypeContext") -> dict[str, Any] | None:
 
 # ----------------------------------------------------------------- import
 
-def import_foreign(ctx: "GlobalTypeContext", report: StateReport, *,
+def import_foreign(ctx: "RunContext", report: StateReport, *,
                    images: bool = True, storages: bool = True) -> list[str]:
     """Adopt ``foreign`` artifacts into meta-state (the migration path).
 
@@ -729,7 +729,7 @@ def import_foreign(ctx: "GlobalTypeContext", report: StateReport, *,
 
 # -------------------------------------------------------------- validator
 
-def validate_state_report(ctx: "GlobalTypeContext", requested: list["Lifecycle"]) -> list[str]:
+def validate_state_report(ctx: "RunContext", requested: list["Lifecycle"]) -> list[str]:
     """A run refuses to proceed on *hard* drift recorded by the most recent
     ``state query`` (a pinned build that no longer exists, a storage recorded
     live but gone): generating on top of a false belief produces plans that

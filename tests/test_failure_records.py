@@ -139,14 +139,17 @@ def test_the_runner_calls_the_failure_hook_instead_of_post(run, tmp_path, how):
     executable = SimpleNamespace(execute=execute, binary="packer", args=["build", "."], working_directory=None)
     ctx = SimpleNamespace(
         current_lifecycle=None, dry_run=False, generation_path=tmp_path,
-        all_sorted_builders=[_Builder(calls, "a", fail=True), _Builder(calls, "b")],
-        finalization_phases_for=lambda lc: [ExecutionLifecyclePhase.IMAGE_GENERATION],
-        get_finalization_executables_for_phase=lambda phase, lc: [executable])
+        all_sorted_builders=[_Builder(calls, "a", fail=True), _Builder(calls, "b")])
     # the failure hook is the finalizer's, bound to the run; the fake context
     # gets a real Finalizer over itself, and the lifecycle runner's loop IS
-    # the finalizer's one executor (execute_phase)
+    # the finalizer's one executor (execute_phase). The runner asks the
+    # finalizer for the phases and their executables, so the stand-ins for
+    # the queue are the finalizer's
     from cs_image_system.base.finalizer import Finalizer
-    ctx.finalizer = Finalizer(cast(Any, ctx))
+    finalizer = cast(Any, Finalizer(cast(Any, ctx)))
+    finalizer.finalization_phases_for = lambda lc: [ExecutionLifecyclePhase.IMAGE_GENERATION]
+    finalizer.get_finalization_executables_for_phase = lambda phase, lc: [executable]
+    ctx.finalizer = finalizer
     cwd = os.getcwd()
     assert _execute_in_process(cast(Any, ctx), Lifecycle.INSTANCE_IMAGE) is False
     # every builder's failure hook ran, even after the first one raised; no post hook ran

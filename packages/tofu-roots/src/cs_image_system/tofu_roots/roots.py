@@ -54,15 +54,15 @@ class TerraformRootMixin(_Base):
 
     def _context(self) -> Any:
         """The run context, through the builder's own accessor
-        (``_get_context``), never the singleton directly: a builder driven
+        (``_get_context``), the only way a builder reaches it: a builder driven
         outside a run -- the plugins' unit tests, which stub
         the accessor with a bare object -- gets what the stub gives, and None
-        when there is no accessor or the context refuses until a
-        configuration is loaded. Every reach below reads it with a default."""
+        when there is no accessor or the builder is bound to no context
+        yet. Every reach below reads it with a default."""
         get_ctx = getattr(self, "_get_context", None)
         try:
             return get_ctx() if callable(get_ctx) else None
-        except (ValueError, RuntimeError):      # no context bound yet (the registry raises RuntimeError)
+        except (ValueError, RuntimeError):      # no context bound yet (an unbound builder raises RuntimeError)
             return None
 
     def _collector(self) -> TerraformCollector | None:

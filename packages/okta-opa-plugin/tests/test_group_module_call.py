@@ -18,9 +18,9 @@ def _stub_builder(*, account_discovery=True, gateway_selector=None):
         name="oktagroups",
         _get_context=lambda: run,
         # The builder consumes effective_gateway_selector (model value with
-        # config fallback); the stub bypasses the property with a plain attr.
+        # config fallback); the stub answers it without a model.
         model=SimpleNamespace(account_discovery=account_discovery,
-                              effective_gateway_selector=gateway_selector),
+                              effective_gateway_selector=lambda config: gateway_selector),
     )
     stub._group_module_call = OktaTfGroupBuilder._group_module_call.__get__(stub)
     return stub
@@ -80,20 +80,15 @@ def _bare_model(gateway_selector):
     return model
 
 
-def test_effective_gateway_selector_falls_back_to_config(monkeypatch):
-    import cs_image_system.okta_opa_plugin.okta_tf_models as otm
-    monkeypatch.setattr(otm, "current_context",   # the model reads the current context
-                        lambda: SimpleNamespace(config={"okta_gateway_selector": "environment=staging"}))
-    assert _bare_model(None).effective_gateway_selector == "environment=staging"
+def test_effective_gateway_selector_falls_back_to_config():
+    config = {"okta_gateway_selector": "environment=staging"}       # the run's `config:` map, as the builder passes it
+    assert _bare_model(None).effective_gateway_selector(config) == "environment=staging"
     # An explicit model value always wins over config.
-    assert _bare_model("environment=prod").effective_gateway_selector == "environment=prod"
+    assert _bare_model("environment=prod").effective_gateway_selector(config) == "environment=prod"
 
 
-def test_effective_gateway_selector_none_when_config_unset(monkeypatch):
-    import cs_image_system.okta_opa_plugin.okta_tf_models as otm
-    monkeypatch.setattr(otm, "current_context",
-                        lambda: SimpleNamespace(config={}))
-    assert _bare_model(None).effective_gateway_selector is None
+def test_effective_gateway_selector_none_when_config_unset():
+    assert _bare_model(None).effective_gateway_selector({}) is None
 
 
 def test_model_account_discovery_defaults_true():

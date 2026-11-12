@@ -12,12 +12,12 @@ from cs_image_system.contract.lifecycle import ExecutionLifecyclePhase
 
 from ..basic.builder_base_instance import InstanceBuilderBase
 from ..basic.builder_base_runtime import RuntimeBuilderBase
-from ..global_context import GlobalTypeContext
 from ..in_process import run_executable
+from ..run_context import RunContext
 
 
 def predefined_instance_generation(
-    ctx: GlobalTypeContext,
+    ctx: RunContext,
     phase: ExecutionLifecyclePhase,
     is_base_image_phase: bool = False
 ) -> bool:
@@ -39,7 +39,7 @@ def predefined_instance_generation(
     return True
 
 
-def generate_instances(ctx: GlobalTypeContext, phase: ExecutionLifecyclePhase, builder: InstanceBuilderBase, rtp: RuntimeBuilderBase) -> bool:
+def generate_instances(ctx: RunContext, phase: ExecutionLifecyclePhase, builder: InstanceBuilderBase, rtp: RuntimeBuilderBase) -> bool:
     """Drive one instance builder's during-phase generation and commands."""
     log.debug(f"Generating instances for instance builder {builder.get_name()} "
               f"during phase {phase.value}...")

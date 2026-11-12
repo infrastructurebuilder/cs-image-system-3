@@ -19,7 +19,7 @@ from typing import TYPE_CHECKING, cast
 from cs_image_system.base.commands.validate import check_availability_zones
 
 if TYPE_CHECKING:
-    from cs_image_system.base.global_context import GlobalTypeContext
+    from cs_image_system.base.run_context import RunContext
 
 
 def _ctx(*, storages=None, instances=None, runtimes=None, builders=None):
@@ -27,7 +27,7 @@ def _ctx(*, storages=None, instances=None, runtimes=None, builders=None):
     # dicts keyed by name
     # the check reads four collections off the context; a stand-in carrying
     # those is the whole fixture it needs
-    return cast("GlobalTypeContext", SimpleNamespace(
+    return cast("RunContext", SimpleNamespace(
         storages=list((storages or {}).values()),
         instances=list((instances or {}).values()),
         runtime_builders=runtimes or {}, storage_builders=builders or {}))
