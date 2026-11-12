@@ -326,9 +326,9 @@ class RuntimeBuilderBase(BuilderBase[R], RuntimeBuilderProtocol):
         return None
 
     def can_query_instance_power_state(self) -> bool:
-        """Whether this runtime implements query_instance_power_state (stage
-        57). Gated like the boot-image query so an unsupported cloud makes no
-        claim: callers ask only runtimes that answer."""
+        """Whether this runtime implements query_instance_power_state. Gated
+        like the boot-image query so an unsupported cloud makes no claim:
+        callers ask only runtimes that answer."""
         return False
 
     def query_instance_power_state(self, instance_name: str) -> str | None:
@@ -345,8 +345,8 @@ class RuntimeBuilderBase(BuilderBase[R], RuntimeBuilderProtocol):
         return None
 
     def can_query_instance_identity(self) -> bool:
-        """Whether this runtime implements query_instance_identity (stage
-        58). Same gate shape as the power-state pair."""
+        """Whether this runtime implements query_instance_identity. Same
+        gate shape as the power-state pair."""
         return False
 
     def query_instance_identity(self, instance_name: str) -> dict[str, str] | None:

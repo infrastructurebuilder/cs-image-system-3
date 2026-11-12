@@ -421,8 +421,8 @@ class GCPCloudBuilder(CloudBuilderBase[GCPCloudBuilderModel], PluginArtifactProt
     def inventory(self) -> dict[str, Any]:
         """Instances and disks in the runtime's zone, every custom image in
         the project, and the project's buckets (via gcloud, no extra library);
-        and, under ``owners``, the ``csis_config`` label each carries (stage
-        93), so the emptiness check counts this configuration's alone."""
+        and, under ``owners``, the ``csis_config`` label each carries, so
+        the emptiness check counts this configuration's alone."""
         import subprocess  # noqa: PLC0415
 
         from google.cloud import compute_v1  # noqa: PLC0415

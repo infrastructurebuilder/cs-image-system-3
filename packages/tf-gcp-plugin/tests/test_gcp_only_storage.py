@@ -2,10 +2,10 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""A tree whose storage and instance roots are this plugin's alone (stage
-128, item 6): the fixture's GCP storage builders (`tf-gcp-pd`,
-`tf-gcp-gcs`) and its `tofu-gce` instance builder kept, every other storage
-and instance root gone. A dry `run --all` emits the two storage roots and
+"""A tree whose storage and instance roots are this plugin's alone: the
+fixture's GCP storage builders (`tf-gcp-pd`, `tf-gcp-gcs`) and its
+`tofu-gce` instance builder kept, every other storage and instance root
+gone. A dry `run --all` emits the two storage roots and
 the instance root with the google provider, the plugin's module calls and
 the remote-state read of the disk the instance mounts."""
 from __future__ import annotations

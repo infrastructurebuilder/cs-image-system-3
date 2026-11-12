@@ -2,9 +2,9 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""What a plugin reads of the image-source catalog without a run (stage
-125): the name of the file a runtime plugin ships its part of the catalog
-in, the key its entries sit under, and the one rule that turns a catalog
+"""What a plugin reads of the image-source catalog without a run: the
+name of the file a runtime plugin ships its part of the catalog in, the
+key its entries sit under, and the one rule that turns a catalog
 block into a container image reference. The catalog itself -- the merge of
 every installed runtime's part, the family and version lookups -- is the
 core's, reached through ``ctx.services.images``.

@@ -77,10 +77,10 @@ class OSBuilderBaseImageBuilderSubconfig(SubRootItem):
     _model_id: str | None = parent_field(VCT.OS_BUILDER_MODEL, description="Associatd OS Builder", metadata={"required": True})
     
     def _runtime_model(self) -> RuntimeBuilderModel | None:
-        """The runtime this entry bakes on: its IMAGE BUILDER's runtime (stage
-        63 item 22). The lookup used to key the runtime namespace by the
-        image builder's own name and never found one, so the runtime's
-        ``default_owners`` never reached a query."""
+        """The runtime this entry bakes on: its IMAGE BUILDER's runtime, so
+        the runtime's ``default_owners`` reach the owners query. The image
+        builder's own name is not a runtime's: a lookup of the runtime
+        namespace by it finds none."""
         ib: Any = self._reg.get_instance_by_name_or_alias(VCT.IMAGE_BUILDER_MODEL, self.image_builder)
         if ib is None:
             return None
