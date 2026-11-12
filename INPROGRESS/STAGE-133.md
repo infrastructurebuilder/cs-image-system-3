@@ -1,7 +1,7 @@
 # 133. Hygiene bundle XXVI
 
-**Status: OPEN 2026-11-12. The open bundle; takes items as they are
-found. Waits for "do 133".**
+**Status: IN PROGRESS since "do 133", 2026-11-12 (opened the same
+day; the decisions are under each item).**
 
 The findings carried out of [§132](../docs/CHANGES.md#s132)
 (hygiene bundle XXV), none blocking, each its own commit on the
@@ -17,7 +17,8 @@ matter most is item 8.
 3. The loader's `isinstance(config_data, list)` after structuring is
    dead, and comes after an assert that reads the structured value.
 4. `verbose` writes `./YAML_DUMP.yaml` into the invoking directory,
-   before the loader changes into the root.
+   before the loader changes into the root. The operator, 2026-11-12:
+   it goes under the root's `_private/`.
 5. The builder families are built in one order and listed in another
    (`_build_builders` says which).
 6. `reg.get_default_for(vct) != None`, and the same lookup again
@@ -34,7 +35,9 @@ matter most is item 8.
    stays an `ENC[...]` marker.
 9. The resolver stops after five passes without a word, even with
    templates left; an `UndefinedError` in a replace template also skips
-   that field's foreign-key keep for the pass.
+   that field's foreign-key keep for the pass. The operator,
+   2026-11-12: the limit stays and a warning names every field still
+   holding a template after the last pass.
 10. `upgrade_deferred_list_generated`'s "can't happen" branch happens
     when the registry's default name is an empty string.
 11. Its last fallback looks up the default item's type under the
@@ -48,11 +51,13 @@ matter most is item 8.
 15. `run_lifecycles`: an `--only` refusal returns a summary with
     `requested=[]` that is never written, recorded or handed to the
     on-summary hooks, after the hook plugins have loaded and the
-    generated lifecycles were reset.
+    generated lifecycles were reset. The operator, 2026-11-12: the check
+   comes first, so the refusal changes nothing and records nothing.
 16. `{...} or None if force_bake else None` is right only by operator
     precedence.
 17. `register_provider_aliases` writes aliases for a machine that has
-    no registry record of its own yet.
+    no registry record of its own yet. The operator, 2026-11-12: such a
+    machine is passed over and said, as a machine that is off is.
 18. On a non-zero return code its `out.strip()` sits outside the `try`,
     so a runtime answering with no output would raise out of the
     after-apply hook.
@@ -71,6 +76,8 @@ matter most is item 8.
     Re-measure before "do 113" and correct the plan (checked against
     the re-examination, as every plan is).
 
-**Acceptance**: each item its own commit; `just test` green after
-each batch and at the end; one squash, branch kept. Records: the
+**Acceptance**: each item its own commit; a fix that moves the golden
+regenerates it in that commit and names every moved line (the
+operator, 2026-11-12); `just test` green after each batch and at the
+end, then `just full-test-legs` once; one squash, branch kept. Records: the
 squash; this section goes at "merge 133".
