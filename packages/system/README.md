@@ -116,7 +116,7 @@ to the four built-ins alone.
 | `--apply / --no-apply` | `--apply` | After generation, execute the runner scripts that exist. Under a dry run they are enumerated. |
 | `--commit / --no-commit` | `--no-commit` | Make the meta-state commit (read-models, pins, lineage, launch parameters, generated IaC) in the configuration repository after the run. A root outside a git repository, or a gitignored path, is skipped with a warning, never an error. |
 | `--state-query / --no-state-query` | `--state-query` | First ask reality (read-only) and write `generated/state-report.json`; validation refuses to run on hard drift. `--no-state-query` keeps the existing report. |
-| `--only NAME` (repeatable) | none | Restrict the bake surface to the named image(s), as `<image>` or `<image>@<runtime>`. Sources, build blocks and bake steps exist for nothing else; terraform roots are untouched. Unknown names fail the run (exit 1, the summary's `error` names them and the known names). `--only none` bakes nothing. |
+| `--only NAME` (repeatable) | none | Restrict the bake surface to the named image(s), as `<image>` or `<image>@<runtime>`. Sources, build blocks and bake steps exist for nothing else; terraform roots are untouched. Unknown names fail the run before it does anything else (exit 1, the summary's `error` names them and the known names; the summary is printed and nothing is generated, written to `generated/run-summary.json` or journalled in `meta-state/runs.yaml`). `--only none` bakes nothing. |
 | `--only-runtime NAME` | none | Restrict the bake surface to every image baked on that runtime. Terraform roots of other runtimes are not generated or planned. |
 | `--apply-runtime NAME` | none | Let the storage and instance roots of that runtime apply, as if `apply_storage` and `apply_instances` listed it. Implies `--only-runtime NAME` unless `--only` or `--only-runtime` is given. The generated `apply-check` steps carry it. |
 | `--force-bake NAME` (repeatable) | none | Bake the named image(s) even when current; `all` forces every image in the run's surface. |
@@ -1095,14 +1095,16 @@ location sound, the lineage and release policies, every registered
 validator. The verdict is the ` - <error>` lines and `Validation failed
 with N error(s).` on standard error, exit 1; nothing is written.
 
-**At generation (`run`).** In order: the state query (verdict:
+**At generation (`run`).** In order: the `--only` name check (verdict:
+the summary's `error`, printed with exit 1; it comes before everything
+else, so a refused run writes no `generated/run-summary.json` and no
+journal entry), the state query (verdict:
 `generated/state-report.json` and the `state` counts in the summary), the
 same validation as `validate` (verdict: `validation_errors` in
 `generated/run-summary.json`, `validation: <error>` log lines, exit 1
 before anything is generated), the bake plan (`bake plan: <key>:
-<decision>` lines and `bake_plan` in the summary), the scope check
-(`run scope: ...` refusal or warning), and the `--only` name check (the
-summary's `error`). The run's verdict is `ok`, `error` and the
+<decision>` lines and `bake_plan` in the summary), and the scope check
+(`run scope: ...` refusal or warning). The run's verdict is `ok`, `error` and the
 per-lifecycle `apply` states in the summary on standard output and in
 `generated/run-summary.json`, the journal entry in `meta-state/runs.yaml`,
 and the exit code.
@@ -1218,7 +1220,9 @@ failed with N error(s)` (each also logged as `validation: <error>`);
 `run scope: bake(s) outside the apply scope ...`; `--migrate-state moves
 state and needs --no-dry-run` (raised again inside the run, in case a
 library caller set it); any generation or apply exception, named by class.
-The summary and journal are still written.
+The summary and journal are still written, except for the `--only`
+refusal: that check is the run's first, so a refused run has written
+and recorded nothing, and its summary exists only as the printed one.
 
 The value tools (exit 1): `decrypt: not an ENC[age:...] marker`,
 `decrypt: expected a JSON object of string values on stdin`, `decrypt: a

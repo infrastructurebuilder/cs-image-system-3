@@ -987,12 +987,17 @@ Source: [`commands/run_lifecycles.py`](src/cs_image_system/base/commands/run_lif
 `run_lifecycles(requested, apply=True, commit=False, state_query=True,
 only=None, force_bake=None)` performs, in order:
 
-1. Load hook plugins. Reset the "generated this run" set and the bake
-   decision cache. Validate `--only` names (an image name, or
-   `<image>@<runtime>`; `none` means an empty bake surface). Write the
+1. Check the `--only` names first (an image name or an OS builder, or
+   `<image>@<runtime>` with a configured runtime; `none` alone means an
+   empty bake surface and is no name to check). An unknown name returns
+   a failed summary with nothing requested, and that is all: no hook
+   plugin is loaded, nothing on the context is reset, and nothing is
+   written, recorded or handed to the on-summary hooks. Otherwise: load
+   hook plugins; reset the "generated this run" set, the bake decision
+   cache and the bake surface (`only_images`, `force_bake`); write the
    root `generated/.gitignore` (the merged policy plus the run-local
    file names). A `--migrate-state` under a dry run is refused here,
-   before anything else.
+   before the state query.
 2. **State query** (unless disabled): ask every plugin for reality, write
    `generated/state-report.json`, log the credential session lines.
 3. **Validation**: unique names, executables present and version-compliant
@@ -2553,8 +2558,10 @@ summary):
 - `state: <class> <kind> <name>: <detail> (from state-report.json; re-run
   'state query' after fixing)` -- hard drift from the last report.
 - `--only names unknown image(s): ...; known: ...` (the summary's `error`,
-  before validation) and `run scope: bake(s) outside the apply scope
-  [...]` (after the bake plan, a real run only).
+  before anything else of the run: the refused summary is returned to
+  the caller and never written, journalled or handed to the on-summary
+  hooks) and `run scope: bake(s) outside the apply scope [...]` (after
+  the bake plan, a real run only).
 - `--migrate-state moves state and needs --no-dry-run: a dry run never
   moves state`.
 

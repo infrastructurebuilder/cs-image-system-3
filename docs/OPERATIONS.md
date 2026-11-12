@@ -361,8 +361,15 @@ bake control.
 
 - `--only <image>` (repeatable) restricts the BAKE surface to the named
   images: sources, build blocks and bake scripts exist for nothing else.
-  Unknown names fail loudly. `--only none` bakes nothing: the terraform
-  roots alone, for a launch or teardown that must not re-bake.
+  Unknown names fail loudly, and first: the name check is the first
+  thing the run does, so a refused run has generated, written and
+  recorded nothing -- no `generated/run-summary.json`, no journal entry
+  in `meta-state/runs.yaml`, no on-summary notification. The refusal is
+  printed (the summary on standard output, `Run <id> FAILED: --only
+  names unknown image(s): ...` naming the known names too) and the exit
+  code is 1; correct the name and run again. `--only none` bakes
+  nothing: the terraform roots alone, for a launch or teardown that must
+  not re-bake.
 - `--only-runtime <rt>` generates and plans **no other runtime's** storage
   or instance root (their plans can only fail or waste time). Alone, it
   makes the bake surface every image baked on that runtime. Beside
