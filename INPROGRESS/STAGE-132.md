@@ -72,6 +72,11 @@ own commit on the bundle's branch.
    equals the pin, which is what the two were on 2026-11-11 (both said
    0.1.7.dev2); the flag is `--allow-unpinned`, or `CSIS_ALLOW_UNPINNED`
    in the environment.
+   Asked while it was built (the operator, 2026-11-12): `lineage
+   restamp --commit` is held to the pin as well, because a restamp by
+   unreleased code records fingerprints the pinned release may not
+   agree with; `dispose image --commit` is not, a disposal recording
+   what was removed whatever the code's version.
 
 **Acceptance**: each item its own commit; `just test` green after
 each batch and at the end, then `just full-test-legs` once (the
