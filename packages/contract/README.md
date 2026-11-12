@@ -123,7 +123,7 @@ which can only shrink and is empty today.
 ### Version
 
 The contract carries a semantic version of its own, independent of the
-workspace's: `0.4.0` now, and 0.x until the operator decides otherwise
+workspace's: `0.4.1` now, and 0.x until the operator decides otherwise
 (the decision of 2026-11-05). What a bump means: a PATCH is a change no
 plugin can observe (a docstring, a test helper); a MINOR, while the
 version is 0.x, is a change a plugin can observe, so a protocol member
