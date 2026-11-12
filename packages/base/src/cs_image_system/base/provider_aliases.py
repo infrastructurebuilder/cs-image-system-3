@@ -186,7 +186,8 @@ def _register_instance_aliases(ctx: "RunContext", instance: Any, recorded: dict[
     name = instance.get_name()
     if not apply_enabled(ctx, "instances", str(instance.type_), [str(instance.runtime)]):
         return
-    if not (recorded.get(name) or {}).get("launched"):
+    record = recorded.get(name) or {}
+    if not record.get("launched"):
         return
     rtb = ctx.runtime_builders.get(str(instance.runtime)) if instance.runtime else None
     if rtb is None or not rtb.can_query_instance_identity():
@@ -205,10 +206,10 @@ def _register_instance_aliases(ctx: "RunContext", instance: Any, recorded: dict[
         log.info(f"Instance {name}: provider identity unavailable; no alias this run")
         return
     canonical = canonical_hostname(ctx, instance)
-    wanted = wanted_aliases(identity, canonical, name, str((recorded.get(name) or {}).get("alias") or ""))
+    wanted = wanted_aliases(identity, canonical, name, str(record.get("alias") or ""))
     if not wanted:
         return
-    if str((recorded.get(name) or {}).get("launched_run") or "") == str(ctx.run_id):
+    if str(record.get("launched_run") or "") == str(ctx.run_id):
         # the machine booted THIS run: the apply returns on `running`, and
         # the session agent, then the identity agent's enrollment, come up
         # a minute or more later. Writing the alias block before that races
