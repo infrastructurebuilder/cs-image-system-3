@@ -525,10 +525,12 @@ class TemplateResolver:
         """One field of one model, in one pass. A field left at its default
         takes its foreign key's default (the registry's for the target, a
         root's runtime's state backend) as the value the rest of the pass
-        works with, and its replace template, when it has one, is rendered
-        and set on the model; a replace template that names something
-        undefined is logged as an error and ends the field for this pass.
-        Then the value is rendered when it is a templated string or a
+        works with, and its replace template, when it has one, is compiled
+        and rendered once and set on the model. A replace template that
+        names something undefined is logged as an error and ends the field
+        for this pass (a later pass may define it); one that does not
+        compile is logged the same way and raised, since no pass can mend
+        it. Then the value is rendered when it is a templated string or a
         mapping, a written foreign key is kept on a model that holds a
         parent property, and the field's registered kind resolves it.
         Returns whether anything changed."""
@@ -542,16 +544,16 @@ class TemplateResolver:
             if f.metadata.get(IS_REPLACE) and f.metadata.get(REPLACE_VALUE):
                 templ = f.metadata[REPLACE_VALUE]
                 if isinstance(templ, str) and "{{" in templ:
-                    self.env.from_string(templ)
                     try:
                         rendered = self.render_inheriting(templ, context)
                         if rendered != templ:
                             val = rendered
                             setattr(obj, f.name, val)
                             changed = True
-                    except jinja2.UndefinedError as e:
+                    except (jinja2.UndefinedError, jinja2.TemplateSyntaxError) as e:
                         log.error(f"Error rendering template for field '{f.name}' in object '{obj}' with template {templ}: {e}")
-#                                        raise e # continue
+                        if isinstance(e, jinja2.TemplateSyntaxError):
+                            raise
                         return changed
                 if val == DEFAULT:
                     # `default` here is the declared meaning -- the consumer
