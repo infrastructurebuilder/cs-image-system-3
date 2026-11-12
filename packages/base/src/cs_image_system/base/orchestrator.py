@@ -390,8 +390,7 @@ class TemplateResolver:
         # Get the target model class based on the true type
         target_cls = reg.get_model(deferred_item_vct, true_type) if true_type else None
         if target_cls is None:
-            if deferred_item_vct:
-                target_cls = deferred_override_types.get(deferred_item_vct, None)
+            target_cls = deferred_override_types.get(deferred_item_vct, None)
             if target_cls is None:
                 default_model = reg.get_default_for(deferred_item_vct)
                 if default_model is None:
