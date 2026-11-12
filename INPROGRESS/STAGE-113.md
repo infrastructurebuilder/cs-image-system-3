@@ -145,6 +145,26 @@ read again at "do 113"; the script that computes it
    and asserts that no kit module imports the engine and that every
    `cs_image_system.base` name a plugin imports resolves inside the
    kit; the seam stays measured, not remembered.
+
+   Three more choices surfaced at the re-measurement of 2026-11-12;
+   "do 113" asks each:
+
+   - **YOUR DECISION (the kit's size):** move the measured engine set
+     alone (the default: no new scope, a kit of 78 modules that still
+     carries `orchestrator`, `template_utils`, `loader`, `meta_state`
+     and the `finalizer` type), or first cut the four kit-side edges
+     named above so those modules move too, a smaller kit as
+     REEXAMINE2 and REEXAMINE3 ask, at the cost of new scope.
+   - **YOUR DECISION (the undo):** with no re-export left, undoing this
+     stage is reverting its squash. Keep the `s113-before`/
+     `s113-after` bracket of the acceptance (the default), or drop it
+     as REEXAMINE1 §3.4 advises against a second bracket.
+   - **YOUR DECISION (the two entry points):** keep both in the kit's
+     `pyproject.toml` (the default: a `.csis-module` stamp's `plugin:`
+     stays `base`, so the reference's and the starters' copies stay
+     byte-identical), or move them to the engine's distribution, which
+     changes the module entry's namespace from `base` to `engine` and
+     with it every stamp already written.
 2. The kit reaches the terraform library nowhere. **Done before this
    stage (§123); nothing is left of this item.** `base` and `system`
    import nothing of hashicorp-utils or tofu-roots at any depth,
