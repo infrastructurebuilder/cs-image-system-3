@@ -17,6 +17,11 @@ at VERSION from TestPyPI and no other package comes from TestPyPI; 1 when
 either fails; 2 when the line or a version cannot be found, or the indexes
 could not be asked.
 
+A package the version bump leaves alone (`glob_exclude` under
+`[tool.bumpversion.files]` in the root `pyproject.toml`: the contract) has a
+version of its own, which its dependents pin as a range. It must still come
+from TestPyPI; the version it resolves at is its own line's, never VERSION.
+
 Born from a failed take: once 0.1.1 was on PyPI, uv's default index strategy
 stopped at PyPI for `cs-image-system` and never looked for 0.1.2.dev1 on
 TestPyPI, so every development pin failed to install in CI.
@@ -28,6 +33,7 @@ import re
 import shlex
 import subprocess
 import sys
+import tomllib
 from pathlib import Path
 
 TESTPYPI = "test.pypi.org"
@@ -48,6 +54,25 @@ def newest_dev_tag(root: Path) -> str | None:
     out = subprocess.run(["git", "-C", str(root), "tag", "--list", "v*.dev*", "--sort=-v:refname"],
                          capture_output=True, text=True).stdout.split()
     return out[0][1:] if out else None
+
+
+def own_version_line(root: Path) -> set[str]:
+    """The packages the version bump leaves alone: each `glob_exclude` of the
+    root's `[tool.bumpversion.files]` names a manifest whose version is its own."""
+    config = tomllib.loads((root / "pyproject.toml").read_text())
+    names: set[str] = set()
+    for entry in config.get("tool", {}).get("bumpversion", {}).get("files", []):
+        for excluded in entry.get("glob_exclude", []):
+            manifest = root / excluded
+            if manifest.is_file():
+                names.add(tomllib.loads(manifest.read_text())["project"]["name"].lower())
+    return names
+
+
+def misplaced(ours: dict[str, tuple[str, str]], version: str, own_line: set[str]) -> list[str]:
+    """Our packages that did not resolve where a development pin must put them:
+    from TestPyPI, and at VERSION unless the package keeps a version of its own."""
+    return sorted(n for n, (v, src) in ours.items() if TESTPYPI not in src or (n not in own_line and v != version))
 
 
 def main(argv: list[str]) -> int:
@@ -80,20 +105,23 @@ def main(argv: list[str]) -> int:
             pins[current] = (pins[current][0], m["index"])
     ours = {n: v for n, v in pins.items() if n.startswith("cs-image-system")}
     theirs = {n: v for n, v in pins.items() if not n.startswith("cs-image-system")}
-    wrong = [n for n, (v, src) in ours.items() if v != version or TESTPYPI not in src]
+    own_line = own_version_line(args.root)
+    wrong = misplaced(ours, version, own_line)
     leaked = [n for n, (_, src) in theirs.items() if TESTPYPI in src]
     print(f"dev-pin-resolves: cs-image-system[all]=={version} with {' '.join(opts)}: {len(ours)} of ours, "
           f"{len(theirs)} third-party")
     if wrong:
-        print(f"dev-pin-resolves: FAILED -- not {version} from TestPyPI: {', '.join(sorted(wrong))}")
+        print(f"dev-pin-resolves: FAILED -- not {version} from TestPyPI: {', '.join(wrong)}")
     if leaked:
         print(f"dev-pin-resolves: FAILED -- third-party packages from TestPyPI: {', '.join(sorted(leaked))}")
     if not ours:
         print("dev-pin-resolves: FAILED -- no cs-image-system package in the resolution")
     if wrong or leaked or not ours:
         return 1
-    print(f"dev-pin-resolves: ok -- every cs-image-system package at {version} from TestPyPI, "
-          "every other package from PyPI")
+    own = sorted(n for n in ours if n in own_line)
+    print(f"dev-pin-resolves: ok -- every cs-image-system package at {version} from TestPyPI"
+          + (f" ({', '.join(f'{n} at its own {ours[n][0]}' for n in own)})" if own else "")
+          + ", every other package from PyPI")
     return 0
 
 

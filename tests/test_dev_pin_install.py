@@ -48,12 +48,33 @@ def test_every_install_command_in_the_documents_names_the_strategy():
             assert "--index-strategy unsafe-first-match" in flat, f"{doc.relative_to(REPO)}: {flat[:120]}"
 
 
-def test_the_live_check_reads_the_line_from_the_starters_and_is_a_full_test_leg():
+def _the_check():
     loader = importlib.machinery.SourceFileLoader("dev_pin_resolves", str(REPO / "scripts" / "dev-pin-resolves"))
     spec = importlib.util.spec_from_loader("dev_pin_resolves", loader)
     assert spec is not None
     m = importlib.util.module_from_spec(spec)
     loader.exec_module(m)
+    return m
+
+
+def test_a_package_with_a_version_of_its_own_resolves_at_it_and_still_from_testpypi():
+    """The contract's version is its own (the bump excludes its manifest), so a
+    development pin resolves it at that version, never at the release's."""
+    m = _the_check()
+    own_line = m.own_version_line(REPO)
+    assert own_line == {"cs-image-system-contract"}
+    test, pypi = "https://test.pypi.org/simple", "https://pypi.org/simple"
+    ours = {"cs-image-system": ("0.1.7.dev2", test), "cs-image-system-base": ("0.1.7.dev2", test),
+            "cs-image-system-contract": ("0.3.0", test)}
+    assert m.misplaced(ours, "0.1.7.dev2", own_line) == []
+    assert m.misplaced(ours, "0.1.7.dev2", set()) == ["cs-image-system-contract"]       # without the exclusion it is refused
+    assert m.misplaced({**ours, "cs-image-system-contract": ("0.3.0", pypi)}, "0.1.7.dev2", own_line) == ["cs-image-system-contract"]
+    assert m.misplaced({**ours, "cs-image-system-base": ("0.1.6", test)}, "0.1.7.dev2", own_line) == ["cs-image-system-base"]
+    assert m.misplaced({**ours, "cs-image-system-base": ("0.1.7.dev2", pypi)}, "0.1.7.dev2", own_line) == ["cs-image-system-base"]
+
+
+def test_the_live_check_reads_the_line_from_the_starters_and_is_a_full_test_leg():
+    m = _the_check()
     assert m.install_options(REPO)[-2:] == ["--index-strategy", "unsafe-first-match"]
     if not shutil.which("just"):
         pytest.skip("needs just")
