@@ -25,6 +25,7 @@ the entry without naming the number in its text.
 
 | Stage | Landed | Released in | Squash subject |
 | --- | --- | --- | --- |
+| <a id="hxxvi"></a><a id="s133"></a>§133 | 2026-11-12 | not yet | Stage 133: hygiene bundle XXVI, per-run draws and the rule's reach |
 | <a id="hxxv"></a><a id="s132"></a>§132 | 2026-11-12 | not yet | Stage 132: hygiene bundle XXV, one run per context and the pinned record |
 | <a id="r0-1-7"></a>release 0.1.7 | 2026-11-12 | 0.1.7 | release 0.1.7 |
 | <a id="hxxiv"></a><a id="s130"></a>§130 | 2026-11-07 | 0.1.7 | Stage 130: hygiene bundle XXIV, the lint bar and the small findings |
