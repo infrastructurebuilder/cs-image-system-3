@@ -4,7 +4,7 @@
 
 [project]
 name = "cs-image-system-hashicorp-utils"
-version = "0.1.7.dev2"
+version = "0.1.7"
 description = "A library, not a plugin, on the contract alone: HCL rendering and the per-run terraform and packer collectors for the plugins that emit OpenTofu roots and Packer templates"
 readme = "README.md"
 authors = [{ name = "Mykel Alvis", email = "mykelalvis@infrastructurebuilder.org" }]

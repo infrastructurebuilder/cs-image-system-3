@@ -4,7 +4,7 @@
 
 [project]
 name = "cs-image-system-tf-s3-state-plugin"
-version = "0.1.7.dev2"
+version = "0.1.7"
 description = "The S3 state backend plugin: an S3 backend for every terraform root that names it"
 readme = "README.md"
 authors = [{ name = "Mykel Alvis", email = "mykelalvis@infrastructurebuilder.org" }]
@@ -13,7 +13,7 @@ license-files = ["LICENSE"]
 requires-python = ">=3.13"
 dependencies = [
     "cs-image-system-contract>=0.4,<0.5",
-    "cs-image-system-base==0.1.7.dev2",
+    "cs-image-system-base==0.1.7",
     "pydantic>=2.13",
 ]
 

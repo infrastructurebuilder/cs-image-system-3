@@ -4,7 +4,7 @@
 
 [project]
 name = "cs-image-system-docker-runtime-plugin"
-version = "0.1.7.dev2"
+version = "0.1.7"
 description = "The docker runtime type: a durable host's container daemon as a place where images bake and instances run"
 readme = "README.md"
 authors = [{ name = "Mykel Alvis", email = "mykelalvis@infrastructurebuilder.org" }]
@@ -13,8 +13,8 @@ license-files = ["LICENSE"]
 requires-python = ">=3.13"
 dependencies = [
     "cs-image-system-contract>=0.4,<0.5",
-    "cs-image-system-base==0.1.7.dev2",
-    "cs-image-system-hashicorp-utils==0.1.7.dev2",
+    "cs-image-system-base==0.1.7",
+    "cs-image-system-hashicorp-utils==0.1.7",
     "python-hcl2>=8.1",
     "pydantic>=2.13",
 ]
