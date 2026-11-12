@@ -490,50 +490,12 @@ def read_config_and_transform(
     # generic_yaml below and structured from these objects.
     generic_yaml = decrypt_tree(generic_yaml, source=str(_config_dir),
                                 collect=decrypted_plaintexts())
-    if isinstance(generic_yaml, list):
-        if len(generic_yaml) != 1:
-            raise ValueError(f"Expected single config, got {len(generic_yaml)}")
-        generic_yaml = generic_yaml[0]
-    if not isinstance(generic_yaml, dict):
-        raise ValueError(
-            f"Expected config to be a dictionary at the top level, got {type(generic_yaml)}"
-        )
+    generic_yaml = _single_mapping(generic_yaml)
 
-    original_yaml_dictionary_lists: dict[str, list[dict[str, Any]]] = {}
-    for _plugin_name, plugin_key in PLUGIN_TYPES:
-        if plugin_key in generic_yaml:
-            items = generic_yaml.pop(plugin_key)
-            if not isinstance(items, list):
-                raise ValueError(
-                    f"Expected a list for key '{plugin_key}', got {type(items)}"
-                )
-            for idx, item in enumerate(items):
-                if not isinstance(item, dict):
-                    raise ValueError(
-                        f"Expected each item in '{plugin_key}' to be a dictionary, got {type(item)}"
-                    )
-                name = item.get("name", None)
-                if not name:
-                    raise ValueError(
-                        f"Each item in '{plugin_key}' must have a 'name' field. "
-                        f"Item at index {idx} is missing a name."
-                    )
-            original_yaml_dictionary_lists[plugin_key] = items
+    original_yaml_dictionary_lists = _take_builder_lists(generic_yaml)
 
     # generic_yaml no longer contains the plugin-typed builder models
-    try:
-        # cattrs.resolve_types(IAConfig)
-        config_data = cvt.structure(generic_yaml, IAConfig)
-    except Exception as e:
-        log.error(f"Failed to parse configuration: {e}")
-        raise
-    assert (
-        config_data.working_directory is not None
-    ), "working_directory is required in config"
-    if isinstance(config_data, list):
-        if len(config_data) != 1:
-            raise ValueError(f"Expected single config, got {len(config_data)}")
-        config_data = config_data[0]
+    config_data = _structure_configuration(cvt, generic_yaml)
 
     # the tree's image sources land on the release's before any OS
     # builder structures, so a missing `type` can be defaulted from what the
@@ -541,64 +503,12 @@ def read_config_and_transform(
     catalog.set_tree(list(config_data.image_sources or []))
 
 
-    for plugin_name, plugin_key in PLUGIN_TYPES:
-        typemap_type: type = PLUGIN_TYPEMAP.get(plugin_name, None)  # type: ignore
-        assert (
-            typemap_type
-        ), f"No class found for plugin key '{plugin_key}' in PLUGIN_TYPEMAP. Please add an entry for this plugin type."
-        if plugin_key in original_yaml_dictionary_lists:
-            for item in original_yaml_dictionary_lists[plugin_key]:
-                name = item.get("name", None)
-                _type = item.get("type", None)
-                if name and not _type and plugin_key == "os_builders":
-                    # an OS builder may leave `type` out when exactly
-                    # one registered type serves what its family IS
-                    _type = default_os_type(catalog, str(item.get("family", "")), item.get("family_version"),
-                                            reg.models_under(VCT.OS_BUILDER_MODEL))
-                    if _type:
-                        item["type"] = _type
-                        log.info(f"os_builders: {name}: type {_type} from family {item.get('family')}")
-                if not name or not _type:
-                    raise ValueError(
-                        f"Each item in '{plugin_key}' must have a 'name' and 'type' field. "
-                        f"Item {item} is missing a name or type."
-                        + (" An OS builder's type is defaulted only when exactly one registered type serves "
-                           "its family (what the image-source catalog says it is); declare `type`."
-                           if plugin_key == "os_builders" else "")
-                    )
-                try:
-                    named_obj = cvt.structure(item, typemap_type)
-                    if named_obj and isinstance(named_obj, BuilderModelProtocol):
-                        bmp: BuilderModelProtocol = named_obj
-                        bmpname = bmp.get_name()
-                        vct = registry.sanitize_classifier(bmp.get_classification())
-                        if bmpname and vct and bmp.get_is_default():
-                            if reg.get_default_for(vct) != None:
-                                log.warning(
-                                    f"Default {vct.value} builder already registered: {reg.get_default_for(vct)}. Overwriting with {bmpname} from config."
-                                )
-                            reg.set_default_for(vct, bmpname)
-                    template_resolver.flatten_dataclass(named_obj)
-                except Exception as e:
-                    log.error(
-                        f"Failed to structure item {item} for plugin key '{plugin_key}': {e}"
-                    )
-                    raise
-                # The structure call registers the object into the registry
+    _structure_builder_models(original_yaml_dictionary_lists, cvt, catalog, reg, template_resolver)
 
     template_resolver.resolve_all()
 
     # template_resolver holds everything in it's map at the moment
-    config_data.runtime_builders = reg.get_all_instances_by_classification(VCT.RUNTIME_BUILDER_MODEL)  # type: ignore
-    config_data.state_backends = reg.get_all_instances_by_classification(VCT.STATE_BACKEND_MODEL)  # type: ignore
-    config_data.os_builders = reg.get_all_instances_by_classification(VCT.OS_BUILDER_MODEL)  # type: ignore
-    config_data.group_builders = reg.get_all_instances_by_classification(VCT.GROUP_BUILDER_MODEL)  # type: ignore
-    config_data.user_builders = reg.get_all_instances_by_classification(VCT.USER_BUILDER_MODEL)  # type: ignore
-    config_data.mod_builders = reg.get_all_instances_by_classification(VCT.MOD_BUILDER_MODEL)  # type: ignore
-    config_data.storage_builders = reg.get_all_instances_by_classification(VCT.STORAGE_BUILDER_MODEL)  # type: ignore
-    config_data.image_builders = reg.get_all_instances_by_classification(VCT.IMAGE_BUILDER_MODEL)  # type: ignore
-    config_data.instance_builders = reg.get_all_instances_by_classification(VCT.INSTANCE_BUILDER_MODEL)  # type: ignore
-    configured_runtime_builders: dict[str, RuntimeBuilderBase] = {}
+    _collect_builder_models(config_data, reg)
     if not config_data.runtime_builders:
         raise ValueError("No runtime providers configured.")
 
@@ -641,6 +551,213 @@ def read_config_and_transform(
     # config_data.image_builders = reprocess_a(config_data.image_builders, addl_config) if config_data.image_builders else []  # type: ignore
     # config_data.instance_builders = reprocess_a(config_data.instance_builders, addl_config) if config_data.instance_builders else []  # type: ignore
 
+    builders = _build_builders(config_data, addl_config, reg)
+
+    wpath, gen_path = _enter_working_directory(root_dir, config_data)
+    overlay_paths, overlay_data = _read_overlays(overlays, config_data)
+    ctx = RunContext(
+        verbose,
+        root_dir,
+        config_data,
+        wpath,
+        gen_path,
+        builders,
+        reg=reg,
+        image_sources=catalog,
+        template_resolver=template_resolver,
+        dry_run=dry_run,
+        overlays=overlay_paths,
+        overlay_data=overlay_data,
+        undeclared=parse_undeclare(undeclare),
+        run_start_time=run_start_time,
+    )
+    ctx.bind_finalizer(Finalizer(ctx))
+    ctx.bind_services(RunServices(ctx))
+    _bind_builders(builders, ctx)
+    # the network facts a real run or `validate --online` recorded
+    # are adopted OFFLINE here (a `default` network becomes the recorded one);
+    # what the record leaves unanswered waits on the context for `validate`.
+    # The load itself reaches no cloud.
+    adopt_network_facts(ctx)
+    # Read the normal-flow domain-item kinds in registration order. Each reader
+    # registers its items into the registry (from which the collection properties
+    # read) and attaches them to their builders; the group kind's validator sets
+    # the root group.
+    #
+    # base_only kinds (e.g. base_images) are registered but intentionally NOT
+    # auto-read yet: that read path is incomplete on the current models
+    # (base_image.type_ is an OS family, not an image-builder reference), exactly
+    # as it was when read_base_images_from_files existed but was never called.
+    for spec in item_kinds():
+        if not spec.base_only:
+            read_item_kind(ctx, spec)
+    return ctx
+
+
+def _single_mapping(generic_yaml: Any) -> dict[str, Any]:
+    """The one mapping the configuration document is: a list holding exactly
+    one entry is unwrapped to that entry, and anything that is not a mapping
+    at the top level is refused."""
+    if isinstance(generic_yaml, list):
+        if len(generic_yaml) != 1:
+            raise ValueError(f"Expected single config, got {len(generic_yaml)}")
+        generic_yaml = generic_yaml[0]
+    if not isinstance(generic_yaml, dict):
+        raise ValueError(
+            f"Expected config to be a dictionary at the top level, got {type(generic_yaml)}"
+        )
+    return generic_yaml
+
+
+def _take_builder_lists(generic_yaml: dict[str, Any]) -> dict[str, list[dict[str, Any]]]:
+    """Take every builder list (one per key of ``PLUGIN_TYPES``) OUT of the
+    document, keyed as the document keyed it, so what is left structures as
+    the configuration proper. A key that holds no list, an entry that is no
+    mapping and an entry without a ``name`` are each refused."""
+    original_yaml_dictionary_lists: dict[str, list[dict[str, Any]]] = {}
+    for _plugin_name, plugin_key in PLUGIN_TYPES:
+        if plugin_key in generic_yaml:
+            items = generic_yaml.pop(plugin_key)
+            if not isinstance(items, list):
+                raise ValueError(
+                    f"Expected a list for key '{plugin_key}', got {type(items)}"
+                )
+            for idx, item in enumerate(items):
+                if not isinstance(item, dict):
+                    raise ValueError(
+                        f"Expected each item in '{plugin_key}' to be a dictionary, got {type(item)}"
+                    )
+                name = item.get("name", None)
+                if not name:
+                    raise ValueError(
+                        f"Each item in '{plugin_key}' must have a 'name' field. "
+                        f"Item at index {idx} is missing a name."
+                    )
+            original_yaml_dictionary_lists[plugin_key] = items
+    return original_yaml_dictionary_lists
+
+
+def _structure_configuration(cvt: PydanticConverter, generic_yaml: dict[str, Any]) -> Any:
+    """The document, its builder lists taken out, structured as the
+    configuration (:class:`IAConfig`). A document that does not structure is
+    logged as an error and the failure raised as it came."""
+    try:
+        # cattrs.resolve_types(IAConfig)
+        config_data = cvt.structure(generic_yaml, IAConfig)
+    except Exception as e:
+        log.error(f"Failed to parse configuration: {e}")
+        raise
+    assert (
+        config_data.working_directory is not None
+    ), "working_directory is required in config"
+    if isinstance(config_data, list):
+        if len(config_data) != 1:
+            raise ValueError(f"Expected single config, got {len(config_data)}")
+        config_data = config_data[0]
+    return config_data
+
+
+def _structure_builder_models(
+    original_yaml_dictionary_lists: dict[str, list[dict[str, Any]]],
+    cvt: PydanticConverter,
+    catalog: ImageSourceCatalog,
+    reg: "registry.Registry",
+    template_resolver: TemplateResolver,
+) -> None:
+    """Structure every declared builder into its model, kind by kind in the
+    order of ``PLUGIN_TYPES`` and entry by entry in the document's order. A
+    kind without a class in ``PLUGIN_TYPEMAP`` fails the load."""
+    for plugin_name, plugin_key in PLUGIN_TYPES:
+        typemap_type: type = PLUGIN_TYPEMAP.get(plugin_name, None)  # type: ignore
+        assert (
+            typemap_type
+        ), f"No class found for plugin key '{plugin_key}' in PLUGIN_TYPEMAP. Please add an entry for this plugin type."
+        if plugin_key in original_yaml_dictionary_lists:
+            for item in original_yaml_dictionary_lists[plugin_key]:
+                _structure_builder_model(item, plugin_key, typemap_type, cvt, catalog, reg, template_resolver)
+
+
+def _structure_builder_model(
+    item: dict[str, Any],
+    plugin_key: str,
+    typemap_type: type,
+    cvt: PydanticConverter,
+    catalog: ImageSourceCatalog,
+    reg: "registry.Registry",
+    template_resolver: TemplateResolver,
+) -> None:
+    """One declared builder, structured into its model and entered in the
+    resolver's map. An entry needs a ``name`` and a ``type``; an OS builder
+    that leaves ``type`` out takes the one registered type that serves its
+    family, when there is exactly one. A model that says it is the default
+    of its classification becomes the registry's default (replacing one
+    already there, with a warning). A failure to structure is logged as an
+    error and raised as it came."""
+    name = item.get("name", None)
+    _type = item.get("type", None)
+    if name and not _type and plugin_key == "os_builders":
+        # an OS builder may leave `type` out when exactly
+        # one registered type serves what its family IS
+        _type = default_os_type(catalog, str(item.get("family", "")), item.get("family_version"),
+                                reg.models_under(VCT.OS_BUILDER_MODEL))
+        if _type:
+            item["type"] = _type
+            log.info(f"os_builders: {name}: type {_type} from family {item.get('family')}")
+    if not name or not _type:
+        raise ValueError(
+            f"Each item in '{plugin_key}' must have a 'name' and 'type' field. "
+            f"Item {item} is missing a name or type."
+            + (" An OS builder's type is defaulted only when exactly one registered type serves "
+               "its family (what the image-source catalog says it is); declare `type`."
+               if plugin_key == "os_builders" else "")
+        )
+    try:
+        named_obj = cvt.structure(item, typemap_type)
+        if named_obj and isinstance(named_obj, BuilderModelProtocol):
+            bmp: BuilderModelProtocol = named_obj
+            bmpname = bmp.get_name()
+            vct = registry.sanitize_classifier(bmp.get_classification())
+            if bmpname and vct and bmp.get_is_default():
+                if reg.get_default_for(vct) != None:
+                    log.warning(
+                        f"Default {vct.value} builder already registered: {reg.get_default_for(vct)}. Overwriting with {bmpname} from config."
+                    )
+                reg.set_default_for(vct, bmpname)
+        template_resolver.flatten_dataclass(named_obj)
+    except Exception as e:
+        log.error(
+            f"Failed to structure item {item} for plugin key '{plugin_key}': {e}"
+        )
+        raise
+    # The structure call registers the object into the registry
+
+
+def _collect_builder_models(config_data: IAConfig, reg: "registry.Registry") -> None:
+    """Put on the configuration, family by family, every builder model the
+    registry holds: what the structuring of the builder lists registered."""
+    config_data.runtime_builders = reg.get_all_instances_by_classification(VCT.RUNTIME_BUILDER_MODEL)  # type: ignore
+    config_data.state_backends = reg.get_all_instances_by_classification(VCT.STATE_BACKEND_MODEL)  # type: ignore
+    config_data.os_builders = reg.get_all_instances_by_classification(VCT.OS_BUILDER_MODEL)  # type: ignore
+    config_data.group_builders = reg.get_all_instances_by_classification(VCT.GROUP_BUILDER_MODEL)  # type: ignore
+    config_data.user_builders = reg.get_all_instances_by_classification(VCT.USER_BUILDER_MODEL)  # type: ignore
+    config_data.mod_builders = reg.get_all_instances_by_classification(VCT.MOD_BUILDER_MODEL)  # type: ignore
+    config_data.storage_builders = reg.get_all_instances_by_classification(VCT.STORAGE_BUILDER_MODEL)  # type: ignore
+    config_data.image_builders = reg.get_all_instances_by_classification(VCT.IMAGE_BUILDER_MODEL)  # type: ignore
+    config_data.instance_builders = reg.get_all_instances_by_classification(VCT.INSTANCE_BUILDER_MODEL)  # type: ignore
+
+
+def _build_builders(
+    config_data: IAConfig,
+    addl_config: dict[str, Any],
+    reg: "registry.Registry",
+) -> list[BuilderBase]:
+    """Build and register the builders of every family the configuration
+    declares (the runtimes always; another family only when it has entries)
+    and return them as one list: runtimes, state backends, group, user, OS,
+    modification, storage, image and instance builders, in that order, and
+    by name within a family. The families are BUILT in another order than
+    they are listed in: runtimes, state backends, OS, group, user, image,
+    instance, modification, storage."""
     configured_runtime_builders: dict[str, RuntimeBuilderBase] = process_and_register_builders(
         config_data, VCT.RUNTIME_BUILDER, "runtime_builders", addl_config, reg
     )  # type: ignore
@@ -704,7 +821,13 @@ def read_config_and_transform(
     ]:
         for k in sorted(d.keys()):
             builders.append(d[k])
+    return builders
 
+
+def _enter_working_directory(root_dir: Path, config_data: IAConfig) -> tuple[Path, Path]:
+    """Resolve the working path, refuse one that does not exist, make it the
+    process's current directory, and return it with the generation path
+    under it."""
     # If a root_dir is supplied
     if root_dir:
         # Use the supplied root_dir
@@ -727,6 +850,16 @@ def read_config_and_transform(
         if config_data.generation_directory
         else wpath / "generated"
     )
+    return wpath, gen_path
+
+
+def _read_overlays(
+    overlays: list[Path] | None,
+    config_data: IAConfig,
+) -> tuple[list[Path], list[dict[str, Any]]]:
+    """Read the overlay files (paths resolved against the current
+    directory) and merge each one's ``config`` keys over the
+    configuration's; the resolved paths and what each file held."""
     # Transient declarations: overlay files merged over the tree for THIS
     # invocation only -- their `config:` keys land on the merged config here,
     # after the builders were built against the tree's own (as they always were);
@@ -738,24 +871,11 @@ def read_config_and_transform(
             if config_data.config is None:
                 config_data.config = {}
             config_data.config.update(data["config"])
-    ctx = RunContext(
-        verbose,
-        root_dir,
-        config_data,
-        wpath,
-        gen_path,
-        builders,
-        reg=reg,
-        image_sources=catalog,
-        template_resolver=template_resolver,
-        dry_run=dry_run,
-        overlays=overlay_paths,
-        overlay_data=overlay_data,
-        undeclared=parse_undeclare(undeclare),
-        run_start_time=run_start_time,
-    )
-    ctx.bind_finalizer(Finalizer(ctx))
-    ctx.bind_services(RunServices(ctx))
+    return overlay_paths, overlay_data
+
+
+def _bind_builders(builders: list[BuilderBase], ctx: RunContext) -> None:
+    """Hand the run context to every builder that takes one."""
     # the context is passed (DESIGN's phrase): every builder holds the one it
     # was registered into, bound BEFORE the kinds are read, since attaching
     # an item to its builder may ask the builder for its run
@@ -765,24 +885,6 @@ def read_config_and_transform(
         bind = getattr(b, "bind", None)
         if callable(bind):
             bind(ctx)
-    # the network facts a real run or `validate --online` recorded
-    # are adopted OFFLINE here (a `default` network becomes the recorded one);
-    # what the record leaves unanswered waits on the context for `validate`.
-    # The load itself reaches no cloud.
-    adopt_network_facts(ctx)
-    # Read the normal-flow domain-item kinds in registration order. Each reader
-    # registers its items into the registry (from which the collection properties
-    # read) and attaches them to their builders; the group kind's validator sets
-    # the root group.
-    #
-    # base_only kinds (e.g. base_images) are registered but intentionally NOT
-    # auto-read yet: that read path is incomplete on the current models
-    # (base_image.type_ is an OS family, not an image-builder reference), exactly
-    # as it was when read_base_images_from_files existed but was never called.
-    for spec in item_kinds():
-        if not spec.base_only:
-            read_item_kind(ctx, spec)
-    return ctx
 
 
 def process_and_register_builders(
