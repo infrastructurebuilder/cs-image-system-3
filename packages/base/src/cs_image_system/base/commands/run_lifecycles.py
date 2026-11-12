@@ -339,17 +339,13 @@ def _run_phase(ctx: RunContext, lifecycle: LifecycleLike, phase: ExecutionLifecy
         raise LifecycleRunError(f"[{lifecycle.value}] after-phase hooks failed for {phase.value}")
 
 
-#: the lifecycle a run was last in, for the record of an interruption: the
-#: inner `finally` blocks reset ctx.current_lifecycle before the interrupt
-#: reaches the run's own handler
-_LAST_LIFECYCLE: dict[str, str] = {}
-
-
 def generate_lifecycle(ctx: RunContext, lifecycle: LifecycleLike) -> LifecycleResult:
     """Wipe-and-regenerate exactly one lifecycle (Q5)."""
     result = LifecycleResult(lifecycle=lifecycle.value)
     ctx.current_lifecycle = lifecycle
-    _LAST_LIFECYCLE["name"] = f"generation of {lifecycle.value}"
+    # for the record of an interruption: the inner `finally` blocks reset
+    # ctx.current_lifecycle before the interrupt reaches the run's own handler
+    ctx.last_lifecycle_step = f"generation of {lifecycle.value}"
     try:
         lc_path = ctx.generation_path
         assert lc_path == ctx.lifecycle_generation_path(lifecycle)
@@ -403,7 +399,7 @@ def _execute_in_process(ctx: RunContext, lifecycle: LifecycleLike) -> bool:
     system-CLI step runs in this process over the loaded context, a failure
     ends the lifecycle with ``False`` after the builders' failure hooks."""
     ctx.current_lifecycle = lifecycle
-    _LAST_LIFECYCLE["name"] = f"the apply of {lifecycle.value}"
+    ctx.last_lifecycle_step = f"the apply of {lifecycle.value}"
     try:
         for phase in ctx.finalizer.finalization_phases_for(lifecycle):
             executables = ctx.finalizer.get_finalization_executables_for_phase(phase, lifecycle)
@@ -511,7 +507,7 @@ def run_lifecycles(ctx: RunContext, requested: list[LifecycleLike], *, apply: bo
         # seconds in. It is recorded as interrupted, in the
         # lifecycle it was in, and re-raised once the record is made.
         summary.ok = False
-        where = ctx.current_lifecycle.value if ctx.current_lifecycle else _LAST_LIFECYCLE.get("name") or "no lifecycle yet"
+        where = ctx.current_lifecycle.value if ctx.current_lifecycle else ctx.last_lifecycle_step or "no lifecycle yet"
         summary.error = f"interrupted (KeyboardInterrupt) during {where}"
         log.error(summary.error)
         interrupted = True

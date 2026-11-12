@@ -156,6 +156,11 @@ class RunContext(RunContextProtocol):
         self.force_bake: set[str] | None = None
         self.bake_decisions: dict[str, str | None] = {}
         self._current_lifecycle: LifecycleLike | None = None
+        # what this run was last doing ("generation of <lifecycle>", "the
+        # apply of <lifecycle>"), kept past the reset of the current
+        # lifecycle for the record of an interruption. The run's own: a run
+        # nested in this one keeps its own on its own context.
+        self.last_lifecycle_step: str | None = None
         self._generated_lifecycles: set[LifecycleLike] = set()
         self._meta_state: MetaState | None = None
         self._root_group: Group | None = None       # set by the groups kind's validator (the loader)
