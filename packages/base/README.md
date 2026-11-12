@@ -1051,7 +1051,25 @@ finalize hook and no after-apply hook runs. Deferred system CLI steps that
 need the configuration are recorded with `--root-dir <root> --no-dry-run`
 and the run's overlays, so they execute only inside a real run. The
 retention lifecycle's transient-storage teardown step is built the same
-way.
+way, with the overlays that declare items left out.
+
+**System CLI steps run in the running process.** The executor hands a
+step whose binary is the system's own CLI to the runner the system
+package registers in [`in_process.py`](src/cs_image_system/base/in_process.py)
+(`register_system_cli_runner`; the base never imports the system, so the
+registration goes that way round), and the runner drives the command in
+this process over the loaded context: the configuration is loaded once
+per run, not once more per step. The teardown step is the one that
+cannot read the loaded context, because other overlays are another
+configuration; the runner runs it in this process too, as a nested run
+over a second context it loads from the step's own arguments. Nothing of
+a load is kept by the process, so the two runs share nothing
+([the test](../../tests/test_nested_run_in_this_process.py) holds the
+nested run to what a child process did). With no runner registered (an
+embedding without the CLI), and for a step a runner declines (the
+system's declines none), `run_executable` spawns the step as the
+executable itself does. The committed scripts keep every such step as a
+command line.
 
 **`--commit`.** `commit_meta_state` stages `meta-state/` and the generated
 tree, skips any path git ignores, never stages the refused names (plans,
@@ -1088,6 +1106,8 @@ registry (`ctx.reg`), image-source catalog (`ctx.image_sources`),
 template resolver (`ctx.template_resolver`) and finalizer
 (`ctx.finalizer`), and every model and builder of a run answers with
 that run's ([the test](../../tests/test_two_runs_in_one_process_share_nothing.py)).
+A run's nested run (the transient-storage teardown) is such a second
+context.
 
 The names that stood for the old singleton for one release are gone.
 What replaces each:
@@ -1112,6 +1132,7 @@ What the context exposes:
 | `generation_path` | Where generated files land now: `generated/<lifecycle>/` while a lifecycle is current, else `generated/`. |
 | `root_generation_path`, `lifecycle_generation_path(lc)`, `runner_script_path(lc)`, `gating_script_path` | Generated-tree paths. |
 | `current_lifecycle`, `generated_lifecycles`, `mark_generated(lc)` | Lifecycle bookkeeping. |
+| `last_lifecycle_step` | What the run was last doing (`generation of <lifecycle>`, `the apply of <lifecycle>`), kept past the reset of `current_lifecycle` so an interrupted run is journalled where it was; each run's own, a nested run's included. |
 | `run_id`, `start_time`, `iso_start_time` | The run start timestamp; `run_id` is the ISO time with every separator replaced by `_`. |
 | `read_config`, `config`, `executables`, `gitignore` | The structured `IAConfig`, its `config:` map, executables by name, the merged gitignore entries. |
 | `runtime_builders`, `image_builders`, `instance_builders`, `mod_builders`, `storage_builders`, `os_builders`, `group_builders`, `user_builders`, `state_backends` | Builders by name, read from the registry. |
@@ -1361,7 +1382,10 @@ declared by an overlay on an ephemeral runtime is transient: the lifecycle
 adds a second step, a `run storage --only none --no-state-query --no-commit`
 without the overlays that declare items (config-only overlays and
 `--apply-runtime` carry over), so the transient storage is undeclared there
-and destroyed through the gate.
+and destroyed through the gate. That step is a run nested in the one that
+deferred it: it executes in the same process, over a context of its own
+(its own registry, run id, journal entry and summary), and its exit code
+is the step's, so a teardown that fails fails the `retention` lifecycle.
 
 ## Launch parameters
 
@@ -1493,6 +1517,7 @@ elsewhere, or edit a copy and keep the edit by naming it.
 | [`commands/preflight.py`](src/cs_image_system/base/commands/preflight.py) | The session lines: asks every declared runtime's and state backend's class the contract's `session_status` hook over the loaded models (a state builder of the kit, a `StateBuilderBase`, is also handed the run's runtime builder classes, `ctx.reg.runtime_builder_classes()`, as a third argument, so a backend that borrows a runtime's session reading finds it there) and judges the answers against the expected run length; reads no credential cache itself and names no provider. |
 | [`commands/gate.py`](src/cs_image_system/base/commands/gate.py) | The apply gate over a `tofu show -json` plan: every planned destroy must match a whitelisted address or prefix; a plan file older than the newest `.tf` in its root is stale. |
 | [`commands/upgrade.py`](src/cs_image_system/base/commands/upgrade.py), [`commands/dispose.py`](src/cs_image_system/base/commands/dispose.py), [`commands/restamp.py`](src/cs_image_system/base/commands/restamp.py), [`commands/relabel.py`](src/cs_image_system/base/commands/relabel.py), [`commands/verify_instance.py`](src/cs_image_system/base/commands/verify_instance.py), [`commands/unmount.py`](src/cs_image_system/base/commands/unmount.py), [`commands/runtime_facts.py`](src/cs_image_system/base/commands/runtime_facts.py), [`commands/identity_gids.py`](src/cs_image_system/base/commands/identity_gids.py), [`commands/run_scope.py`](src/cs_image_system/base/commands/run_scope.py) | The operations behind the CLI's `upgrade`, `dispose image`, `lineage restamp`, `lineage relabel`, `verify instance`, `unmount storage`, `runtime describe` / `empty`, `identity export-gids`, and the bake scope check. |
+| [`in_process.py`](src/cs_image_system/base/in_process.py) | The seam through which a deferred step that is the system's own CLI runs in the running process: the system package registers its runner (`register_system_cli_runner`), `run_executable` asks for it before it spawns anything, and `names_subcommand` is how a runner tells a nested `run` (which needs a context of its own) from every other step. No runner registered, or a step declined: the step is spawned. |
 | [`utils.py`](src/cs_image_system/base/utils.py) | `safe_name`, `super_safe_name`, `system_cli_executable` (a deferred call of the system's own CLI), `apply_enabled` / `apply_flag_allows` (the `apply_<lifecycle>` rule), `module_source` and `module_source_overrides` (a call's source from `module_source_base` and `module_sources`), `hcl_expr` and `render_module_call` (terraform module call rendering). |
 | [`ansible_launch.py`](src/cs_image_system/base/ansible_launch.py) | Renders the same launch parameters as an ansible inventory and playbook: the hostname task, each mount's tasks from its storage builder's `launch_tasks()`, the enrollment kind's tasks; `extra_vars(ctx)` is the playbook's variable list, the same names as the launch template's. |
 | [`power_state.py`](src/cs_image_system/base/power_state.py) | The system's power-state vocabulary (`running`, `stopped`, `suspended`, `starting`, `stopping`, `absent`, `unknown`; `None` is "cannot answer"), `wait_until_reachable`, and `running_for_task`, the one bounded exception under which a stopped machine is started for work that needs it and stopped again afterwards. |

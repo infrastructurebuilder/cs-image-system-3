@@ -193,16 +193,51 @@ arguments such a line carries describe that very configuration and are
 parsed and ignored in process. The committed script keeps the same lines
 so a hand run of `run-<lc>.sh` still works; there, each `cs-image-system`
 line is a process of its own and loads the configuration once per step,
-as it always did. The one deferred step the running process still spawns
-as a process of its own is the transient-storage teardown at the end of a
-decommission (`run storage --only none --no-state-query --no-commit`): it
-is a nested run under a *different* overlay set (the overlays that
-declared the transient storages are left out, so the storages undeclare
-and destroy through the gate), and a different overlay set is a different
-configuration, which the loaded one cannot stand in for. A command's own
-output (the gate's `Plan passes the apply gate.`, `released: ...`) prints
-as it did; what differs is that it is no longer a captured child's
-output.
+as it always did. A command's own output (the gate's `Plan passes the
+apply gate.`, `released: ...`) prints as it did; what differs is that it
+is no longer a captured child's output.
+
+One deferred step is a whole run of its own: the transient-storage
+teardown in the closing phase of a run that declared a storage through an
+overlay on an ephemeral runtime (`run storage --only none
+--no-state-query --no-commit`). It is a nested run under a *different*
+overlay set (the overlays that declared the transient storages are left
+out, so the storages undeclare and destroy through the gate), and a
+different overlay set is a different configuration, which the loaded one
+cannot stand in for. The running process executes it **in that process**
+too: it loads a second configuration from the line's own `--root-dir`,
+`--no-dry-run` and `--overlay` arguments (for this one line they are
+read, not ignored) and runs the storage lifecycle over it. So no deferred
+step of a run starts another `cs-image-system` process. What to expect of
+the nested run:
+
+- **It is a run of its own, as the child process was.** It has its own
+  start time and so its own run id, its own entry in
+  `meta-state/runs.yaml` (written when it ends, before the outer run's),
+  its transitions recorded in `meta-state/storage-state.yaml` under its
+  own id, and its own `generated/run-summary.json`, which the outer
+  run's replaces when the outer run ends. It regenerates
+  `generated/storage/` without the transient storage, and reports the
+  outer run's other runner scripts as `stale-script-skipped`, because it
+  did not request those lifecycles.
+- **The two runs share nothing in memory.** The outer run still declares
+  the storage after the nested run destroyed it; what it loaded, what it
+  queued and the directory it works in are as they were.
+- **Its log lines are the outer run's log**, as they happen and at the
+  outer run's level (`--verbose` on the outer run shows the nested run's
+  DEBUG lines too). A child's output was shown only afterwards, as a
+  captured tail.
+- **What it prints on standard output goes to standard error**: its
+  summary and its `Run ... completed` line. The outer run's standard
+  output carries one summary, the outer run's own.
+- **Its failure is the outer run's failure.** A nested run that ends
+  nonzero fails the outer run's `retention` lifecycle, as a child that
+  exited nonzero did. Ctrl-C during it interrupts both runs, and each is
+  journalled as interrupted in the lifecycle it was in.
+
+A process that has no in-process runner (an embedding of the base
+package without the CLI) still starts each of these steps, the nested run
+included, as a process of its own.
 
 ### Dry run and real run
 
@@ -1282,7 +1317,9 @@ ephemeral runtime is destroyed by the same run's closing phase: the
 `retention` lifecycle runs `run storage --only none --no-state-query
 --no-commit` once more without the declaring overlay (config-only
 overlays and `--apply-runtime` carry over), so it is undeclared there and
-goes through the gate.
+goes through the gate. That second run is nested in the first and runs
+in the same process, over a configuration it loads for itself
+([what to expect of it](#generation-versus-finalization)).
 
 ### `--commit`
 
@@ -1740,7 +1777,7 @@ the configuration needs the modules beside it (`cs-image-system modules
 ### What a run's log shows of the commands it ran
 
 Every command the running process spawns in place of a script line
-(`tofu init`/`plan`/`apply`, a packer build, the nested teardown run) has
+(`tofu init`/`plan`/`apply`, a packer build) has
 its captured output in the log: the last 40 lines of stdout and of stderr
 at INFO under the command's name, the whole of it at DEBUG, colour codes
 stripped. That is where tofu's `Plan: 0 to add, 1 to change, 0 to
@@ -1754,7 +1791,12 @@ steps that are the system's own commands (`gate-plan`, `apply-check`,
 itself, so their output is not captured and tailed: a verdict line such
 as `Plan passes the apply gate.` or `released: ...` prints where it is
 produced, on the run's own stdout or stderr, ahead of the step that
-follows it. A script run by hand (`run-*.sh`) shows everything.
+follows it. The nested teardown run is one of those steps: it runs in
+the process itself, so its log lines are in the run's log whole and as
+they happen, the commands IT spawns (its `tofu init`/`plan`/`apply`) are
+captured and tailed in the same way, and what it prints on stdout (its
+summary, its gate verdicts) is sent to stderr. A script run by hand
+(`run-*.sh`) shows everything.
 
 ### `config-drift` and `fixture-live`
 

@@ -1099,7 +1099,14 @@ catalog of the run that structured it (the run's converter hands them
 over). The process keeps no current context, registry, catalog or
 template resolver: the fetch that stood in for the singleton for one
 release, and the old context name with it, retired after 0.1.7, so two
-contexts loaded in one process share nothing. The contract carries a semantic version of its own
+contexts loaded in one process share nothing. A run relies on that for
+its one nested run: the transient-storage teardown is `run storage` under
+other overlays, which is another configuration, and the running process
+loads it as a second context and runs it in the same process where it
+used to start a child; no deferred step of a run starts the system again
+as a process. What a run was last doing, kept for the record of an
+interruption, is on its context for the same reason.
+The contract carries a semantic version of its own
 (`0.1.0`; 0.x until the operator decides otherwise), every dependent pins
 its compatible series and the workspace's release leaves it where it is
 ([the stage index](CHANGES.md#s125)). The run context is in the
