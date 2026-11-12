@@ -151,9 +151,12 @@ keys this plugin adds:
   (`<group>_v1_security_policy_ci`) through the OPA API and reports it in
   the state query.
 
-`effective_gateway_selector` returns `gateway_selector` when set, otherwise
-the global `config.okta_gateway_selector` value, otherwise `None` (the
-module call then omits the argument).
+`effective_gateway_selector(config)` returns `gateway_selector` when set,
+otherwise the `okta_gateway_selector` value of the `config:` map it is
+given (the group builder passes its run's, `ctx.config`), otherwise `None`
+(the module call then omits the argument). It was a property that fetched
+the process's current context; a model holds no context, so the caller
+hands the map in.
 
 ### `OktaTfGroupBuilderModel` (`okta-tf`)
 
@@ -330,7 +333,7 @@ targets [tfmodules/okta_opa_module](src/cs_image_system/okta_opa_plugin/tfmodule
 | `admins` | The group's `admins` plus the root group's admins (unless `include_root_group_in_admins: false`), sorted. |
 | `delegated_admin_group_ids` | Always `[]`; the module then delegates the resource group to the group's own admin group. The root group's admin group is never a delegated admin of another resource group; its admins reach other groups as usernames in `admins`. |
 | `account_discovery` | The model's `account_discovery`. |
-| `gateway_selector` | `effective_gateway_selector`, omitted when `None`. |
+| `gateway_selector` | `effective_gateway_selector(ctx.config)`, omitted when `None`. |
 
 The outputs file declares `data "external" "group_gids"` (program
 `cs-image-system identity export-gids`, query `identity_type`, `org`,

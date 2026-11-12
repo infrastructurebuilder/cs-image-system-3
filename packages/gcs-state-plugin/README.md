@@ -143,10 +143,13 @@ core, and a dry run never reaches the bucket.
   `~/.config/gcloud/application_default_credentials.json`) as one
   `session:` line, for this backend as well as for the GCE runtimes: the
   builder's `session_status` hook reaches the gcloud runtime plugin's
-  reading through the registry by its type key (`gcloud`), importing
-  nothing of that package, so a tree with the backend alone is
-  preflighted too. When that plugin is not installed the backend's line is
-  present and NOT JUDGED, and says so.
+  reading by its type key (`gcloud`) in the run's runtime builder
+  classes, which the preflight hands a state builder as the hook's third
+  argument (`runtime_classes`; the kit's `StateBuilderBase` adds it to
+  the contract's two), importing nothing of that package, so a tree with
+  the backend alone is preflighted too. When that plugin is not installed
+  (or the hook is called with the contract's two arguments alone) the
+  backend's line is present and NOT JUDGED, and says so.
 - **Encryption keys, when declared.** `encryption_key` (a customer-supplied
   key) and `kms_encryption_key` (a Cloud KMS key name) are written verbatim
   into the root's `.tfbackend.hcl` when set. That file is part of the

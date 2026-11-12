@@ -420,10 +420,14 @@ role. `preflight` and every
 load print the backend's own session as well as the runtimes': this
 builder's `session_status` hook takes the backend's `profile` (else the
 environment's) and reaches the AWS runtime plugin's session reading
-through the registry by its type key (`aws`), so a backend on a lapsed
+by its type key (`aws`) in the run's runtime builder classes, which the
+preflight hands a state builder as the hook's third argument
+(`runtime_classes`; the kit's `StateBuilderBase` adds it to the
+contract's two), so a backend on a lapsed
 profile is reported before the load, in the same `session:` line as the
 runtimes that share the profile. The plugin imports nothing of the
-runtime's package; when that plugin is not installed the backend's line
+runtime's package; when that plugin is not installed (or the hook is
+called with the contract's two arguments alone) the backend's line
 is present and NOT JUDGED, and says so. A backend whose profile is
 unknown to the account still fails at tofu's `init`, not at load.
 

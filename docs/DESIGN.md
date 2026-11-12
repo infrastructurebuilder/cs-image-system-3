@@ -464,7 +464,7 @@ an identity type's agent, a storage type's mount tooling, a runtime's
 session agent -- names the PACKAGES it needs and, where a vendor ships
 one artifact per package format, chooses by `package_format()`; it never
 writes a manager's command line of its own. The core resolves the type
-from the family (`os_types.os_type_for_family`) and never branches on a
+from the family (`os_types.os_type_for_family`, over the run's registry) and never branches on a
 family name; no source of the contract, the core or the system package
 carries a package manager's name.
 
@@ -1094,9 +1094,12 @@ builder it registers, and the finalizer, bound to the context, owns the
 deferred commands and the runner scripts; nothing on the context loads
 or executes, and neither the context nor the registry is a process
 singleton. A builder reaches its context through `_get_context()`, a
-command takes it, and a model method with no context of its own reaches
-the process's current one through a shim that stands for one release
-with the old name. The contract carries a semantic version of its own
+command takes it, and a model holds the registry and the image-source
+catalog of the run that structured it (the run's converter hands them
+over). The process keeps no current context, registry, catalog or
+template resolver: the fetch that stood in for the singleton for one
+release, and the old context name with it, retired after 0.1.7, so two
+contexts loaded in one process share nothing. The contract carries a semantic version of its own
 (`0.1.0`; 0.x until the operator decides otherwise), every dependent pins
 its compatible series and the workspace's release leaves it where it is
 ([the stage index](CHANGES.md#s125)). The run context is in the

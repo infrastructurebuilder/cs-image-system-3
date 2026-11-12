@@ -107,7 +107,7 @@ and register their storage roots; the identity plugins declare `group` and
 register their user builders); `other` is for a plugin that registers none
 of the named kinds (a checker, an injected model).
 
-Each entry point loads to a callable. `load_plugins()` calls it and expects
+Each entry point loads to a callable. `load_plugins(reg)` calls it and expects
 one object satisfying the contract's `PluginMetadataProtocol`, or a list of
 them (the check is `isinstance`, name-only; anything else is logged as an
 error and skipped). An entry point whose module fails to import, or whose
@@ -120,9 +120,12 @@ is `aws-runtime`), unless the metadata names one. The load log gives one
 info line with how many classes registered under how many namespaces, and
 at debug level what registered under each. Entry points within a group
 load in name order. Loading
-is idempotent: a second call in the same process returns at once unless
-`Registry().reset()` was called. After every plugin registered, the loader
-drops the cached converter so the next structuring sees the full model set.
+is idempotent per registry: a second `load_plugins(reg)` on a registry
+that already holds the plugins returns at once (until `reg.reset()`).
+`load_plugins` takes the registry to load into; there is no default one.
+The loader of a run passes the run's; code that needs the installed
+classes before, or without, a load calls `installed_registry()`, which
+returns a new registry with the plugins loaded and nothing else.
 
 A plugin that has commands of its own registers one entry point in the
 group `cs_image_system.commands`: a callable returning a list of the
@@ -224,16 +227,28 @@ Two more enums live in `constants.py`: `OSFamilies` (`rhel`, `ubuntu`,
 
 ### The registry
 
-`Registry` is one instance per run, no longer a process-wide singleton:
-the loader makes it, replays the plugins' registrations into it
-(`load_plugins(reg)`; discovery itself happens once per process) and binds
-it as the process's current registry before parsing the run's models, and
-the context carries it as `ctx.reg`. Code that holds a context reads
-`ctx.reg`; a model, the template resolver and the pre-load commands, which
-hold no context, reach the current one through `registry.current_registry()`
-(a one-release shim, like the context's own; it makes and binds a fresh
-registry on the first ask in a process with no run). A deep copy of a
-model keeps its registry handle rather than cloning the registry. It holds:
+`Registry` is one instance per run, and the process holds none: the
+loader makes it, replays the plugins' registrations into it
+(`load_plugins(reg)`; discovery itself happens once per process) and the
+context carries it as `ctx.reg`. Nothing fetches "the" registry:
+
+- code that holds a context reads `ctx.reg`;
+- a builder reads `self._run_context().reg` (before the loader binds it,
+  during `finalize()`, `self._model_registry()`: its model's);
+- a model holds the registry of the run that structured it: the run's
+  converter hands it over as it builds the model (`NameTyped.bind_run`,
+  see "Field kinds" below), and a model made in code is bound by its
+  maker with `model.bind_run(reg)`. A model bound to no run refuses a
+  question that needs the registry, by name;
+- the template resolver and the converter are made over the run's
+  registry (`ctx.template_resolver`);
+- a command that runs before, or without, a load makes a registry of its
+  own with `loader.installed_registry()`.
+
+`registry.current_registry()` and `bind_current_registry()`, the fetch
+that stood in for the old singleton for one release, are gone; each
+caller above says what replaces it. A deep copy of a model keeps its
+registry handle rather than cloning the registry. It holds:
 
 The class-level tables (what the plugins registered) are keyed by one
 typed key, `RegistrationKey(classification, namespace, name)`, a named
@@ -273,7 +288,7 @@ bare word the lookup raises `AmbiguousTypeError`, which names every
 qualified form (`type 'x' is ambiguous under instance_builder_model: 2
 plugins register it; write one of one/x, two/x`), and `validate` prints
 it as one configuration error. A word nobody registered is `None`, as
-before. What a tree wrote is what is recorded: the orchestrator
+before. What a tree wrote is what is recorded: the converter
 canonicalises an alias to the class's `csis_name` but never rewrites a
 bare word to its qualified form (the mod fingerprint hashes the type word,
 so the golden and every emission are unchanged) nor a qualified one to
@@ -391,25 +406,27 @@ The release's layer is not a file of this package: each installed
 runtime plugin ships its own part as package data
 (`data/image-sources.yml` beside its code, the blocks keyed by its
 runtime type) and answers it from its builder class's
-`image_source_entries()`; `packaged_default_entries()` here asks every
-registered runtime builder class and merges the parts by family
+`image_source_entries()`; `packaged_default_entries(classes)` here asks
+every runtime builder class it is given (a registry's
+`runtime_builder_classes()`) and merges the parts by family
 (`sources` is the union by runtime type; `description`, `is` and
 `versions` take the first non-empty value, a disagreement logged at
 WARNING). The catalog therefore depends on which runtime plugins are
 installed, never on which a tree declares, and this module names no
 runtime. The tree's `image_sources:` entries land on the merged result
-by family and version (`ImageSourceCatalog`, one per run like the
-registry: the loader makes it beside the run's registry, binds it as the
-process's current one and carries it as `ctx.image_sources`; a model,
-which holds no context, reads the current one through
-`current_catalog()` as it reads the registry). An OS builder's runtime
-entry resolves its effective
+by family and version (`ImageSourceCatalog(reg)`, one per run like the
+registry: the loader makes it over the run's registry and carries it as
+`ctx.image_sources`; an OS model holds the one of the run that
+structured it, handed over with the registry, so `get_family()` and
+`image_query()` take no argument. `current_catalog()` and
+`bind_current_catalog()` are gone: read `ctx.image_sources`). An OS
+builder's runtime entry resolves its effective
 query through it (`image_query()`), `get_family()` reads what a family
 IS through it (`is:`), a missing OS builder `type` is defaulted from it
 (`default_os_type`), the modification tests take their stand-in
 container from its stand-in block (`stand_in_block`: the block keyed by
 the type of the one registered runtime whose `local_test_target()` is
-not None, `stand_in_runtime_type`; `container_reference` turns it into
+not None, `stand_in_runtime_type(classes)`; `container_reference` turns it into
 an image reference), and `validate.check_image_sources` refuses an
 unknown key, an entry with no source and a key the runtime cannot
 translate. CONFIGURATION 5a is the reference.
@@ -491,7 +508,18 @@ builder named in its `runtimes:` whose runtime differs from the primary.
 ### Field kinds
 
 Field factories in the contract's `fields.py` stamp metadata that the
-`TemplateResolver` acts on:
+run's `TemplateResolver` acts on. The resolver is one per run: the loader
+makes it over the run's registry (`TemplateResolver(reg, addl=...,
+converter=...)`), it holds the flat map of the run's structured models
+and the run's converter (`PydanticConverter(reg, image_sources)`), and
+the context carries it as `ctx.template_resolver`. The converter hands
+every model it structures the run's registry and image-source catalog
+(pydantic's validation context, a `ModelBinding`), which the model keeps
+(`NameTyped.bind_run(reg, image_sources)`; `on_bound()` is where a model
+checks what needs them). `TemplateResolver()` with no argument, the
+process-wide resolver, and the `Orchestrator` class that handed out a
+converter are gone: use `ctx.template_resolver` and its `.converter`.
+The kinds:
 
 | Factory | Kind | Behaviour |
 | --------- | ------ | ----------- |
@@ -505,7 +533,7 @@ fields.
 
 ### Template resolution
 
-After structuring, `TemplateResolver.resolve_all()` renders, up to five
+After structuring, the run's resolver (`ctx.template_resolver.resolve_all()`) renders, up to five
 passes, every string and mapping field that still contains `{{`. Each
 object renders in a `SmartContext` that exposes:
 
@@ -887,6 +915,10 @@ either `resolved` (a concrete identifier such as an AMI id, from a vendor
 query or a pin) or `deferred` (a name pattern a later bake fulfils). It
 registers under `PROVIDER_SPECIFIC_IMAGE` with the key
 `<source>::<runtime>`; `get_query_assets()` returns provider query inputs.
+An image holds no context: what it needs of its runtime, the runtime
+builder gives it as it makes it, in `prepare_provider_specific_image(psi)`
+(a hook on `RuntimeBuilderBase`, nothing by default; the docker runtime
+sets the repository its floating tag is read from).
 
 ## `cfg/_config.yml` key by key
 
@@ -1041,29 +1073,44 @@ the paths and the flags. It is read-only in the sense that nothing on it
 loads or executes: the loader (`read_config_and_transform`) constructs
 it with the full configuration and returns it, and the finalizer, bound to
 it, owns the deferred commands and the runner scripts. There is one
-context per load and it is no singleton: the loader binds every builder
-it registers to the context it made (`BuilderBase.bind(ctx)`), a builder
-reaches it through `self._get_context()`, a command takes it as its
-`ctx` argument, and the console script keeps it on the typer context
-(`typer_cntx.obj["ctx"]`). A copy of a model that holds the context (an
-executable copy, a tag map) shares it, never clones it: the context and
-the registry answer `copy.deepcopy` with themselves.
+context per load, and the process keeps no current one: the loader binds
+every builder it registers to the context it made
+(`BuilderBase.bind(ctx)`), a builder reaches it through
+`self._get_context()` (a builder made in code and never bound refuses,
+by name; bind it with `bind(ctx)`), a command takes it as its `ctx`
+argument, and the console script keeps it on the typer context
+(`typer_cntx.obj["ctx"]`). A copy of a model shares its run, never
+clones it: the context, the registry and the image-source catalog answer
+`copy.deepcopy` with themselves.
 
-For one release the old name stays: `GlobalTypeContext` in
-[`global_context.py`](src/cs_image_system/base/global_context.py) is a
-subclass used for annotations, and `GlobalTypeContext()` with no
-arguments answers with the context the loader made last
-(`run_context.current_context()`), which is also what a model method
-with no context of its own reaches for. Every such fetch is a shim site
-to retire; new code takes the context it is given. What the context
-exposes:
+Two contexts loaded in one process share nothing: each has its own
+registry (`ctx.reg`), image-source catalog (`ctx.image_sources`),
+template resolver (`ctx.template_resolver`) and finalizer
+(`ctx.finalizer`), and every model and builder of a run answers with
+that run's ([the test](../../tests/test_two_runs_in_one_process_share_nothing.py)).
+
+The names that stood for the old singleton for one release are gone.
+What replaces each:
+
+| Gone | Use |
+| ---- | --- |
+| `GlobalTypeContext` (the annotation), `global_context.py` | `RunContext` from `run_context.py`; the loader's names (`read_config_and_transform`, `load_overlay`, `parse_undeclare`, `ItemKind`, ...) from `config_loader.py`; the finalizer's (`Finalizer`, `ROOT_VARIABLE`, `render_executable_line`, `script_lines`, `write_script`) from `finalizer.py`. A plugin annotates with the contract's `RunContextProtocol`. |
+| `GlobalTypeContext()` with no arguments, `run_context.current_context()`, `bind_current()` | The context you were given: a command's `ctx`, a builder's `self._get_context()`. A model method that needs something of the run takes it as an argument, or reads the registry and catalog the model is bound to. |
+| The fallback in `BuilderBase._get_context()` to the process's current context | `builder.bind(ctx)`: an unbound builder raises instead of answering with another run's context. |
+| `ctx.get_finalization_executables_for_phase`, `ctx.finalization_phases_for`, `ctx.final_execution_path`, `ctx.render_executable_line`, `ctx.write_final_execution_script`, `ctx.write_lifecycle_runner_script`, `ctx.write_gating_script`, `ctx.after_failed_phase`, `ctx.final_execute` | The same name on `ctx.finalizer` (`render_executable_line` is the function in `finalizer.py`). `ctx.extend_finalization_phase` stays: the contract's `RunContextProtocol` declares it. |
+| `registry.current_registry()`, `bind_current_registry()`, `load_plugins()` with no registry | `ctx.reg`; `loader.installed_registry()` where no run is loaded; `load_plugins(reg)`. |
+| `image_sources.current_catalog()`, `bind_current_catalog()` | `ctx.image_sources`. |
+| `TemplateResolver()` (process-wide), `Orchestrator().get_converter()` | `ctx.template_resolver`, `ctx.template_resolver.converter`. |
+| `os_type_for_family(family)`, `version_checker_for(exe)`, `check_single_version(exe)`, `packaged_default_entries()`, `stand_in_runtime_type()`, `stand_in_target_factory()` | Each takes what it reads: `os_type_for_family(family, reg)` (a plugin: `ctx.services.images.os_type_for_family(family)`), `version_checker_for(exe, reg)`, `check_single_version(exe, reg)`, and the runtime classes (`reg.runtime_builder_classes()`) for the other three. |
+
+What the context exposes:
 
 | Member | Meaning |
 | -------- | --------- |
 | `dry_run`, `verbose` | The invocation's flags. |
 | `root_dir`, `working_path` | The configuration root. |
 | `generation_path` | Where generated files land now: `generated/<lifecycle>/` while a lifecycle is current, else `generated/`. |
-| `root_generation_path`, `lifecycle_generation_path(lc)`, `runner_script_path(lc)`, `gating_script_path`, `final_execution_path` | Generated-tree paths. |
+| `root_generation_path`, `lifecycle_generation_path(lc)`, `runner_script_path(lc)`, `gating_script_path` | Generated-tree paths. |
 | `current_lifecycle`, `generated_lifecycles`, `mark_generated(lc)` | Lifecycle bookkeeping. |
 | `run_id`, `start_time`, `iso_start_time` | The run start timestamp; `run_id` is the ISO time with every separator replaced by `_`. |
 | `read_config`, `config`, `executables`, `gitignore` | The structured `IAConfig`, its `config:` map, executables by name, the merged gitignore entries. |
@@ -1075,8 +1122,9 @@ exposes:
 | `meta_state`, `meta_state_path` | The `MetaState` at `<root>/meta-state`. |
 | `overlays`, `overlay_declared`, `undeclared` | Overlay files, the transient entries they declared, and undeclared entries. |
 | `only_images`, `force_bake`, `bake_decisions`, `apply_runtime`, `implied_scope`, `allow_unscoped_bakes`, `explicit_bake_selection`, `only_runtime_scope` | Run scoping. |
-| `extend_finalization_phase(phase, executables)`, `get_finalization_executables_for_phase(phase, lifecycle)`, `finalization_phases_for(lifecycle)` | The deferred-command buckets. |
-| `write_lifecycle_runner_script(lc, header)`, `write_gating_script()`, `render_executable_line(exe)` | Script rendering. |
+| `reg`, `image_sources`, `template_resolver` | The run's registry, image-source catalog and template resolver (with its converter): one of each per load. |
+| `finalizer` | The run's deferred-command queue and executor: `get_finalization_executables_for_phase(phase, lifecycle)`, `finalization_phases_for(lifecycle)`, `final_execution_path`, `write_lifecycle_runner_script(lc, header)`, `write_gating_script()`, `final_execute()`. |
+| `extend_finalization_phase(phase, executables)` | Queue executables for a phase on the run's finalizer (the one finalizer verb the contract's context protocol declares). |
 
 ## Meta-state
 
@@ -1442,7 +1490,7 @@ elsewhere, or edit a copy and keep the edit by naming it.
 | [`mod_tests.py`](src/cs_image_system/base/mod_tests.py) | Runs every modification of an instance image against a throwaway local target twice (apply, then idempotence), recording results in `meta-state/mod-tests.yaml` by content hash. The harness drives an abstract `LocalTarget` (`exec`, `copy_in`, `diff`, `volatile`, `close`, and the ansible connection plugin that reaches it) and names no runtime: the target's factory comes from the one registered runtime builder class whose `local_test_target()` is not None, is handed the tree's executables, and returns nothing when its daemon does not answer (the modifications are then `skipped`, not failed); a target that cannot start raises `ContainerStartError` (`unstarted`). |
 | [`identity_attributes.py`](src/cs_image_system/base/identity_attributes.py) | Declared provider attributes on users and groups: validation per plugin, a plan written to `generated/identity/attributes-plan.json`, a read-only probe, and an apply that is deliberately disabled. |
 | [`read_models.py`](src/cs_image_system/base/read_models.py) | Writes the identity and storage read-models and records applied storage transitions. |
-| [`commands/preflight.py`](src/cs_image_system/base/commands/preflight.py) | The session lines: asks every declared runtime's and state backend's class the contract's `session_status` hook (from the raw `cfg/` files before the load, and from the loaded models after) and judges the answers against the expected run length; reads no credential cache itself and names no provider. |
+| [`commands/preflight.py`](src/cs_image_system/base/commands/preflight.py) | The session lines: asks every declared runtime's and state backend's class the contract's `session_status` hook over the loaded models (a state builder of the kit, a `StateBuilderBase`, is also handed the run's runtime builder classes, `ctx.reg.runtime_builder_classes()`, as a third argument, so a backend that borrows a runtime's session reading finds it there) and judges the answers against the expected run length; reads no credential cache itself and names no provider. |
 | [`commands/gate.py`](src/cs_image_system/base/commands/gate.py) | The apply gate over a `tofu show -json` plan: every planned destroy must match a whitelisted address or prefix; a plan file older than the newest `.tf` in its root is stale. |
 | [`commands/upgrade.py`](src/cs_image_system/base/commands/upgrade.py), [`commands/dispose.py`](src/cs_image_system/base/commands/dispose.py), [`commands/restamp.py`](src/cs_image_system/base/commands/restamp.py), [`commands/relabel.py`](src/cs_image_system/base/commands/relabel.py), [`commands/verify_instance.py`](src/cs_image_system/base/commands/verify_instance.py), [`commands/unmount.py`](src/cs_image_system/base/commands/unmount.py), [`commands/runtime_facts.py`](src/cs_image_system/base/commands/runtime_facts.py), [`commands/identity_gids.py`](src/cs_image_system/base/commands/identity_gids.py), [`commands/run_scope.py`](src/cs_image_system/base/commands/run_scope.py) | The operations behind the CLI's `upgrade`, `dispose image`, `lineage restamp`, `lineage relabel`, `verify instance`, `unmount storage`, `runtime describe` / `empty`, `identity export-gids`, and the bake scope check. |
 | [`utils.py`](src/cs_image_system/base/utils.py) | `safe_name`, `super_safe_name`, `system_cli_executable` (a deferred call of the system's own CLI), `apply_enabled` / `apply_flag_allows` (the `apply_<lifecycle>` rule), `module_source` and `module_source_overrides` (a call's source from `module_source_base` and `module_sources`), `hcl_expr` and `render_module_call` (terraform module call rendering). |

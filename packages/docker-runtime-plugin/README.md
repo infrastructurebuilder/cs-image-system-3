@@ -32,7 +32,10 @@ differs from them in three ways the design records as decisions:
   (`sha256:...`), and its names are tags: `<repository>:<final name>` and
   the series' floating `<repository>:<prefix>`, which a child image bakes
   from when its parent is deferred (the daemon has no "newest image matching
-  a pattern" query; the tag is that query). A label is fixed when an image
+  a pattern" query; the tag is that query). The runtime's builder gives
+  each image it makes its repository (`prepare_provider_specific_image`),
+  so `DockerProviderSpecificImage.floating_tag()` reads the image's own
+  `repository` and asks no run for it. A label is fixed when an image
   is built, so what the core stamps afterwards (the parent bound after the
   bake, the fingerprint, a release) is carried by tags that MOVE:
   `<repository>:<short id>--<key>--<value>`, one per key.
