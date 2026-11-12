@@ -104,8 +104,8 @@ the models (`models/*`, all thirty-three), `run_context`, `registry`,
 as the engine's: `orchestrator`, `template_utils`, `meta_state` and
 `loader` (top-level edges) and `finalizer` (a typing edge), with
 `in_process`.
-**The engine** (`engine_all`, 57 modules; `base`'s `__init__` is one
-and stays, so 56 move): every other `commands/*` module (dispose,
+**The engine** (`engine_all`, 56 modules since `helpers/config` was
+removed as dead; `base`'s `__init__` is one and stays, so 55 move): every other `commands/*` module (dispose,
 emission, finalization, gate, the five generators, identity_gids,
 load_failures, login_proof, preflight, relabel, resolve, restamp,
 run_lifecycles, run_scope, runtime_facts, state_migration, unmount,
@@ -118,7 +118,7 @@ contract's vocabulary), `config_loader`, `init`, `release`,
 `pinned_release`, `provider_aliases`, `read_models`, `v2_validation`,
 `workload_access`, `tofu_lock`, `accounts_reconcile`,
 `ansible_launch`, `identity_attributes`, `launch_delivery`,
-`posix_ids` and `helpers/config`. The list is the measurement's,
+and `posix_ids`. The list is the measurement's,
 read again at "do 113"; the script that computes it
 (`tests/import_closure.py`) is kept as the test of item 1.
 
