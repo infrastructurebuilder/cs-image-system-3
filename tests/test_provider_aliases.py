@@ -189,6 +189,24 @@ def test_silence_skips_every_alias(world, monkeypatch, caplog):
     assert any("not a free name" in r.message for r in caplog.records)
 
 
+@pytest.mark.parametrize("servers", [
+    [],                                                                               # an empty registry
+    [{"id": "other", "hostname": "elsewhere", "instance_id": "i-other", "alt_names": []}],   # others alone
+])
+def test_a_machine_its_registry_does_not_list_waits_and_is_said(world, monkeypatch, caplog, servers):
+    """A machine launched by an earlier run, running, whose group's
+    registry answers without a record carrying its provider id has not
+    enrolled: no session command, and one record of the module's logger
+    says so at the level a machine that is off is said at."""
+    f = Fakes(monkeypatch, servers=servers)
+    _launched(world.ctx)
+    with caplog.at_level("INFO", logger=pa.log.name):
+        pa.register_provider_aliases(world.ctx, Lifecycle.INSTANCE_IMAGE)
+    assert f.scripts == []
+    said = [r for r in caplog.records if r.name == pa.log.name and pa.NOT_LISTED in r.getMessage()]
+    assert [r.levelname for r in said] == ["INFO"]
+
+
 def test_reality_that_already_agrees_sends_no_command(world, monkeypatch):
     own = dict(OWN, alt_names=["ip-10-26-34-156"])
     f = Fakes(monkeypatch, servers=[own])

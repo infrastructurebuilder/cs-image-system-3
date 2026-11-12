@@ -751,6 +751,25 @@ for); the alias goes on at the next run that finds it running. A registry
 that could not be asked skips every alias that run: silence is not a free
 name.
 
+A machine the registry does not list is passed over the same way. The
+system finds a machine's own record by the cloud instance id sftd
+enrolled with; that record is what the names are judged beside (the
+aliases it already carries are kept, every other record's names are
+claims). A running machine with no such record has not enrolled -- its
+first boot did not finish, or it enrolled somewhere else -- so nothing
+is written, and the log says so in one INFO line:
+
+    Instance coops-model: not listed in its group's server registry (group 'coops'; it has not enrolled); its provider alias waits for a run that finds it listed
+
+The aliases go on at the next applies-on run that finds the record.
+`state query` shows whether it is there: the machine's
+`reality.instances` entry has no `registered_as` until it is. A machine
+launched by THIS run is different: the run waits for it, bounded (five
+minutes for the machine to answer, five more for its record to appear),
+because sftd enrolls a minute or more after boot; when the wait runs out
+the log says `not enrolled within 300s of its launch; no alias this run`
+at WARNING.
+
 The state report shows what each machine answers to under `reality.instances`
 (`instance_id`, `provider_hostname`, `registered_as`, `alt_names`) and notes
 a running machine whose alias is not yet there. Nothing about aliases is

@@ -1528,7 +1528,7 @@ elsewhere, or edit a copy and keep the edit by naming it.
 | [`power_state.py`](src/cs_image_system/base/power_state.py) | The system's power-state vocabulary (`running`, `stopped`, `suspended`, `starting`, `stopping`, `absent`, `unknown`; `None` is "cannot answer"), `wait_until_reachable`, and `running_for_task`, the one bounded exception under which a stopped machine is started for work that needs it and stopped again afterwards. |
 | [`generations.py`](src/cs_image_system/base/generations.py) | Instance generations: one per machine, opened `inferred` by a launch and confirmed `observed` (or closed as `replaced-out-of-band`) by the provider's instance id after a real apply; a machine launched before the record existed is `adopted` as generation 1 of it. |
 | [`alias_pool.py`](src/cs_image_system/base/alias_pool.py) | The pool of pre-approved names in `meta-state/aliases.txt`: a new durable machine's alias is the first free line, burnt in place under an exclusive lock by the run that can launch it. |
-| [`provider_aliases.py`](src/cs_image_system/base/provider_aliases.py) | After a real instance-image apply, gives each launched, running instance back the names it lost at boot (the bare declared name, the pool alias, the provider's `ip-...` label), skipping every collision and every silent registry: the core decides the names, the machine and the moment, and the group builder's `alias_registration_script` renders the script that tells its agent (the core reads only the contract's `ALIASES_CHANGED` / `ALIASES_UNCHANGED` from its output); and the `reality.instances` entries and notes of the state report. |
+| [`provider_aliases.py`](src/cs_image_system/base/provider_aliases.py) | After a real instance-image apply, gives each launched, running instance that its group's registry lists the names it lost at boot back (the bare declared name, the pool alias, the provider's `ip-...` label), skipping every collision and every silent registry; a machine with no record of its own (none carries its provider id: it has not enrolled) is passed over with an INFO line carrying the module's `NOT_LISTED`, and one this run launched is waited for first, bounded: the core decides the names, the machine and the moment, and the group builder's `alias_registration_script` renders the script that tells its agent (the core reads only the contract's `ALIASES_CHANGED` / `ALIASES_UNCHANGED` from its output); and the `reality.instances` entries and notes of the state report. |
 | [`workload_access.py`](src/cs_image_system/base/workload_access.py) | After a real identity apply, reconciles each managed group's CI login policy through the group builder and records the outcome in the identity read-model. |
 | [`reserved_names.py`](src/cs_image_system/base/reserved_names.py) | The read-time refusals: `refuse_reserved_names` (a `name:` at any depth, or an `aliases:` entry, that is a word of `OOPS_DEFAULTS` in any case or spacing, every one listed with the file, the entry's place and the word, `ReservedNameError`) and `refuse_invalid_config_keys` (a key of a document's top-level `config:` that is in `INVALID_CONFIG_KEYS`, `InvalidConfigKeyError`). Called by `read_and_process` for each `cfg/` file, by the item-file reader after decryption, and by `load_overlay`; pure functions of the parsed document, no identity or network. |
 | [`materialize.py`](src/cs_image_system/base/materialize.py) | The private mirror `_private/` beside `generated/`, at the same depth: a root is copied there with every `ENC[age:...]` marker replaced by its plaintext before a deferred command runs, incrementally; only `.terraform.lock.hcl` is ever copied back. `ensure_ignored` appends `_private/` to the configuration root's `.gitignore`. |
@@ -2014,11 +2014,15 @@ builder model is its plugin's):
 - **The registry answers vs the registry is silent.** With
   `apply_instances` on and the instance-image lifecycle requested, a
   registry that answers lets the hostname claims be checked and the
-  aliases written; a registry that cannot be asked (`registered_servers`
-  returns `None`) REFUSES the launch ("could not check whether canonical
-  hostname ... is already claimed"), skips every alias that run, and fails
-  the login proof's "one registration" check. Silence is never a free
-  name.
+  aliases written for every machine it lists (by the provider id the
+  agent enrolled with); a machine it answers without (not enrolled, so
+  no record of its own to judge its names beside) is passed over with an
+  INFO line, as a stopped one is, and gets its aliases at the next
+  applies-on run that finds it listed. A registry that cannot be asked
+  (`registered_servers` returns `None`) REFUSES the launch ("could not
+  check whether canonical hostname ... is already claimed"), skips every
+  alias that run, and fails the login proof's "one registration" check.
+  Silence is never a free name.
 - **`use_state_backends` on vs off.** On: every terraform root's state
   location is resolved from the declarations (own `state_configuration`,
   else the runtime's, else the default backend), collisions and unsafe
