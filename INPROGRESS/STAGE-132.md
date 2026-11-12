@@ -77,6 +77,56 @@ own commit on the bundle's branch.
    unreleased code records fingerprints the pinned release may not
    agree with; `dispose image --commit` is not, a disposal recording
    what was removed whatever the code's version.
+7. Found by item 4's cuts and left alone, because a cut changes no
+   behaviour; each is a finding for the next bundle, which takes this
+   list at "merge 132". The one that may matter most is (h).
+   a. `read_config_and_transform`: `if not root_dir` is checked only
+      after the plugins load and the catalog exists; the `else` that
+      would read the configuration's `working_directory` is dead (a
+      `Path` is always truthy) while an assert still requires it.
+   b. The loader's second "no runtime builders" check can never run.
+   c. The loader's `isinstance(config_data, list)` after structuring is
+      dead, and comes after an assert that reads the structured value.
+   d. `verbose` writes `./YAML_DUMP.yaml` into the invoking directory,
+      before the loader changes into the root.
+   e. The builder families are built in one order and listed in
+      another (`_build_builders` says which).
+   f. `reg.get_default_for(vct) != None`, and the same lookup again
+      inside the warning.
+   g. `resolve_all` compiles the replace template once for nothing
+      before it renders it; a syntax error there raises outside the
+      `try`.
+   h. A plain mapping in the resolver's map renders with
+      `template.render`, not `render_inheriting`
+      (`TemplateResolver._resolve_mapping`), so a value derived there
+      from a decrypted one does not inherit its encryption; every
+      other render site inherits. Check whether such a mapping can
+      reach the emission, and make it inherit.
+   i. The resolver stops after five passes without a word, even with
+      templates left; an `UndefinedError` in a replace template also
+      skips that field's foreign-key keep for the pass.
+   j. `upgrade_deferred_list_generated`'s "can't happen" branch happens
+      when the registry's default name is an empty string.
+   k. Its last fallback looks up the default item's type under the
+      BUILDER classification where the item classification looks
+      meant, and its debug line names a builder it then does not use.
+   l. Its `if deferred_item_vct:` is always true after the assert.
+   m. Its `model_id` warning says the item will not be added to the
+      flattened map; it is added.
+   n. It computes metadata and subitem overrides for every field of
+      every model before asking whether the field is deferred.
+   o. `run_lifecycles`: an `--only` refusal returns a summary with
+      `requested=[]` that is never written, recorded or handed to the
+      on-summary hooks, after the hook plugins have loaded and the
+      generated lifecycles were reset.
+   p. `{...} or None if force_bake else None` is right only by operator
+      precedence.
+   q. `register_provider_aliases` writes aliases for a machine that has
+      no registry record of its own yet.
+   r. On a non-zero return code its `out.strip()` sits outside the
+      `try`, so a runtime answering with no output would raise out of
+      the after-apply hook.
+   s. `(recorded.get(name) or {})` is evaluated three times.
 
 **Acceptance**: each item its own commit; `just test` green after
 each batch and at the end, then `just full-test-legs` once (the
