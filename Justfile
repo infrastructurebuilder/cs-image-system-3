@@ -68,9 +68,13 @@ test: lint typecheck pytest
 full-test: test
 	@just full-test-legs
 
-# Cut a release: the probes first -- the branch (`release_branch` alone), the
+# Cut a release, run from develop: the probes first -- the branch (develop, from which it
+# moves to `release_branch` itself; `release_branch` with develop an ancestor; or a
+# maintenance branch), a clean tree, the
 # index itself (its upload endpoint and every project page answer, and no project
-# holds the version), the index token, the tag -- then the bar, the index asked AGAIN (the
+# holds the version), the index token, the tag, the remote -- then from develop the
+# checkout of `release_branch` and its fast-forward to develop, `uv sync --all-extras`,
+# the venv's probes, the bar, the index asked AGAIN (the
 # bar takes twenty minutes), the bump, the lock, the
 # build and the upload, and only then the release's row in docs/CHANGES.md, the commit and
 # the tag, so a failed upload leaves
@@ -80,13 +84,16 @@ full-test: test
 # of the same version; `stage` finalises it, 0.1.1.dev2 -> 0.1.1) or an explicit version.
 # INDEX is `test` (TestPyPI, the default) or `pypi`: a development release to TestPyPI is
 # gated on `test`, the bar; a PyPI release on `full-test`, the modification-test evidence
-# in the live configuration and a clean live checkout. `yes` as the third argument is the
-# dry form: the probes and the version, nothing changed. Nothing is pushed: `git push
-# --follow-tags origin main` and develop's fast-forward back are the operator's acts, and
-# the pushed tag makes CI publish (it uploads nothing the index already holds).
+# in the live configuration and a clean live checkout. A refusal before the bump returns
+# the checkout to the branch it started on. After the tag: `git push --follow-tags origin
+# main`, develop checked out, fast-forwarded to main and pushed, and `uv sync --all-extras`
+# again (a maintenance branch: that branch pushed with its tags, develop untouched); the
+# pushed tag makes CI publish (it uploads nothing the index already holds). A failed step
+# there names itself and the commands left. `yes` as the third argument is the dry form:
+# the probes, the version, and every move and push it would make; nothing changed.
 # The family's logic is scripts/release.py (every step a function, tested with a stubbed
 # shell); the recipes here hand it the branch and the live configuration's root.
-[doc("Gated on the bar (test) or full-test (pypi): probe, bump, lock, build, publish, commit, tag v<version>; `yes` = dry")]
+[doc("From develop, gated on the bar (test) or full-test (pypi): probe, bump, lock, build, publish, commit, tag v<version>, push main and develop; `yes` = dry")]
 release target index="test" dry="no":
 	@uv run --no-sync --project "{{justfile_directory()}}" python "{{justfile_directory()}}/scripts/release.py" release "{{target}}" "{{index}}" "{{dry}}" \
 		--release-branch "{{release_branch}}" --config-root {{quote(config_root)}}
@@ -96,9 +103,9 @@ release target index="test" dry="no":
 # -- a first PyPI release of many projects takes days. On `release_branch`, with the bump
 # uncommitted and nothing else changed, and only when the index holds the version for every
 # project: the modification-test evidence (on PyPI), the docs/CHANGES.md row, the commit, the
-# tag. Nothing is pushed: `git push --follow-tags origin main` and develop's fast-forward back are
-# the operator's acts.
-[doc("After a release's upload was completed by `just publish`: check every project holds the version, then commit and tag it")]
+# tag; then the release's own ending: `git push --follow-tags origin main`, develop's
+# fast-forward to main and its push, and `uv sync --all-extras`.
+[doc("After a release's upload was completed by `just publish`: check every project holds the version, then commit, tag and push it")]
 release-finish index="test":
 	@uv run --no-sync --project "{{justfile_directory()}}" python "{{justfile_directory()}}/scripts/release.py" release-finish "{{index}}" \
 		--release-branch "{{release_branch}}" --config-root {{quote(config_root)}}

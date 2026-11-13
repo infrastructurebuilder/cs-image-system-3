@@ -5,12 +5,13 @@
 
 ``develop`` is where work is done and ``main`` is where releases live. The
 one release branch is the Justfile variable ``release_branch``. ``just
-release`` and ``just release-finish`` refuse any other checkout and name
-it; on ``main`` they also refuse when ``develop`` is not an ancestor, so a
-release never leaves a stage behind; a maintenance branch
-``release/<major.minor>`` is accepted without that check, for an old
-version's fix. The closing line names both pushes: ``main`` with its tags,
-then ``develop``'s fast-forward back. The docs say the same.
+release`` starts on ``develop`` (it moves to ``main`` itself) or on
+``main``; ``just release-finish`` on ``main``; both refuse any other
+checkout and name it; on ``main`` ``release`` also refuses when ``develop``
+is not an ancestor, so a release never leaves a stage behind; a
+maintenance branch ``release/<major.minor>`` is accepted without that
+check, for an old version's fix. The pushes are the script's. The docs say
+the same.
 
 History: stage 107 (the operator, 2026-10-31); stage 83 had the one
 release branch.
@@ -90,6 +91,14 @@ def test_main_at_develop_passes_the_branch_guard(tmp_path: Path):
     assert REFUSED not in out
 
 
+def test_develop_passes_the_release_guard_and_not_the_finish_guard(tmp_path: Path):
+    root = _repo(tmp_path)                                       # on develop, one commit past main
+    _, out = _just(root, "release", "0.0.1", "pypi", "yes")
+    assert REFUSED not in out                                    # release moves to main itself
+    rc, out = _just(root, "release-finish", "pypi")
+    assert rc == 1 and "develop" in out and REFUSED in out       # the bump to finish is on main
+
+
 def test_a_maintenance_branch_is_accepted_without_the_ancestor_check(tmp_path: Path):
     root = _repo(tmp_path)
     _git(root, "checkout", "-q", "-b", "release/0.1", "main")   # behind develop, by design
@@ -99,13 +108,13 @@ def test_a_maintenance_branch_is_accepted_without_the_ancestor_check(tmp_path: P
     assert REFUSED not in out
 
 
-def test_both_recipes_push_the_tags_and_hand_back_to_develop():
+def test_both_recipes_hand_the_release_branch_to_the_script():
+    """The pushes and develop's fast-forward are the script's, held against real scratch remotes in
+    tests/test_release_script.py; here, each recipe hands the script the release branch."""
     for recipe in ("release", "release-finish"):
         rc, body = _just(REPO, "--show", recipe)
         assert rc == 0
         assert "release_branch" in body and "scripts/release.py" in body, recipe      # the recipe hands the branch to the script
-    script = (REPO / "scripts" / "release.py").read_text()
-    assert "git push --follow-tags origin" in script and "git merge --ff-only" in script and "develop takes it back" in script
 
 
 def test_the_docs_say_main():

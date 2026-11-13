@@ -102,7 +102,6 @@ def test_build_wraps_uv_build_and_the_gates_hold():
                    '["uv", "lock"]', "publish-dist", '"tag", "-a"'):
         assert needle in script, needle
     assert "uv version" not in script and "UV_PUBLISH_URL" not in script and "SKIPPED" not in script   # the tag is no longer the release
-    assert '"push"' not in script and "git push" in script   # nothing is pushed by the family; the closing line names the operator's pushes
 
 
 def test_release_cannot_half_release_and_publish_is_its_own_recipe():
@@ -134,8 +133,9 @@ def test_release_cannot_half_release_and_publish_is_its_own_recipe():
 def test_release_finish_commits_and_tags_only_a_completed_upload():
     """release-finish is on the release branch (main), with the bump uncommitted
     and nothing else, asks the index that every project holds the version, and
-    only then makes the evidence commit (PyPI), the commit and the tag; it pushes
-    nothing. The order is held in tests/test_release_script.py; here the recipe is a wrapper."""
+    only then makes the evidence commit (PyPI), the commit and the tag, then the
+    release's pushes. The order is held in tests/test_release_script.py; here the
+    recipe is a wrapper."""
     assert "release-finish" in _summary()
     body = _plan("release-finish", "test")
     assert "scripts/release.py" in body and 'release-finish "test"' in body and len(body.strip().splitlines()) == 1
