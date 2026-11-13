@@ -66,6 +66,20 @@ blocking, each its own commit on the bundle's branch.
    and now holds nothing. Each group and user is parented to its own
    builder before the first resolution, and a test pins it (found by
    item 1; the operator, 2026-11-13: fixed in this stage).
+7. Three of the same kind, found by item 6 (the operator,
+   2026-11-13: all fixed in this stage):
+   a. default-typed groups and users are keyed in the resolver's map
+      as `<classification>::None::<name>`, because the key is taken
+      before their parent is set (the registry's own index is right):
+      they are parented at item 6's early point too, so the key is
+      right from the start;
+   b. `Storage.type_` declares that it also sets `model_id`, but a
+      storage holds no parent, so the resolver writes a stray plain
+      attribute onto it, and the field's description says "For User
+      items": the setter goes and the description says what it is;
+   c. the two image subconfig models declare on their parent field
+      that it also sets `model_id`, the field itself: the
+      self-reference goes.
 
 **Acceptance**: each item its own commit; a golden move is shown to
 the operator before it is regenerated; `just test` green at the end,
