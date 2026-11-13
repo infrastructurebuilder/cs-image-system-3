@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""The release family is scripts/release.py, run by three one-line recipes.
+"""The release family is scripts/release.py, run by four one-line recipes.
 
 Against a fake shell that answers every command the family runs (uv,
 bump-my-version, just, the probe scripts) and lets git through to a
@@ -16,8 +16,9 @@ the resync) and its closing line, from develop, main and a maintenance
 branch; the return to the starting branch on a refusal before the bump;
 what a failed upload says about the uncommitted bump and where it leaves
 it; a failed push named with what is left; ``release-finish``'s guards and
-its ending; ``publish``'s own order; the release's row in docs/CHANGES.md;
-the fetch probe, which refuses before anything changes when origin holds
+its ending; ``release-take``'s release, then the take in the live
+configuration, and what it says when either stops; ``publish``'s own
+order; the release's row in docs/CHANGES.md; the fetch probe, which refuses before anything changes when origin holds
 commits a branch the ending pushes lacks; and the one reader of the
 sibling repository's working tree.
 """
@@ -78,9 +79,11 @@ class FakeShell:
     def __init__(self, answers: list[tuple[str, object]] | None = None):
         self.answers = list(answers or [])
         self.calls: list[list[str]] = []
+        self.cwds: list[Path | None] = []
 
     def __call__(self, cmd: list[str], *, cwd: Path | None = None, capture: bool = True, env=None):
         self.calls.append(list(cmd))
+        self.cwds.append(cwd)
         text = " ".join(cmd)
         if cmd[0] == "git":
             return R.run(cmd, cwd=cwd, capture=True, env=env)
@@ -934,6 +937,83 @@ def test_release_finish_ends_as_the_release_does(tmp_path: Path, branch: str, en
     assert _git(plain, "tag", "-l") == "" and " M pyproject.toml" in _git(plain, "status", "--porcelain")
 
 
+# ------------------------------------------------------------ release-take
+
+TAKE_TREE = ("just --summary", R.Done(0, "init build test take record\n"))
+
+
+def _take_world(tmp_path: Path, *answers):
+    root = _system_repo(tmp_path, branch="develop", develop_ahead=True)
+    sibling = _sibling_repo(tmp_path)
+    shell = FakeShell([*answers, TAKE_TREE, *_answers(root)])
+    said: list[str] = []
+    return root, sibling, shell, said, _family(root, shell, sibling, said=said)
+
+
+@pytest.mark.parametrize("words", [(), ("main",)])
+def test_release_take_releases_then_takes_the_version_it_read_back_in_the_live_configuration(tmp_path: Path,
+                                                                                             words: tuple[str, ...]):
+    root, sibling, shell, said, fam = _take_world(tmp_path)
+    assert fam.release_take("patch", "test", *words) == 0
+    take = ["just", "take", "0.1.1.dev1", *words]
+    at = shell.calls.index(take)
+    assert shell.cwds[at] == sibling and at == len(shell.calls) - 1                 # the last act, in the configuration
+    last_sync = max(i for i, t in enumerate(shell.texts()) if t == " ".join(SYNC))
+    assert shell.first("git push origin develop") < last_sync < at                  # after the release's whole ending
+    assert shell.first("just --summary") < shell.first("git fetch")                  # the configuration asked first
+    reads = [i for i, t in enumerate(shell.texts()) if "show current_version" in t]
+    assert reads[-1] > shell.first("git tag -a")                                     # read back after the cut
+    main = R.TAKEN_MAIN if words else ""
+    assert said[-1] == "release-take: " + R.TAKEN.format(version="0.1.1.dev1", root=sibling, main=main)
+    assert _git(root, "tag", "-l") == "v0.1.1.dev1"
+
+
+def test_a_release_that_refuses_or_fails_runs_no_take(tmp_path: Path):
+    root, _, shell, _, fam = _take_world(tmp_path / "a")
+    (root / "stray").write_text("x\n")
+    with pytest.raises(R.Refused, match="must be clean"):
+        fam.release_take("patch", "test")
+    assert shell.count("just take") == 0
+    _, _, shell, _, fam = _take_world(tmp_path / "b", ("just test", R.Done(3)))
+    with pytest.raises(R.Refused) as e:
+        fam.release_take("patch", "test")
+    assert e.value.code == 3 and shell.count("just take") == 0
+
+
+def test_a_take_that_stops_says_the_release_is_done_and_how_to_finish(tmp_path: Path):
+    root, sibling, shell, _, fam = _take_world(tmp_path, ("just take", R.Done(1)))
+    with pytest.raises(R.Refused) as e:
+        fam.release_take("patch", "test", "main")
+    assert e.value.code == 1 and e.value.message == "release-take: " + R.TAKE_STOPPED.format(
+        version="0.1.1.dev1", root=sibling, rc=1, command="just take 0.1.1.dev1 main")
+    assert _git(_remote(root), "tag", "-l") == "v0.1.1.dev1"                         # the release itself went through
+
+
+def test_the_dry_release_take_is_the_dry_release_then_the_take_it_would_run(tmp_path: Path):
+    root, sibling, shell, said, fam = _take_world(tmp_path)
+    refs, files = _refs(root), _files(root)
+    assert fam.release_take("patch", "test", "yes", "main") == 0
+    assert _dry_plan(said) in said and said[-1] == "release-take: " + R.WOULD.format(
+        command=f"cd {sibling} && just take 0.1.1.dev1 main")
+    assert shell.count("just take") == 0 and shell.count("bump-my-version bump") == 0 and _moves(shell) == []
+    assert _refs(root) == refs and _files(root) == files
+
+
+def test_release_take_refuses_a_word_or_a_configuration_it_cannot_take_in_before_anything(tmp_path: Path):
+    _, _, shell, _, fam = _take_world(tmp_path / "a")
+    with pytest.raises(R.Refused) as e:
+        fam.release_take("patch", "test", "mian")
+    assert e.value.code == 2 and e.value.message == "release-take: " + R.NOT_A_TAKE_WORD.format(word="mian")
+    root, sibling, shell, _, fam = _take_world(tmp_path / "b", ("just --summary", R.Done(0, "init build\n")))
+    with pytest.raises(R.Refused) as e:
+        fam.release_take("patch", "test")
+    assert e.value.message.startswith("release-take: no live configuration to take")
+    assert shell.count("git fetch") == 0 and shell.count("publish-target-ready") == 0
+    unconfigured = _family(root, FakeShell([TAKE_TREE, *_answers(root)]), tmp_path / "nowhere")
+    with pytest.raises(R.Refused, match="nothing was changed"):
+        unconfigured.release_take("patch", "test")
+
+
 # ---------------------------------------------------------------- publish
 
 def test_publish_asks_the_index_cleans_builds_and_uploads_one_project_at_a_time(tmp_path: Path):
@@ -997,12 +1077,14 @@ def test_the_recipes_are_wrappers_over_the_script():
     if not os.access(SCRIPT, os.X_OK):
         pytest.fail("scripts/release.py is run as a script")
     summary = subprocess.run(["just", "--summary"], cwd=REPO, capture_output=True, text=True).stdout.split()
-    assert {"release", "release-finish", "publish"} <= set(summary)
+    assert {"release", "release-finish", "release-take", "publish"} <= set(summary)
     script = f'python "{SCRIPT}" '
     for args, call in ((("release", "patch", "test", "yes"),
                         'release "patch" "test" "yes" --release-branch "main" --config-root '),
                        (("release-finish", "pypi"), 'release-finish "pypi" --release-branch "main" --config-root '),
                        (("publish", "test"), 'publish "test"'),
+                       (("release-take", "patch", "pypi", "main"),
+                        'release-take "patch" "pypi" main --release-branch "main" --config-root '),
                        (("_release-probes", "pypi", "release-finish"),
                         'probes "pypi" "release-finish" --config-root ')):
         plan = _plan(*args)

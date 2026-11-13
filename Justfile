@@ -110,6 +110,29 @@ release-finish index="test":
 	@uv run --no-sync --project "{{justfile_directory()}}" python "{{justfile_directory()}}/scripts/release.py" release-finish "{{index}}" \
 		--release-branch "{{release_branch}}" --config-root {{quote(config_root)}}
 
+# The release walk's two repositories in one command: the live configuration (`config_root`) is
+# asked first (configured, a git checkout, with a `take` recipe); then the release, as `release`
+# runs it; then `just take <version>` there, the version read back from what the release cut, with
+# `main` passed through when given (the take then pushes develop to main: main performs). A release
+# that refuses or fails runs no take; a take that stops says so, with the command that finishes it
+# there. WORDS: `main`, `yes` (the dry form: the release's, then the take it would run), both, or neither.
+[doc("The release (as `release` runs it), then `just take <version>` in the live configuration; `main`: the take pushes main too; `yes` = dry")]
+release-take target index *words:
+	@uv run --no-sync --project "{{justfile_directory()}}" python "{{justfile_directory()}}/scripts/release.py" release-take "{{target}}" "{{index}}" {{words}} \
+		--release-branch "{{release_branch}}" --config-root {{quote(config_root)}}
+
+# Wait on the runs a release walk started and say one verdict line each, found by commit: here the
+# tag's run of CI, main's, develop's and develop's "CI from scratch"; in the live configuration the
+# take's develop and, when main was pushed, main. A green job is not proof its steps ran: for the
+# tag's run the index (TestPyPI for a development version, PyPI for a final one) must list the
+# version and every template repository must hold its tag; for the configuration's main the perform
+# job's guard verdict is read, and what it baked. Exit 0 only when every verdict is good; sixty
+# minutes at most (scripts/release-watch --timeout). The logic is scripts/release-watch.
+[doc("Wait on the runs a release walk started (here and in the live configuration) and say one verdict each; exit 0 only when all are good")]
+release-watch version:
+	@uv run --no-sync --project "{{justfile_directory()}}" python "{{justfile_directory()}}/scripts/release-watch" "{{version}}" \
+		--root "{{justfile_directory()}}" --config-root {{quote(config_root)}}
+
 # What a release needs and `full-test` only finds out twenty minutes in, asked
 # first and in one line each, before anything changes. For every index: the venv is in step with
 # the lock (`uv sync --all-extras --check`), because every recipe runs `uv run --no-sync` and a venv

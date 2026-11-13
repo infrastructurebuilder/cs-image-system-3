@@ -2,10 +2,11 @@
 # SPDX-FileCopyrightText: 2026 Mykel Alvis <mykelalvis@infrastructurebuilder.org>
 #
 # SPDX-License-Identifier: Apache-2.0
-"""The release family: what `just release`, `just release-finish` and `just publish` do.
+"""The release family: what `just release`, `just release-finish`, `just release-take` and `just publish` do.
 
     uv run python scripts/release.py release <part|version> [test|pypi] [yes] [--release-branch B] [--config-root DIR]
     uv run python scripts/release.py release-finish [test|pypi] [--release-branch B] [--config-root DIR]
+    uv run python scripts/release.py release-take <part|version> <test|pypi> [main] [yes] [--release-branch B] [--config-root DIR]
     uv run python scripts/release.py publish [test|pypi]
     uv run python scripts/release.py probes <test|pypi> [release|release-finish] [--config-root DIR]
 
@@ -54,6 +55,16 @@ stopped part-way and was completed by ``just publish``: on the release
 branch with the bump uncommitted and nothing else changed, once the index
 holds the version for every project, and after the same fetch probe; then
 the same ending.
+
+``release-take`` is the release, as ``release`` runs it, and then ``just take
+<version>`` in the live configuration, ``main`` passed through when given. The
+configuration is asked first (configured, a git checkout, with a ``take``
+recipe), before the release changes anything. The version is read back from
+the tree the release left (``bump-my-version show current_version``, its tag
+here), never recomputed. A release that refuses or fails runs no take; a
+take that stops (an edited file, a lapsed session) is said with the command
+that finishes it there, and its exit code. ``yes`` is the dry form: the
+release's dry form, then the take it would run.
 
 ``publish`` builds and uploads the version in the tree: the index asked
 first, ``dist/`` cleaned, ``just build``, then ``scripts/publish-dist``,
@@ -139,6 +150,19 @@ RELEASED = ("release: {version} is on {name}, committed, tagged v{version} and p
             "uploads nothing already there")
 FINISHED = ("release-finish: {version} is on {name} for every project, committed, tagged v{version} and pushed: "
             "{pushed}; the checkout is on {branch} with its venv synced (uv sync --all-extras)")
+#: release-take's lines, after "release-take: "
+TAKE_WORDS = ("main", "yes")
+NOT_A_TAKE_WORD = ("'{word}' is not an argument of release-take: 'main' (the take pushes develop to main too), 'yes' "
+                   "(the dry form), both, or neither")
+NO_TAKE_TREE = "no live configuration to take the release in at {root} ({why}) -- nothing was changed"
+NOT_READ_BACK = ("the release ended, but the version it cut could not be read back here (v{version} is not tagged) "
+                 "-- the take did not run; run it by hand: cd {root} && {command}")
+TAKE_STOPPED = ("{version} is released and pushed (above), but the take in {root} stopped (exit {rc}; its own lines "
+                "above say why and what to do). The release is done and never runs again; finish the take there: "
+                "cd {root} && {command} (with `patched` after a refresh by hand, as it said)")
+TAKEN = ("{version} is released here and taken in {root}{main}; `just release-watch {version}` waits on the runs "
+         "they started")
+TAKEN_MAIN = ", main pushed there too (main performs)"
 PUBLISHED = ("publish: cs-image-system {version} is on {name} (the system and its {packages} published packages, "
              "sdist and wheel each; files already there with the same content were skipped)")
 
@@ -281,6 +305,7 @@ class Family:
     env: MutableMapping[str, str] = field(default_factory=lambda: os.environ)
     say: Callable[[str], None] = print
     today: Callable[[], str] = lambda: _dt.date.today().isoformat()
+    planned: str = field(default="", init=False)      #: the version the last `release` call planned
 
     # --- helpers
 
@@ -678,6 +703,7 @@ class Family:
             self.clean_or_refuse()
         current = self.current_version("release")
         new, bump_args = self.version_plan(target, current)
+        self.planned = new
         self.ready_or_refuse(index, name, new)
         self.token(name, "release")
         if self.tagged(new):
@@ -738,6 +764,44 @@ class Family:
         self.say(FINISHED.format(version=new, name=name, pushed=pushed, branch=self.ends_on(branch)))
         return 0
 
+    def take_tree_or_refuse(self) -> None:
+        """The live configuration can take the release: configured, a git checkout, with a ``take`` recipe."""
+        tree, root = self.sibling, self.sibling.path
+        why = ""
+        if not tree.configured:
+            why = "no cfg/_config.yml; `just config-guard` says why"
+        elif tree.branch is None:
+            why = "not a git checkout"
+        elif "take" not in self.run(["just", "--summary"], cwd=root).out.split():
+            why = "its Justfile has no `take` recipe (just --summary there)"
+        if why:
+            raise Refused(f"release-take: {NO_TAKE_TREE.format(root=root, why=why)}")
+
+    def release_take(self, target: str, index: str, *words: str) -> int:
+        """The release, then ``just take <version>`` in the live configuration (``main`` passed through)."""
+        for word in words:
+            if word not in TAKE_WORDS:
+                raise Refused(f"release-take: {NOT_A_TAKE_WORD.format(word=word)}", 2)
+        main = "main" in words
+        dry = "yes" if "yes" in words else "no"
+        self.take_tree_or_refuse()
+        root = self.sibling.path
+        self.release(target, index, dry)
+        if dry == "yes":
+            take = " ".join(["just", "take", self.planned, *(["main"] if main else [])])
+            self.say(f"release-take: {WOULD.format(command=f'cd {root} && {take}')}")
+            return 0
+        version = self.current_version("release-take")
+        take = ["just", "take", version, *(["main"] if main else [])]
+        if not self.tagged(version):
+            raise Refused(f"release-take: {NOT_READ_BACK.format(version=version, root=root, command=' '.join(take))}")
+        done = self.run(take, cwd=root, capture=False)
+        if done.rc != 0:
+            raise Refused(f"release-take: {TAKE_STOPPED.format(version=version, root=root, rc=done.rc, command=' '.join(take))}",
+                          done.rc)
+        self.say(f"release-take: {TAKEN.format(version=version, root=root, main=TAKEN_MAIN if main else '')}")
+        return 0
+
     def publish(self, index: str = "test", *, summary: Path | None = None) -> int:
         """Build and upload the version in the tree: the index asked first (a partial upload of this version is
         what a re-run completes, so a project that already holds it is reported, not refused), `dist/` cleaned,
@@ -773,7 +837,7 @@ class Family:
 
 def main(argv: list[str]) -> int:
     ap = argparse.ArgumentParser(prog="release.py", description=(__doc__ or "").splitlines()[0])
-    ap.add_argument("command", choices=["release", "release-finish", "publish", "probes"])
+    ap.add_argument("command", choices=["release", "release-finish", "release-take", "publish", "probes"])
     ap.add_argument("args", nargs="*")
     ap.add_argument("--release-branch", default="main")
     ap.add_argument("--config-root", default=None)
@@ -786,6 +850,10 @@ def main(argv: list[str]) -> int:
             if not ns.args:
                 ap.error("release needs a version part or a version")
             return family.release(*ns.args[:3])
+        if ns.command == "release-take":
+            if len(ns.args) < 2:
+                ap.error("release-take needs a version part or a version, and the index")
+            return family.release_take(*ns.args)
         if ns.command == "release-finish":
             return family.finish(*ns.args[:1])
         if ns.command == "publish":
