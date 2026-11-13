@@ -1224,6 +1224,7 @@ Open list in [INPROGRESS/TODO.md](../INPROGRESS/TODO.md) names.
 | `release: this checkout is on '<branch>'; a release is cut on main alone (from develop it moves there itself) (or a maintenance branch release/<major.minor>)` | the checkout is on neither `develop`, `main` nor a maintenance branch; the rule exists so that a version is never cut, committed and tagged on a branch `main` does not hold ([CHANGES.md](CHANGES.md#s107)) | `git checkout develop`, then the release again |
 | `release: main is behind develop -- a release never leaves a stage behind` | run from `main`: a stage landed on `develop` that `main` has not taken | the release from `develop` (it fast-forwards `main` itself), or on `main`: `git merge --ff-only develop`, then the release again |
 | `release: main cannot be fast-forwarded to develop: it holds commits develop does not` | run from `develop`: `main` has a commit `develop` lacks (a release whose fast-forward back never ran, say); refused before any checkout | bring `develop` up: `git checkout develop && git merge --ff-only main` (or one merge commit of `main` when that refuses), then the release again |
+| `release: origin/<branch> holds <n> commit(s) the local <branch> lacks, so its push after the upload would be refused` (or the same under `release-finish:`) | someone pushed `main` or `develop` (a maintenance release: its own branch) since this checkout last fetched; the release fetched first, so it stopped before anything changed | `git checkout <branch> && git merge --ff-only origin/<branch>` (a reconciliation when that cannot fast-forward), then the same command again |
 | ``release: <v> is on <index>, committed and tagged v<v> here, but `<command>` failed (above); the rest, by hand: ...`` | a step after the tag failed: a push the remote refused, or `develop`'s fast-forward back (a stage landed during the release) | fix its cause, then run the commands the line lists, in order; the version is published and tagged, so never the release again |
 | `public-safe: ... <file>:<line>` from the hook | a committed line looks like a secret, a key, a plan or a state file | never bypass the hook; encrypt the value, or allow it BY DECISION in `cfg/_config.yml` `public_safe.allow` |
 | `Build '<image>' errored after 20 minutes ...: Timeout waiting for SSH.` with `ssm error: ... StartSession, context canceled` | the bake machine booted and its SSM agent was Online, but packer's ssh session through SSM never opened: the bake host is a 1 GB machine (a t2.micro), too small for the image it boots; the same parent bakes on a t3.medium | give the bake host 4 GB: `machine_type: t3.medium` on the image's runtime entry, or the runtime's `default_machine_type` (the starters ship t3.medium). The builds that completed before the failure are recorded anyway, and a warning names them ([INCIDENTS.md](INCIDENTS.md#a-1-gb-bake-host-starved-the-package-manager-and-the-ssm-agent)) |
@@ -1448,7 +1449,14 @@ with its tag and leaves `develop` alone. A refusal before the bump puts
 the checkout back on the branch it started on; a failed upload leaves the
 uncommitted bump on `main` for `just release-finish` (which ends with the
 same pushes) or the discard; a push that fails after the tag is named,
-with the commands left to run. `yes` as the third argument prints every
+with the commands left to run. So that push is not refused for a reason
+known in advance, the release first runs `git fetch origin` and refuses,
+before anything changes, when `origin/main` or `origin/develop` (for a
+maintenance branch, that branch's own) holds a commit the local branch
+lacks, naming the branch and the cure (`git checkout <branch> && git
+merge --ff-only origin/<branch>`); a local branch ahead of origin passes,
+since the release pushes it. `release-finish` asks the same before its
+pushes. `yes` as the third argument prints every
 move and push it would make and changes nothing. Before anything
 changes, and again after the bar, it asks the index whether it can take
 an upload (`just index-ready [test|pypi]` asks the same on its own, and

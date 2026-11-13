@@ -2038,7 +2038,18 @@ order:
    `v<version>` tag exists here (the local record of a version that was
    cut, deleted from the index or not); `dev` on a final version is
    refused (open the next version with `patch` first); the checkout has
-   the remote `origin` the release will push to;
+   the remote `origin` the release will push to; and, after `git fetch
+   origin`, origin holds no commit that a branch the ending pushes lacks
+   (`main` and `develop`, or the maintenance branch alone): one that
+   does would refuse that push after the upload, leaving a version on
+   the index whose commit and tag are unpushed. The refusal names the
+   branch, the count and the remedy (`git checkout <branch> && git merge
+   --ff-only origin/<branch>`, or a reconciliation when that cannot
+   fast-forward), and changes nothing but the remote-tracking refs the
+   fetch moved. A local branch AHEAD of origin passes: the ending pushes
+   it. The dry form fetches and says the same, one line either way
+   (`release: origin holds no commit the local main or develop lacks
+   (fetched)`);
 2. from `develop`, the move: `git checkout main` and `git merge
    --ff-only develop`. A `main` that cannot fast-forward (it holds
    commits `develop` does not) is refused before the checkout, on
@@ -2171,7 +2182,9 @@ for it until one is needed. A tree older than 0.1.6 cut its releases on
 **Finishing a release by hand: `just release-finish <index>`.** For a
 release whose upload stopped part-way and was completed with `just
 publish`. On `main` (or a maintenance branch), with the bump uncommitted
-and nothing else changed, it asks the venv probe above, then asks the index whether every project holds the version
+and nothing else changed, it asks the venv probe above and the fetch
+probe (step 1: origin holds no commit the branches it will push lack),
+then asks the index whether every project holds the version
 (`scripts/publish-target-ready --all-held`; the index's pages lag an
 upload by minutes, so a count just after one can be short), and only
 then makes the evidence commit in the live repository (PyPI), the

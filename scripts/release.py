@@ -21,7 +21,11 @@ with ``develop`` an ancestor, or on a maintenance branch
 cheap probes before anything changes (the branch; a clean working tree;
 the target names a version of the accepted shape; the index can take an
 upload and holds the version for no project; the token is set; no
-``v<version>`` tag exists here; the remote is there to push to); from
+``v<version>`` tag exists here; the remote is there to push to; and, after
+``git fetch origin``, origin holds no commit that a branch the ending pushes
+lacks -- the release branch and ``develop``, or the maintenance branch -- since
+that push would be refused after the upload; a local branch ahead of origin
+passes); from
 ``develop``, the move: the release branch checked out and fast-forwarded to
 ``develop`` (refused, on ``develop``, when it cannot be); the resync of the
 venv (``uv sync --all-extras``: a branch switch and a moved lock leave the
@@ -48,7 +52,8 @@ refs, and changes nothing.
 ``release-finish`` makes the commit and the tag of a release whose upload
 stopped part-way and was completed by ``just publish``: on the release
 branch with the bump uncommitted and nothing else changed, once the index
-holds the version for every project; then the same ending.
+holds the version for every project, and after the same fetch probe; then
+the same ending.
 
 ``publish`` builds and uploads the version in the tree: the index asked
 first, ``dist/`` cleaned, ``just build``, then ``scripts/publish-dist``,
@@ -111,6 +116,14 @@ NO_BRANCH = "there is no local branch {cut} to cut the release on (git branch {c
 NO_FAST_FORWARD = ("{cut} cannot be fast-forwarded to develop: it holds commits develop does not -- reconcile the two "
                    "first -- nothing was changed")
 NO_REMOTE = "this checkout has no remote '{remote}' to push the release to (git remote -v) -- nothing was changed"
+#: the fetch probe, after "<who>: ": origin asked whether it holds commits a branch the ending pushes lacks
+NO_FETCH = ("`git fetch {remote}` failed (above), so whether {remote} holds commits this checkout lacks is unknown "
+            "-- nothing was changed")
+BEHIND_ORIGIN = ("{remote}/{branch} holds {count} commit(s) the local {branch} lacks, so its push after the upload "
+                 "would be refused -- bring {branch} up first: git checkout {branch} && git merge --ff-only "
+                 "{remote}/{branch} (reconcile the two when that cannot fast-forward), then run the same command "
+                 "again -- nothing was changed")
+LEVEL_WITH_ORIGIN = "{remote} holds no commit the local {branches} lacks (fetched)"
 SYNC_FAILED = "`uv sync --all-extras` failed (above) -- nothing was changed"
 #: what a refusal or a failure before the bump adds, after "release: ", once the release had moved the checkout
 BACK = "the checkout is back on {branch}, and {cut} is where it was"
@@ -326,6 +339,31 @@ class Family:
     def remote_or_refuse(self, who: str) -> None:
         if self.git("remote", "get-url", REMOTE).rc != 0:
             raise Refused(f"{who}: {NO_REMOTE.format(remote=REMOTE)}")
+
+    def pushed_branches(self, cut: str) -> list[str]:
+        """The branches the ending pushes: the one the release is cut on and, for the release branch, develop."""
+        return [cut, DEVELOP] if cut == self.release_branch else [cut]
+
+    def fetched_or_refuse(self, who: str, cut: str) -> None:
+        """`git fetch origin`, then every branch the ending pushes holds whatever its origin counterpart holds: a
+        commit there that the local branch lacks would refuse the push after the upload. A local branch ahead
+        of origin passes (the ending pushes it); a branch absent on either side has nothing to compare."""
+        fetched = self.git("fetch", "-q", REMOTE)
+        if fetched.rc != 0:
+            for line in (fetched.err + fetched.out).splitlines():
+                if line.strip():
+                    self.say(line)
+            raise Refused(f"{who}: {NO_FETCH.format(remote=REMOTE)}", fetched.rc)
+        branches = self.pushed_branches(cut)
+        for branch in branches:
+            local = self.git("rev-parse", "-q", "--verify", f"refs/heads/{branch}").out.strip()
+            theirs = self.git("rev-parse", "-q", "--verify", f"refs/remotes/{REMOTE}/{branch}").out.strip()
+            if not local or not theirs:
+                continue
+            count = self.git("rev-list", "--count", f"{local}..{theirs}").out.strip()
+            if count and count != "0":
+                raise Refused(f"{who}: {BEHIND_ORIGIN.format(remote=REMOTE, branch=branch, count=count)}")
+        self.say(f"{who}: {LEVEL_WITH_ORIGIN.format(remote=REMOTE, branches=' or '.join(branches))}")
 
     def fast_forward_or_refuse(self, cut: str) -> str:
         """The release branch's commit, once it is known to fast-forward to develop; read from the refs alone."""
@@ -646,6 +684,7 @@ class Family:
             raise Refused(f"release: v{new} is already tagged here -- a version is never re-cut, even after its files "
                           "were deleted from the index")
         self.remote_or_refuse("release")
+        self.fetched_or_refuse("release", cut)
         gate = "full-test" if name == "pypi" else "test"
         if dry == "yes":
             return self.dry(start, cut, index,
@@ -679,6 +718,7 @@ class Family:
         if others:
             raise Refused(f"release-finish: the tree must hold the bump to {new} and nothing else:\n" + "\n".join(others))
         self.remote_or_refuse("release-finish")
+        self.fetched_or_refuse("release-finish", branch)
         rc = self.index_ready(index, new, "--all-held")
         if rc == 1:
             raise Refused(f"release-finish: not every project holds {new} on {name} (above) -- run `just publish "

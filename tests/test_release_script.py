@@ -17,7 +17,9 @@ branch; the return to the starting branch on a refusal before the bump;
 what a failed upload says about the uncommitted bump and where it leaves
 it; a failed push named with what is left; ``release-finish``'s guards and
 its ending; ``publish``'s own order; the release's row in docs/CHANGES.md;
-and the one reader of the sibling repository's working tree.
+the fetch probe, which refuses before anything changes when origin holds
+commits a branch the ending pushes lacks; and the one reader of the
+sibling repository's working tree.
 """
 from __future__ import annotations
 
@@ -140,8 +142,9 @@ def _remote(root: Path) -> Path:
 
 
 def _refs(repo: Path) -> str:
-    """Every ref of a repository and the object it names: what the dry form must leave as it was."""
-    return _git(repo, "for-each-ref", "--format=%(refname) %(objectname)")
+    """Every branch and tag of a repository and the object each names: what the dry form must leave as it
+    was. The remote-tracking refs are left out: the fetch probe moves them, and that is all it may move."""
+    return _git(repo, "for-each-ref", "--format=%(refname) %(objectname)", "refs/heads", "refs/tags")
 
 
 def _head(repo: Path) -> str:
@@ -770,6 +773,84 @@ def test_a_checkout_with_no_remote_is_refused_before_anything_changes(tmp_path: 
             _family(root, shell).release("patch", "test", dry)
         assert e.value.message == f"release: {R.NO_REMOTE.format(remote='origin')}", dry
         assert _moves(shell) == [] and _refs(root) == refs and _head(root) == "develop", dry
+
+
+# ------------------------------------------------------- the fetch probe
+
+def _origin_ahead(root: Path, branch: str) -> None:
+    """Someone else's push: one commit on ``branch`` in the scratch remote that the checkout lacks."""
+    other = root.parent / f"other-{branch.replace('/', '-')}"
+    _git(root.parent, "clone", "-q", "-b", branch, str(_remote(root)), str(other))
+    (other / "theirs").write_text(f"{branch}\n")
+    _git(other, "add", "theirs")
+    _git(other, "commit", "-q", "-m", "theirs")
+    _git(other, "push", "-q", "origin", branch)
+
+
+@pytest.mark.parametrize(("start", "ahead"), [("develop", "main"), ("develop", "develop"), ("main", "main"),
+                                              ("main", "develop"), ("release/0.1", "release/0.1")])
+@pytest.mark.parametrize("dry", ["no", "yes"])
+def test_origin_holding_commits_a_pushed_branch_lacks_is_refused_before_anything_changes(tmp_path: Path, start: str,
+                                                                                         ahead: str, dry: str):
+    root = _system_repo(tmp_path, branch=start, develop_ahead=start != "main")
+    _origin_ahead(root, ahead)
+    refs, files = _refs(root), _files(root)
+    shell = FakeShell(_answers(root))
+    said: list[str] = []
+    with pytest.raises(R.Refused) as e:
+        _family(root, shell, said=said).release("patch", "test", dry)
+    assert e.value.message == f"release: {R.BEHIND_ORIGIN.format(remote='origin', branch=ahead, count='1')}"
+    assert e.value.code == 1 and shell.count("git fetch -q origin") == 1
+    for never in ("uv sync", "just test", "bump-my-version bump", "uv lock", "just build", "publish-dist",
+                  "git push", "git checkout"):
+        assert shell.count(never) == 0, never
+    assert _moves(shell) == [] and _head(root) == start and _refs(root) == refs and _files(root) == files
+    assert _git(root, "status", "--porcelain") == "" and not _would_lines(said)
+
+
+def test_a_maintenance_release_asks_its_own_branch_alone(tmp_path: Path):
+    """develop is never pushed by a maintenance release, so origin's develop ahead of it is no concern."""
+    root = _system_repo(tmp_path, branch="release/0.1", develop_ahead=True)
+    _origin_ahead(root, "develop")
+    said: list[str] = []
+    assert _family(root, FakeShell(_answers(root)), said=said).release("patch", "test") == 0
+    assert f"release: {R.LEVEL_WITH_ORIGIN.format(remote='origin', branches='release/0.1')}" in said
+
+
+def test_a_local_branch_ahead_of_origin_passes_and_is_pushed(tmp_path: Path):
+    root = _system_repo(tmp_path, branch="develop", develop_ahead=True)
+    (root / "mine").write_text("not yet pushed\n")
+    _git(root, "add", "mine")
+    _git(root, "commit", "-q", "-m", "mine")
+    said: list[str] = []
+    assert _family(root, FakeShell(_answers(root)), said=said).release("patch", "test") == 0
+    assert f"release: {R.LEVEL_WITH_ORIGIN.format(remote='origin', branches='main or develop')}" in said
+    assert _git(_remote(root), "rev-parse", "develop") == _git(root, "rev-parse", "HEAD")
+
+
+def test_the_dry_form_fetches_and_says_origin_holds_nothing_the_pushes_lack(tmp_path: Path):
+    root = _system_repo(tmp_path, branch="develop", develop_ahead=True)
+    said: list[str] = []
+    shell = FakeShell(_answers(root))
+    assert _family(root, shell, said=said).release("patch", "test", "yes") == 0
+    level = f"release: {R.LEVEL_WITH_ORIGIN.format(remote='origin', branches='main or develop')}"
+    assert shell.count("git fetch -q origin") == 1 and said.index(level) < said.index(_dry_plan(said))
+    _git(root, "remote", "set-url", "origin", str(tmp_path / "gone.git"))
+    with pytest.raises(R.Refused) as e:
+        _family(root, FakeShell(_answers(root))).release("patch", "test", "yes")
+    assert e.value.message == f"release: {R.NO_FETCH.format(remote='origin')}"
+
+
+def test_release_finish_asks_origin_before_it_commits(tmp_path: Path):
+    root = _system_repo(tmp_path)
+    _origin_ahead(root, "develop")
+    _bumped(root)
+    shell = FakeShell([("bump-my-version show current_version", R.Done(0, "0.1.1.dev1\n"))])
+    with pytest.raises(R.Refused) as e:
+        _family(root, shell).finish("test")
+    assert e.value.message == f"release-finish: {R.BEHIND_ORIGIN.format(remote='origin', branch='develop', count='1')}"
+    assert shell.count("publish-target-ready") == 0 and shell.count("git add") == 0 and shell.count("git push") == 0
+    assert _git(root, "tag", "-l") == "" and " M pyproject.toml" in _git(root, "status", "--porcelain")
 
 
 # --------------------------------------------------------- release-finish
