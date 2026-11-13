@@ -1,6 +1,6 @@
 # 135. Registered instances carry a namespace
 
-**Status: OPEN 2026-11-13, from [§134](STAGE-134.md) item 10(d).
+**Status: OPEN 2026-11-13, from [§134](../docs/CHANGES.md#s134) item 10(d).
 A plan: waits for "do 135".**
 
 [§131](../docs/CHANGES.md#s131) gave every registered CLASS a

@@ -12,7 +12,7 @@ Stages from the re-examination of 2026-11-03.
 [REEXAMINE4.md](REEXAMINE4.md) digests the three reviews
 ([REEXAMINE1.md](REEXAMINE1.md), [REEXAMINE2.md](REEXAMINE2.md),
 [REEXAMINE3.md](REEXAMINE3.md)); each stage file
-([§134](STAGE-134.md); §118 to §133
+([§135](STAGE-135.md); §118 to §134
 landed) cites the review section
 it answers. The conventions are the ones above: one file per stage; a
 stage is a plan until the operator says "do N"; **YOUR DECISION** marks
@@ -42,13 +42,14 @@ numbers and re-measured after §132.
 
 **The open stages against each other** (re-evaluated 2026-11-13; no
 two demand incompatible outcomes, and each file carries what was
-found). The order proposed: [§134](STAGE-134.md) (small; its items 4
-and 5 change files §113 sorts and moves), [§112](STAGE-112.md) (then
-a release as its proof), [§113](STAGE-113.md) (alone: it rewrites
-imports in ninety-one test files), [§116](STAGE-116.md), §117.
-**YOUR DECISION:** that order (the default), or another; only "§134's
-items 4 and 5 before §113" and "§113 alone" are constraints, the rest
-is preference.
+found). §134 landed first, as proposed (2026-11-13). The order
+proposed for the rest: [§112](STAGE-112.md) (then a release as its
+proof), [§113](STAGE-113.md) (alone: it rewrites imports in
+ninety-one test files), [§116](STAGE-116.md), §117; and
+[§135](STAGE-135.md), which changes the registry and the resolver's
+keys, before §113 or after it but not beside it. **YOUR DECISION:**
+that order (the default), or another; only "§113 alone" is a
+constraint, the rest is preference.
 
 
 **Open**
@@ -93,10 +94,15 @@ is preference.
   nothing; the narration rule reads across line breaks and the starter
   trees; and twenty-four smaller findings of §132's cuts.
   [§113](STAGE-113.md)'s plan is re-measured. Its last findings opened
-  [§134](STAGE-134.md).
-- [§134](STAGE-134.md), hygiene bundle XXVII: the open bundle for the
-  small findings; opened 2026-11-12 with §133's five carried items.
-  Waits for "do 134".
+  §134.
+- §134, hygiene bundle XXVII: landed 2026-11-13. Parent references
+  are right at every moment of a load (never defaulted; OS builder
+  entries, groups and users parented before the first resolution);
+  every key in the resolver's map and the registry's index is its
+  item's current id; registration checks every key before it writes
+  and no catch-all hides its errors; the runner image's sources stop
+  narrating. Its item 10(d) opened [§135](STAGE-135.md). No hygiene
+  bundle is open.
 - [§135](STAGE-135.md), registered instances carry a namespace:
   planned 2026-11-13 from §134 (child items keyed by bare name
   overwrite each other in the registry); waits for "do 135".
@@ -123,7 +129,6 @@ and validated by the operator before its "do N")
 - [§112, A release in two boxes](STAGE-112.md)
 - [§113, The kit and the engine: `base` splits where the plugins stop](STAGE-113.md)
 - [§116, A runtime installed from outside](STAGE-116.md)
-- [§134, Hygiene bundle XXVII](STAGE-134.md)
 - [§135, Registered instances carry a namespace](STAGE-135.md)
 
 **Release**
@@ -204,6 +209,25 @@ and validated by the operator before its "do N")
 
 **Landed since 2026-10-05** (newest first)
 
+- §134, hygiene bundle XXVII: 2026-11-13, its squash commit
+  (feature/hygiene-xxvii kept). Five carried items and five rounds of
+  findings, each asked and fixed in the stage (items 6 to 10). A parent
+  reference is never filled with the registry's default; OS builder
+  entries, groups and users are parented to their own builder before
+  the first resolution, where three of five OS entries had pointed at
+  the default builder; each OS entry's `type` renders its parent's name
+  through `this.identified_model`. Every model in the resolver's map is
+  keyed by its current id, the registry's global-id index holds only
+  current ids, an item's or builder's id reads a parent only from what
+  holds one, and a storage carries no stray parent. Registration
+  checks every key before it writes (a refusal changes nothing), the
+  same instance may register again, and the catch-alls that hid
+  registration errors are gone. The runner image's sources stop
+  narrating and the rule reads them; seven skeleton recipes list whole
+  lines; the shared opened-marker store records why it is shared; the
+  loader's dead collector went. The golden never moved; the contract
+  is unchanged. Item 10(d), refusing a foreign overwrite, needs child
+  items keyed by namespace first and opened §135.
 - §133, hygiene bundle XXVI: 2026-11-12, its squash commit
   (feature/hygiene-xxvi kept). Thirty items landed. A run keeps its
   alias draws on its own state, where two runs with one run id had
