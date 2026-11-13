@@ -11,7 +11,9 @@ any:
   registry exactly as it was, the global-id index included;
 * a registration that is not refused writes every key: its name and each
   alias in its own namespace, its global id, and its name and each alias in
-  the runtime namespace when it has one.
+  the runtime namespace when it has one;
+* an instance whose global id cannot be read is not registered at all: the
+  error is the caller's, and every map is as it was.
 """
 from __future__ import annotations
 
@@ -122,3 +124,24 @@ def test_a_good_registration_writes_every_key(classified_as: VCT):
     for ns, ks in written.items():
         expected[ns].update({k: id(inst) for k in ks})
     assert after == expected
+
+
+@dataclass(kw_only=True, config=CSIS_MODEL_CONFIG)
+class _Unidentifiable(_Classified):
+    """A named model whose global id cannot be read."""
+
+    @property
+    def global_id(self) -> str:
+        raise LookupError("no id")
+
+
+@pytest.mark.parametrize("classified_as", [VCT.GROUP_MODEL, *sorted(RUNTIME_NAMESPACE_OF, key=str)])
+def test_an_id_that_cannot_be_read_changes_nothing(classified_as: VCT):
+    reg = Registry()
+    reg.register_built_instance(_model("neighbour", {"n-a"}, classified_as))
+    before = _maps(reg)
+
+    with pytest.raises(LookupError):
+        reg.register_built_instance(_Unidentifiable(name="rt", type_="x", aliases={"rt-a"}, classified_as=classified_as))
+
+    assert _maps(reg) == before

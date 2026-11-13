@@ -372,6 +372,11 @@ class Registry:
             return
         own_name = model.get_name()
         aliases = list(model.get_aliases()) if isinstance(model, NameTypedProtocol) else []
+        # an id is formatted from the classification, the parent reference
+        # and the name, and raises nothing for a real instance; it is read
+        # before anything is written, so an id that raises leaves the
+        # registry as it was
+        global_id = instance.global_id
         # every key the registration writes is checked before any is
         # written: a refused registration leaves the registry as it was
         self._check_registration(classifier, own_name, model_name, aliases, instance)
@@ -379,12 +384,8 @@ class Registry:
         if own_name in self.instances[classifier]:
             log.debug(f"Overwriting instance {own_name} in namespace {classifier}")  # expected: re-registered across resolve passes
         self.instances[classifier][own_name] = instance
-        try:
-            _gid = instance.global_id
-            if _gid:
-                self._enter_global_id(_gid, instance)
-        except Exception as e:
-            log.warning(f"Instance {instance} does not have a valid global_id. Skipping registration in global_id registry. Error: {e}")
+        if global_id:
+            self._enter_global_id(global_id, instance)
         self._enter_runtime_namespace(classifier, model_name, instance)
         for alias in aliases:
             self.instances[classifier][alias] = instance
