@@ -1,0 +1,392 @@
+#!/usr/bin/env python3
+# SPDX-FileCopyrightText: 2026 Mykel Alvis <mykelalvis@infrastructurebuilder.org>
+#
+# SPDX-License-Identifier: Apache-2.0
+"""Wait on the runs a release walk started, and say one verdict line each.
+
+    uv run python scripts/release-watch <version> [--root DIR] [--config-root DIR] [--timeout MINUTES] [--interval SECONDS]
+
+The runs are found by commit, never by time. In this repository the commit
+is the tag ``v<version>``'s, which the release pushed as ``main`` and
+``develop`` too: the tag's run of CI (the ``publish`` job), ``main``'s and
+``develop``'s runs of CI, and ``develop``'s run of "CI from scratch". In the
+live configuration (``--config-root``) the commit is the one the take pushed:
+the ``Take <version>`` commit on ``develop``, or the record committed right
+after it; its run of CI on ``develop`` and, when ``origin/main`` holds that
+commit (``just take <version> main``), on ``main``.
+
+Every run is waited on until it completes or ``--timeout`` minutes pass
+(sixty by default; the runs take twenty to thirty), asked every
+``--interval`` seconds. Then one line each: passed, failed (its conclusion),
+never started (no run of that workflow on that branch for the commit), or
+still running. A green job is not proof that its steps ran, so two runs are
+read further when green: the tag's, for which the index the version belongs
+on (TestPyPI for a development version, PyPI for a final one) must list
+``cs-image-system <version>`` (scripts/index-knows) and, for a final version,
+every template repository (scripts/starter-tree --list) must hold the tag
+``v<version>`` (``git ls-remote --tags``, as ``just publish-starters`` asks);
+and the configuration's ``main``, whose ``perform`` job's log must carry the
+guard's verdict (its ``runtime-unchanged:`` lines, none CHANGED, or the line
+that no runtime is guarded) and whose bake plan (``bake plan: <key>: bake:
+...`` in the performing step) is said as what was baked. When that run
+passed, the closing line names the fast-forward of the configuration's
+``develop`` to the records CI committed on ``main``.
+
+Exit 0 only when every verdict is good; 1 otherwise; 2 when the runs cannot
+be asked (no tag here, ``gh`` absent or refused). Every command -- git,
+``gh`` (with ``GH_PAGER=cat``), the probe scripts -- goes through one
+``run`` callable, which the tests replace; ``sleep`` and the clock are
+injectable too.
+"""
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import re
+import shutil
+import subprocess
+import sys
+import time
+from collections.abc import Callable, Mapping
+from dataclasses import dataclass, field
+from pathlib import Path
+
+HERE = Path(__file__).resolve().parent
+REPO = HERE.parent
+SHAPE = re.compile(r"^[0-9]+\.[0-9]+\.[0-9]+(\.dev[0-9]+)?$")
+GH_FALLBACK = "/usr/local/opt/gh/bin/gh"
+PROJECT = "cs-image-system"
+INDEX_URLS = {"testpypi": "https://test.pypi.org/simple/", "pypi": "https://pypi.org/simple/"}
+CI, FROM_SCRATCH = "CI", "CI from scratch"
+#: the record's commit subject (`run --all --commit`), the one a take may push right after its own
+RECORD_SUBJECT = "cs-image-system dry-run generation "
+#: the configuration's performing job, and its step whose bake plan is what was baked
+PERFORM_JOB = "perform"
+PERFORM_STEP = "The runtime performs"
+GUARD_TOKEN = "runtime-unchanged:"
+GUARD_NONE = "no runtime is guarded"
+BAKE = re.compile(r"bake plan: (\S+): bake: ")
+JSON_FIELDS = "databaseId,workflowName,headBranch,event,status,conclusion,url"
+
+#: each verdict, after "release-watch: <label>: "
+PASSED = "passed ({url})"
+FAILED = "FAILED -- {conclusion} ({url})"
+NEVER = "NEVER STARTED -- no run of {workflow} on {branch} for {commit} within {minutes} minutes"
+RUNNING = "STILL RUNNING after {minutes} minutes ({url})"
+INDEX_HOLDS = "{index} lists {project} {version}"
+INDEX_LACKS = "BUT {index} does not list {project} {version} (scripts/index-knows, above)"
+INDEX_UNASKED = "BUT {index} could not be asked whether it lists {project} {version} (scripts/index-knows, above)"
+TEMPLATES_HOLD = "every template repository holds v{version} ({count})"
+TEMPLATE_LACKS = "BUT {repo} does not hold v{version}"
+TEMPLATES_UNLISTED = "BUT the template repositories could not be listed (scripts/starter-tree --list)"
+GUARD_PASSED = "the guard passed ({count} runtime(s) unchanged)"
+GUARD_UNGUARDED = "the guard ran with no runtime guarded"
+GUARD_CHANGED = "BUT the guard found a guarded runtime CHANGED: {line}"
+GUARD_ABSENT = "BUT the perform job's log carries no guard verdict: its steps did not run"
+NO_LOG = "BUT the perform job's log could not be read"
+BAKED = "baked: {keys}"
+BAKED_NOTHING = "baked nothing (every image current)"
+#: the configuration's take, after "release-watch: "
+NOT_TAKEN = "configuration: no `Take {version}` commit on develop in {root} -- take it first (just take {version})"
+#: the closing lines, after "release-watch: "
+ALL_GOOD = "every run the walk started passed, and what it published is there"
+NOT_ALL_GOOD = "{bad} of {total} verdicts are not good (above)"
+FAST_FORWARD = ("the configuration's main run committed its records on main; bring develop up: cd {root} && "
+                "git checkout develop && git merge --ff-only origin/main && git push origin develop "
+                "(after git fetch origin)")
+DEVELOP_LEVEL = "the configuration's main run committed its records on main, and develop already holds them"
+#: the refusals, after "release-watch: "
+NOT_A_VERSION = "'{version}' is not a release version (for example 0.1.9 or 0.1.9.dev2)"
+NOT_TAGGED = "v{version} is not tagged in {root} -- the runs are found by the tag's commit"
+NO_GH = "gh could not be asked (above) -- `gh auth status` says why"
+
+
+# ------------------------------------------------------------------ the shell
+
+@dataclass(frozen=True)
+class Done:
+    rc: int
+    out: str = ""
+    err: str = ""
+
+
+Run = Callable[..., Done]
+
+
+def run(cmd: list[str], *, cwd: Path | None = None, env: Mapping[str, str] | None = None) -> Done:
+    try:
+        p = subprocess.run(cmd, cwd=cwd, capture_output=True, text=True, env=dict(env) if env else None,
+                           stdin=subprocess.DEVNULL)
+    except FileNotFoundError as e:
+        return Done(127, "", str(e))
+    return Done(p.returncode, p.stdout or "", p.stderr or "")
+
+
+def gh_binary() -> str:
+    """``gh`` on PATH, else where Homebrew puts it on an Intel Mac."""
+    return shutil.which("gh") or GH_FALLBACK
+
+
+class Refused(Exception):
+    def __init__(self, message: str, code: int = 2):
+        super().__init__(message)
+        self.message, self.code = message, code
+
+
+# ------------------------------------------------------------------ the runs
+
+@dataclass
+class Expected:
+    """One run the walk started: where, which workflow on which branch, for which commit."""
+    label: str
+    cwd: Path
+    commit: str
+    workflow: str
+    branch: str
+    kind: str = ""                      #: "tag" or "config-main": the runs read beyond their colour
+    found: dict = field(default_factory=dict)
+
+
+def index_of(version: str) -> str:
+    return "testpypi" if ".dev" in version else "pypi"
+
+
+def bake_keys(log: str) -> list[str]:
+    """The keys the performing step's bake plan says it baked. ``gh run view --log`` prints
+    ``<job>\\t<step>\\t<line>``; when no line names the performing step, every line is read."""
+    rows = [line.split("\t") for line in log.splitlines()]
+    in_step = [r[-1] for r in rows if len(r) >= 3 and r[1].strip() == PERFORM_STEP]
+    lines = in_step or [r[-1] for r in rows]
+    keys: list[str] = []
+    for line in lines:
+        m = BAKE.search(line)
+        if m and m.group(1) not in keys:
+            keys.append(m.group(1))
+    return keys
+
+
+def guard_verdict(log: str) -> tuple[bool, str]:
+    """The guard's verdict in the perform job's log: every ``runtime-unchanged:`` line, none CHANGED, or the
+    line that no runtime is guarded; absent, the steps did not run."""
+    guard = [line for line in log.splitlines() if GUARD_TOKEN in line]
+    changed = [line for line in guard if "CHANGED" in line]
+    if changed:
+        return False, GUARD_CHANGED.format(line=changed[0][changed[0].index(GUARD_TOKEN):].strip())
+    if guard:
+        return True, GUARD_PASSED.format(count=len(guard))
+    if any(GUARD_NONE in line for line in log.splitlines()):
+        return True, GUARD_UNGUARDED
+    return False, GUARD_ABSENT
+
+
+@dataclass
+class Watch:
+    version: str
+    root: Path
+    config_root: Path
+    run: Run = run
+    gh: str = field(default_factory=gh_binary)
+    sleep: Callable[[float], None] = time.sleep
+    clock: Callable[[], float] = time.monotonic
+    say: Callable[[str], None] = print
+    timeout_minutes: int = 60
+    interval: float = 30.0
+
+    # --- helpers
+
+    def develop_closing(self) -> str:
+        """After the configuration's main run passed: the fast-forward of develop to the records CI
+        committed on main, or that develop already holds them (fetched first; a count that cannot be
+        read names the fast-forward, which is harmless when there is nothing to take)."""
+        self.git(self.config_root, "fetch", "-q", "origin")
+        behind = self.git(self.config_root, "rev-list", "--count", "develop..origin/main")
+        if behind.rc == 0 and behind.out.strip() == "0":
+            return DEVELOP_LEVEL
+        return FAST_FORWARD.format(root=self.config_root)
+
+    def git(self, cwd: Path, *args: str) -> Done:
+        return self.run(["git", "-C", str(cwd), *args], cwd=cwd)
+
+    def ask_gh(self, cwd: Path, *args: str) -> Done:
+        return self.run([self.gh, *args], cwd=cwd, env={**os.environ, "GH_PAGER": "cat"})
+
+    def gh_json(self, cwd: Path, *args: str) -> object:
+        done = self.ask_gh(cwd, *args)
+        if done.rc != 0:
+            for line in (done.err + done.out).splitlines():
+                if line.strip():
+                    self.say(line)
+            raise Refused(f"release-watch: {NO_GH}")
+        try:
+            return json.loads(done.out or "null")
+        except ValueError:
+            self.say(done.out.strip())
+            raise Refused(f"release-watch: {NO_GH}") from None
+
+    # --- what to wait on
+
+    def system_runs(self) -> list[Expected]:
+        tag = f"v{self.version}"
+        commit = self.git(self.root, "rev-parse", "-q", "--verify", f"refs/tags/{tag}^{{commit}}").out.strip()
+        if not commit:
+            raise Refused(f"release-watch: {NOT_TAGGED.format(version=self.version, root=self.root)}")
+        return [Expected(f"system tag {tag} ({CI})", self.root, commit, CI, tag, "tag"),
+                Expected(f"system main ({CI})", self.root, commit, CI, "main"),
+                Expected(f"system develop ({CI})", self.root, commit, CI, "develop"),
+                Expected(f"system develop ({FROM_SCRATCH})", self.root, commit, FROM_SCRATCH, "develop")]
+
+    def taken_commit(self) -> str:
+        """The commit the take pushed: the ``Take <version>`` commit on develop, or the record right after it."""
+        listed = self.git(self.config_root, "log", "--first-parent", "-n", "300", "--format=%H %s",
+                          "refs/heads/develop").out.splitlines()
+        rows = [line.split(" ", 1) + [""] for line in listed if line.strip()]
+        for i, row in enumerate(rows):
+            if row[1] == f"Take {self.version}":
+                if i > 0 and rows[i - 1][1].startswith(RECORD_SUBJECT):
+                    return rows[i - 1][0]
+                return row[0]
+        return ""
+
+    def config_runs(self) -> list[Expected]:
+        commit = self.taken_commit()
+        if not commit:
+            return []
+        runs = [Expected(f"configuration develop ({CI})", self.config_root, commit, CI, "develop")]
+        if self.git(self.config_root, "merge-base", "--is-ancestor", commit, "refs/remotes/origin/main").rc == 0:
+            runs.append(Expected(f"configuration main ({CI})", self.config_root, commit, CI, "main", "config-main"))
+        return runs
+
+    # --- the wait
+
+    def poll(self, pending: list[Expected]) -> None:
+        """One look at every commit still pending: each run found takes the newest of its workflow on its branch."""
+        listed: dict[tuple[Path, str], list[dict]] = {}
+        for exp in pending:
+            key = (exp.cwd, exp.commit)
+            if key not in listed:
+                answer = self.gh_json(exp.cwd, "run", "list", "--commit", exp.commit, "--limit", "100",
+                                      "--json", JSON_FIELDS)
+                listed[key] = [r for r in answer if isinstance(r, dict)] if isinstance(answer, list) else []
+            mine = [r for r in listed[key] if r.get("workflowName") == exp.workflow
+                    and r.get("headBranch") == exp.branch]
+            pushed = [r for r in mine if r.get("event") == "push"] or mine
+            if pushed:
+                exp.found = max(pushed, key=lambda r: int(r.get("databaseId") or 0))
+
+    def wait(self, runs: list[Expected]) -> None:
+        deadline = self.clock() + self.timeout_minutes * 60
+        while True:
+            pending = [e for e in runs if e.found.get("status") != "completed"]
+            if not pending:
+                return
+            self.poll(pending)
+            if all(e.found.get("status") == "completed" for e in runs) or self.clock() >= deadline:
+                return
+            self.sleep(self.interval)
+
+    # --- beyond the colour
+
+    def index_reads(self) -> tuple[bool, str]:
+        index = index_of(self.version)
+        done = self.run(["uv", "run", "--no-sync", "python", str(HERE / "index-knows"), INDEX_URLS[index], PROJECT,
+                         self.version], cwd=self.root)
+        for line in (done.out + done.err).splitlines():
+            if line.strip():
+                self.say(line)
+        fields = {"index": index, "project": PROJECT, "version": self.version}
+        if done.rc == 0:
+            return True, INDEX_HOLDS.format(**fields)
+        return False, (INDEX_LACKS if done.rc == 1 else INDEX_UNASKED).format(**fields)
+
+    def templates_read(self) -> tuple[bool, str]:
+        listed = self.run(["uv", "run", "--no-sync", "python", str(HERE / "starter-tree"), "--list"], cwd=self.root)
+        repos = [line.split()[1] for line in listed.out.splitlines() if len(line.split()) == 2]
+        if listed.rc != 0 or not repos:
+            return False, TEMPLATES_UNLISTED
+        for repo in repos:
+            held = self.run(["git", "ls-remote", "--tags", f"https://github.com/{repo}.git",
+                             f"refs/tags/v{self.version}"], cwd=self.root)
+            if held.rc != 0 or not held.out.strip():
+                return False, TEMPLATE_LACKS.format(repo=repo, version=self.version)
+        return True, TEMPLATES_HOLD.format(version=self.version, count=len(repos))
+
+    def perform_read(self, exp: Expected) -> list[tuple[bool, str]]:
+        run_id = str(exp.found.get("databaseId"))
+        view = self.gh_json(exp.cwd, "run", "view", run_id, "--json", "jobs")
+        jobs = view.get("jobs", []) if isinstance(view, dict) else []
+        job = next((j for j in jobs if isinstance(j, dict) and j.get("name") == PERFORM_JOB), None)
+        if job is None:
+            return [(False, GUARD_ABSENT)]
+        log = self.ask_gh(exp.cwd, "run", "view", run_id, "--job", str(job.get("databaseId")), "--log")
+        if log.rc != 0:
+            return [(False, NO_LOG)]
+        keys = bake_keys(log.out)
+        baked = BAKED.format(keys=", ".join(keys)) if keys else BAKED_NOTHING
+        return [guard_verdict(log.out), (True, baked)]
+
+    def verdict(self, exp: Expected) -> tuple[bool, str]:
+        found, minutes = exp.found, self.timeout_minutes
+        if not found:
+            return False, NEVER.format(workflow=exp.workflow, branch=exp.branch, commit=exp.commit[:7],
+                                       minutes=minutes)
+        url = found.get("url", "")
+        if found.get("status") != "completed":
+            return False, RUNNING.format(minutes=minutes, url=url)
+        if found.get("conclusion") != "success":
+            return False, FAILED.format(conclusion=found.get("conclusion") or "no conclusion", url=url)
+        reads: list[tuple[bool, str]] = []
+        if exp.kind == "tag":
+            reads.append(self.index_reads())
+            if ".dev" not in self.version:
+                reads.append(self.templates_read())
+        elif exp.kind == "config-main":
+            reads.extend(self.perform_read(exp))
+        return all(ok for ok, _ in reads), "; ".join([PASSED.format(url=url), *(text for _, text in reads)])
+
+    # --- the command
+
+    def watch(self) -> int:
+        if not SHAPE.match(self.version):
+            raise Refused(f"release-watch: {NOT_A_VERSION.format(version=self.version)}")
+        runs = self.system_runs()
+        config = self.config_runs()
+        bad = 0
+        if not config:
+            self.say(f"release-watch: {NOT_TAKEN.format(version=self.version, root=self.config_root)}")
+            bad += 1
+        runs += config
+        self.wait(runs)
+        main_passed = False
+        for exp in runs:
+            ok, text = self.verdict(exp)
+            bad += not ok
+            main_passed = main_passed or (ok and exp.kind == "config-main")
+            self.say(f"release-watch: {exp.label}: {text}")
+        if main_passed:
+            self.say(f"release-watch: {self.develop_closing()}")
+        total = len(runs) + (0 if config else 1)
+        self.say(f"release-watch: {ALL_GOOD}" if not bad else f"release-watch: {NOT_ALL_GOOD.format(bad=bad, total=total)}")
+        return 0 if not bad else 1
+
+
+def main(argv: list[str]) -> int:
+    ap = argparse.ArgumentParser(prog="release-watch", description=(__doc__ or "").splitlines()[0])
+    ap.add_argument("version")
+    ap.add_argument("--root", type=Path, default=REPO)
+    ap.add_argument("--config-root", type=Path,
+                    default=Path(os.environ.get("CSIS_CONFIG_ROOT") or REPO.parent / "cs-image-system-testconfig"))
+    ap.add_argument("--timeout", type=int, default=60, help="minutes to wait for every run (default 60)")
+    ap.add_argument("--interval", type=float, default=30.0, help="seconds between looks (default 30)")
+    ns = ap.parse_args(argv)
+    w = Watch(ns.version, ns.root.resolve(), ns.config_root.resolve(), timeout_minutes=ns.timeout,
+              interval=ns.interval)
+    try:
+        return w.watch()
+    except Refused as e:
+        print(e.message)
+        return e.code
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))

@@ -580,6 +580,9 @@ def init_config_command(
     changes_since: Annotated[Path | None, typer.Option(
         "--changes-since", help="write nothing: list the release-owned files this release changed in the tree, "
         "given the PREVIOUS release's starters directory (its wheel's cs_image_system/system/starters)")] = None,
+    porcelain: Annotated[bool, typer.Option(
+        "--porcelain", help="with --changes-since: one line per entry, `<class> <path>` (refresh, edited, added); "
+        "exit 0 when nothing is edited, 1 when something is, 2 when the comparison cannot be made")] = False,
 ) -> None:
     """Write a starter configuration repository from this release.
 
@@ -598,16 +601,24 @@ def init_config_command(
     With --changes-since PREVIOUS_STARTERS nothing is written: the command lists
     which release-owned files this release changed in the tree,
     split into those the tree still holds as the previous release wrote them
-    and those it has also edited, and exits 1 when there is any."""
+    and those it has also edited, and exits 1 when there is any. A terraform
+    module is one entry, judged by its stamp: a copy nobody edited is safe
+    to refresh, an edited one is listed as edited. With --porcelain the list
+    is for a recipe: `<class> <path>` per line, exit 1 only when something
+    is edited (what `just take` reads before it refreshes by itself)."""
+    if porcelain and changes_since is None:
+        typer.secho("init-config: --porcelain is the form of --changes-since; name the previous starters",
+                    fg=typer.colors.RED, err=True)
+        raise typer.Exit(code=2)
     if changes_since is not None:
         try:
             changes = _changes_since(destination, changes_since, starter)
         except ValueError as e:
             typer.secho(f"init-config: {e}", fg=typer.colors.RED, err=True)
             raise typer.Exit(code=2) from None
-        for line in changes.lines():
+        for line in changes.porcelain() if porcelain else changes.lines():
             typer.echo(line)
-        if not changes.clear:
+        if changes.edited or (not porcelain and not changes.clear):
             raise typer.Exit(code=1)
         return
     try:

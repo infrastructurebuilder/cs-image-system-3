@@ -154,8 +154,8 @@ section 1.8: CI installs the pin and compares what you committed with
 what it generates, so a record made by another version fails there as
 BEHIND, after the push. The refusal starts `run --commit: REFUSED
 unpinned` and names the pinned version, the running one, and both ways
-out: record with the pinned release (`just take <version>` installs it
-and moves the pin with it), or say `CSIS_ALLOW_UNPINNED=1 just record`
+out: record with the pinned release (`just take <version>` installs it,
+moves the pin with it and makes the record by it), or say `CSIS_ALLOW_UNPINNED=1 just record`
 to go on deliberately. A dry run (`just dry`) and `just validate` commit
 nothing and are never held. If the command is the pinned version from
 the index (`just take` leaves it so; so does `uv run` beside a
@@ -516,28 +516,94 @@ release's tag on GitHub, since a relative one would point nowhere in a
 repository of its own (a template repository's do the same).
 
 `just take <version>` does the whole procedure of moving a tree onto a
-release in one command, on `develop`: it fast-forwards `develop` from
-`origin/main` first (and refuses if it cannot), installs the release (a
-development one from TestPyPI), asks `init-config . --changes-since`
-which files the release owns
-and changed, and **stops there if any did**, because refreshing them is yours
-to do by hand. The listing splits them in two: the files your tree still holds
-exactly as the previous release wrote them (a workflow with only your values
-in it counts), which are safe to refresh, and the files the release changed
-that you also edited, which you read both of. After the refresh below and `git
-diff`, `just take <version> patched` writes `.csis-version`, runs `just init`
-and `just validate`, commits "Take <version>" and pushes `develop`. Pushing
-`develop` to `main` stays its own act: `main` performs.
+release in one command, on `develop`, in this order:
 
-Two refusals are worth knowing. When `CSIS` (your `.envrc` points it at the
-system checkout's `.venv/bin/cs-image-system`) answers with the previous
-version, the venv simply has not been synced since the release: `take` names
-that checkout and says to run `just init` there, then to run the same command
-again; it never reaches into another repository's venv itself. And if `just
-init` or `just validate` fails after the pin was written (a cloud API that
-answered 503, an expired session), `take` puts `.csis-version` back as it was
-and says so, so the same command can simply be run again and the tree is
-never left half-taken; `patched` is only for the files you refreshed by hand.
+1. **The guard.** The checkout is on `develop` and the tree is clean,
+   and `develop` is fast-forwarded from `origin/main` (refused if it
+   cannot be). A take that already finished (`HEAD` pins the version
+   and `develop` is level with `origin/develop`) says the version is
+   already taken and exits 0 here, having changed nothing, so running
+   the same command twice is harmless; with `main`, when `origin/main`
+   does not hold it yet, it names the push instead and exits 1.
+2. **The before-tag**, for a final version only (no `.dev`): the tag
+   `v<version>-before` on `HEAD`, annotated and pushed, so the tree as
+   it stood before the release has a name. A tag that already marks
+   `HEAD` (a second run after a stop) is said and passed; one that marks
+   another commit is refused before anything else happens. A
+   development version gets no tag.
+3. **The install.** The release is installed as the uv tool (`uv tool
+   install --force`, with the extras `just extras` names; a development
+   one from TestPyPI), and every later step of the take runs by that
+   binary, found through `uv tool dir --bin`, whatever `CSIS` names. A
+   committing run is held to exactly that release from an index
+   (section 1.1), so a `CSIS` that points at a system checkout's venv
+   does not stand in the way: `CSIS` stays what the tree's other recipes
+   use.
+4. **The sessions.** `just preflight`, by that binary. A session absent
+   or lapsed refuses the take before anything changes, and preflight's
+   own line names the command that renews it (the login itself, in a
+   browser, stays yours).
+5. **What the release changed.** `init-config . --changes-since <the
+   previous release's starters> --porcelain` lists one entry per line,
+   `<class> <path>`: `refresh` (the release changed it and your copy is
+   still the previous release's own; a workflow with only your values
+   in it counts), `edited` (the release changed it and you edited it
+   too) and `added` (new in the release). A terraform module is ONE
+   entry, `tfmodules/<module>/`, judged by its stamp, not by its text:
+   a copy nobody edited since it was written is `refresh`, an edited
+   copy is `edited`. Anything `edited` **stops the take**, naming those
+   entries alone. Otherwise the take runs `init-config . --force`
+   itself, keeps exactly what was listed (anything else `--force`
+   touched goes back to `HEAD`, so a file the release did not change
+   keeps your text), and prints each entry with its class.
+6. **The pin, init, validate, the commit.** `.csis-version`, `just
+   init` and `just validate` (as the tree runs them, by the installed
+   binary), and one commit whose subject is `Take 0.1.8` alone and
+   whose body names what was refreshed and added, one line per class
+   (`refreshed: Justfile, .gitignore`, `added: CI_SETUP.md`), so a
+   release that refreshed eight modules still has a short subject.
+7. **The record.** `just record` by the same binary: the emission and
+   meta-state of the new pin, committed when they moved, so the push
+   arrives with the record CI's drift check looks for.
+8. **One push of `develop`**, carrying both commits. `just take
+   <version> main` then pushes `develop` to `main` as well
+   (`git push origin develop:main`) and says that `main` performs: its
+   CI bakes and applies under the write role. Without `main`, `take`
+   never pushes `main`.
+
+When the take stops on `edited` entries, read the release's version
+beside yours and refresh by hand: `cs-image-system init-config .
+--force` keeps your values where the release has `REPLACE-ME`; an
+edited module is kept by naming it under `config: module_sources`, or
+deleted to take the release's. Read `git diff`, then `just take
+<version> patched` (or `patched main`): `patched` skips the listing and
+commits what you refreshed. Any other word after the version is
+refused before anything changes.
+
+What a failure leaves. Up to the commit, a failure (`init-config
+--force`, `just init`, `just validate`: a cloud API that answered 503,
+say) puts the tree back as `HEAD` has it, `.csis-version` included,
+read from `HEAD` because `--force` has moved the tree's copy; the line
+says so, and the same command simply runs again. With `patched` only
+the pin goes back, and your refresh stays. A refusal after the
+before-tag says the tag is the one thing that changed, and the second
+run finds it. A record that fails leaves the "Take" commit on `develop`,
+unpushed, with whatever the record wrote uncommitted, and the line says
+how to finish: the record by the installed binary
+(`CSIS="$(uv tool dir --bin)/cs-image-system" just record`), then `git
+push origin develop`.
+
+**The first take onto the release that brings this recipe is still the
+old walk.** A tree runs the `take` of the release it is ON, and gets the
+new recipe only by refreshing its `Justfile` at that take. So that one
+take is the previous recipe's: the tag `v<version>-before` by hand for a
+final version; `uv tool install --force "cs-image-system[$(just
+extras)]==<version>"` by hand when `CSIS` is set (the old recipe
+installs only without it); the stop on the listing, the refresh by hand
+and `just take <version> patched`; then `CSIS="$HOME/.local/bin/cs-image-system"
+just record`, `git push origin develop` and, when `main` should perform,
+`git push origin develop:main`. Every take after it is the one command
+above.
 
 Run `init-config` again, in the repository, after upgrading the release:
 into a tree that already holds a configuration it writes only the parts
@@ -996,7 +1062,7 @@ below; this is the order a person meets them.
 | Rotate the admin key | add the new key, bake, upgrade every instance, remove the old key, repeat | "Rotate the admin key" |
 | Move a root's state | change `state_configuration`, `just cli --no-dry-run run <lifecycle> --migrate-state <root>` | backs up, copies, accepts only a clean plan at the new location, records the move |
 | Adopt something made by hand | `just cli state import`; for memberships, `tofu import` then a no-op apply | "Adopt out-of-band group membership". An adopted image counts as current when its tagged fingerprint matches today's inputs, so it is not baked again; it carries no in-bake record, so the release grace does not cover it |
-| Upgrade the system | `just take <version>` (guard, install, list what the release changed, validate, commit, push `develop`); or `uv tool upgrade cs-image-system` (or bump the pin and `uv lock`) and `.csis-version` for CI | `just validate`, `just dry`, and read the diff of `generated/`: an emission change is what a system upgrade looks like. A release that asks something of the tree is refused by `validate` until it is given: make the change in the same commit (section 1.1) |
+| Upgrade the system | `just take <version>` (guard, before-tag, install, sessions, refresh what is safe, init, validate, commit, record, push `develop`; `main` pushes `main` too); or `uv tool upgrade cs-image-system` (or bump the pin and `uv lock`) and `.csis-version` for CI | `just validate`, `just dry`, and read the diff of `generated/`: an emission change is what a system upgrade looks like. A release that asks something of the tree is refused by `validate` until it is given: make the change in the same commit (section 1.1) |
 
 Three habits keep changes safe. Dry-run first and read the script: a dry
 run regenerates and lists the commands the real run will execute -- it
@@ -1161,8 +1227,11 @@ Open list in [INPROGRESS/TODO.md](../INPROGRESS/TODO.md) names.
 | `empty: disks still present on <rt>: old-scratch (no csis_config)` | a thing with no configuration id, made before the system labelled what it makes; it is counted as ours to answer for | if it is ours and declared, `just cloud-relabel <rt> no` gives it the id; if it is nothing of ours, remove it by hand |
 | a job fails in "Initialize containers" before any step of yours: `denied`, `unauthorized` or `manifest unknown` pulling `ghcr.io/.../csis-ci:alma10-<date>` | the runner image could not be pulled: the tag does not exist yet (the Runner image workflow has not published the date the workflow pins); or the job's `permissions:` block lacks `packages: read`, so its token pulls as nobody (a job with no block pulls; one with a block that lacks the line is denied); or the package is PRIVATE and this repository was not granted access to it (a package publishes private when the organisation disallows public packages) | a missing tag: the system's maintainers run the Runner image workflow and you rerun; a missing line: take the release that carries it; a private package: on the package's page, "Manage Actions access", add this repository with Read (same organisation), or have the organisation's administrators allow public packages ([docs/CI_RUNNER.md](CI_RUNNER.md), section 4); never a credential in the workflow for it ([INCIDENTS.md](INCIDENTS.md#the-ci-runner-image-took-four-builds-and-its-first-pull-was-refused)) |
 | `release: testpypi cannot take an upload now (above) -- nothing was changed; it is the index's condition, not the release's` (exit 75) | the index's upload endpoint or one of the twenty-one project pages (the umbrella and the twenty published packages) did not answer, or answered 5xx; the release stopped before the bar, or after it and before the bump, so the tree is clean; the probe exists because an outage found only at the upload wastes the whole bar ([INCIDENTS.md](INCIDENTS.md#testpypi-was-down-and-a-release-found-it-only-at-the-upload)) | `just index-ready test wait`, then the release again; nothing to discard |
-| `release: this checkout is on '<branch>'; a release is cut on main alone (or a maintenance branch release/<major.minor>)` | the checkout is not on `main`; the rule exists so that a version is never cut, committed and tagged on a branch `main` does not hold ([CHANGES.md](CHANGES.md#s107)) | `git checkout main && git merge --ff-only develop`, then the release again |
-| `release: main is behind develop -- a release never leaves a stage behind` | a stage landed on `develop` that `main` has not taken | on `main`: `git merge --ff-only develop`, then the release again |
+| `release: this checkout is on '<branch>'; a release is cut on main alone (from develop it moves there itself) (or a maintenance branch release/<major.minor>)` | the checkout is on neither `develop`, `main` nor a maintenance branch; the rule exists so that a version is never cut, committed and tagged on a branch `main` does not hold ([CHANGES.md](CHANGES.md#s107)) | `git checkout develop`, then the release again |
+| `release: main is behind develop -- a release never leaves a stage behind` | run from `main`: a stage landed on `develop` that `main` has not taken | the release from `develop` (it fast-forwards `main` itself), or on `main`: `git merge --ff-only develop`, then the release again |
+| `release: main cannot be fast-forwarded to develop: it holds commits develop does not` | run from `develop`: `main` has a commit `develop` lacks (a release whose fast-forward back never ran, say); refused before any checkout | bring `develop` up: `git checkout develop && git merge --ff-only main` (or one merge commit of `main` when that refuses), then the release again |
+| `release: origin/<branch> holds <n> commit(s) the local <branch> lacks, so its push after the upload would be refused` (or the same under `release-finish:`) | someone pushed `main` or `develop` (a maintenance release: its own branch) since this checkout last fetched; the release fetched first, so it stopped before anything changed | `git checkout <branch> && git merge --ff-only origin/<branch>` (a reconciliation when that cannot fast-forward), then the same command again |
+| ``release: <v> is on <index>, committed and tagged v<v> here, but `<command>` failed (above); the rest, by hand: ...`` | a step after the tag failed: a push the remote refused, or `develop`'s fast-forward back (a stage landed during the release) | fix its cause, then run the commands the line lists, in order; the version is published and tagged, so never the release again |
 | `public-safe: ... <file>:<line>` from the hook | a committed line looks like a secret, a key, a plan or a state file | never bypass the hook; encrypt the value, or allow it BY DECISION in `cfg/_config.yml` `public_safe.allow` |
 | `Build '<image>' errored after 20 minutes ...: Timeout waiting for SSH.` with `ssm error: ... StartSession, context canceled` | the bake machine booted and its SSM agent was Online, but packer's ssh session through SSM never opened: the bake host is a 1 GB machine (a t2.micro), too small for the image it boots; the same parent bakes on a t3.medium | give the bake host 4 GB: `machine_type: t3.medium` on the image's runtime entry, or the runtime's `default_machine_type` (the starters ship t3.medium). The builds that completed before the failure are recorded anyway, and a warning names them ([INCIDENTS.md](INCIDENTS.md#a-1-gb-bake-host-starved-the-package-manager-and-the-ssm-agent)) |
 | `foreign image <id>: ... tagged series=<s> run=<r> is not in lineage` | an image the system tagged and lineage does not record: a bake still running in another process (a strict query run by hand can race CI's `perform`), or one baked by a failed run on an old release that recorded nothing of a failed run | if a run is still baking, wait for it to finish and record. Otherwise `just cli state import --no-storages` adopts it ([INCIDENTS.md](INCIDENTS.md#an-image-the-system-tagged-was-not-in-lineage)), then `just record`; the adopted build counts as current, so it is not baked again |
@@ -1374,18 +1443,57 @@ repository as `cs-image-system-testconfig` for that purpose alone;
 `just fixture-live` proves the frozen fixture against the real accounts
 (what the system's CI does); `just release <part|version> [test|pypi]`
 cuts a release to the index (the recipe wraps `scripts/release.py`, which
-also records the release as a row of [CHANGES.md](CHANGES.md)), from
-`main` alone (`main` takes `develop`
-by fast-forward first and `develop` takes `main` back after; a
-maintenance branch `release/<major.minor>` for an old version's fix).
-Before anything
+also records the release as a row of [CHANGES.md](CHANGES.md)), on
+`main` alone, and is run from `develop`: the recipe checks out `main`,
+fast-forwards it to `develop`, syncs the venv (`uv sync --all-extras`),
+cuts the release, pushes `main` with its tag, checks out `develop`,
+fast-forwards it to `main`, pushes it and syncs the venv again, so the
+release walk is the one command and the login halfway. Run from `main`
+it does the same without the first move; a maintenance branch
+`release/<major.minor>`, for an old version's fix, pushes that branch
+with its tag and leaves `develop` alone. A refusal before the bump puts
+the checkout back on the branch it started on; a failed upload leaves the
+uncommitted bump on `main` for `just release-finish` (which ends with the
+same pushes) or the discard; a push that fails after the tag is named,
+with the commands left to run. So that push is not refused for a reason
+known in advance, the release first runs `git fetch origin` and refuses,
+before anything changes, when `origin/main` or `origin/develop` (for a
+maintenance branch, that branch's own) holds a commit the local branch
+lacks, naming the branch and the cure (`git checkout <branch> && git
+merge --ff-only origin/<branch>`); a local branch ahead of origin passes,
+since the release pushes it. `release-finish` asks the same before its
+pushes. `yes` as the third argument prints every
+move and push it would make and changes nothing. Before anything
 changes, and again after the bar, it asks the index whether it can take
 an upload (`just index-ready [test|pypi]` asks the same on its own, and
 `just index-ready test wait` waits for it, two hours at most): exit 75
 means the index cannot take an upload now, nothing was changed, and it
 is the index's condition, not the release's
 ([OPERATIONS.md](OPERATIONS.md), "`just build`, `just release`,
-`just publish`, `just publish-tree`"). The recipes here drive that reference
+`just publish`, `just publish-tree`").
+
+The reference configuration then takes the release, and that is part of
+the same walk: `just release-take <part|version> <test|pypi>` (with
+`main` when the reference's `main` should perform, `yes` for the dry
+form) runs the release and then `just take <version>` in the reference,
+the version read back from what the release cut; the take installs that
+release, refreshes what is safe, commits, makes the record itself by
+the pinned release and pushes `develop` once, so the record is no longer
+a box of its own. A release that refuses or fails runs no take; a take
+that stops names the command that finishes it there. `just release
+<part|version> <index>` and then `just take <version>` in the reference
+are the same walk in two commands. Then `just release-watch <version>`
+waits on the runs both pushed and says one verdict each, reading the
+index and the template repositories for the tag's run and the guard and
+the bake plan for the reference's `main`; when `main` performed, its
+closing line names `develop`'s fast-forward to CI's records. The walk is
+those commands and the login halfway through a PyPI release. The first
+take after the release that carries `release-take` is still the old
+walk, since a tree runs the `take` of the release it is on (section
+1.9): that once, the record by the pinned release and the pushes are
+by hand, as that section says.
+
+The recipes here drive that reference
 configuration only through `just cli ...`, for the system's own live
 proofs; its cycles, like any team's, run from its own `Justfile` (`cd
 ../cs-image-system-testconfig && just cloud-cycle gcloud-east1`), which
@@ -1401,9 +1509,10 @@ carries. A record made that way once reached the tree's CI and failed
 its drift check as BEHIND. So choose, each time: `CSIS_ALLOW_UNPINNED=1
 just record` when the point is to prove the checkout's code (the run
 says `ALLOWED unpinned` in one line and goes on), or
-`CSIS="$HOME/.local/bin/cs-image-system" just record` for the record
-`main` will carry, made by the pinned release your local machine has
-from `just take` ([OPERATIONS.md](OPERATIONS.md), "`--commit`"). The
+`CSIS="$HOME/.local/bin/cs-image-system" just record` for a record
+`main` will carry made between releases, by the pinned release your
+local machine has from `just take` ([OPERATIONS.md](OPERATIONS.md),
+"`--commit`"); the record that follows a release is the take's own. The
 same holds for `just cli run ... --commit` from here. The starter trees
 under
 `docs/examples/` are the source the release is built from: change them

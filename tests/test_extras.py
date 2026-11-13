@@ -149,7 +149,7 @@ def test_the_starters_justfile_maps_the_same_words_to_the_same_extras(tmp_path: 
 
 
 def test_take_and_every_workflow_install_the_umbrella_with_the_trees_extras():
-    take = SKELETON_JUSTFILE.read_text().split("\ntake version patched=", 1)[1]
+    take = re.split(r"\ntake version[^\n]*:\n", SKELETON_JUSTFILE.read_text(), maxsplit=1)[1]   # the recipe's body, whatever its arguments
     assert 'extras=$(just extras)' in take
     assert '"cs-image-system${extras:+[$extras]}==$version"' in take
     workflows = sorted((REPO / "docs/examples").glob("*/.github/workflows/*.yml"))

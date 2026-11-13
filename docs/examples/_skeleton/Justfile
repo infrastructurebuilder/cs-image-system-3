@@ -89,32 +89,80 @@ full-test: test
 release runtime: full-test
 	@{{cli}} --locked --no-dry-run run base-image instance-image release retention --only-runtime {{runtime}} --commit
 
-# Take a release: the whole walk of moving this tree onto VERSION, in one box. The
-# first act is the catch-up guard (fetch, `merge --ff-only origin/main`, `merge-base
-# --is-ancestor`); then the release is installed (unless CSIS names another command), the files the
-# release owns are listed against the previous release (`init-config --changes-since`) and the
-# recipe STOPS if any changed, because refreshing them stays BY HAND: run
-# `cs-image-system init-config . --force`, read `git diff`, then `just take VERSION patched`. With
-# nothing to patch (or `patched`) it writes .csis-version, runs `just init` and `just validate`,
-# commits "Take VERSION" and pushes `develop`; if `just init` or `just validate` fails the pin is put back, so
-# the same command can be run again. Pushing `develop` to `main` is its own act: `main` performs.
-[doc("Take a release in one box: guard, install, list what the release changed, init, validate, commit, push develop; `patched` after refreshing by hand")]
-take version patched="no":
+# Take a release: the whole walk of moving this tree onto VERSION, in one box, in this order:
+# 1. the guard: on develop, the tree clean (unless `patched`), develop fast-forwarded from origin/main;
+#    a take that already finished (HEAD pins VERSION, develop level with origin/develop) says so and
+#    exits 0 here, having changed nothing;
+# 2. a FINAL version only: the tag v<VERSION>-before on HEAD, pushed (one already on HEAD is passed);
+# 3. the release installed as the uv tool with this tree's extras (`just extras`); every later step
+#    runs by THAT binary, whatever CSIS names for the other recipes;
+# 4. the runtimes' sessions (`just preflight`): one absent or lapsed refuses, naming its login;
+# 5. what the release changed against the previous release (`init-config --changes-since --porcelain`,
+#    a module judged by its stamp): anything `edited` in this tree STOPS the take, naming it alone
+#    (refresh it by hand, read `git diff`, then `just take VERSION patched`); otherwise
+#    `init-config . --force` refreshes what was listed, and nothing else;
+# 6. .csis-version, `just init`, `just validate`, and the commit "Take VERSION", whose body names what
+#    was refreshed and added, one line per class;
+# 7. the record (`just record`, by the same binary), its own commit when the emission moved;
+# 8. ONE `git push origin develop` with both; with `main`, then `git push origin develop:main` (`main`
+#    performs: it bakes and applies), and without it `main` is never pushed.
+# Up to the commit a failure puts the tree back as HEAD has it (with `patched`, the pin alone), so the
+# same command runs again; each refusal says what, if anything, was changed (the tag). A failed record
+# leaves the commit unpushed and says how to finish: record, then push.
+[doc("Take a release in one box: guard, before-tag, install, sessions, refresh what is safe, init, validate, commit, record, push develop. `patched`: you refreshed the release-owned files by hand; `main`: push develop to main too (main performs)")]
+[positional-arguments]
+take version *words:
 	#!/usr/bin/env bash
 	set -euo pipefail
-	version="{{version}}"
+	version="$1"; shift
 	[[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+(\.dev[0-9]+)?$ ]] || { echo "take: '$version' is not a release version (for example 0.1.6 or 0.1.6.dev2)"; exit 2; }
-	[ "{{patched}}" = "no" ] || [ "{{patched}}" = "patched" ] || { echo "take: the second argument is 'patched' (you refreshed the release-owned files by hand) or nothing"; exit 2; }
+	patched=no; main=no
+	for word in "$@"; do
+		case "$word" in
+			patched) patched=patched ;;
+			main) main=main ;;
+			*) echo "take: '$word' is not an argument of take: 'patched' (you refreshed the release-owned files by hand), 'main' (push develop to main at the end), both, or neither"; exit 2 ;;
+		esac
+	done
+	again="just take $version"; [ "$patched" = no ] || again="$again patched"; [ "$main" = no ] || again="$again main"
+	after_patch="just take $version patched"; [ "$main" = no ] || after_patch="$after_patch main"
 	branch=$(git rev-parse --abbrev-ref HEAD)
 	[ "$branch" = develop ] || { echo "take: this checkout is on '$branch'; a release is taken on develop -- nothing was changed"; exit 1; }
-	if [ "{{patched}}" = "no" ]; then
+	if [ "$patched" = no ]; then
 		[ -z "$(git status --porcelain)" ] || { echo "take: the tree must be clean first (commit or discard; after refreshing the release-owned files by hand, say 'patched'):"; git status --short; exit 1; }
 	fi
 	# the catch-up guard of develop from origin/main, its own first act (missed twice before it was a recipe)
 	git fetch -q origin
+	# a take that already finished: HEAD pins VERSION, the tree is clean and develop is level with
+	# origin/develop, so running it again says so and changes nothing (the before-tag below marks the
+	# commit before that take, and would refuse)
+	pinned=$(git show HEAD:.csis-version 2>/dev/null | head -1 || true)
+	if [ "$pinned" = "$version" ] && [ -z "$(git status --porcelain)" ] \
+		&& [ "$(git rev-parse HEAD)" = "$(git rev-parse -q --verify origin/develop || true)" ]; then
+		if [ "$main" = main ] && ! git merge-base --is-ancestor HEAD origin/main 2>/dev/null; then
+			echo "take: $version is already taken and develop is pushed, but origin/main does not hold it -- nothing was changed; to push it: git push origin develop:main"
+			exit 1
+		fi
+		echo "take: $version is already taken: HEAD pins it and develop is level with origin/develop -- nothing was changed"
+		exit 0
+	fi
 	if git rev-parse -q --verify origin/main >/dev/null; then
 		git merge --ff-only origin/main >/dev/null || { echo "take: develop cannot fast-forward to origin/main -- reconcile them first; nothing was changed"; exit 1; }
 		git merge-base --is-ancestor origin/main HEAD || { echo "take: origin/main is not an ancestor of develop -- nothing was changed"; exit 1; }
+	fi
+	# a FINAL version marks the tree as it stood before it: the tag v<version>-before on HEAD, pushed
+	# (a development version gets none); a run again finds it on HEAD and goes on
+	unchanged="nothing was changed"
+	if [[ "$version" != *.dev* ]]; then
+		tag="v$version-before"
+		if at=$(git rev-parse -q --verify "refs/tags/$tag^{commit}"); then
+			[ "$at" = "$(git rev-parse HEAD)" ] || { echo "take: the tag $tag exists and marks $at, not HEAD ($(git rev-parse HEAD)) -- a tree is tagged once, before its take; nothing was changed"; exit 1; }
+			echo "take: the tag $tag already marks HEAD"
+		else
+			git tag -a "$tag" -m "The tree before it took $version"
+		fi
+		git push -q origin "refs/tags/$tag" || { echo "take: the tag $tag could not be pushed (above); it marks HEAD here, and running again pushes it"; exit 1; }
+		unchanged="nothing was changed but the tag $tag on HEAD, pushed (running again finds it)"
 	fi
 	old=$(git show HEAD:.csis-version 2>/dev/null | head -1 || true)
 	# a development release is on TestPyPI only, with PyPI as the extra index
@@ -123,42 +171,106 @@ take version patched="no":
 	oldindex=(); [[ "$old" == *.dev* ]] && oldindex=("${test_index[@]}")
 	# the umbrella with the extras this tree's `type:` words need (`just extras`): a bare install carries no runtime
 	extras=$(just extras)
-	if [ -z "${CSIS:-}" ]; then
-		uv tool install --force ${index[@]+"${index[@]}"} "cs-image-system${extras:+[$extras]}==$version" >/dev/null 2>&1 || { echo "take: cs-image-system${extras:+[$extras]}==$version could not be installed from the index (a development release is on TestPyPI, a final one on PyPI) -- nothing was changed"; exit 1; }
-	fi
-	have=$({{csis}} --version 2>/dev/null | awk '{print $NF}')
-	if [ "$have" != "$version" ]; then
-		# a CSIS in a checkout's venv answers with the version the venv was last synced to
-		case "${CSIS:-}" in
-			*/.venv/bin/*) echo "take: '$CSIS' reports '$have', not $version -- it lies in the venv of ${CSIS%%/.venv/bin/*}, which has not been synced to that release: run \`just init\` THERE, then run this again; nothing was changed" ;;
-			*) echo "take: '{{csis}}' reports '$have', not $version -- point CSIS at that release, or install it; nothing was changed" ;;
-		esac
-		exit 1
-	fi
-	if [ "{{patched}}" = "no" ] && [ -n "$old" ] && [ "$old" != "$version" ]; then
+	# always the release from the index, as the uv tool: a committing run is held to exactly that, and
+	# every step of the take runs by this binary, whatever CSIS names for the tree's other recipes
+	uv tool install --force ${index[@]+"${index[@]}"} "cs-image-system${extras:+[$extras]}==$version" >/dev/null 2>&1 || { echo "take: cs-image-system${extras:+[$extras]}==$version could not be installed from the index (a development release is on TestPyPI, a final one on PyPI) -- $unchanged"; exit 1; }
+	tool="$(uv tool dir --bin)/cs-image-system"
+	have=$("$tool" --version 2>/dev/null | awk '{print $NF}' || true)
+	[ "$have" = "$version" ] || { echo "take: the installed tool $tool reports '${have:-nothing}', not $version -- $unchanged"; exit 1; }
+	# the sessions before anything is written: the record needs them, and a lapsed one found after the
+	# pin moved is a half-done take; each absent or lapsed session's line names the command that renews it
+	CSIS="$tool" just preflight || { echo "take: a runtime session is absent or lapsed, or the sessions could not be read (above, with the command that renews each): log in, then run the same command again: $again -- $unchanged"; exit 1; }
+	# what the release changed, one `<class> <path>` line each (a module judged by its stamp): anything
+	# `edited` in this tree STOPS the take, named alone; `refresh` and `added` are refreshed below
+	refreshed=(); added=()
+	if [ "$patched" = no ] && [ -n "$old" ] && [ "$old" != "$version" ]; then
 		prev=$(uvx ${oldindex[@]+"${oldindex[@]}"} --from "cs-image-system==$old" python -c 'from cs_image_system.system import starters; print(starters.starters_root())' 2>/dev/null) \
-			|| { echo "take: the previous release $old could not be fetched to compare with -- nothing was changed"; exit 1; }
-		if ! {{csis}} init-config . --changes-since "$prev"; then
-			echo "take: STOP -- the release changed files it owns (above). Refresh them by hand: \`cs-image-system init-config . --force\` (it keeps your values where the release has REPLACE-ME), read \`git diff\`, then \`just take $version patched\`. Nothing was committed"
+			|| { echo "take: the previous release $old could not be fetched to compare with -- $unchanged"; exit 1; }
+		rc=0; listing=$("$tool" init-config . --changes-since "$prev" --porcelain) || rc=$?
+		if [ "$rc" -eq 1 ]; then
+			echo "take: STOP -- the release changed what this tree also edited:"
+			printf '%s\n' "$listing" | sed -n 's/^edited /take:   edited /p'
+			echo "take: read the release's version beside yours and refresh by hand (\`$tool init-config . --force\` keeps your values where the release has REPLACE-ME; an edited module is kept by naming it under config: module_sources, or deleted to take the release's), read \`git diff\`, then: $after_patch -- $unchanged"
+			exit 1
+		elif [ "$rc" -ne 0 ]; then
+			echo "take: the release's changes could not be listed against $old (above) -- $unchanged"
 			exit 1
 		fi
+		while read -r class path; do
+			case "$class" in
+				refresh) refreshed+=("$path") ;;
+				added) added+=("$path") ;;
+				*) ;;
+			esac
+		done <<< "$listing"
 	fi
-	# a failure after the pin is written puts the pin back, so the same command runs again
-	had=no; prior=
-	if [ -f .csis-version ]; then had=yes; prior=$(cat .csis-version); fi
+	# from here a failure puts the tree back as HEAD has it, so the same command runs again; with `patched`
+	# only the pin goes back (from HEAD: a refresh may have moved the tree's copy), the rest is your refresh
+	back=""; [ "$patched" = patched ] || back=" and the tree as HEAD has it"
+	drop() { rm -f -- "$1"; rmdir -p "$(dirname "$1")" 2>/dev/null || true; }
+	putback() {
+		if [ "$patched" = no ]; then
+			git reset -q
+			git checkout -q HEAD -- .
+			while IFS= read -r -d '' path; do drop "$path"; done < <(git ls-files -z --others --exclude-standard)
+		elif git cat-file -e HEAD:.csis-version 2>/dev/null; then
+			git show HEAD:.csis-version > .csis-version
+		else
+			rm -f .csis-version
+		fi
+	}
+	listed=(${refreshed[@]+"${refreshed[@]}"} ${added[@]+"${added[@]}"})
+	if [ -n "${listed[*]+x}" ]; then
+		"$tool" init-config . --force >/dev/null || { putback; echo "take: \`init-config . --force\` failed (above); the tree is back as HEAD has it -- $unchanged"; exit 1; }
+		# the refresh is of what was listed and nothing else: a file the release did not change keeps the tree's text
+		while IFS= read -r -d '' path; do
+			keep=no
+			for entry in "${listed[@]}"; do
+				case "$entry" in
+					*/) [[ "$path" == "$entry"* ]] && keep=yes ;;
+					*) [ "$path" = "$entry" ] && keep=yes ;;
+				esac
+			done
+			[ "$keep" = no ] || continue
+			if git cat-file -e "HEAD:$path" 2>/dev/null; then git checkout -q HEAD -- "$path"; else drop "$path"; fi
+		done < <(git ls-files -z --modified --others --exclude-standard)
+		for entry in ${refreshed[@]+"${refreshed[@]}"}; do echo "take: refresh $entry"; done
+		for entry in ${added[@]+"${added[@]}"}; do echo "take: added $entry"; done
+	fi
+	# the pin is the release that did all of the above; init and validate run as the tree runs them
 	printf '%s\n' "$version" > .csis-version
 	for step in init validate; do
-		just "$step" || {
-			if [ "$had" = yes ]; then printf '%s\n' "$prior" > .csis-version; else rm -f .csis-version; fi
-			echo "take: \`just $step\` failed (above); .csis-version is back at ${prior:-nothing}, so run the same command again: just take $version{{ if patched == "patched" { " patched" } else { "" } }}"
+		CSIS="$tool" just "$step" || {
+			putback
+			echo "take: \`just $step\` failed (above); .csis-version is back at ${old:-nothing}$back, so run the same command again: $again -- $unchanged"
 			exit 1
 		}
 	done
 	git add -A
 	git diff --cached --quiet && { echo "take: nothing changed -- $version is already what this tree pins"; exit 0; }
-	git commit -q -m "Take $version"
-	git push origin develop
-	echo "take: $version is taken and develop is pushed. Pushing develop to main is its own act (main performs): git push origin develop:main"
+	# the subject is "Take VERSION" alone; the body names what the take refreshed and added, one line per
+	# class ("refreshed: Justfile, .gitignore", "added: CI_SETUP.md"), however many entries there are
+	message="Take $version"
+	joined() { local out="" entry; for entry in "$@"; do out="${out:+$out, }$entry"; done; printf '%s' "$out"; }
+	body=""
+	list=$(joined ${refreshed[@]+"${refreshed[@]}"}); [ -z "$list" ] || body="refreshed: $list"
+	list=$(joined ${added[@]+"${added[@]}"}); [ -z "$list" ] || body="${body:+$body$'\n'}added: $list"
+	body_args=(); [ -z "$body" ] || body_args=(-m "$body")
+	git commit -q -m "$message" ${body_args[@]+"${body_args[@]}"} || { putback; echo "take: the commit failed (above); .csis-version is back at ${old:-nothing}$back, so run the same command again: $again -- $unchanged"; exit 1; }
+	# the record by the same release (a committing run is held to the pin), so the emission the push
+	# carries is the new pin's and CI's drift check finds it current; then ONE push of develop with both
+	if ! CSIS="$tool" just record; then
+		echo "take: the record failed (above): the commit \"$message\" stands on develop, NOT pushed, and whatever the record wrote is uncommitted. To finish: CSIS=\"$tool\" just record, then git push origin develop$([ "$main" = no ] || echo ', then git push origin develop:main')"
+		exit 1
+	fi
+	git push origin develop || { echo "take: develop could not be pushed (above); the take and its record are committed here -- to finish: git push origin develop$([ "$main" = no ] || echo ', then git push origin develop:main')"; exit 1; }
+	echo "take: $version is taken and recorded, and develop is pushed"
+	if [ "$main" = main ]; then
+		git push origin develop:main || { echo "take: main could not be pushed (above); develop is pushed -- to finish: git push origin develop:main"; exit 1; }
+		echo "take: main is pushed: main performs (its CI bakes and applies under the write role)"
+	else
+		echo "take: main was not pushed; when main should perform: git push origin develop:main (or take with 'main')"
+	fi
 
 # The extras of the umbrella this tree needs, comma-separated in the order aws,gcloud,docker,okta
 # (empty when it needs none): `uv tool install cs-image-system` carries no runtime, and each provider

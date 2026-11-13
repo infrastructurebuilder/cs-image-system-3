@@ -19,6 +19,9 @@ This module is the one API over that declaration:
   content hash) so a later materialisation refreshes only copies nobody
   edited, refuses an edited one by name, and leaves alone a module the
   tree sources elsewhere (``config: module_sources``);
+- :func:`module_verdict` is that judgement of one copy, writing nothing,
+  so a listing (``init-config --changes-since``) can say what a
+  materialisation would do;
 - :func:`content_hash` is the hash the stamp carries;
 - :func:`declared_overrides` reads the names ``config: module_sources``
   declares, from the raw YAML, without loading the configuration.
@@ -202,6 +205,64 @@ def _copy_module(src: Path, dst: Path) -> None:
     shutil.copytree(src, dst, ignore=shutil.ignore_patterns(*_IGNORED_NAMES))
 
 
+#: A copy that is absent: a materialisation writes it whole.
+ABSENT = "absent"
+#: A stamped copy nobody edited, of another release's content: replaced whole.
+REFRESH = "refresh"
+#: An unstamped copy identical to the release's: stamped as it is.
+ADOPT = "adopt"
+#: A stamped copy nobody edited that is already the release's content.
+CURRENT = "current"
+#: A stamped copy whose content no longer matches its stamp: refused, ``force`` or not.
+EDITED = "edited"
+#: An unstamped copy that differs from the release's: refused unless ``force`` replaces it.
+UNSTAMPED = "unstamped"
+#: Something that is not a directory where the copy goes: refused, ``force`` or not.
+NOT_A_DIRECTORY = "not-a-directory"
+
+
+def module_verdict(copy: Path, release_hash: str) -> str:
+    """What a materialisation makes of ``copy``, a module's directory in a
+    tree, against the release's content (``release_hash``, the
+    ``content_hash`` of the installed module), judged by the copy's stamp
+    and writing nothing: one of :data:`ABSENT`, :data:`REFRESH`,
+    :data:`ADOPT`, :data:`CURRENT`, :data:`EDITED`, :data:`UNSTAMPED`,
+    :data:`NOT_A_DIRECTORY`. ``materialise_modules`` acts on it, and
+    ``init-config --changes-since`` reports it without acting."""
+    if not copy.exists():
+        return ABSENT
+    if not copy.is_dir():
+        return NOT_A_DIRECTORY
+    current = content_hash(copy)
+    existing = Stamp.read(copy / STAMP_FILE)
+    if existing is not None:
+        if existing.hash != current:
+            return EDITED
+        return CURRENT if current == release_hash else REFRESH
+    # unstamped: a copy from a release that wrote no stamps, or the tree's own
+    return ADOPT if current == release_hash else UNSTAMPED
+
+
+def _replace(module: ModuleSource, copy: Path, stamp: Stamp) -> None:
+    if copy.exists():
+        shutil.rmtree(copy)
+    _copy_module(module.path, copy)
+    stamp.write(copy / STAMP_FILE)
+
+
+def _refusal(name: str, verdict: str, copy: Path) -> str:
+    if verdict == NOT_A_DIRECTORY:
+        return f"{copy} exists and is not a directory; remove it to take the release's module"
+    if verdict == EDITED:
+        existing = Stamp.read(copy / STAMP_FILE)
+        written = existing.release if existing is not None else "unknown"
+        return (f"the copy was edited after it was written (release {written}); keep your "
+                f"version by naming it in config: module_sources ({name}: <path or URL>), or delete "
+                f"the copy to take the release's")
+    return ("it exists without a stamp and differs from the release's; --force overwrites it, "
+            f"or keep your version by naming it in config: module_sources ({name}: <path or URL>)")
+
+
 def materialise_modules(dest: Path, *, force: bool = False, overrides: Iterable[str] = (),
                         only: Iterable[str] | None = None) -> ModulesReport:
     """Write the installed modules into ``dest`` (a tree's modules
@@ -210,14 +271,15 @@ def materialise_modules(dest: Path, *, force: bool = False, overrides: Iterable[
 
     ``overrides`` are the module names ``config: module_sources`` declares:
     they are skipped, never written. ``only`` narrows the set to those
-    names. For each module: absent, it is copied whole and stamped
-    (written); present with a stamp whose hash is still the copy's
-    (unmodified), it is kept when it is the release's content and replaced
-    whole and re-stamped when it is another release's (refreshed); present
-    with a stamp whose hash is no longer the copy's (edited in the tree),
-    it is refused, ``force`` or not; present without a stamp, identical
-    content is stamped (adopted) and different content is refused unless
-    ``force`` replaces it. Nothing outside ``dest`` is touched.
+    names. For each module (``module_verdict`` judges it): absent, it is
+    copied whole and stamped (written); present with a stamp whose hash is
+    still the copy's (unmodified), it is kept when it is the release's
+    content and replaced whole and re-stamped when it is another release's
+    (refreshed); present with a stamp whose hash is no longer the copy's
+    (edited in the tree), it is refused, ``force`` or not; present without
+    a stamp, identical content is stamped (adopted) and different content
+    is refused unless ``force`` replaces it. Nothing outside ``dest`` is
+    touched.
     """
     report = ModulesReport()
     dest = Path(dest)
@@ -232,53 +294,30 @@ def materialise_modules(dest: Path, *, force: bool = False, overrides: Iterable[
             continue
         copy = dest / name
         stamp = Stamp(plugin=module.namespace, release=module.version, hash=content_hash(module.path))
-        if not copy.exists():
-            _copy_module(module.path, copy)
-            stamp.write(copy / STAMP_FILE)
+        verdict = module_verdict(copy, stamp.hash)
+        if verdict == ABSENT:
+            _replace(module, copy, stamp)
             report.written.append(name)
-            continue
-        if not copy.is_dir():
-            report.refused.append(name)
-            report.reasons[name] = f"{copy} exists and is not a directory; remove it to take the release's module"
-            continue
-        current = content_hash(copy)
-        existing = Stamp.read(copy / STAMP_FILE)
-        if existing is not None:
-            if existing.hash != current:
-                report.refused.append(name)
-                report.reasons[name] = (
-                    f"the copy was edited after it was written (release {existing.release}); keep your "
-                    f"version by naming it in config: module_sources ({name}: <path or URL>), or delete "
-                    f"the copy to take the release's")
-                continue
-            if current == stamp.hash:
-                if existing != stamp:
-                    stamp.write(copy / STAMP_FILE)
-                    report.notes.append(f"{name}: the stamp now names release {stamp.release} "
-                                        f"(it named {existing.release}; the content is the same)")
-                report.kept.append(name)
-                continue
-            shutil.rmtree(copy)
-            _copy_module(module.path, copy)
-            stamp.write(copy / STAMP_FILE)
+        elif verdict == REFRESH:
+            _replace(module, copy, stamp)
             report.refreshed.append(name)
-            continue
-        # unstamped: a copy from a release that wrote no stamps, or the tree's own
-        if current == stamp.hash:
+        elif verdict == ADOPT:
             stamp.write(copy / STAMP_FILE)
             report.adopted.append(name)
-            continue
-        if not force:
+        elif verdict == CURRENT:
+            existing = Stamp.read(copy / STAMP_FILE)
+            if existing is not None and existing != stamp:
+                stamp.write(copy / STAMP_FILE)
+                report.notes.append(f"{name}: the stamp now names release {stamp.release} "
+                                    f"(it named {existing.release}; the content is the same)")
+            report.kept.append(name)
+        elif verdict == UNSTAMPED and force:
+            _replace(module, copy, stamp)
+            report.written.append(name)
+            report.notes.append(f"{name}: an unstamped copy that differed was replaced (--force)")
+        else:
             report.refused.append(name)
-            report.reasons[name] = (
-                "it exists without a stamp and differs from the release's; --force overwrites it, "
-                f"or keep your version by naming it in config: module_sources ({name}: <path or URL>)")
-            continue
-        shutil.rmtree(copy)
-        _copy_module(module.path, copy)
-        stamp.write(copy / STAMP_FILE)
-        report.written.append(name)
-        report.notes.append(f"{name}: an unstamped copy that differed was replaced (--force)")
+            report.reasons[name] = _refusal(name, verdict, copy)
     return report
 
 

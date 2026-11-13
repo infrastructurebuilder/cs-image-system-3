@@ -68,9 +68,13 @@ test: lint typecheck pytest
 full-test: test
 	@just full-test-legs
 
-# Cut a release: the probes first -- the branch (`release_branch` alone), the
+# Cut a release, run from develop: the probes first -- the branch (develop, from which it
+# moves to `release_branch` itself; `release_branch` with develop an ancestor; or a
+# maintenance branch), a clean tree, the
 # index itself (its upload endpoint and every project page answer, and no project
-# holds the version), the index token, the tag -- then the bar, the index asked AGAIN (the
+# holds the version), the index token, the tag, the remote -- then from develop the
+# checkout of `release_branch` and its fast-forward to develop, `uv sync --all-extras`,
+# the venv's probes, the bar, the index asked AGAIN (the
 # bar takes twenty minutes), the bump, the lock, the
 # build and the upload, and only then the release's row in docs/CHANGES.md, the commit and
 # the tag, so a failed upload leaves
@@ -80,13 +84,16 @@ full-test: test
 # of the same version; `stage` finalises it, 0.1.1.dev2 -> 0.1.1) or an explicit version.
 # INDEX is `test` (TestPyPI, the default) or `pypi`: a development release to TestPyPI is
 # gated on `test`, the bar; a PyPI release on `full-test`, the modification-test evidence
-# in the live configuration and a clean live checkout. `yes` as the third argument is the
-# dry form: the probes and the version, nothing changed. Nothing is pushed: `git push
-# --follow-tags origin main` and develop's fast-forward back are the operator's acts, and
-# the pushed tag makes CI publish (it uploads nothing the index already holds).
+# in the live configuration and a clean live checkout. A refusal before the bump returns
+# the checkout to the branch it started on. After the tag: `git push --follow-tags origin
+# main`, develop checked out, fast-forwarded to main and pushed, and `uv sync --all-extras`
+# again (a maintenance branch: that branch pushed with its tags, develop untouched); the
+# pushed tag makes CI publish (it uploads nothing the index already holds). A failed step
+# there names itself and the commands left. `yes` as the third argument is the dry form:
+# the probes, the version, and every move and push it would make; nothing changed.
 # The family's logic is scripts/release.py (every step a function, tested with a stubbed
 # shell); the recipes here hand it the branch and the live configuration's root.
-[doc("Gated on the bar (test) or full-test (pypi): probe, bump, lock, build, publish, commit, tag v<version>; `yes` = dry")]
+[doc("From develop, gated on the bar (test) or full-test (pypi): probe, bump, lock, build, publish, commit, tag v<version>, push main and develop; `yes` = dry")]
 release target index="test" dry="no":
 	@uv run --no-sync --project "{{justfile_directory()}}" python "{{justfile_directory()}}/scripts/release.py" release "{{target}}" "{{index}}" "{{dry}}" \
 		--release-branch "{{release_branch}}" --config-root {{quote(config_root)}}
@@ -96,12 +103,35 @@ release target index="test" dry="no":
 # -- a first PyPI release of many projects takes days. On `release_branch`, with the bump
 # uncommitted and nothing else changed, and only when the index holds the version for every
 # project: the modification-test evidence (on PyPI), the docs/CHANGES.md row, the commit, the
-# tag. Nothing is pushed: `git push --follow-tags origin main` and develop's fast-forward back are
-# the operator's acts.
-[doc("After a release's upload was completed by `just publish`: check every project holds the version, then commit and tag it")]
+# tag; then the release's own ending: `git push --follow-tags origin main`, develop's
+# fast-forward to main and its push, and `uv sync --all-extras`.
+[doc("After a release's upload was completed by `just publish`: check every project holds the version, then commit, tag and push it")]
 release-finish index="test":
 	@uv run --no-sync --project "{{justfile_directory()}}" python "{{justfile_directory()}}/scripts/release.py" release-finish "{{index}}" \
 		--release-branch "{{release_branch}}" --config-root {{quote(config_root)}}
+
+# The release walk's two repositories in one command: the live configuration (`config_root`) is
+# asked first (configured, a git checkout, with a `take` recipe); then the release, as `release`
+# runs it; then `just take <version>` there, the version read back from what the release cut, with
+# `main` passed through when given (the take then pushes develop to main: main performs). A release
+# that refuses or fails runs no take; a take that stops says so, with the command that finishes it
+# there. WORDS: `main`, `yes` (the dry form: the release's, then the take it would run), both, or neither.
+[doc("The release (as `release` runs it), then `just take <version>` in the live configuration; `main`: the take pushes main too; `yes` = dry")]
+release-take target index *words:
+	@uv run --no-sync --project "{{justfile_directory()}}" python "{{justfile_directory()}}/scripts/release.py" release-take "{{target}}" "{{index}}" {{words}} \
+		--release-branch "{{release_branch}}" --config-root {{quote(config_root)}}
+
+# Wait on the runs a release walk started and say one verdict line each, found by commit: here the
+# tag's run of CI, main's, develop's and develop's "CI from scratch"; in the live configuration the
+# take's develop and, when main was pushed, main. A green job is not proof its steps ran: for the
+# tag's run the index (TestPyPI for a development version, PyPI for a final one) must list the
+# version and every template repository must hold its tag; for the configuration's main the perform
+# job's guard verdict is read, and what it baked. Exit 0 only when every verdict is good; sixty
+# minutes at most (scripts/release-watch --timeout). The logic is scripts/release-watch.
+[doc("Wait on the runs a release walk started (here and in the live configuration) and say one verdict each; exit 0 only when all are good")]
+release-watch version:
+	@uv run --no-sync --project "{{justfile_directory()}}" python "{{justfile_directory()}}/scripts/release-watch" "{{version}}" \
+		--root "{{justfile_directory()}}" --config-root {{quote(config_root)}}
 
 # What a release needs and `full-test` only finds out twenty minutes in, asked
 # first and in one line each, before anything changes. For every index: the venv is in step with

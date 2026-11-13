@@ -227,16 +227,32 @@ run `live`:
 runs `just extras` and installs `cs-image-system[<extras>]==<version>`,
 so a tree that adds a provider's `type:` words needs no workflow edit.
 Taking a new release is
-`just take <version>`: it fast-forwards `develop` from `origin/main`, installs
-the release with the same extras, lists the release-owned files the release changed
-(`cs-image-system init-config . --changes-since`) and stops if there are any;
-refresh those by hand with `cs-image-system init-config . --force`, review the
-diff, then `just take <version> patched` commits "Take <version>" and pushes
-`develop`. If `CSIS` points into the system checkout's venv and that venv has
-not been synced since the release, `take` names the checkout and says to run
-`just init` there; if `just init` or `just validate` fails after the pin was
-written, the pin is put back, so the same command can be run again. Done by hand it is: move the version in that file, run
-`init-config . --force` with the new release, review the diff, commit.
+`just take <version>` (`just take <version> main` to push `main` too,
+which performs). In order: it fast-forwards `develop` from
+`origin/main`; for a final version it tags `HEAD` `v<version>-before`
+and pushes the tag; it installs the release as the uv tool with the same
+extras and runs every later step by that binary, whatever `CSIS` names;
+it checks the sessions (`just preflight`) and refuses, naming the
+login, before anything changes; it lists what the release changed
+(`cs-image-system init-config . --changes-since <previous starters>
+--porcelain`, a terraform module judged by its stamp) and STOPS, naming
+them, on anything you also edited; otherwise it refreshes what was
+listed itself (`init-config . --force`, nothing else kept), writes the
+pin, runs `just init` and `just validate`, commits "Take <version>"
+(the body lists what was refreshed and added, one line per class),
+makes the record (`just record`) and pushes `develop` once with both
+commits. Run again after it finished, it says the version is already
+taken and changes nothing. After a stop, refresh those entries by hand
+with `cs-image-system init-config . --force`, review the diff, then
+`just take <version> patched`. A failure before the commit puts the
+tree back as `HEAD` has it (with `patched`, the pin alone), so the same
+command can be run again; a failed record leaves the commit unpushed
+and says how to finish (the record, then the push). The take a tree
+runs is the one of the release it is on, so the first take onto a
+release that brings this recipe is still the previous walk: refresh by
+hand, `patched`, then the record with the pinned release and the push.
+Done by hand it is: move the version in that file, run `init-config .
+--force` with the new release, review the diff, commit, record.
 
 The workflows also name the machine they run on (`runs-on:
 ubuntu-24.04`), the version of every action they use, and the system's
