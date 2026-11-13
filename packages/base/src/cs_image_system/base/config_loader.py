@@ -91,7 +91,7 @@ from . import (
 from . import encryption as _encryption
 from . import image_sources as _image_sources
 from . import lifecycles as _lifecycles
-from .encryption import decrypt_tree, decrypted_plaintexts, refuse_markers_at
+from .encryption import decrypt_tree, refuse_markers_at
 from .finalizer import Finalizer
 from .image_sources import ImageSourceCatalog, default_os_type
 from .loader import load_plugins
@@ -502,8 +502,7 @@ def read_config_and_transform(
     # ciphertext survives for the emission to write back. This one call covers
     # IAConfig and the plugin builder models, whose dicts are popped out of
     # generic_yaml below and structured from these objects.
-    generic_yaml = decrypt_tree(generic_yaml, source=str(_config_dir),
-                                collect=decrypted_plaintexts())
+    generic_yaml = decrypt_tree(generic_yaml, source=str(_config_dir))
     generic_yaml = _single_mapping(generic_yaml)
 
     original_yaml_dictionary_lists = _take_builder_lists(generic_yaml)
