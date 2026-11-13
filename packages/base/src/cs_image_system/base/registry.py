@@ -170,6 +170,16 @@ def _names_under(table: dict[RegistrationKey, type], classification: VCT) -> dic
     return out
 
 
+#: the runtime namespace a cloud or container classification is entered in
+#: too, so a runtime is found by name whatever its kind
+RUNTIME_NAMESPACE_OF: dict[VCT, VCT] = {
+    VCT.CLOUD_BUILDER_MODEL: VCT.RUNTIME_BUILDER_MODEL,
+    VCT.CONTAINER_BUILDER_MODEL: VCT.RUNTIME_BUILDER_MODEL,
+    VCT.CLOUD_BUILDER: VCT.RUNTIME_BUILDER,
+    VCT.CONTAINER_BUILDER: VCT.RUNTIME_BUILDER,
+}
+
+
 class Registry:
     """A registry for mapping type and key identifiers to classes for polymorphic deserialization.
     This registry allows for dynamic registration of classes that can be instantiated based on
@@ -371,14 +381,7 @@ class Registry:
         except Exception as e:
             log.warning(f"Instance {instance} does not have a valid global_id. Skipping registration in global_id registry. Error: {e}")
             
-        if classifier in [VCT.CLOUD_BUILDER_MODEL, VCT.CONTAINER_BUILDER_MODEL]:
-            if model_name in self.instances[VCT.RUNTIME_BUILDER_MODEL]:
-                raise ValueError(f"Instance name collision: '{model_name}' is already registered in RUNTIME_BUILDER_MODEL namespace!")
-            self.instances[VCT.RUNTIME_BUILDER_MODEL][model_name] = instance
-        if classifier in [VCT.CLOUD_BUILDER, VCT.CONTAINER_BUILDER]:
-            if model_name in self.instances[VCT.RUNTIME_BUILDER]:
-                raise ValueError(f"Instance name collision: '{model_name}' is already registered in RUNTIME_BUILDER namespace!")
-            self.instances[VCT.RUNTIME_BUILDER][model_name] = instance
+        self._enter_runtime_namespace(classifier, model_name, instance)
         
         # Register aliases within the namespace; an alias the same instance
         # already holds is no collision (an item is registered again when its
@@ -387,14 +390,21 @@ class Registry:
             if alias in self.instances[classifier] and self.instances[classifier][alias] is not instance:
                 raise ValueError(f"Instance Alias Collision: '{alias}' is already in use for {classifier}!")
             self.instances[classifier][alias] = instance
-            if classifier in [VCT.CLOUD_BUILDER_MODEL, VCT.CONTAINER_BUILDER_MODEL]:
-                if alias in self.instances[VCT.RUNTIME_BUILDER_MODEL]:
-                    raise ValueError(f"Instance name collision: '{alias}' is already registered in RUNTIME_BUILDER_MODEL namespace!")
-                self.instances[VCT.RUNTIME_BUILDER_MODEL][alias] = instance
-            if classifier in [VCT.CLOUD_BUILDER, VCT.CONTAINER_BUILDER]:
-                if alias in self.instances[VCT.RUNTIME_BUILDER]:
-                    raise ValueError(f"Instance name collision: '{alias}' is already registered in RUNTIME_BUILDER namespace!")
-                self.instances[VCT.RUNTIME_BUILDER][alias] = instance
+            self._enter_runtime_namespace(classifier, alias, instance)
+
+    def _enter_runtime_namespace(self, classifier: VCT, key: str, instance: Any) -> None:
+        """Enter a cloud or container ``instance`` under ``key`` (its name or
+        an alias) in the runtime namespace its classification belongs to;
+        nothing for any other classification. The same instance already
+        there is no collision (an instance is registered again, as its name
+        is in its own namespace); another instance under ``key`` is."""
+        namespace = RUNTIME_NAMESPACE_OF.get(classifier)
+        if namespace is None:
+            return
+        table = self.instances[namespace]
+        if key in table and table[key] is not instance:
+            raise ValueError(f"Instance name collision: '{key}' is already registered in {namespace.name} namespace!")
+        table[key] = instance
 
     def get_all_instances_by_classification(self, classifier: VCT) -> dict[str, Any]:
         """Get all registered instances under a specific classification."""
