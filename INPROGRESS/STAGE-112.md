@@ -7,7 +7,10 @@
 what is safe (4), records (5), refuses a missing session naming the
 login (6) and makes the before-tag (7); `take` pushes `main` only when
 told `main` (8); `release-take` is a separate recipe (9); the bar,
-then the full-test legs.**
+then the full-test legs. Asked while it was built: the release
+fetches origin and refuses up front when origin holds commits the
+local branches lack; a release started from `main` ends on `develop`,
+as one from `develop` does.**
 Re-scoped by §126 (2026-11-06, its item 6 under shape (b)): this
 stage stays whole; the release walk keeps its packages, so its boxes
 are the recipes' to shrink, not a package count's.
