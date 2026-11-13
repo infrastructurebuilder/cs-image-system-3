@@ -19,8 +19,10 @@ before anything changes (the branch is the release branch with ``develop``
 an ancestor, or a maintenance branch ``release/<major.minor>``; the target
 names a version of the accepted shape; the index can take an upload and
 holds the version for no project; the token is set; no ``v<version>`` tag
-exists here; the venv is in step with the lock and, for PyPI, docker and
-the live configuration's sessions answer); the dry form (``yes``) prints
+exists here; the venv is in step with the lock; every package whose
+version the release does not move is fresh on the index or held there as
+this tree's build; for PyPI, docker and the live configuration's sessions
+answer); the dry form (``yes``) prints
 what the real form would do and stops; then a clean working tree, the gate
 (the bar for TestPyPI, ``full-test`` with the modification-test evidence
 for PyPI), the index AGAIN after the gate, the bump and the lock, the
@@ -39,9 +41,10 @@ holds the version for every project.
 first, ``dist/`` cleaned, ``just build``, then ``scripts/publish-dist``,
 one project at a time.
 
-``probes`` is what ``release`` asks first and ``release-finish`` asks
-alone: the venv, and for a PyPI release docker, the live configuration and
-its sessions, one line each.
+``probes`` is what ``release`` asks first: the venv; the packages whose
+version it does not move (scripts/own-versions-current); for a PyPI
+release docker, the live configuration and its sessions; one line each.
+``release-finish`` asks the venv alone: it builds and uploads nothing.
 
 The reference configuration's working tree (the live configuration beside
 this repository, or ``CSIS_CONFIG_ROOT``) is read by ``read_sibling``
@@ -79,6 +82,12 @@ UNRELEASED = "not yet"
 #: the probes' one-line verdicts, after "<who>: "
 VENV_OK = "the venv is in step with the lock"
 SESSIONS_OK = "every runtime session of the live configuration is present"
+#: the own-version probe's refusals, after "<who>: ", below scripts/own-versions-current's own lines
+UNBUMPED = ("a package whose version the release does not move changed since the index took that version (above), "
+            "so the upload would be refused after the gate -- bump that package's own version and commit it -- "
+            "nothing was changed")
+UNASKED = ("the index could not be asked whether it holds this tree's build of every package whose version the "
+           "release does not move, or one could not be built (above); nothing is guessed -- nothing was changed")
 #: the closing lines: what is on the index, and (a release) the operator's pushes
 RELEASED = ("release: {version} is on {name}, committed and tagged v{version}; push with: {pushes} "
             "(CI checks the pushed tag against the index and uploads nothing already there)")
@@ -319,20 +328,45 @@ class Family:
 
     # --- the probes
 
+    def own_versions_or_refuse(self, index: str, who: str) -> None:
+        """scripts/own-versions-current, its lines said: every package whose version the release does not move
+        (the bump's `glob_exclude`: the contract) is either not on the index (it goes up fresh) or held there as
+        exactly this tree's build, file for file and byte for byte (the upload skips it). Exit 1 is a package
+        that changed under a version the index holds: refused, since the index would refuse its upload after the
+        gate. Any other failure is refused as "could not ask" (exit 2), never guessed."""
+        done = self.run(["uv", "run", "--no-sync", "python", str(HERE / "own-versions-current"), index,
+                         "--root", str(self.root)], cwd=self.root)
+        for line in done.out.splitlines():
+            if line.strip():
+                self.say(line)
+        if done.rc == 0:
+            return
+        if done.rc == 1:
+            raise Refused(f"{who}: {UNBUMPED}", 1)
+        for line in done.err.splitlines():
+            if line.strip():
+                self.say(line)
+        raise Refused(f"{who}: {UNASKED}", 2)
+
     def probes(self, index: str, who: str = "release") -> None:
         """What a release needs and full-test only finds out twenty minutes in, asked first and in one line each.
         For every index: the venv is in step with the lock (`uv sync --all-extras --check`), because every recipe
-        runs `uv run --no-sync` and a venv behind the checkout answers with stale metadata. For a PyPI release
+        runs `uv run --no-sync` and a venv behind the checkout answers with stale metadata; then, for a release,
+        every package whose version the release does not move is fresh on the index or held there as this tree's
+        build (`own_versions_or_refuse`: an index never takes a second build under a version, so a changed
+        package without its own bump would be refused at the upload, after the gate). For a PyPI release
         also: docker answers, the live configuration is present and every runtime session of it is present
         (`just preflight`, the gate full-test itself uses: without it the live legs would be skipped, which a
         release cannot accept) and how many minutes the soonest-expiring session has left
         (scripts/session-minutes-left; refused only when a token has already lapsed, otherwise said).
-        `release-finish` asks the venv alone: it runs no bar."""
+        `release-finish` asks the venv alone: it runs no bar, builds nothing and uploads nothing."""
         # the venv asked is the one running this script: the checkout's own
         if self.run(["uv", "sync", "--all-extras", "--check"], cwd=REPO).rc != 0:
             raise Refused(f"{who}: the venv is behind the checkout (uv sync --all-extras --check) -- `just init` syncs "
                           "it -- nothing was changed")
         self.say(f"{who}: {VENV_OK}")
+        if who == "release":
+            self.own_versions_or_refuse(index, who)
         if index != "pypi" or who != "release":
             return
         if self.run(["docker", "info"], cwd=self.root).rc != 0:

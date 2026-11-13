@@ -139,6 +139,12 @@ stage that changes its surface, and
 [tests/test_contract_version.py](../../tests/test_contract_version.py)
 holds all of it: the version is its own and final, every dependent pins
 the range, the bump excludes the manifest, the release tooling knows.
+Any change to the contract's files, a docstring included, needs its own
+bump (a PATCH when no plugin can observe it), because an index never
+takes a second build under a version it holds: `just release` builds the
+contract before its gate and refuses, naming this manifest, when the
+index already holds the contract's version with other bytes
+(`scripts/own-versions-current`).
 
 The versions so far:
 

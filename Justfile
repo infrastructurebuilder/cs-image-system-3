@@ -106,12 +106,15 @@ release-finish index="test":
 # What a release needs and `full-test` only finds out twenty minutes in, asked
 # first and in one line each, before anything changes. For every index: the venv is in step with
 # the lock (`uv sync --all-extras --check`), because every recipe runs `uv run --no-sync` and a venv
-# behind the checkout answers with stale metadata. For a PyPI release also: docker answers (the
+# behind the checkout answers with stale metadata. Then, for a release, every package whose version the
+# release does not move (the bump's `glob_exclude`: the contract) is either not on the index or held
+# there as this tree's build, file for file (scripts/own-versions-current), because an index never takes a
+# second build under one version and would refuse the upload after the gate. For a PyPI release also: docker answers (the
 # modification-test, posix, bake-step and runner-image legs run in it) and every runtime session of
 # the live configuration is present (`just preflight`, the gate full-test itself uses: without it the
 # live legs would be SKIPPED, which a release cannot accept) and how many minutes the soonest-expiring session has left
 # (scripts/session-minutes-left; refused only when a token has already lapsed, otherwise said). The dry form of `release` prints the
-# same verdicts. `release-finish` asks the venv alone: it runs no bar.
+# same verdicts. `release-finish` asks the venv alone: it runs no bar and builds nothing.
 [private]
 _release-probes index who="release":
 	@uv run --no-sync --project "{{justfile_directory()}}" python "{{justfile_directory()}}/scripts/release.py" probes "{{index}}" "{{who}}" \

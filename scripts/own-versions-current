@@ -1,0 +1,264 @@
+#!/usr/bin/env python3
+# SPDX-FileCopyrightText: 2026 Mykel Alvis <mykelalvis@infrastructurebuilder.org>
+#
+# SPDX-License-Identifier: Apache-2.0
+"""Will the index take every package whose version the release does not move?
+
+    uv run python scripts/own-versions-current <test|pypi> [--root DIR]
+
+A release moves every package's version in lockstep but the ones its bump
+leaves alone: each `glob_exclude` of the root's `[[tool.bumpversion.files]]`
+names a manifest whose version is its own (the contract's), which moves only
+by hand. An index never takes a second build under a version it holds, so a
+change to such a package without its own bump is refused at the upload --
+after the whole gate. The builds are reproducible (two builds of one tree
+are byte-identical), so that refusal can be foreseen in seconds, and this
+probe does it for each such package the release uploads (one classified
+`Private :: Do Not Upload` is skipped):
+
+- the index's JSON API is asked for the package's version
+  (`<host>/pypi/<name>/<version>/json`, the host taken from the target's
+  `[[tool.uv.index]]` entry in the root pyproject.toml, never restated);
+- when the index holds it, the package is built the way `just build` builds
+  it (`uv build --package <name>`: the sdist, then the wheel from the sdist,
+  in an isolated build environment) into a temporary directory, and every
+  built file's sha256 is compared with the `digests.sha256` of the index's
+  file of the same name.
+
+One line per package. Exit 0 when every one is current: the index does not
+hold its version (404: it goes up fresh) or holds exactly the files built
+here, name for name and byte for byte (the upload skips them). Exit 1 when a
+file differs, or the index holds a file this build does not make, or the
+reverse: the package changed since the index took its version, and a second
+line names the remedy -- bump the package's own version in its manifest and
+commit it. Exit 2 when the index could not be asked (no answer, a status
+other than 200 or 404, a page that is not the JSON API), the workspace could
+not be read or the package could not be built: nothing is guessed. When one
+package changed and another could not be asked, the exit is 1.
+
+What the JSON API cannot show is a file deleted from the index: the index
+refuses that file name forever, and a version whose files were all deleted
+answers 404 here. Such a version needs its own bump too.
+
+Born from a final release that ran its whole gate and was then refused at
+the upload: the contract's docstrings had changed under a version the index
+already held, and nothing had bumped it.
+"""
+from __future__ import annotations
+
+import argparse
+import hashlib
+import json
+import re
+import subprocess
+import sys
+import tempfile
+import tomllib
+import urllib.error
+import urllib.request
+from collections.abc import Callable
+from dataclasses import dataclass
+from pathlib import Path
+
+from packaging.utils import canonicalize_name
+
+HERE = Path(__file__).resolve().parent
+PREFIX = "own-versions-current: "
+TARGETS = {"test": "testpypi", "pypi": "pypi"}
+PRIVATE = "Private :: Do Not Upload"
+CURRENT, CHANGED, UNASKED = 0, 1, 2
+TIMEOUT = 30
+#: the files a build makes and an index holds; uv also writes a .gitignore into its output directory
+DISTRIBUTION = re.compile(r"\.(whl|tar\.gz|zip)$")
+VERSION_HEADING = re.compile(r"^#+\s+Version\s*$", re.MULTILINE)
+
+Fetch = Callable[[str], bytes | None]
+Build = Callable[[Path, str, Path], dict[str, str]]
+
+
+class Unasked(Exception):
+    """The index, the workspace or the build gave no answer to compare."""
+
+
+@dataclass(frozen=True)
+class Member:
+    name: str
+    version: str
+    manifest: Path          #: relative to the root
+
+
+@dataclass(frozen=True)
+class Verdict:
+    differ: tuple[str, ...]            #: on both sides, another sha256
+    index_only: tuple[str, ...]        #: held by the index, not made by this build
+    built_only: tuple[str, ...]        #: made by this build, not held by the index
+
+    @property
+    def current(self) -> bool:
+        return not (self.differ or self.index_only or self.built_only)
+
+
+def own_version_members(root: Path) -> list[Member]:
+    """The published members the release's bump leaves alone: each `glob_exclude` of the root's
+    `[[tool.bumpversion.files]]` names a manifest whose version is its own; a manifest classified
+    `Private :: Do Not Upload` is never uploaded and is skipped."""
+    config = tomllib.loads((root / "pyproject.toml").read_text())
+    found: dict[str, Member] = {}
+    for entry in config.get("tool", {}).get("bumpversion", {}).get("files", []):
+        for excluded in entry.get("glob_exclude", []):
+            manifest = root / excluded
+            if excluded in found or not manifest.is_file():
+                continue
+            project = tomllib.loads(manifest.read_text()).get("project", {})
+            if PRIVATE in project.get("classifiers", []):
+                continue
+            if "version" not in project:
+                raise Unasked(f"{excluded} is excluded from the bump but declares no version of its own")
+            found[excluded] = Member(project["name"], project["version"], Path(excluded))
+    return sorted(found.values(), key=lambda m: m.name)
+
+
+def json_api(root: Path, index: str) -> str:
+    """The index's JSON API base, from its `[[tool.uv.index]]` entry: `https://pypi.org/simple/` gives
+    `https://pypi.org/pypi`."""
+    config = tomllib.loads((root / "pyproject.toml").read_text())
+    for entry in config.get("tool", {}).get("uv", {}).get("index", []):
+        if entry.get("name") == index:
+            simple = entry["url"].rstrip("/")
+            if not simple.endswith("/simple"):
+                raise Unasked(f"the {index} index's url {entry['url']} is not a /simple/ url, so its JSON API is unknown")
+            return simple.removesuffix("/simple") + "/pypi"
+    raise Unasked(f"pyproject.toml has no [[tool.uv.index]] named {index!r}")
+
+
+def fetch(url: str) -> bytes | None:
+    """The JSON API's page for one version; None when the index does not hold it (404)."""
+    request = urllib.request.Request(url, headers={"Accept": "application/json"})
+    try:
+        with urllib.request.urlopen(request, timeout=TIMEOUT) as response:
+            return response.read()
+    except urllib.error.HTTPError as e:
+        if e.code == 404:
+            return None
+        raise Unasked(f"{url} answered {e.code}") from e
+    except OSError as e:
+        raise Unasked(f"{url} did not answer: {getattr(e, 'reason', e)}") from e
+
+
+def held_files(payload: bytes) -> dict[str, str]:
+    """`file name -> sha256` of every file the JSON API's page lists under `urls`."""
+    try:
+        doc = json.loads(payload)
+        return {f["filename"]: f["digests"]["sha256"] for f in doc["urls"]}
+    except (ValueError, KeyError, TypeError) as e:
+        raise Unasked(f"the index's page is not its JSON API's ({type(e).__name__}: {e})") from e
+
+
+def digests(directory: Path) -> dict[str, str]:
+    """`file name -> sha256` of every distribution file in a directory."""
+    return {p.name: hashlib.sha256(p.read_bytes()).hexdigest()
+            for p in sorted(directory.iterdir()) if p.is_file() and DISTRIBUTION.search(p.name)}
+
+
+def build(root: Path, name: str, out: Path) -> dict[str, str]:
+    """One member built as `just build` (`uv build --all-packages`) builds each: the sdist, then the wheel
+    from the sdist; `file name -> sha256` of what it made."""
+    done = subprocess.run(["uv", "build", "--package", name, "--out-dir", str(out)], cwd=root,
+                          capture_output=True, text=True, stdin=subprocess.DEVNULL)
+    if done.returncode != 0:
+        tail = " ".join((done.stderr or done.stdout).split())[-400:]
+        raise Unasked(f"uv build --package {name} failed (exit {done.returncode}): {tail}")
+    made = digests(out)
+    if not made:
+        raise Unasked(f"uv build --package {name} made no distribution file in {out}")
+    return made
+
+
+def compare(built: dict[str, str], held: dict[str, str]) -> Verdict:
+    """Name for name, byte for byte."""
+    return Verdict(differ=tuple(sorted(n for n in built.keys() & held.keys() if built[n] != held[n])),
+                   index_only=tuple(sorted(held.keys() - built.keys())),
+                   built_only=tuple(sorted(built.keys() - held.keys())))
+
+
+def _what_differs(verdict: Verdict) -> str:
+    parts = []
+    if verdict.differ:
+        parts.append(f"the sha256 differs for {', '.join(verdict.differ)}")
+    if verdict.index_only:
+        parts.append(f"the index holds {', '.join(verdict.index_only)}, which this build does not make")
+    if verdict.built_only:
+        parts.append(f"this build makes {', '.join(verdict.built_only)}, which the index does not hold")
+    return "; ".join(parts)
+
+
+def remedy(root: Path, member: Member) -> str:
+    """The second line of a changed package: bump its own version, and where its bumps are defined."""
+    readme = member.manifest.parent / "README.md"
+    rules = ""
+    if (root / readme).is_file() and VERSION_HEADING.search((root / readme).read_text()):
+        rules = f" ({readme}, its Version section, defines the bumps: a patch for a change no plugin can observe)"
+    return (f"{PREFIX}the release does not move {member.name}'s version and the index never takes a second build "
+            f"under one, so its upload would be refused after the gate: bump the version in {member.manifest}"
+            f"{rules} and commit it")
+
+
+def check(root: Path, member: Member, index: str, api: str, *, fetch: Fetch, build: Build) -> int:
+    """One member's verdict, said in one line (two when it changed)."""
+    label = f"{member.name} {member.version}"
+    url = f"{api}/{canonicalize_name(member.name)}/{member.version}/json"
+    try:
+        payload = fetch(url)
+        held = None if payload is None else held_files(payload)
+    except Unasked as e:
+        print(f"{PREFIX}{label}: {index} could not be asked -- {e}; nothing is guessed")
+        return UNASKED
+    if held is None:
+        print(f"{PREFIX}{label} is not on {index}: it goes up fresh")
+        return CURRENT
+    try:
+        with tempfile.TemporaryDirectory(prefix="csis-own-version.") as tmp:
+            built = build(root, member.name, Path(tmp))
+    except Unasked as e:
+        print(f"{PREFIX}{label}: the package could not be built -- {e}; nothing is guessed")
+        return UNASKED
+    verdict = compare(built, held)
+    if verdict.current:
+        print(f"{PREFIX}{label} on {index} is this tree's build, file for file ({', '.join(sorted(built))}): the "
+              "upload skips it")
+        return CURRENT
+    print(f"{PREFIX}{label} on {index} is not this tree's build: {_what_differs(verdict)}")
+    print(remedy(root, member))
+    return CHANGED
+
+
+def main(argv: list[str], *, fetch: Fetch = fetch, build: Build = build) -> int:
+    ap = argparse.ArgumentParser(prog="own-versions-current",
+                                 description="Compare each own-version package's build with the index's files.")
+    ap.add_argument("target", help="test (TestPyPI) or pypi")
+    ap.add_argument("--root", type=Path, default=HERE.parent)
+    args = ap.parse_args(argv)
+    if args.target not in TARGETS:
+        print(f"{PREFIX}the target is test or pypi, not {args.target!r}")
+        return UNASKED
+    index = TARGETS[args.target]
+    root = args.root.resolve()
+    try:
+        api = json_api(root, index)
+        members = own_version_members(root)
+    except (Unasked, OSError, KeyError, tomllib.TOMLDecodeError) as e:
+        print(f"{PREFIX}the workspace at {root} could not be read: {e}")
+        return UNASKED
+    if not members:
+        print(f"{PREFIX}every published package's version moves with the release: nothing to compare")
+        return CURRENT
+    codes = {check(root, m, index, api, fetch=fetch, build=build) for m in members}
+    return CHANGED if CHANGED in codes else UNASKED if UNASKED in codes else CURRENT
+
+
+if __name__ == "__main__":
+    try:
+        sys.exit(main(sys.argv[1:]))
+    except Exception as e:                  # a failure of its own is "could not ask", never "changed" (exit 1)
+        print(f"{PREFIX}the probe itself failed: {type(e).__name__}: {e}")
+        sys.exit(UNASKED)

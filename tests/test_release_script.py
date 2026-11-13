@@ -252,12 +252,40 @@ def test_the_release_row_goes_on_top_and_stamps_what_was_not_yet_released(tmp_pa
 
 # ------------------------------------------------------------- the probes
 
-def test_a_test_index_asks_only_the_venv(tmp_path: Path):
+OWN = "own-versions-current"
+OWN_LINE = f"{OWN}: x-one 0.1.0 is not on testpypi"
+
+
+def test_a_test_index_asks_the_venv_and_the_own_versions_alone(tmp_path: Path):
     root = _system_repo(tmp_path)
-    shell = FakeShell([("docker info", R.Done(1))])
+    shell = FakeShell([("docker info", R.Done(1)), (OWN, R.Done(0, OWN_LINE + "\n"))])
     said: list[str] = []
     _family(root, shell, said=said).probes("test")
-    assert said == [f"release: {R.VENV_OK}"] and shell.count("docker") == 0
+    assert said == [f"release: {R.VENV_OK}", OWN_LINE] and shell.count("docker") == 0
+    assert shell.first("uv sync --all-extras --check") < shell.first(OWN)
+    assert shell.texts()[shell.first(OWN)].endswith(f"scripts/{OWN} test --root {root}")
+
+
+@pytest.mark.parametrize(("rc", "code", "message"), [(1, 1, "UNBUMPED"), (2, 2, "UNASKED"), (127, 2, "UNASKED")])
+def test_an_own_version_package_the_index_would_refuse_is_refused_before_the_gate(tmp_path: Path, rc: int, code: int,
+                                                                                  message: str):
+    """Exit 1 of scripts/own-versions-current is a package changed under a version the index holds; any
+    other failure is "could not ask". Either way the release stops at the probes, for every index:
+    no gate, no bump, no tag, the tree as it was."""
+    for index, env in (("test", {"TEST_PYPI_TOKEN": "t"}), ("pypi", {"PYPI_TOKEN": "p"})):
+        root = _system_repo(tmp_path / index)
+        sibling = _sibling_repo(tmp_path / index)
+        before = {p: p.read_text() for p in root.rglob("*") if p.is_file() and ".git" not in p.parts}
+        shell = FakeShell([(OWN, R.Done(rc, OWN_LINE + "\n", "uv: stderr\n")), *_answers(root)])
+        said: list[str] = []
+        with pytest.raises(R.Refused) as e:
+            _family(root, shell, sibling, env=env, said=said).release("patch", index)
+        assert e.value.code == code and e.value.message == f"release: {getattr(R, message)}"
+        assert OWN_LINE in said and ("uv: stderr" in said) == (rc != 1)
+        for never in ("just test", "just full-test", "docker info", "bump-my-version bump", "uv lock", "publish-dist"):
+            assert shell.count(never) == 0, never
+        assert {p: p.read_text() for p in root.rglob("*") if p.is_file() and ".git" not in p.parts} == before
+        assert _git(root, "status", "--porcelain") == "" and _git(root, "tag", "-l") == ""
 
 
 @pytest.mark.parametrize("index", ["test", "pypi"])
@@ -315,6 +343,7 @@ def test_release_finish_asks_the_venv_alone(tmp_path: Path):
     said: list[str] = []
     _family(root, shell, said=said).probes("pypi", "release-finish")
     assert said == [f"release-finish: {R.VENV_OK}"] and shell.count("docker") == 0
+    assert shell.count(OWN) == 0                                           # it builds and uploads nothing
 
 
 # ------------------------------------------------------------- the guards
@@ -370,10 +399,13 @@ def test_the_index_the_token_and_the_tag_are_asked_before_anything_changes(tmp_p
 def test_the_dry_form_prints_what_it_would_do_and_touches_nothing(tmp_path: Path):
     root = _system_repo(tmp_path)
     before = {p: p.read_text() for p in root.rglob("*") if p.is_file() and ".git" not in p.parts}
-    shell = FakeShell(_answers(root))
+    shell = FakeShell([(OWN, R.Done(0, OWN_LINE + "\n")), *_answers(root)])
     said: list[str] = []
     env = {"TEST_PYPI_TOKEN": "t"}
     assert _family(root, shell, env=env, said=said).release("patch", "test", "yes") == 0
+    # the dry form answers "would this release go through": the own-version probe runs in it too
+    assert shell.count(OWN) == 1 and shell.first("uv sync --all-extras --check") < shell.first(OWN)
+    assert said[-2] == OWN_LINE
     assert said[-1].startswith("release: dry") and "on main, 0.1.0 would become 0.1.1.dev1:" in said[-1]
     for needle in ("the probes above passed", "just test", "the index again", "bump-my-version bump patch", "uv lock",
                    "just publish test", "commit 'release 0.1.1.dev1'", "docs/CHANGES.md", "tag v0.1.1.dev1"):
@@ -406,7 +438,7 @@ def test_the_real_form_probes_gates_asks_again_bumps_uploads_then_commits_and_ta
     fam = _family(root, shell, said=said)
     assert fam.release("patch", "test") == 0
     t = shell.texts()
-    order = [shell.first(n) for n in ("publish-target-ready", "uv sync --all-extras --check", "just test",
+    order = [shell.first(n) for n in ("publish-target-ready", "uv sync --all-extras --check", OWN, "just test",
                                       "bump-my-version bump patch", "uv lock", "just build", "publish-dist")]
     assert order == sorted(order), t
     asks = [i for i, x in enumerate(t) if "publish-target-ready" in x]

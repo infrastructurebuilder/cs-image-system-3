@@ -2032,7 +2032,25 @@ order:
    anything changes; the dry form prints the same verdicts): the venv is
    in step with the lock (`uv sync --all-extras --check`, because every
    recipe runs `uv run --no-sync` and a venv behind the checkout answers
-   with stale metadata) and, for PyPI, docker answers and every runtime
+   with stale metadata); then every package whose version the release
+   does not move -- the manifests the bump's `glob_exclude` names, the
+   contract today, private ones skipped -- is either not on the index
+   (it goes up fresh) or held there as exactly this tree's build
+   (`scripts/own-versions-current`: the package built as `just build`
+   builds it, into a temporary directory, each file's sha256 compared
+   with the index's JSON API, `<host>/pypi/<name>/<version>/json`). It
+   exists because an index never takes a second build under a version
+   it holds, so a package changed without its own bump is otherwise
+   refused at the upload, after the whole gate -- as the contract's
+   `0.4.0` was, docstrings changed and the version not bumped; the
+   reproducible builds are what let the probe foresee it in seconds.
+   A difference is refused (exit 1), naming the package, the version,
+   the index and the manifest to bump; an index that cannot be asked
+   is refused too (exit 2), never guessed. Neither the JSON API nor
+   the probe can see a file deleted from the index, whose name the
+   index refuses forever, so a version whose files were deleted needs
+   its own bump all the same. `release-finish` skips it: it builds and
+   uploads nothing. Then, for PyPI, docker answers and every runtime
    session of the live configuration is present (`just preflight`; a
    `full-test` without them would skip its live legs, which a release
    cannot accept), said with the minutes the soonest-expiring session has left
