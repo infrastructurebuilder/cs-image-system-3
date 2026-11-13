@@ -1,7 +1,9 @@
 # 134. Hygiene bundle XXVII
 
-**Status: OPEN 2026-11-12. The open bundle; takes items as they are
-found. Waits for "do 134".**
+**Status: IN PROGRESS since "do 134", 2026-11-13 (the decisions are
+under each item). The operator's rule for this run: anything found
+that would need a new hygiene stage is asked first, fix it here or
+not.**
 
 The findings carried out of [§133](../docs/CHANGES.md#s133)
 (hygiene bundle XXVI), found while its last batch ran; none is
@@ -15,13 +17,28 @@ blocking, each its own commit on the bundle's branch.
    kept as written and five subconfigs end the load holding the raw
    text. The output does not move, so nothing reads it today. Find
    what the template was meant to name and render it, or drop the
-   template (found by §133 item 30).
+   template (found by §133 item 30). The operator, 2026-11-13: the
+   templates become `{{ this.identified_model.name }}` (a bare name
+   is a context variable, and only dataclass fields are contributed to
+   the context, not the parent property). That alone fails the load,
+   and a trace found why, asked and folded in on the operator's "go":
+   the five subconfigs are resolved once, in the resolver's first
+   call, and never again, and during that call their parent reference
+   is empty and then the registry's DEFAULT OS builder by bare name
+   (`basic-rh-10`), wrong for three of the five; the parent reference
+   is declared as a foreign key whose unset value the resolver fills
+   with the default, and the OS builder repairs it only after
+   resolution. So: a parent reference is never defaulted; each
+   subconfig gets its real parent before the first resolution; the
+   templates render each entry's own parent's name; a test pins both.
 2. The CI runner image's sources (`ci/runner-image/Dockerfile` and
    `probe.sh`) carry eight narration tokens (a stage number and the
    dates its pins were read) that no area of the rule reads. A comment
    change in the Dockerfile changes the image's build context, so the
    cleanup goes with the next image change and its proof, not alone
-   (found by §133 item 28).
+   (found by §133 item 28). The operator, 2026-11-13: done now; the
+   image is rebuilt locally and probed as the proof (the full-test
+   leg), and publishing a new image tag for CI stays the operator's.
 3. Several skeleton recipes' `just --list` lines show only the last
    line of a wrapped comment (`cloud-relabel`, `ci-login-proof`,
    `bootstrap`, `cloud-upgrade`), as the system's own recipes did
@@ -34,10 +51,14 @@ blocking, each its own commit on the bundle's branch.
    every plaintext it ever opened. Making it per run means the
    resolver's `mark_plaintexts` and the YAML representer (registered
    globally, with no run) take the run's store (found by §133 item 21).
+   The operator, 2026-11-13: the store stays shared (the safety
+   machinery stays untouched); the reason is recorded where the store
+   is defined.
 5. `config_loader.py` passes `collect=decrypted_plaintexts()`, a fresh
    copy on every call, so the `collect` argument does nothing there
-   (found by §133 item 21).
+   (found by §133 item 21). It goes.
 
-**Acceptance**: each item its own commit; `just test` green after
-each batch and at the end; one squash, branch kept. Records: the
+**Acceptance**: each item its own commit; a golden move is shown to
+the operator before it is regenerated; `just test` green at the end,
+then `just full-test-legs` once (the operator, 2026-11-13); one squash, branch kept. Records: the
 squash; this section goes at "merge 134".
