@@ -930,7 +930,7 @@ and the `isinstance` check stay the kind's; a subclass only adds fields.
 | Field | Type | Default | Meaning |
 | ------- | ------ | --------- | --------- |
 | `runtime` | `str` (fk `RUNTIME_BUILDER_MODEL`) | `default` | |
-| `type` | `str` (fk `STORAGE_BUILDER_MODEL`) | `default` | |
+| `type` | `str` (fk `STORAGE_BUILDER_MODEL`) | `default` | The storage builder that realizes the storage; `default` is the registry's default storage builder. A plain foreign key: a storage holds no parent, so it sets no `model_id` and puts no `builder` in the storage's template context. |
 | `groups` | `list[str]` | `[]` | Groups allowed to use it. The magic value `ALL` is refused. |
 | `public_read` | `bool` | `False` | Anyone may mount read-only. |
 | `share_mode` | `str` | `2770` | Mode of each group's subtree: `2770` (private) or `2775` (read-shared). |
@@ -1912,7 +1912,7 @@ plugin's README.
 | Field | Read by the core | Effect |
 |---|---|---|
 | `name` | everything | System-wide unique; the storage state machine, the read-model, attachments and facts key on it. |
-| `type` | the load (`also_set_on_update`), `validate_storages`, `storage_type_of`, `storage_facts`, `_root_applied` | The storage builder: fixes the capability type, the cardinality, whether it is zonal, and the runtime the root applies on. |
+| `type` | the load, `validate_storages`, `storage_type_of`, `storage_facts`, `_root_applied` | The storage builder: fixes the capability type, the cardinality, whether it is zonal, and the runtime the root applies on. |
 | `runtime` | `check_availability_zones`, as a fallback only (`_storage_runtime`) | The BUILDER's runtime governs everywhere, the zone check included; the item's own value is read only when the builder names no runtime (read first, its `default` would resolve to the default runtime, not the builder's). |
 | `groups` | the load (`ALL` refused), `validate_storages`, `allows_group`, the read-model | The groups allowed to attach; each must be declared. |
 | `public_read` | `allows_group`, `compute_launch_params`, the read-model | Anyone may mount read-only. |
