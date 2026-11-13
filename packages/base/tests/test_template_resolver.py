@@ -312,3 +312,48 @@ def test_only_a_deferred_list_asks_its_model_for_overrides(clean_registry):
 
     _upgrade(tr, holder, "storages")
     assert holder.asked == 1
+
+
+@dataclass
+class Movable:
+    """A model whose id names a parent that may be refined after it entered
+    the flat map."""
+    name: str
+    parent: str = NO_MODEL_ID
+    def get_name(self): return self.name
+    def get_type(self): return "movable"
+    def get_description(self): return None
+    def get_aliases(self): return set()
+    def get_classification(self): return VCT.OS_IMAGE_BUILDER_SUBCONFIG_MODEL
+    @property
+    def global_id(self): return f"{self.get_classification()}::{self.parent}::{self.name}"
+
+
+def test_a_moved_id_is_keyed_again_in_place(clean_registry):
+    tr = clean_registry
+    first, moved, last = Movable("a"), Movable("b", parent="model"), Movable("c")
+    for obj in (first, moved, last):
+        tr.flatten_dataclass(obj)
+    tr.flattened_map["scope"] = {"x": "y"}
+    old_key = moved.global_id
+
+    moved.parent = "builder"
+    tr.key_by_current_ids()
+
+    assert list(tr.flattened_map) == [first.global_id, moved.global_id, last.global_id, "scope"]
+    assert old_key not in tr.flattened_map
+    assert tr.flattened_map[moved.global_id] is moved
+
+
+def test_a_moved_id_another_model_holds_is_refused_and_the_map_kept(clean_registry):
+    tr = clean_registry
+    holder, moved = Movable("b", parent="builder"), Movable("b", parent="model")
+    tr.flatten_dataclass(holder)
+    tr.flatten_dataclass(moved)
+    before = dict(tr.flattened_map)
+
+    moved.parent = "builder"
+    with pytest.raises(ValueError):
+        tr.key_by_current_ids()
+
+    assert tr.flattened_map == before

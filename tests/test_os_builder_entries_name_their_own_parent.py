@@ -10,7 +10,11 @@ end of the load, and its ``type`` renders that builder's name.
   builder's name and its parent reference is that builder's global id;
 * in every resolution pass of the load, each entry not yet resolved holds
   its own OS builder's model as its parent: never unset, never another
-  builder, never the registry's default by bare name.
+  builder, never the registry's default by bare name;
+* after the load, each entry is keyed in the resolver's flat map by the
+  global id it holds (its own OS builder's, not the model's it entered the
+  map under), and the registry finds it by that id; every other model in
+  the map is keyed by its own id too.
 """
 from __future__ import annotations
 
@@ -21,6 +25,8 @@ from harness import copy_config, load_context, stub_environment
 
 from cs_image_system.base import orchestrator
 from cs_image_system.base.models.os_builder_runtime_config import OSBuilderBaseImageBuilderSubconfig
+from cs_image_system.contract.constants import VCT
+from cs_image_system.contract.core import NameTypedProtocol
 
 
 def _entries(ctx) -> list[tuple[Any, OSBuilderBaseImageBuilderSubconfig]]:
@@ -59,3 +65,29 @@ def test_each_entry_holds_its_own_parent_in_every_resolution_pass(tmp_path: Path
     assert {id(entry) for entry, _ in seen} == set(own_model)
     wrong = [(entry.name, ref, own_model[id(entry)]) for entry, ref in seen if ref != own_model[id(entry)]]
     assert wrong == []
+
+
+def test_each_entry_is_keyed_by_the_id_it_holds_after_the_load(tmp_path: Path, monkeypatch):
+    stub_environment(monkeypatch)
+    ctx = load_context(copy_config(tmp_path))
+    flat = ctx.template_resolver.flattened_map
+    keyed = {id(obj): key for key, obj in flat.items()}
+    entries = _entries(ctx)
+
+    assert entries
+    for osb, entry in entries:
+        key = keyed[id(entry)]
+        assert key == entry.global_id, entry.name
+        assert key.split("::")[1] == VCT.OS_BUILDER.value, entry.name
+        assert entry.model_id == osb.global_id, entry.name
+        assert ctx.reg.get_instance_by_global_id(key) is entry, entry.name
+
+
+def test_every_model_in_the_flat_map_is_keyed_by_its_own_id_after_the_load(tmp_path: Path, monkeypatch):
+    stub_environment(monkeypatch)
+    ctx = load_context(copy_config(tmp_path))
+
+    models = [(key, obj) for key, obj in ctx.template_resolver.flattened_map.items()
+              if isinstance(obj, NameTypedProtocol)]
+    assert models
+    assert [key for key, obj in models if key != obj.global_id] == []

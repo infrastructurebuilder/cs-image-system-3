@@ -298,7 +298,17 @@ def field_set_to_default(fld, val: Any) -> bool:
             return True
     return default == val
 
-    
+
+def flat_map_collision(obj_id: str, obj: Any, other: Any) -> ValueError:
+    """The error for two objects under one flat-map key. It names the
+    collision, never the objects: a model's repr carries every field, and a
+    state backend's would print access_key/secret_key if anyone set them."""
+    return ValueError(
+        f"two {type(obj).__name__} entries collide on the registry key {obj_id!r}: "
+        f"{getattr(obj, 'name', '?')!r} and {getattr(other, 'name', '?')!r} "
+        f"(a {type(other).__name__}) normalise to the same name; rename one")
+
+
 class TemplateResolver:
     """The object stage of one load: the flat map of every structured model
     by global id, the Jinja environment its templates render in, and the
@@ -614,8 +624,29 @@ class TemplateResolver:
         #     log.warning(f"Reached maximum iterations ({MAX_ITER}) while upgrading deferred types. "
         #                 "There may still be unresolved deferred fields.")
 
+    def key_by_current_ids(self) -> None:
+        """Key every model in the flat map by the global id it holds now.
+        An item's id names its parent, and a parent refined after the item
+        entered the map moves the id away from the key it entered under (an
+        OS builder model parents its entries, then the OS builder that
+        wraps the model refines the reference to its own global id). The
+        map keeps its order; a plain mapping keeps its key; a moved id that
+        another object already holds is a collision, refused as
+        :meth:`flatten_dataclass` refuses one."""
+        rekeyed: dict[str, Any] = {}
+        for key, obj in self.flattened_map.items():
+            obj_id = obj.global_id if is_dataclass(obj) and isinstance(obj, NameTypedProtocol) else key
+            if obj_id in rekeyed and rekeyed[obj_id] is not obj:
+                raise flat_map_collision(obj_id, obj, rekeyed[obj_id])
+            rekeyed[obj_id] = obj
+        if list(rekeyed) != list(self.flattened_map):
+            self.flattened_map.clear()
+            self.flattened_map.update(rekeyed)
+
     def resolve_all(self) -> list[UnresolvedForeignKey]:
-        """Iterates until a pass changes nothing (handles cascading
+        """Keys the flat map by the ids its models hold now
+        (:meth:`key_by_current_ids`), then iterates until a pass changes
+        nothing (handles cascading
         dependencies), for :data:`MAX_RESOLVE_PASSES` passes at most. When
         the last pass still changed something, every field the passes worked
         on that still holds a template is named in a WARNING
@@ -626,6 +657,7 @@ class TemplateResolver:
         Returns the foreign keys that named nothing, for the load so far: a
         copy of the resolver's collector after this pass. The loader stores
         it on the run context; `validate` refuses each entry."""
+        self.key_by_current_ids()
         self.upgrade_deferred_types()
         passes = 0
         while passes < MAX_RESOLVE_PASSES:
@@ -814,14 +846,7 @@ class TemplateResolver:
       if obj_id in self.flattened_map:
         log.debug(f"Object {obj} with id {obj_id} is already registered.")
         if self.flattened_map[obj_id] is not obj:
-            # name the collision, never the objects -- a model's repr carries
-            # every field, and a state backend's would print
-            # access_key/secret_key if anyone set them
-            other = self.flattened_map[obj_id]
-            raise ValueError(
-                f"two {type(obj).__name__} entries collide on the registry key {obj_id!r}: "
-                f"{getattr(obj, 'name', '?')!r} and {getattr(other, 'name', '?')!r} "
-                f"(a {type(other).__name__}) normalise to the same name; rename one")
+            raise flat_map_collision(obj_id, obj, self.flattened_map[obj_id])
         else:
             log.debug(f"Object {obj} is already registered with the same instance, skipping.")
             return
