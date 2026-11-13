@@ -1997,14 +1997,21 @@ wheel: forty-four files) under `dist/`; no tests. The builds are
 reproducible -- two builds of one tree are byte-identical -- which is what
 lets CI check a tag against the index instead of uploading it again.
 
-`just release <target> [test|pypi] [yes]` cuts a release and
-publishes it. `<target>` is a part for `bump-my-version` -- `patch`,
+`just release <target> [test|pypi] [yes]` cuts a release, publishes it
+and pushes it. Run it from `develop`: it moves to `main` itself, and
+ends back on `develop` with both branches and the tag pushed. `<target>` is a part for `bump-my-version` -- `patch`,
 `minor` or `major` open the next version as its first development
 release (`0.1.0` → `0.1.1.dev1`), `dev` is the next development release
 of the same version (`0.1.1.dev1` → `0.1.1.dev2`), `stage` finalises it
 (`0.1.1.dev2` → `0.1.1`) -- or an explicit version. The index is `test`
 (TestPyPI, the default) or `pypi`. `yes` as the third argument is the dry
-form: the probes and the version, nothing changed. The family's logic
+form: the probes, the version, and one line `release: dry -- would run:
+<command>` for every branch move, push and resync the real form would
+make, in its order (read from the refs: the dry form checks nothing out,
+so from `develop` it still refuses a `main` that cannot fast-forward);
+nothing is changed, no ref and no file. A venv behind the checkout is
+said in the dry form rather than refused, since the real form syncs it
+before it asks. The family's logic
 is `scripts/release.py` (every step a function, held by
 `tests/test_release_script.py` against a stubbed shell); the three
 recipes hand it the release branch and the live configuration's root,
@@ -2013,26 +2020,44 @@ and the configuration's working tree is read in one place there
 dirty files, its tags). The real form, in
 order:
 
-1. the probes, before anything changes: the checkout is on `main`
+1. the probes, before anything changes: the checkout is on `develop`
+   (the release moves to `main` itself, step 2), or on `main`
    (every release, development or final, is cut there, so a version can
    never be cut from a working branch; the Justfile's `release_branch`
-   names it once) and `develop` is an ancestor of it, so a release never
+   names it once) with `develop` an ancestor of it, so a release never
    leaves landed work behind; or the checkout is on a maintenance branch
    `release/<major.minor>`, an old version's fix cut while `develop` is
-   past it, which skips the ancestor check; the index can take an upload and
+   past it, which skips the ancestor check; any other branch is refused
+   by name; the working tree is clean (the refusal names the remedy; the
+   IDE's workspace file is untracked, so the editor rewriting it cannot
+   dirty the tree); the index can take an upload and
    holds the version for no project (`scripts/publish-target-ready`,
    below; a version is never re-cut, because a deleted version's files
    can never be uploaded again); the token is set
    (`UV_PUBLISH_TOKEN`, else `TEST_PYPI_TOKEN` / `PYPI_TOKEN`); no
    `v<version>` tag exists here (the local record of a version that was
    cut, deleted from the index or not); `dev` on a final version is
-   refused (open the next version with `patch` first);
-2. the probes (`release.py probes`, behind the private recipe
+   refused (open the next version with `patch` first); the checkout has
+   the remote `origin` the release will push to;
+2. from `develop`, the move: `git checkout main` and `git merge
+   --ff-only develop`. A `main` that cannot fast-forward (it holds
+   commits `develop` does not) is refused before the checkout, on
+   `develop`; then `uv sync --all-extras`, from every starting branch,
+   because a branch switch rewrites the files the two branches differ in
+   and the venv falls behind the checkout (the venv probe refused a
+   release once, right after a switch to `main` by hand). From here to
+   the bump (step 4), a refusal or a failure -- a probe, the bar, the
+   index asked again -- checks `develop` out again, puts `main`'s ref
+   back where it was, and says so (`the checkout is back on develop, and
+   main is where it was`);
+3. the probes (`release.py probes`, behind the private recipe
    `_release-probes`, one line each, before
    anything changes; the dry form prints the same verdicts): the venv is
    in step with the lock (`uv sync --all-extras --check`, because every
    recipe runs `uv run --no-sync` and a venv behind the checkout answers
-   with stale metadata); then every package whose version the release
+   with stale metadata; after the resync it passes, and a refusal names
+   the checkout whose venv is behind, for a run whose venv is another
+   checkout's); then every package whose version the release
    does not move -- the manifests the bump's `glob_exclude` names, the
    contract today, private ones skipped -- is either not on the index
    (it goes up fresh) or held there as exactly this tree's build
@@ -2064,20 +2089,21 @@ order:
    up). Said, not refused on; a token that has already lapsed (which
    `preflight` judges too) is refused, naming `aws sso login`. A refusal
    names its remedy and changes nothing;
-   then a clean working tree (the refusal names the remedy; the IDE's
-   workspace file is untracked, so the editor rewriting it cannot dirty
-   the tree), then the gate: for TestPyPI the bar
+   then the gate: for TestPyPI the bar
    (`just test`); for PyPI `just full-test`, the modification-test
    evidence at `<config_root>/meta-state/mod-tests.yaml` (written by
    `full-test` with docker in the LIVE configuration) and a live checkout
    clean apart from it; then the index is asked AGAIN, since the bar
    takes twenty minutes and an index that went down meanwhile should
    leave a clean tree, not a bump to discard;
-3. `bump-my-version bump <part>` (or `--new-version`): every `version =`
+4. `bump-my-version bump <part>` (or `--new-version`): every `version =`
    line and every `== <version>` pin between the packages, in one move
    (`[tool.bumpversion]` in the root `pyproject.toml`); then `uv lock`;
-4. `just publish <index>` -- BEFORE the commit and the tag, so a failed
-   upload never leaves a tagged, unpublished version. What to do with
+5. `just publish <index>` -- BEFORE the commit and the tag, so a failed
+   upload never leaves a tagged, unpublished version. A failed upload
+   leaves the checkout on `main` (or the maintenance branch), where the
+   uncommitted bump is and where `release-finish` or the discard needs
+   it; nothing is pushed. What to do with
    the uncommitted bump depends on how far the upload got, and the
    release says which:
    - **no project holds the version:** discard the bump
@@ -2086,9 +2112,9 @@ order:
      bump, because those files can never be uploaded again under
      another version. Run `just publish <index>` until every project
      holds it (a day apart when PyPI's limit on new projects stopped it,
-     below), then `just release-finish <index>`, which makes step 5's
-     commits and the tag;
-5. for PyPI, the mod-test evidence committed in the live repository
+     below), then `just release-finish <index>`, which makes step 6's
+     commits and the tag and step 7's pushes;
+6. for PyPI, the mod-test evidence committed in the live repository
    (`release <v>: modification-test evidence`); then the release's row
    at the top of [CHANGES.md](CHANGES.md) (its `#r<version>` anchor,
    dots as dashes, the date, the version and the commit's subject; on
@@ -2096,29 +2122,44 @@ order:
    since the tag contains it -- a maintenance branch's release stamps
    none), and `pyproject.toml`, `packages/*/pyproject.toml`, `uv.lock`
    and `docs/CHANGES.md` committed here (`release <v>`) and the
-   annotated tag `v<version>`.
+   annotated tag `v<version>`;
+7. the ending, the recipe's own: `git push --follow-tags origin main`,
+   whose tag makes CI's `publish` job check the release against the
+   index (it uploads nothing the index already holds); then `git
+   checkout develop`, `git merge --ff-only main` and `git push origin
+   develop`, so `develop` takes `main` back; and last `uv sync
+   --all-extras` again, since the switch and the moved lock left the venv
+   behind once more. From a maintenance branch the ending is `git push
+   --follow-tags origin release/<major.minor>` and the resync; `develop`
+   is not touched. The irreversible act is the upload, which comes
+   before; a version on the index whose commit and tag are unpushed is
+   the wrong state, and the push is the only sane continuation.
 
-Nothing is pushed. The closing line names the operator's two acts: `git
-push --follow-tags origin main`, whose tag makes CI's `publish` job check
-the release against the index (it uploads nothing the index already
-holds), and then `develop` taking `main` back by fast-forward (`git
-checkout develop && git merge --ff-only main && git push origin
-develop`).
+The closing line says what is on the index, what was pushed (the
+commands, in order) and the branch the checkout ends on, with its venv
+synced. A failed step of the ending -- a push the remote refused, say --
+stops there and exits non-zero: the version is on the index and
+committed and tagged locally, and the line names the command that failed
+and every command left, joined with `&&`, to run by hand once its cause
+is fixed. For a refused push of `main` the rest is `git push
+--follow-tags origin main && git checkout develop && git merge --ff-only
+main && git push origin develop && uv sync --all-extras`.
 
 **The release branch.** `develop` is where work is done and
 `main` is where releases live. `main` is always `develop` plus release
 commits and moves only by fast-forward: before a release `main` takes
-`develop` (`git checkout main && git merge --ff-only develop`), the
-release commit and the tag land on `main`, and `develop` takes `main`
-back the same way, so both carry the release and both histories stay
-linear. `develop` may be ahead of `main` for as long as it likes and is
-behind it only between the release commit and the fast-forward back. If
-a stage landed on `develop` during a release the fast-forward back
-refuses; the fallback is one merge commit of `main` into `develop`,
-never a rebase of pushed commits. A failed release leaves its evidence
-on `main` alone: an uncommitted bump in `main`'s checkout, or `main` at
-`develop`'s HEAD without a tag when the release was abandoned after the
-fast-forward. `git flow release` is not used (its finish makes a merge
+`develop` (the release's own `git checkout main && git merge --ff-only
+develop`), the release commit and the tag land on `main`, and `develop`
+takes `main` back the same way, so both carry the release and both
+histories stay linear. `develop` may be ahead of `main` for as long as
+it likes and is behind it only between the release commit and the
+fast-forward back. If a stage landed on `develop` during a release the
+fast-forward back refuses, and the release's last lines name it; the
+fallback is one merge commit of `main` into `develop`, never a rebase of
+pushed commits. A failed release leaves its evidence on `main` alone:
+an uncommitted bump in `main`'s checkout after a failed upload; a
+refusal before the bump leaves nothing, since it returns to `develop`
+with `main` where it was. `git flow release` is not used (its finish makes a merge
 commit and a back-merge). A maintenance branch `release/<major.minor>`
 is accepted by both recipes for the day a tree needs a fix to an old
 version without taking the work since (0.1.5 cut from 0.1.4 plus one
@@ -2134,8 +2175,10 @@ and nothing else changed, it asks the venv probe above, then asks the index whet
 (`scripts/publish-target-ready --all-held`; the index's pages lag an
 upload by minutes, so a count just after one can be short), and only
 then makes the evidence commit in the live repository (PyPI), the
-[CHANGES.md](CHANGES.md) row, the `release <v>` commit and the tag. It
-pushes nothing.
+[CHANGES.md](CHANGES.md) row, the `release <v>` commit and the tag;
+then the same ending as the release (step 7): the pushes, `develop`'s
+fast-forward from `main`, and the resync. It is never run from
+`develop`: the bump it finishes is on `main`.
 
 **A first release to PyPI takes days.** Production PyPI lets an account
 create only a few NEW projects a day. A first release of many projects

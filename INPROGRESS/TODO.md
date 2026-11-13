@@ -614,9 +614,14 @@ and validated by the operator before its "do N")
   cut on `main`: `develop` is where work is done and `main` is where
   releases live; `main` takes `develop` by fast-forward before, the
   release commit and tag land on `main`, `develop` takes `main` back by
-  fast-forward after; a failed release leaves its evidence on `main`
+  fast-forward after; since stage 112 the fast-forwards, the push of
+  `main` with the tag, the push of `develop` and the venv's resync are
+  the recipe's (`just release` is run from `develop`; the operator's
+  decision: the recipe pushes); a refusal before the bump returns to the
+  starting branch; a failed release leaves its evidence on `main`
   alone; a maintenance branch `release/<major.minor>` serves an old
-  version's fix. (`develop` alone from stage 83 to 0.1.5.)
+  version's fix and pushes itself alone. (`develop` alone from stage 83
+  to 0.1.5.)
 - The plugin contract (§30) is provisional until the operator commits
   to it: Tier C declares the context protocol without injecting it, and
   the contract stays 0.x until the operator says. The core's re-export

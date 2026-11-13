@@ -1161,8 +1161,10 @@ Open list in [INPROGRESS/TODO.md](../INPROGRESS/TODO.md) names.
 | `empty: disks still present on <rt>: old-scratch (no csis_config)` | a thing with no configuration id, made before the system labelled what it makes; it is counted as ours to answer for | if it is ours and declared, `just cloud-relabel <rt> no` gives it the id; if it is nothing of ours, remove it by hand |
 | a job fails in "Initialize containers" before any step of yours: `denied`, `unauthorized` or `manifest unknown` pulling `ghcr.io/.../csis-ci:alma10-<date>` | the runner image could not be pulled: the tag does not exist yet (the Runner image workflow has not published the date the workflow pins); or the job's `permissions:` block lacks `packages: read`, so its token pulls as nobody (a job with no block pulls; one with a block that lacks the line is denied); or the package is PRIVATE and this repository was not granted access to it (a package publishes private when the organisation disallows public packages) | a missing tag: the system's maintainers run the Runner image workflow and you rerun; a missing line: take the release that carries it; a private package: on the package's page, "Manage Actions access", add this repository with Read (same organisation), or have the organisation's administrators allow public packages ([docs/CI_RUNNER.md](CI_RUNNER.md), section 4); never a credential in the workflow for it ([INCIDENTS.md](INCIDENTS.md#the-ci-runner-image-took-four-builds-and-its-first-pull-was-refused)) |
 | `release: testpypi cannot take an upload now (above) -- nothing was changed; it is the index's condition, not the release's` (exit 75) | the index's upload endpoint or one of the twenty-one project pages (the umbrella and the twenty published packages) did not answer, or answered 5xx; the release stopped before the bar, or after it and before the bump, so the tree is clean; the probe exists because an outage found only at the upload wastes the whole bar ([INCIDENTS.md](INCIDENTS.md#testpypi-was-down-and-a-release-found-it-only-at-the-upload)) | `just index-ready test wait`, then the release again; nothing to discard |
-| `release: this checkout is on '<branch>'; a release is cut on main alone (or a maintenance branch release/<major.minor>)` | the checkout is not on `main`; the rule exists so that a version is never cut, committed and tagged on a branch `main` does not hold ([CHANGES.md](CHANGES.md#s107)) | `git checkout main && git merge --ff-only develop`, then the release again |
-| `release: main is behind develop -- a release never leaves a stage behind` | a stage landed on `develop` that `main` has not taken | on `main`: `git merge --ff-only develop`, then the release again |
+| `release: this checkout is on '<branch>'; a release is cut on main alone (from develop it moves there itself) (or a maintenance branch release/<major.minor>)` | the checkout is on neither `develop`, `main` nor a maintenance branch; the rule exists so that a version is never cut, committed and tagged on a branch `main` does not hold ([CHANGES.md](CHANGES.md#s107)) | `git checkout develop`, then the release again |
+| `release: main is behind develop -- a release never leaves a stage behind` | run from `main`: a stage landed on `develop` that `main` has not taken | the release from `develop` (it fast-forwards `main` itself), or on `main`: `git merge --ff-only develop`, then the release again |
+| `release: main cannot be fast-forwarded to develop: it holds commits develop does not` | run from `develop`: `main` has a commit `develop` lacks (a release whose fast-forward back never ran, say); refused before any checkout | bring `develop` up: `git checkout develop && git merge --ff-only main` (or one merge commit of `main` when that refuses), then the release again |
+| ``release: <v> is on <index>, committed and tagged v<v> here, but `<command>` failed (above); the rest, by hand: ...`` | a step after the tag failed: a push the remote refused, or `develop`'s fast-forward back (a stage landed during the release) | fix its cause, then run the commands the line lists, in order; the version is published and tagged, so never the release again |
 | `public-safe: ... <file>:<line>` from the hook | a committed line looks like a secret, a key, a plan or a state file | never bypass the hook; encrypt the value, or allow it BY DECISION in `cfg/_config.yml` `public_safe.allow` |
 | `Build '<image>' errored after 20 minutes ...: Timeout waiting for SSH.` with `ssm error: ... StartSession, context canceled` | the bake machine booted and its SSM agent was Online, but packer's ssh session through SSM never opened: the bake host is a 1 GB machine (a t2.micro), too small for the image it boots; the same parent bakes on a t3.medium | give the bake host 4 GB: `machine_type: t3.medium` on the image's runtime entry, or the runtime's `default_machine_type` (the starters ship t3.medium). The builds that completed before the failure are recorded anyway, and a warning names them ([INCIDENTS.md](INCIDENTS.md#a-1-gb-bake-host-starved-the-package-manager-and-the-ssm-agent)) |
 | `foreign image <id>: ... tagged series=<s> run=<r> is not in lineage` | an image the system tagged and lineage does not record: a bake still running in another process (a strict query run by hand can race CI's `perform`), or one baked by a failed run on an old release that recorded nothing of a failed run | if a run is still baking, wait for it to finish and record. Otherwise `just cli state import --no-storages` adopts it ([INCIDENTS.md](INCIDENTS.md#an-image-the-system-tagged-was-not-in-lineage)), then `just record`; the adopted build counts as current, so it is not baked again |
@@ -1374,11 +1376,20 @@ repository as `cs-image-system-testconfig` for that purpose alone;
 `just fixture-live` proves the frozen fixture against the real accounts
 (what the system's CI does); `just release <part|version> [test|pypi]`
 cuts a release to the index (the recipe wraps `scripts/release.py`, which
-also records the release as a row of [CHANGES.md](CHANGES.md)), from
-`main` alone (`main` takes `develop`
-by fast-forward first and `develop` takes `main` back after; a
-maintenance branch `release/<major.minor>` for an old version's fix).
-Before anything
+also records the release as a row of [CHANGES.md](CHANGES.md)), on
+`main` alone, and is run from `develop`: the recipe checks out `main`,
+fast-forwards it to `develop`, syncs the venv (`uv sync --all-extras`),
+cuts the release, pushes `main` with its tag, checks out `develop`,
+fast-forwards it to `main`, pushes it and syncs the venv again, so the
+release walk is the one command and the login halfway. Run from `main`
+it does the same without the first move; a maintenance branch
+`release/<major.minor>`, for an old version's fix, pushes that branch
+with its tag and leaves `develop` alone. A refusal before the bump puts
+the checkout back on the branch it started on; a failed upload leaves the
+uncommitted bump on `main` for `just release-finish` (which ends with the
+same pushes) or the discard; a push that fails after the tag is named,
+with the commands left to run. `yes` as the third argument prints every
+move and push it would make and changes nothing. Before anything
 changes, and again after the bar, it asks the index whether it can take
 an upload (`just index-ready [test|pypi]` asks the same on its own, and
 `just index-ready test wait` waits for it, two hours at most): exit 75
