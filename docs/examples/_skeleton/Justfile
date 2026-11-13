@@ -154,6 +154,9 @@ take version *words:
 	tool="$(uv tool dir --bin)/cs-image-system"
 	have=$("$tool" --version 2>/dev/null | awk '{print $NF}' || true)
 	[ "$have" = "$version" ] || { echo "take: the installed tool $tool reports '${have:-nothing}', not $version -- $unchanged"; exit 1; }
+	# the sessions before anything is written: the record needs them, and a lapsed one found after the
+	# pin moved is a half-done take; each absent or lapsed session's line names the command that renews it
+	CSIS="$tool" just preflight || { echo "take: a runtime session is absent or lapsed, or the sessions could not be read (above, with the command that renews each): log in, then run the same command again: $again -- $unchanged"; exit 1; }
 	if [ "$patched" = no ] && [ -n "$old" ] && [ "$old" != "$version" ]; then
 		prev=$(uvx ${oldindex[@]+"${oldindex[@]}"} --from "cs-image-system==$old" python -c 'from cs_image_system.system import starters; print(starters.starters_root())' 2>/dev/null) \
 			|| { echo "take: the previous release $old could not be fetched to compare with -- $unchanged"; exit 1; }

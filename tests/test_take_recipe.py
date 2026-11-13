@@ -35,13 +35,16 @@ echo "tool $*" >> "$STUB_LOG"
 case "$1" in
   --version) echo "cs-image-system ${STUB_VERSION:-0.1.6}" ;;
   --help) echo help ;;
-  --root-dir) [ "$3" = validate ] && exit ${STUB_VALIDATE_RC:-0}; exit 0 ;;
+  --root-dir) [ "$3" = validate ] && exit ${STUB_VALIDATE_RC:-0}
+              [ "$3" = preflight ] && [ "${STUB_PREFLIGHT_RC:-0}" != 0 ] && { echo "$LOGIN_LINE"; exit $STUB_PREFLIGHT_RC; }
+              exit 0 ;;
   init-config) echo "init-config: changes since the previous release, in the release-owned files of standard-aws"
                [ "${STUB_CHANGES:-0}" = 1 ] && { echo "init-config:   Justfile"; exit 1; }
                echo "init-config: nothing the release owns changed in a file your tree holds" ;;
 esac
 exit 0
 """
+LOGIN = "aws sso login --profile test"                  # the renewal a lapsed session's line names
 # what PATH and CSIS offer: never the release, so a take that used either fails
 DECOY_STUB = """#!/bin/sh
 echo "decoy $*" >> "$STUB_LOG"
@@ -100,7 +103,7 @@ class World:
     def take(self, *args: str, **env: str) -> subprocess.CompletedProcess:
         environment = {k: v for k, v in os.environ.items() if k not in ("CSIS", "VIRTUAL_ENV")}
         environment.update({"PATH": f"{self.bin}:{os.environ['PATH']}", "STUB_LOG": str(self.log),
-                            "STUB_TOOL_BIN": str(self.toolbin), "CSIS": str(self.bin / "cs-image-system"),
+                            "STUB_TOOL_BIN": str(self.toolbin), "LOGIN_LINE": f"session: EXPIRED -- {LOGIN}", "CSIS": str(self.bin / "cs-image-system"),
                             "GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@example.invalid",
                             "GIT_COMMITTER_NAME": "t", "GIT_COMMITTER_EMAIL": "t@example.invalid", **env})
         return subprocess.run(["just", "take", *args], cwd=self.tree, capture_output=True, text=True, env=environment, timeout=120)
@@ -126,7 +129,7 @@ def test_every_step_runs_by_the_installed_tool_whatever_csis_names(world: World)
     assert done.returncode == 0, done.stdout + done.stderr
     assert world.calls("decoy") == []                                               # neither CSIS nor PATH was asked
     steps = [c.split()[2] for c in world.calls("tool") if c.startswith("--root-dir")]
-    assert steps == ["validate"]                                                    # `just validate` by the tool
+    assert steps == ["preflight", "validate"]                                       # the sessions, then `just validate`
     assert "--version" in world.calls("tool")
 
 
@@ -248,3 +251,12 @@ def test_a_before_tag_that_marks_another_commit_is_refused(world: World):
     assert done.returncode == 1
     assert _git(world.tree, "rev-parse", "HEAD") == head and (world.tree / ".csis-version").read_text() == "0.1.5\n"
     assert _git(world.origin, "tag", "--list") == "" and world.log.exists() is False      # nothing installed, nothing pushed
+
+
+def test_a_missing_session_refuses_naming_the_login_before_anything_changes(world: World):
+    head = _git(world.tree, "rev-parse", "HEAD")
+    done = world.take("0.1.7.dev1", STUB_VERSION="0.1.7.dev1", STUB_PREFLIGHT_RC="2")
+    assert done.returncode == 1 and LOGIN in done.stdout
+    assert (world.tree / ".csis-version").read_text() == "0.1.5\n" and _git(world.tree, "status", "--porcelain") == ""
+    assert _git(world.tree, "rev-parse", "HEAD") == head and _git(world.origin, "rev-parse", "develop") == head
+    assert [c for c in world.calls("tool") if "init-config" in c or "validate" in c] == []
