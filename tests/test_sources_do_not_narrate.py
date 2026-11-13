@@ -125,6 +125,7 @@ AREAS: dict[str, str] = {
     "scripts": "comments and docstrings of every file under scripts/ (Python, or a shell script's # lines)",
     "hook": "the # comment lines of .githooks/pre-commit, a shell script",
     "gitignore": "the # comment lines of .gitignore",
+    "runner-image": "the # comment lines of the CI runner image's sources under ci/runner-image/ (its Dockerfile and probe)",
     "starters": "docs/examples: each Justfile and Markdown page whole, the # comments of the rest, "
                 "the hashed modification content and the value files excepted",
 }
@@ -305,6 +306,9 @@ def hits(area: str) -> list[str]:
         return _comment_hits(REPO / ".gitignore")
     if area == "starters":
         return [h for p in _starter_files() for h in _starter_hits(p)]
+    if area == "runner-image":
+        return [h for p in sorted((REPO / "ci/runner-image").glob("*")) if p.is_file() and p.name != "TAG"
+                for h in _comment_hits(p)]
     raise KeyError(area)
 
 

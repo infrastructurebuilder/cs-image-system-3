@@ -88,6 +88,94 @@ class ModelBinding:
     image_sources: ImageSourceCatalog
 
 
+#: The field that holds an item's parent by reference: the contract's
+#: ``ParentPropertyHoldingProtocol`` names it, and ``fields.parent_field``
+#: declares it.
+PARENT_REFERENCE_FIELD = "_model_id"
+
+
+def is_parent_reference(obj: Any, fld: Field[Any]) -> bool:
+    """Whether ``fld`` is the parent reference of ``obj``: the
+    ``_model_id`` field of an item that holds its parent by reference. It is
+    a foreign key the resolver never defaults: unset means the item is not
+    parented yet, and the model that holds the item in its list sets it
+    (a deferred list's owner when it enters the item, an OS builder or an
+    image model in its own construction, the loader for a group or a user
+    by its ``type``: :func:`parent_by_written_type`,
+    :func:`parent_by_default_type`). The
+    registry's default for the target would name ANOTHER builder's model
+    for every item but the default's own."""
+    return fld.name == PARENT_REFERENCE_FIELD and isinstance(obj, ParentPropertyHoldingProtocol)
+
+
+#: The property a foreign key names in ``also_set_on_update`` when the
+#: model it references is also the item's parent (a group's or a user's
+#: ``type``).
+PARENT_SETTER = "model_id"
+
+
+def _parent_setting_type(obj: Any) -> tuple[Field[Any], VCT, Any] | None:
+    """The foreign key of an unparented ``obj`` that also sets its parent
+    (``also_set_on_update="model_id"``: a group's, a user's ``type``), its
+    target and its value; None when ``obj`` holds no parent by reference,
+    is parented already, or declares no such key."""
+    if not (is_dataclass(obj) and isinstance(obj, ParentPropertyHoldingProtocol)) or obj.model_id:
+        return None
+    for f in fields(obj):
+        target: VCT | None = f.metadata.get(FK_TARGET, None)
+        if f.name == PARENT_REFERENCE_FIELD or not target or f.metadata.get(FK_ALSO_SET_ON_UPDATE) != PARENT_SETTER:
+            continue
+        return f, target, getattr(obj, f.name)
+    return None
+
+
+def _parent_to(reg: Any, obj: Any, target: VCT, name: str) -> None:
+    """Set ``obj``'s parent to the global id of the ``target`` model named
+    ``name``; nothing when no such model is registered."""
+    parent = reg.get_instance_by_name_or_alias(target, name)
+    if isinstance(parent, NameTypedProtocol):
+        obj.model_id = parent.global_id
+
+
+def parent_by_written_type(reg: Any, obj: Any) -> None:
+    """Parent ``obj`` to the model its written ``type`` names, before any
+    resolution reads it. The item holds its parent by reference and its
+    ``type`` is a foreign key that also sets the parent
+    (``also_set_on_update="model_id"``: a group's, a user's). A written
+    type sets no parent in the ``fk`` kind, and the parent reference itself
+    is never defaulted (:func:`is_parent_reference`), so without this such
+    an item would hold none. A type left at ``default`` is
+    :func:`parent_by_default_type`'s. An item already parented, or whose
+    type names no registered model, is left as it is (the type is then a
+    foreign key that names nothing, which ``validate`` refuses)."""
+    found = _parent_setting_type(obj)
+    if found is None:
+        return
+    f, target, val = found
+    if not isinstance(val, str) or val in OOPS_DEFAULTS or field_set_to_default(f, val):
+        return
+    _parent_to(reg, obj, target, val)
+
+
+def parent_by_default_type(reg: Any, obj: Any) -> None:
+    """Parent ``obj`` whose ``type`` is left at ``default`` to the model the
+    default resolves to (:func:`default_fk_value`, as the ``fk`` kind
+    resolves it in the first pass), before the item is entered in the flat
+    map: its global id names its parent, so the key it is entered under is
+    the one it keeps. The ``fk`` kind sets the same parent again there. An
+    item already parented, whose type is written, or whose classification
+    has no default registered, is left as it is."""
+    found = _parent_setting_type(obj)
+    if found is None:
+        return
+    f, target, val = found
+    if not field_set_to_default(f, val):
+        return
+    name = default_fk_value(reg, obj, target)
+    if name and name not in OOPS_DEFAULTS:
+        _parent_to(reg, obj, target, name)
+
+
 def default_fk_value(reg: Any, obj: Any, target: VCT) -> str | None:
     """What a foreign key left at ``default`` resolves to: the registry's default
     for its target -- except a root's ``state_configuration``, which inherits
@@ -210,7 +298,17 @@ def field_set_to_default(fld, val: Any) -> bool:
             return True
     return default == val
 
-    
+
+def flat_map_collision(obj_id: str, obj: Any, other: Any) -> ValueError:
+    """The error for two objects under one flat-map key. It names the
+    collision, never the objects: a model's repr carries every field, and a
+    state backend's would print access_key/secret_key if anyone set them."""
+    return ValueError(
+        f"two {type(obj).__name__} entries collide on the registry key {obj_id!r}: "
+        f"{getattr(obj, 'name', '?')!r} and {getattr(other, 'name', '?')!r} "
+        f"(a {type(other).__name__}) normalise to the same name; rename one")
+
+
 class TemplateResolver:
     """The object stage of one load: the flat map of every structured model
     by global id, the Jinja environment its templates render in, and the
@@ -415,38 +513,22 @@ class TemplateResolver:
         """Enter one newly structured item of a deferred list: it takes the
         owning model's global id as its parent when it holds a parent property
         and has none, goes into the flat map under its own global id (so its
-        templates are resolved with the rest), and is registered. An id that
-        cannot be read is a warning; the item is registered all the same. A
-        parent that cannot be set leaves the item without one, and the
-        warning says under which id it entered the flat map nonetheless."""
+        templates are resolved with the rest), and is registered. Its id is
+        read as every model's is (a model's id is formatted from its
+        classification, its parent reference and its name, none of which
+        raises). A parent that cannot be set (the setter's registration
+        refused: a name or an alias another item holds) is the load's error,
+        raised before the item enters the flat map."""
         reg = self.reg
-        no_parent: Exception | None = None
+        # a sub-item its MODEL already claimed (an OS builder's runtime
+        # subconfig, parented in the model's __post_init__) keeps that parent
+        if (isinstance(concrete_mod, ParentPropertyHoldingProtocol)
+                and isinstance(obj, NameTypedProtocol) and not concrete_mod.model_id):
+            concrete_mod.model_id = obj.global_id
         # 6. CRITICAL: Add the newly structured model to the flattened map
         # so that TemplateResolver.resolve_all() will process its Jinja tags!
-        if isinstance(concrete_mod, ParentPropertyHoldingProtocol):
-            try:
-                # a sub-item its MODEL already claimed (an OS builder's runtime
-                # subconfig, parented in the model's __post_init__) keeps
-                # that parent; this used to overwrite it with the builder's id and
-                # warn four times per load
-                if isinstance(obj, NameTypedProtocol) and not concrete_mod.model_id:
-                    concrete_mod.model_id = obj.global_id
-            except Exception as e:
-                no_parent = e
-        entered_as: str | None = None
-        if isinstance(concrete_mod, NameTypedProtocol):
-            try:
-                _gid = concrete_mod.global_id
-                if _gid:
-                    self.flattened_map[_gid] = concrete_mod
-                    entered_as = _gid
-            except Exception as e:
-                log.warning(f"Structured object {concrete_mod} does not have a valid global_id. It will not be added to the flattened map for template resolution. Error: {e}")
-        if no_parent is not None:
-            where = (f"it is added to the flattened map all the same, under its own global id {entered_as!r}"
-                     if entered_as else "it is not in the flattened map either")
-            log.warning(f"Structured object {concrete_mod} does not have a valid _model_id, so it has no parent; "
-                        f"{where}. Error: {no_parent}")
+        if isinstance(concrete_mod, NameTypedProtocol) and concrete_mod.global_id:
+            self.flattened_map[concrete_mod.global_id] = concrete_mod
         reg.register_built_instance(concrete_mod)  # Register the newly structured model in the registry
 
     def upgrade_deferred_list_object(self, obj, dfield):        
@@ -526,8 +608,29 @@ class TemplateResolver:
         #     log.warning(f"Reached maximum iterations ({MAX_ITER}) while upgrading deferred types. "
         #                 "There may still be unresolved deferred fields.")
 
+    def key_by_current_ids(self) -> None:
+        """Key every model in the flat map by the global id it holds now.
+        An item's id names its parent, and a parent refined after the item
+        entered the map moves the id away from the key it entered under (an
+        OS builder model parents its entries, then the OS builder that
+        wraps the model refines the reference to its own global id). The
+        map keeps its order; a plain mapping keeps its key; a moved id that
+        another object already holds is a collision, refused as
+        :meth:`flatten_dataclass` refuses one."""
+        rekeyed: dict[str, Any] = {}
+        for key, obj in self.flattened_map.items():
+            obj_id = obj.global_id if is_dataclass(obj) and isinstance(obj, NameTypedProtocol) else key
+            if obj_id in rekeyed and rekeyed[obj_id] is not obj:
+                raise flat_map_collision(obj_id, obj, rekeyed[obj_id])
+            rekeyed[obj_id] = obj
+        if list(rekeyed) != list(self.flattened_map):
+            self.flattened_map.clear()
+            self.flattened_map.update(rekeyed)
+
     def resolve_all(self) -> list[UnresolvedForeignKey]:
-        """Iterates until a pass changes nothing (handles cascading
+        """Keys the flat map by the ids its models hold now
+        (:meth:`key_by_current_ids`), then iterates until a pass changes
+        nothing (handles cascading
         dependencies), for :data:`MAX_RESOLVE_PASSES` passes at most. When
         the last pass still changed something, every field the passes worked
         on that still holds a template is named in a WARNING
@@ -538,6 +641,7 @@ class TemplateResolver:
         Returns the foreign keys that named nothing, for the load so far: a
         copy of the resolver's collector after this pass. The loader stores
         it on the run context; `validate` refuses each entry."""
+        self.key_by_current_ids()
         self.upgrade_deferred_types()
         passes = 0
         while passes < MAX_RESOLVE_PASSES:
@@ -596,8 +700,9 @@ class TemplateResolver:
         """One field of one model, in one pass. A field left at its default
         takes its foreign key's default (the registry's for the target, a
         root's runtime's state backend) as the value the rest of the pass
-        works with, and its replace template, when it has one, is compiled
-        and rendered once and set on the model. A replace template that
+        works with, except a parent reference, which stays unset
+        (:func:`is_parent_reference`), and its replace template, when it
+        has one, is compiled and rendered once and set on the model. A replace template that
         names something undefined is logged as an error and ends the field
         for this pass (a later pass may define it); one that does not
         compile is logged the same way and raised, since no pass can mend
@@ -610,7 +715,7 @@ class TemplateResolver:
         val = getattr(obj, f.name)
         target: VCT | None = f.metadata.get(FK_TARGET,None)
         if field_set_to_default(f, val):
-            if target:
+            if target and not is_parent_reference(obj, f):
                 val = default_fk_value(reg, obj, target) or DEFAULT
             if f.metadata.get(IS_REPLACE) and f.metadata.get(REPLACE_VALUE):
                 templ = f.metadata[REPLACE_VALUE]
@@ -725,14 +830,7 @@ class TemplateResolver:
       if obj_id in self.flattened_map:
         log.debug(f"Object {obj} with id {obj_id} is already registered.")
         if self.flattened_map[obj_id] is not obj:
-            # name the collision, never the objects -- a model's repr carries
-            # every field, and a state backend's would print
-            # access_key/secret_key if anyone set them
-            other = self.flattened_map[obj_id]
-            raise ValueError(
-                f"two {type(obj).__name__} entries collide on the registry key {obj_id!r}: "
-                f"{getattr(obj, 'name', '?')!r} and {getattr(other, 'name', '?')!r} "
-                f"(a {type(other).__name__}) normalise to the same name; rename one")
+            raise flat_map_collision(obj_id, obj, self.flattened_map[obj_id])
         else:
             log.debug(f"Object {obj} is already registered with the same instance, skipping.")
             return
@@ -944,13 +1042,19 @@ def unstructure(obj: Any) -> Any:
 
 
 class _FkFieldHandler(field_kinds.FieldKindHandler):
-    """Built-in ``fk`` kind: dereference a foreign-key id into its object in context."""
+    """Built-in ``fk`` kind: dereference a foreign-key id into its object in
+    context. A parent reference that is still unset is not one that names
+    nothing: it is put in the context as it is, neither defaulted nor
+    recorded (:func:`is_parent_reference`)."""
     def contribute_context(self, ctx, obj, field, reg) -> None:
         fk_id = getattr(obj, field.name)
         newval = fk_id
         target: VCT | None = field.metadata.get(FK_TARGET, None)
         if not target:
             raise ValueError(f"Field '{field.name}' in object '{obj}' is marked as FK but has no 'fk_target' metadata.")
+        if not fk_id and is_parent_reference(obj, field):
+            ctx[field.name] = fk_id
+            return
         update_this_field = False
         if field_set_to_default(field, fk_id):
             if target:

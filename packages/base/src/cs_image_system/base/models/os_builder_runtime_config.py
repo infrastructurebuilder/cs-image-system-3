@@ -37,7 +37,7 @@ class OSBuilderBaseImageBuilderSubconfig(SubRootItem):
                                 "required": True,
                                     })
     name: str | None = None
-    type_: Annotated[str, Field(alias="type")] = templated_field(replace_value="{{ identified_model.name }}", 
+    type_: Annotated[str, Field(alias="type")] = templated_field(replace_value="{{ this.identified_model.name }}", 
                                 default = DEFAULT,
                                 metadata={
                                 "description": "parent model",

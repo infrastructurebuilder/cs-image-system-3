@@ -79,10 +79,12 @@ class Storage(NameTyped, SelfInjectedName):
         "description": "The runtime-builder this config uses",
         "required": True,
     }) # type: ignore
+    # no `also_set_on_update`: a storage holds no parent, so the builder is
+    # a plain foreign key (no `model_id` to set, no `builder` in its context)
     type_: Annotated[str, Field(alias="type")] = fk_field(target = VCT.STORAGE_BUILDER_MODEL,
-                         also_set_on_update="model_id",
                          default = DEFAULT, metadata={
-        "description": f"The type of the item. For User items, this should probably always be {DEFAULT}.",
+        "description": ("The storage builder that realizes this storage (a key of storage_builders); "
+                        f"{DEFAULT} is the default storage builder."),
         "required": True,
         })
     groups: list[str] = field(default_factory=list)

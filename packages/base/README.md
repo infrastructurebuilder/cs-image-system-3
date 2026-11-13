@@ -527,6 +527,7 @@ The kinds:
 | `templated_field(replace_value, ...)` | `templated` | When the value is `default`, `replace_value` (a Jinja string) is rendered in its place. |
 | `deferred_list_field(builder_vct, item_vct)` | `deferred_list` | A list of mappings structured late, after every builder is registered: each entry's `type` selects a builder of `builder_vct`; the entry is structured as the item class registered under `item_vct` for that builder's type, else the owning model's `get_subitem_overrides()` entry for `item_vct`, else `item_vct`'s default model (the item model a plugin's metadata injected as that classification's default, such as the base's `storage_mapping`). Used for `modifications:` and `storages:`. |
 | `deferred_list_fk_field(target)` | `deferred_list_fk` | A list of foreign keys resolved late. |
+| `parent_field(target, ...)` | `fk` | The `_model_id` of an item that holds its parent by reference: the parent's global id, never a YAML key. It is the one foreign key the resolver never defaults: unset means the item is not parented yet, and the model that holds the item in its list sets it (an OS builder model and an image in their own construction, a deferred list's owner when it enters the item, the loader for a group or a user by its `type`: `parent_by_written_type` for a written one, `parent_by_default_type` for one left at `default`, right after the item is structured and before it is entered in the flat map, so the key it is entered under names its parent). The registry's default for `target` would name another builder for every item but the default's own. |
 
 A plugin may register a new kind and stamp `field_kind` metadata on its own
 fields.
@@ -567,9 +568,9 @@ Each object renders in a `SmartContext` that exposes:
 | ------ | ------- |
 | `this` | The object being resolved. |
 | every `fk` field name | The referenced object (or the raw id when unresolved). |
-| `builder` | The owning builder model, when an `also_set_on_update` foreign key resolved. |
+| `builder` | The model a resolved `also_set_on_update` foreign key names: for a group or a user, the builder model its `type` names (its parent); for an entry of an image's or a base image's `runtimes` list, the owning image or base image, because the entry's own parent field (`_model_id`) declares `also_set_on_update`, so an entry's templates can write `{{ builder.<field> }}`. That declaration on the parent field is not a no-op: without it an entry's context has no `builder`. A storage's `type` declares none (a storage holds no parent), so a storage's context has no `builder`. |
 | `image`, `instance`, `group`, `user`, `storage`, `storagemapping` | The object itself, injected under its own lower-case class name (`SelfInjectedNameProtocol`). |
-| `identified_model` | On sub-items, the parent model. |
+| `this.identified_model` | On sub-items, the parent model. It is a property, not a field, so it is reached through `this`; a bare `identified_model` names nothing in the context and a template that writes it is kept as written. |
 | `execution`, `ENV` | The run values and the environment. |
 | any `global_id` | Every registered object, by id. Hyphen and underscore spellings of a key are tried interchangeably. |
 
@@ -643,7 +644,15 @@ a default sentinel.
 `RootItem` (`NameTyped` plus `tags: dict[str, str]` and
 `config: dict[str, Any]`, both empty by default) is the base of images,
 instances, groups and users. `SubRootItem` adds the parent link
-(`_model_id`, `identified_model`, `builder`) used by sub-items.
+(`_model_id`, `identified_model`, `builder`) used by sub-items; a group
+and a user hold the same link (`ParentPropertyHolding`), to the model of
+the builder their `type` names.
+`identified_model` raises `ValueError` while the reference is unset or
+names nothing in the run's registry. A parent set twice is one parent
+when the second id refines the first (a bare name replaced by a global
+id ending in it, or a model's global id replaced by its builder's, the
+same model id and name under the builder's classification); a different
+parent is a warning.
 
 ### `ExecutableModel` (`cfg/executables.yml`, key `executables`)
 
@@ -738,7 +747,7 @@ live credentials for each.
 | ------- | ------ | --------- | --------- |
 | `image_builder` | `str` (fk `IMAGE_BUILDER_MODEL`) | `default` | The image builder, and through it the runtime. |
 | `name` | `str \| None` | `None` | Unique within the OS builder. |
-| `type` | `str` (templated) | the OS builder name | Filled from the parent. |
+| `type` | `str` (templated) | the OS builder name | `{{ this.identified_model.name }}`: the name of the OS builder whose `runtimes` list holds the entry. The OS builder model parents each entry in its own construction, so the resolver's first pass renders it; the OS builder that wraps the model then refines the reference to its own global id. |
 | `description` | `str` | templated | Free text. |
 | `image_id` | `str \| None` | `None` | A pinned vendor image instead of a query. On the base-image lifecycle `predefined_resolve` skips `query_provider_image` and calls the runtime's `query_provider_image_by_id(entry, image_id)`: on AWS an AMI id, on GCE an image name searched in the entry's owner projects. An id the provider does not know stops resolution. Pinning makes base bakes reproducible. |
 | `auto_update` | `bool \| None` | `None` | `None` inherits the OS builder's. |
@@ -823,7 +832,9 @@ values, so a module's own default applies to the rest.
 
 `ImageImageBuilderSubconfig`: `image_builder` (fk, default → the default
 image builder), `name` (defaults to the image builder), `type`
-(templated), `ssh_username` (`default`), `image_identifier`, `machine_type`
+(the image builder's name, set at construction; its template,
+`{{ this.identified_model.name }}`, applies only when the entry names no
+image builder and none is the default, and then names the image), `ssh_username` (`default`), `image_identifier`, `machine_type`
 (templated: the runtime's default machine type), `tags`, `owners`
 (`[self]`). The image's `_runtime_map` is keyed by each entry's runtime.
 
@@ -873,7 +884,7 @@ ignored.
 
 | Field | Type | Default | Meaning |
 | ------- | ------ | --------- | --------- |
-| `type` | `str` (fk `GROUP_BUILDER_MODEL`) | `default` | |
+| `type` | `str` (fk `GROUP_BUILDER_MODEL`) | `default` | The group builder, and the group's parent: the group holds that builder's model (its global id) as `_model_id`, so `identified_model` and `builder` are it. The loader sets it right after the group is structured, before the resolver's first pass: a written `type` names it, a `type` left at `default` the registry's default builder for groups. |
 | `is_default` | `bool` | `False` | The group every user joins by default. |
 | `is_root` | `bool` | `False` | The single root group. Exactly one group must set it. |
 | `members` | `set[EncryptedStr]` | empty | User names; each must be a defined user. Entries may be `ENC[age:...]`. |
@@ -890,7 +901,7 @@ ignored.
 
 | Field | Type | Default | Meaning |
 | ------- | ------ | --------- | --------- |
-| `type` | `str` (fk `USER_BUILDER_MODEL`) | `default` | |
+| `type` | `str` (fk `USER_BUILDER_MODEL`) | `default` | The user builder, and the user's parent, as a group's `type` is the group's. |
 | `name` | `EncryptedStr` | required | The login. May be encrypted. |
 | `first_name` / `last_name` | `EncryptedStr` | required, non-blank | Never derived from the name. |
 | `middle_name` | `str \| None` | `None` | |
@@ -919,7 +930,7 @@ and the `isinstance` check stay the kind's; a subclass only adds fields.
 | Field | Type | Default | Meaning |
 | ------- | ------ | --------- | --------- |
 | `runtime` | `str` (fk `RUNTIME_BUILDER_MODEL`) | `default` | |
-| `type` | `str` (fk `STORAGE_BUILDER_MODEL`) | `default` | |
+| `type` | `str` (fk `STORAGE_BUILDER_MODEL`) | `default` | The storage builder that realizes the storage; `default` is the registry's default storage builder. A plain foreign key: a storage holds no parent, so it sets no `model_id` and puts no `builder` in the storage's template context. |
 | `groups` | `list[str]` | `[]` | Groups allowed to use it. The magic value `ALL` is refused. |
 | `public_read` | `bool` | `False` | Anyone may mount read-only. |
 | `share_mode` | `str` | `2770` | Mode of each group's subtree: `2770` (private) or `2775` (read-shared). |
@@ -1901,7 +1912,7 @@ plugin's README.
 | Field | Read by the core | Effect |
 |---|---|---|
 | `name` | everything | System-wide unique; the storage state machine, the read-model, attachments and facts key on it. |
-| `type` | the load (`also_set_on_update`), `validate_storages`, `storage_type_of`, `storage_facts`, `_root_applied` | The storage builder: fixes the capability type, the cardinality, whether it is zonal, and the runtime the root applies on. |
+| `type` | the load, `validate_storages`, `storage_type_of`, `storage_facts`, `_root_applied` | The storage builder: fixes the capability type, the cardinality, whether it is zonal, and the runtime the root applies on. |
 | `runtime` | `check_availability_zones`, as a fallback only (`_storage_runtime`) | The BUILDER's runtime governs everywhere, the zone check included; the item's own value is read only when the builder names no runtime (read first, its `default` would resolve to the default runtime, not the builder's). |
 | `groups` | the load (`ALL` refused), `validate_storages`, `allows_group`, the read-model | The groups allowed to attach; each must be declared. |
 | `public_read` | `allows_group`, `compute_launch_params`, the read-model | Anyone may mount read-only. |

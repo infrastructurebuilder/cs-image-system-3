@@ -2,7 +2,7 @@
 # SPDX-FileCopyrightText: 2026 Mykel Alvis <mykelalvis@infrastructurebuilder.org>
 #
 # SPDX-License-Identifier: Apache-2.0
-# The runner image's probe (stage 92): every tool a configuration's CI calls
+# The runner image's probe: every tool a configuration's CI calls
 # answers --version from the path cfg/executables.yml pins (or from PATH where
 # the starters pin no path), and the version is the one /etc/csis-ci/tools.txt
 # lists. Run at build time, by the build-and-probe leg of full-test, and by

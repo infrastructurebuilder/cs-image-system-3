@@ -206,6 +206,7 @@ run +LIFECYCLES:
 
 # The record: a dry run of EVERY lifecycle, unscoped, its emission and meta-state committed here (you push);
 # what CI's perform job makes first and last, so a record exists whatever happens in between
+[doc("The record: a dry run of every lifecycle, its emission and meta-state committed here (you push)")]
 record:
 	@{{cli}} run --all --commit
 
@@ -249,6 +250,7 @@ cloud-launch runtime dry="no": cloud-preflight
 # Gated destroy of ONE instance of the runtime: INSTANCE is undeclared for this invocation alone (the tree is
 # untouched), so a leftover standing machine is destroyed through the gate instead of re-verified; a dry
 # run keeps the record. `cloud-dispose-images` afterwards is the runtime's full teardown.
+[doc("Gated destroy of ONE instance of the runtime, undeclared for this invocation alone; a dry run keeps the record")]
 cloud-decommission runtime instance dry="no": cloud-preflight
 	@{{cli}} --locked {{ if dry == "yes" { "--dry-run" } else { "--no-dry-run" } }} --undeclare instance:{{instance}} run instance-image --only none --apply-runtime {{runtime}} --commit
 
@@ -264,6 +266,7 @@ cloud-verify runtime instance leg="serial":
 # A durable instance takes its image's next build as ONE gated sequence: the pin moves (`to` = a build id;
 # default the series head), the replace launches through the gate, the proof runs on the new machine, the
 # release records the build, one more launch gives the machine its names. require_released_builds stays true.
+[doc("A durable instance takes its image's next build in one gated sequence: pin, replace, proof, release, names")]
 cloud-upgrade runtime instance to="": cloud-preflight
 	#!/usr/bin/env bash
 	set -euo pipefail
@@ -288,12 +291,14 @@ cloud-dispose-images runtime dry="no":
 
 # Re-tag cloud images whose lineage tags disagree with their record, from the record, and give the
 # configuration's id (csis_config) to standing storages and machines that lack it. Dry by default.
+[doc("Re-tag images from their records and give standing storages and machines the configuration's id; dry by default")]
 cloud-relabel runtime dry="yes":
 	@{{cli}} {{ if dry == "yes" { "--dry-run" } else { "--no-dry-run" } }} lineage relabel --runtime {{runtime}}
 
 # Log into every standing instance (or the ARGS named) through the managed CI policy: as the workload in a
 # GitHub Actions job (`workload token` mints the OPA token from this run's OIDC token, the names from the
 # configuration), as YOU (the enrolled client, `sft login` first) anywhere else
+[doc("Log into every standing instance (or those named) through the managed CI policy, as the workload in CI or as you")]
 ci-login-proof *ARGS:
 	#!/usr/bin/env bash
 	set -euo pipefail
@@ -316,6 +321,7 @@ ci-login-proof *ARGS:
 # connection accepted it and issued one, and whether that token carries the ROLE (`role: granted` from
 # the pinned branch alone, judged by resolving a standing machine of a managed group). The names from the
 # environment: OPA_WORKLOAD_CONNECTION, OPA_WORKLOAD_ROLE, SFT_TEAM, OPA_ADDR; needs `id-token: write`
+[doc("Present the Actions run's OIDC token to the team's workload connection: is a token issued, does it carry the role")]
 opa-workload-probe:
 	@{{cli}} workload probe
 
@@ -341,6 +347,7 @@ public-safe *ARGS:
 
 # The one-time initialisation as terraform, from an interview: the answers go to bootstrap.yaml at the
 # root of the tree, generated/bootstrap/ is written from them (and rewritten by every run); applying it is yours
+[doc("The one-time initialisation as terraform, from an interview: answers to bootstrap.yaml, generated/bootstrap/ from them")]
 bootstrap *ARGS:
 	@{{cli}} bootstrap {{ARGS}}
 

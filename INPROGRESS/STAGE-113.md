@@ -13,9 +13,9 @@ at "do 113".**
 
 **Order.** This stage runs alone: it rewrites imports in ninety-one
 test files, so no other stage shares its branch's lifetime.
-[§134](STAGE-134.md)'s items 4 and 5 land first (they change
+§134's items 4 and 5 landed first (2026-11-13), as they changed
 `encryption`, the resolver and `config_loader`, which this stage
-sorts and moves).
+sorts and moves.
 
 **Re-planned on §124's numbers, re-measured after §132.** The first
 reading (2026-11-03) was taken over a lazy-import web that hid most

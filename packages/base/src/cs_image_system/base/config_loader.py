@@ -38,7 +38,7 @@ from cs_image_system.contract.model_config import CSIS_MODEL_CONFIG
 
 from .models.ia_config import IAConfig
 from .models.user import User
-from .orchestrator import PydanticConverter, TemplateResolver
+from .orchestrator import PydanticConverter, TemplateResolver, parent_by_default_type, parent_by_written_type
 
 if TYPE_CHECKING:
     from .basic.builder_base_image import ImageBuilderBase
@@ -91,7 +91,7 @@ from . import (
 from . import encryption as _encryption
 from . import image_sources as _image_sources
 from . import lifecycles as _lifecycles
-from .encryption import decrypt_tree, decrypted_plaintexts, refuse_markers_at
+from .encryption import decrypt_tree, refuse_markers_at
 from .finalizer import Finalizer
 from .image_sources import ImageSourceCatalog, default_os_type
 from .loader import load_plugins
@@ -239,6 +239,13 @@ def read_item_kind(ctx: RunContext, spec: ItemKind) -> list[Any]:
             structured = cvt.structure(raw, model_cls)
             for ri in (structured if isinstance(structured, list) else [structured]):
                 if isinstance(ri, spec.model_cls):
+                    # every builder model and its default is registered by
+                    # now: an item whose `type` names its parent holds that
+                    # builder's model (the default's, for a type left at
+                    # `default`) before it is entered in the flat map, so
+                    # the key it is entered under names its parent
+                    parent_by_written_type(reg, ri)
+                    parent_by_default_type(reg, ri)
                     items.append(ri)
                     template_resolver.flatten_dataclass(ri)
                     reg.register_built_instance(ri)
@@ -502,8 +509,7 @@ def read_config_and_transform(
     # ciphertext survives for the emission to write back. This one call covers
     # IAConfig and the plugin builder models, whose dicts are popped out of
     # generic_yaml below and structured from these objects.
-    generic_yaml = decrypt_tree(generic_yaml, source=str(_config_dir),
-                                collect=decrypted_plaintexts())
+    generic_yaml = decrypt_tree(generic_yaml, source=str(_config_dir))
     generic_yaml = _single_mapping(generic_yaml)
 
     original_yaml_dictionary_lists = _take_builder_lists(generic_yaml)

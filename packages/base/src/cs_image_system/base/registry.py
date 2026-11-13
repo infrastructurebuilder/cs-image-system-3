@@ -170,6 +170,16 @@ def _names_under(table: dict[RegistrationKey, type], classification: VCT) -> dic
     return out
 
 
+#: the runtime namespace a cloud or container classification is entered in
+#: too, so a runtime is found by name whatever its kind
+RUNTIME_NAMESPACE_OF: dict[VCT, VCT] = {
+    VCT.CLOUD_BUILDER_MODEL: VCT.RUNTIME_BUILDER_MODEL,
+    VCT.CONTAINER_BUILDER_MODEL: VCT.RUNTIME_BUILDER_MODEL,
+    VCT.CLOUD_BUILDER: VCT.RUNTIME_BUILDER,
+    VCT.CONTAINER_BUILDER: VCT.RUNTIME_BUILDER,
+}
+
+
 class Registry:
     """A registry for mapping type and key identifiers to classes for polymorphic deserialization.
     This registry allows for dynamic registration of classes that can be instantiated based on
@@ -360,39 +370,70 @@ class Registry:
         if not classifier:
             log.warning(f"Could not determine classification for instance {instance}. Skipping registration.")
             return
+        own_name = model.get_name()
+        aliases = list(model.get_aliases()) if isinstance(model, NameTypedProtocol) else []
+        # an id is formatted from the classification, the parent reference
+        # and the name, and raises nothing for a real instance; it is read
+        # before anything is written, so an id that raises leaves the
+        # registry as it was
+        global_id = instance.global_id
+        # every key the registration writes is checked before any is
+        # written: a refused registration leaves the registry as it was
+        self._check_registration(classifier, own_name, model_name, aliases, instance)
         # Register by name within the namespace
-        if model.get_name() in self.instances[classifier]:
-            log.debug(f"Overwriting instance {model.get_name()} in namespace {classifier}")  # expected: re-registered across resolve passes
-        self.instances[classifier][model.get_name()] = instance
-        try:
-            _gid = instance.global_id
-            if _gid:
-                self.instances_by_global_id[_gid] = instance
-        except Exception as e:
-            log.warning(f"Instance {instance} does not have a valid global_id. Skipping registration in global_id registry. Error: {e}")
-            
-        if classifier in [VCT.CLOUD_BUILDER_MODEL, VCT.CONTAINER_BUILDER_MODEL]:
-            if model_name in self.instances[VCT.RUNTIME_BUILDER_MODEL]:
-                raise ValueError(f"Instance name collision: '{model_name}' is already registered in RUNTIME_BUILDER_MODEL namespace!")
-            self.instances[VCT.RUNTIME_BUILDER_MODEL][model_name] = instance
-        if classifier in [VCT.CLOUD_BUILDER, VCT.CONTAINER_BUILDER]:
-            if model_name in self.instances[VCT.RUNTIME_BUILDER]:
-                raise ValueError(f"Instance name collision: '{model_name}' is already registered in RUNTIME_BUILDER namespace!")
-            self.instances[VCT.RUNTIME_BUILDER][model_name] = instance
-        
-        # Register aliases within the namespace
-        for alias in (model.get_aliases() if isinstance(model, NameTypedProtocol) else set()):
-            if alias in self.instances[classifier]:
-                raise ValueError(f"Instance Alias Collision: '{alias}' is already in use for {classifier}!")
+        if own_name in self.instances[classifier]:
+            log.debug(f"Overwriting instance {own_name} in namespace {classifier}")  # expected: re-registered across resolve passes
+        self.instances[classifier][own_name] = instance
+        if global_id:
+            self._enter_global_id(global_id, instance)
+        self._enter_runtime_namespace(classifier, model_name, instance)
+        for alias in aliases:
             self.instances[classifier][alias] = instance
-            if classifier in [VCT.CLOUD_BUILDER_MODEL, VCT.CONTAINER_BUILDER_MODEL]:
-                if alias in self.instances[VCT.RUNTIME_BUILDER_MODEL]:
-                    raise ValueError(f"Instance name collision: '{alias}' is already registered in RUNTIME_BUILDER_MODEL namespace!")
-                self.instances[VCT.RUNTIME_BUILDER_MODEL][alias] = instance
-            if classifier in [VCT.CLOUD_BUILDER, VCT.CONTAINER_BUILDER]:
-                if alias in self.instances[VCT.RUNTIME_BUILDER]:
-                    raise ValueError(f"Instance name collision: '{alias}' is already registered in RUNTIME_BUILDER namespace!")
-                self.instances[VCT.RUNTIME_BUILDER][alias] = instance
+            self._enter_runtime_namespace(classifier, alias, instance)
+
+    def _check_registration(self, classifier: VCT, own_name: str, model_name: str,
+                            aliases: list[str], instance: Any) -> None:
+        """Refuse a registration that would take a key another instance
+        holds, before anything is written: an alias in the instance's own
+        namespace (its name there is overwritten, as an instance is entered
+        again across resolve passes), its name or an alias in the runtime
+        namespace a cloud or container classification is entered in too.
+        The same instance already under a key is no collision (an item is
+        registered again when its parent is set)."""
+        own = self.instances[classifier]
+        namespace = RUNTIME_NAMESPACE_OF.get(classifier)
+        runtime_table = self.instances[namespace] if namespace is not None else {}
+
+        def runtime_collision(key: str) -> None:
+            if namespace is not None and key in runtime_table and runtime_table[key] is not instance:
+                raise ValueError(f"Instance name collision: '{key}' is already registered in {namespace.name} namespace!")
+
+        runtime_collision(model_name)
+        for alias in aliases:
+            if alias != own_name and alias in own and own[alias] is not instance:
+                raise ValueError(f"Instance Alias Collision: '{alias}' is already in use for {classifier}!")
+            runtime_collision(alias)
+
+    def _enter_global_id(self, global_id: str, instance: Any) -> None:
+        """Index ``instance`` under ``global_id``, its id now. An instance
+        registered again under a new id (its parent reference refined, which
+        moves the id) leaves every id it was indexed under before: an entry
+        under an old id is removed only when it holds this same instance, so
+        the index never keeps an id its object no longer has."""
+        index = self.instances_by_global_id
+        for old in [key for key, held in index.items() if held is instance and key != global_id]:
+            del index[old]
+        index[global_id] = instance
+
+    def _enter_runtime_namespace(self, classifier: VCT, key: str, instance: Any) -> None:
+        """Enter a cloud or container ``instance`` under ``key`` (its name or
+        an alias) in the runtime namespace its classification belongs to;
+        nothing for any other classification. The key is checked first
+        (:meth:`_check_registration`): the same instance already there is no
+        collision, another instance under ``key`` is."""
+        namespace = RUNTIME_NAMESPACE_OF.get(classifier)
+        if namespace is not None:
+            self.instances[namespace][key] = instance
 
     def get_all_instances_by_classification(self, classifier: VCT) -> dict[str, Any]:
         """Get all registered instances under a specific classification."""
