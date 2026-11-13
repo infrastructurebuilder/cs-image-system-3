@@ -95,6 +95,7 @@ NOT_ALL_GOOD = "{bad} of {total} verdicts are not good (above)"
 FAST_FORWARD = ("the configuration's main run committed its records on main; bring develop up: cd {root} && "
                 "git checkout develop && git merge --ff-only origin/main && git push origin develop "
                 "(after git fetch origin)")
+DEVELOP_LEVEL = "the configuration's main run committed its records on main, and develop already holds them"
 #: the refusals, after "release-watch: "
 NOT_A_VERSION = "'{version}' is not a release version (for example 0.1.9 or 0.1.9.dev2)"
 NOT_TAGGED = "v{version} is not tagged in {root} -- the runs are found by the tag's commit"
@@ -193,6 +194,16 @@ class Watch:
     interval: float = 30.0
 
     # --- helpers
+
+    def develop_closing(self) -> str:
+        """After the configuration's main run passed: the fast-forward of develop to the records CI
+        committed on main, or that develop already holds them (fetched first; a count that cannot be
+        read names the fast-forward, which is harmless when there is nothing to take)."""
+        self.git(self.config_root, "fetch", "-q", "origin")
+        behind = self.git(self.config_root, "rev-list", "--count", "develop..origin/main")
+        if behind.rc == 0 and behind.out.strip() == "0":
+            return DEVELOP_LEVEL
+        return FAST_FORWARD.format(root=self.config_root)
 
     def git(self, cwd: Path, *args: str) -> Done:
         return self.run(["git", "-C", str(cwd), *args], cwd=cwd)
@@ -353,7 +364,7 @@ class Watch:
             main_passed = main_passed or (ok and exp.kind == "config-main")
             self.say(f"release-watch: {exp.label}: {text}")
         if main_passed:
-            self.say(f"release-watch: {FAST_FORWARD.format(root=self.config_root)}")
+            self.say(f"release-watch: {self.develop_closing()}")
         total = len(runs) + (0 if config else 1)
         self.say(f"release-watch: {ALL_GOOD}" if not bad else f"release-watch: {NOT_ALL_GOOD.format(bad=bad, total=total)}")
         return 0 if not bad else 1

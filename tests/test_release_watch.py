@@ -94,7 +94,8 @@ class FakeShell:
 
 
 def _answers(system: list[dict] | None = None, config: list[dict] | None = None, *, index_rc: int = 0,
-             main_pushed: bool = True, log: str = PERFORM_LOG, templates: str = "sha\trefs/tags/v0.1.9\n"):
+             main_pushed: bool = True, log: str = PERFORM_LOG, templates: str = "sha\trefs/tags/v0.1.9\n",
+             develop_behind: str = "3\n"):
     taken = f"{RECORD_SHA} cs-image-system dry-run generation x: identity\n{TAKE_SHA} Take {VERSION}\nd first\n"
     return [
         (f"refs/tags/v{VERSION}^{{commit}}", W.Done(0, SYSTEM_SHA + "\n")),
@@ -108,6 +109,7 @@ def _answers(system: list[dict] | None = None, config: list[dict] | None = None,
         ("index-knows", W.Done(index_rc, "index-knows: said\n")),
         ("starter-tree --list", W.Done(0, STARTERS)),
         ("ls-remote --tags", W.Done(0, templates)),
+        ("rev-list --count develop..origin/main", W.Done(0, develop_behind)),
     ]
 
 
@@ -295,3 +297,11 @@ def test_the_recipe_is_a_wrapper_over_the_script():
     plan = [ln for ln in subprocess.run(["just", "-n", "release-watch", "0.1.9"], cwd=REPO, capture_output=True,
                                         text=True).stderr.splitlines() if ln.strip()]
     assert len(plan) == 1 and f'python "{SCRIPT}" "0.1.9" --root ' in plan[0] and "--config-root " in plan[0]
+
+
+def test_a_develop_that_already_holds_mains_records_is_said_not_asked():
+    shell = FakeShell(_answers(develop_behind="0\n"))
+    said: list[str] = []
+    assert _watch(shell, said).watch() == 0
+    assert said[-2] == f"release-watch: {W.DEVELOP_LEVEL}"
+    assert not any(line == f"release-watch: {W.FAST_FORWARD.format(root=CONFIG)}" for line in said)
