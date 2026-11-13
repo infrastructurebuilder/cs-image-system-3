@@ -6,7 +6,16 @@ first of the two decomposition stages that remain
 ([§116](STAGE-116.md) is the other; §114 and §115 landed inside
 §125).**
 
-**All numbers re-measured 2026-11-12 on develop at `caa4c26`.**
+**All numbers re-measured 2026-11-12 on develop at `caa4c26`; the
+module and line totals read again 2026-11-13 at `a2c81f1` (one dead
+module gone since). The statement counts and the lists are read again
+at "do 113".**
+
+**Order.** This stage runs alone: it rewrites imports in ninety-one
+test files, so no other stage shares its branch's lifetime.
+[§134](STAGE-134.md)'s items 4 and 5 land first (they change
+`encryption`, the resolver and `config_loader`, which this stage
+sorts and moves).
 
 **Re-planned on §124's numbers, re-measured after §132.** The first
 reading (2026-11-03) was taken over a lazy-import web that hid most
@@ -16,11 +25,11 @@ every cycle-free import a top-level one and wrote the closure script
 which counts the top-level, the lazy and the typing edges apart; the
 figures in this file are its reading after §132 retired the old
 context module, the singleton helper and the orchestrator class.
-`base` is 135 modules (26,778 lines); the plugins' top-level closure
-(`kit_top`) is **66** of them (13,426 lines), 78 with the lazy and
-typing edges (`kit_all`, 15,569 lines); **57** are engine-only
-(`engine_all`, 11,209 lines), and no module of the 78 imports any of
-the 57, by any edge. The four doors §124 found into the engine from
+`base` is 134 modules (26,889 lines); the plugins' top-level closure
+(`kit_top`) is **66** of them (13,487 lines), 78 with the lazy and
+typing edges (`kit_all`, 15,640 lines); **56** are engine-only
+(`engine_all`, 11,249 lines), and no module of the 78 imports any of
+the 56, by any edge. The four doors §124 found into the engine from
 the plugins' side are closed: no plugin names the kit's context (a
 plugin types with the contract's `RunContextProtocol`;
 `tests/test_contract.py`, no exception), `HookSet` is the contract's
@@ -82,12 +91,12 @@ contract (§30) is the leaf every plugin is written against and stays
 one: `base` depends on it, never the reverse, and
 `tests/test_contract.py` holds the direction. What a plugin needs
 beyond the contract today is a part of `base`, and that part is
-measurable. Over the 135 modules of `base` (26,778 lines), the
+measurable. Over the 134 modules of `base` (26,889 lines), the
 transitive closure of what the sixteen plugins and tofu-roots import
 (hashicorp-utils and contract-example-plugin import nothing of
-`base`) is 78 modules (15,569 lines) over every edge, lazy and typing
+`base`) is 78 modules (15,640 lines) over every edge, lazy and typing
 ones included, and the closure is closed: none of the 78 imports any
-of the other 57 (11,209 lines). So `base` splits into two packages
+of the other 56 (11,249 lines). So `base` splits into two packages
 today with no cycle, along a line nobody drew but the imports already
 keep.
 
@@ -104,8 +113,8 @@ the models (`models/*`, all thirty-three), `run_context`, `registry`,
 as the engine's: `orchestrator`, `template_utils`, `meta_state` and
 `loader` (top-level edges) and `finalizer` (a typing edge), with
 `in_process`.
-**The engine** (`engine_all`, 56 modules since `helpers/config` was
-removed as dead; `base`'s `__init__` is one and stays, so 55 move): every other `commands/*` module (dispose,
+**The engine** (`engine_all`, 56 modules; `base`'s `__init__` is one
+and stays, so 55 move): every other `commands/*` module (dispose,
 emission, finalization, gate, the five generators, identity_gids,
 load_failures, login_proof, preflight, relabel, resolve, restamp,
 run_lifecycles, run_scope, runtime_facts, state_migration, unmount,
@@ -139,12 +148,18 @@ read again at "do 113"; the script that computes it
    closure does not see them: `cs_image_system.plugins.base`
    (`base.init`) and `cs_image_system.modules` (`base:tfmodules`,
    which holds the bootstrap's `bootstrap_github`). **YOUR
-   DECISION:** the engine package's name (`engine`, the default; or
-   the engine goes into `system`, which blurs "no plugin depends on
-   `system`"). The test: the closure script runs over the workspace
-   and asserts that no kit module imports the engine and that every
-   `cs_image_system.base` name a plugin imports resolves inside the
-   kit; the seam stays measured, not remembered.
+   DECISION:** where the engine goes. A package of its own, `engine`
+   (the plan's default): the seam is a distribution boundary, at the
+   cost of a twenty-third lock-stepped project (a new PyPI project,
+   one more upload in every release), where §126 decided that the
+   twenty-two stay and the re-examination asks for fewer. Or into
+   `system`: the same seam, measured by the same test, with no new
+   project; "no plugin depends on `system`" then has to be held by a
+   test rather than by `system` being only the CLI. The test: the
+   closure script runs over the workspace and asserts that no kit
+   module imports the engine and that every `cs_image_system.base`
+   name a plugin imports resolves inside the kit; the seam stays
+   measured, not remembered.
 
    Three more choices surfaced at the re-measurement of 2026-11-12;
    "do 113" asks each:
@@ -196,8 +211,10 @@ read again at "do 113"; the script that computes it
 
 **Out of scope**: any change to what a plugin imports
 (`tests/test_plugin_imports.py` holds it since §125, which absorbed
-§114 and §115); the umbrella package's dependencies (its extras are
-§126's; [§116](STAGE-116.md) is the external-repository proof); the
+§114 and §115); the umbrella's extras (§126's;
+[§116](STAGE-116.md) is the external-repository proof), though the
+umbrella and `system` do gain the engine as a dependency when it is a
+package of its own, which is this stage's; the
 contract's own repository; any YAML key, record, emission or cloud
 state. The §30 shims are gone already (§125).
 

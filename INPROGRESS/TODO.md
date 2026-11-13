@@ -35,13 +35,20 @@ repositories.
 [§113](STAGE-113.md)'s closure line is crossed by the imports it claims
 to follow (REEXAMINE1 §5.2, REEXAMINE3 §3.1) and that
 [§116](STAGE-116.md)'s proof as planned would install the AWS runtime
-under the GCE one (REEXAMINE1 §5.3, REEXAMINE3 §3.1 flaw 1). The
-proposal: §118 to §125 land before
-[§113](STAGE-113.md) is executed, each small and each proved by the
-golden; [§113](STAGE-113.md) is then re-planned on the numbers
-§124 prints, and §125 absorbs
-§114 and §115. **YOUR DECISION:** that
-order (the default), or [§113](STAGE-113.md) first as its file plans it.
+under the GCE one (REEXAMINE1 §5.3, REEXAMINE3 §3.1 flaw 1). That
+was answered by doing it: §118 to §133 landed first, §125 absorbed
+§114 and §115, and [§113](STAGE-113.md) was re-planned on §124's
+numbers and re-measured after §132.
+
+**The open stages against each other** (re-evaluated 2026-11-13; no
+two demand incompatible outcomes, and each file carries what was
+found). The order proposed: [§134](STAGE-134.md) (small; its items 4
+and 5 change files §113 sorts and moves), [§112](STAGE-112.md) (then
+a release as its proof), [§113](STAGE-113.md) (alone: it rewrites
+imports in ninety-one test files), [§116](STAGE-116.md), §117.
+**YOUR DECISION:** that order (the default), or another; only "§134's
+items 4 and 5 before §113" and "§113 alone" are constraints, the rest
+is preference.
 
 
 **Open**
@@ -90,13 +97,16 @@ order (the default), or [§113](STAGE-113.md) first as its file plans it.
 - [§134](STAGE-134.md), hygiene bundle XXVII: the open bundle for the
   small findings; opened 2026-11-12 with §133's five carried items.
   Waits for "do 134".
-- [§112](STAGE-112.md), a release in two boxes: planned 2026-11-03; waits for
-  "do 112".
+- [§112](STAGE-112.md), a release in two boxes: planned 2026-11-03,
+  re-planned 2026-11-13 after the 0.1.7 and 0.1.8 walks (sixteen
+  boxes today; three new decisions); waits for "do 112".
 - [§113](STAGE-113.md) and [§116](STAGE-116.md), the decomposition that
   remains (the kit and the engine; a runtime installed from outside):
   planned 2026-11-03, §113 re-planned 2026-11-05 on §124's numbers
   and re-measured 2026-11-12 (§133 item 22, with three new decisions
-  for "do 113"); §114 and §115 landed inside §125; each waits for its
+  for "do 113"); §116 re-planned 2026-11-13 (docker first; where the
+  moved runtime's fixture, golden and legs live is its main new
+  decision); §114 and §115 landed inside §125; each waits for its
   "do N".
 - 0.1.8, the latest final release, is cut (2026-11-12): it carries
   §132 and §133; the reference's `develop` and `main` run it
