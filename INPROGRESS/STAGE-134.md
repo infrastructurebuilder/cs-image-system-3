@@ -114,6 +114,21 @@ blocking, each its own commit on the bundle's branch.
    d. `register_built_instance` writes the name into the item's own
       namespace before the runtime-namespace check, so a colliding
       registration overwrites that entry and then raises.
+10. Four more of the same kind, found by item 9 (the operator,
+    2026-11-13: all fixed in this stage):
+    a. the registry's global-id index keeps an item's old id after its
+       parent is refined and it is registered again under the new one
+       (five of 140 entries in the fixture, the OS entries' model-side
+       ids);
+    b. `TemplateResolver._enter_deferred_item` catches any exception
+       around reading the item's own `global_id` and turns it into a
+       "not added to the flattened map" warning;
+    c. `Registry.register_built_instance` catches any exception around
+       reading `global_id` and turns it into a warning;
+    d. `register_built_instance` silently overwrites an own-namespace
+       name, and a global-id index entry, held by a DIFFERENT instance
+       (a debug line only); `flatten_dataclass` refuses that case by
+       id, the registry does not.
 
 **Acceptance**: each item its own commit; a golden move is shown to
 the operator before it is regenerated; `just test` green at the end,
