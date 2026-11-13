@@ -1,8 +1,10 @@
 # 112. A release in two boxes
 
 **Status: OPEN 2026-11-03; RE-PLANNED 2026-11-13 against develop at
-`a2c81f1`, after the 0.1.7 and 0.1.8 walks. IN PROGRESS since "do
-112", 2026-11-13. The operator took every default: the recipe pushes
+`a2c81f1`, after the 0.1.7 and 0.1.8 walks. EXECUTED 2026-11-13
+on feature/release-in-two-boxes; waits for "merge 112". The bar and
+the full-test legs are green; `release-watch` was proved live against
+the 0.1.8 walk. The operator took every default: the recipe pushes
 (item 1); `take` always uses the release it installs (3), refreshes
 what is safe (4), records (5), refuses a missing session naming the
 login (6) and makes the before-tag (7); `take` pushes `main` only when
