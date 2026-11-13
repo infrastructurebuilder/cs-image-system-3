@@ -37,6 +37,11 @@ case "$1" in
   --help) echo help ;;
   --root-dir) [ "$3" = validate ] && exit ${STUB_VALIDATE_RC:-0}
               [ "$3" = preflight ] && [ "${STUB_PREFLIGHT_RC:-0}" != 0 ] && { echo "$LOGIN_LINE"; exit $STUB_PREFLIGHT_RC; }
+              if [ "$3" = run ]; then                  # the record: the emission of this version, committed
+                [ "${STUB_RECORD_RC:-0}" = 0 ] || exit $STUB_RECORD_RC
+                mkdir -p "$2/generated" && echo "${STUB_VERSION:-0.1.6}" > "$2/generated/emission"
+                git -C "$2" add generated && git -C "$2" commit -q -m "$RECORD" || true
+              fi
               exit 0 ;;
   init-config) case "$*" in
                  *--porcelain*) printf '%b' "${STUB_PORCELAIN:-}"; exit ${STUB_PORCELAIN_RC:-0} ;;
@@ -47,6 +52,7 @@ case "$1" in
 esac
 exit 0
 """
+RECORD = "Record"                                      # the record's commit, as the stub makes it
 LOGIN = "aws sso login --profile test"                  # the renewal a lapsed session's line names
 # what PATH and CSIS offer: never the release, so a take that used either fails
 DECOY_STUB = """#!/bin/sh
@@ -77,6 +83,10 @@ class World:
         self.origin, self.tree, self.bin = tmp / "origin.git", tmp / "tree", tmp / "bin"
         self.log = tmp / "stub.log"
         subprocess.run(["git", "init", "-q", "--bare", "-b", "main", str(self.origin)], check=True)
+        self.pushes = tmp / "pushes.log"                    # one line per ref a push updated
+        hook = self.origin / "hooks" / "post-receive"
+        hook.write_text(f"#!/bin/sh\nwhile read old new ref; do echo \"$ref\" >> '{self.pushes}'; done\n")
+        hook.chmod(0o755)
         seed = tmp / "seed"
         seed.mkdir()
         _git(seed, "init", "-q", "-b", "main")
@@ -89,6 +99,7 @@ class World:
         _git(seed, "push", "-q", "origin", "main")
         _git(seed, "push", "-q", "origin", "main:develop")
         subprocess.run(["git", "clone", "-q", "-b", "develop", str(self.origin), str(self.tree)], check=True)
+        self.seeded = len(self.pushes.read_text().splitlines())
         self.toolbin = tmp / "tool-bin"                     # where `uv tool install` puts the release
         for where, name, body in ((self.bin, "cs-image-system", DECOY_STUB), (self.bin, "uv", UV_STUB),
                                   (self.bin, "uvx", UVX_STUB), (self.toolbin, "cs-image-system", CSIS_STUB)):
@@ -98,6 +109,11 @@ class World:
             path.chmod(path.stat().st_mode | stat.S_IXUSR)
         self.seed = seed
 
+    def pushed(self, ref: str) -> int:
+        """How many pushes updated REF since the world was made (the seed's own pushes left out)."""
+        lines = self.pushes.read_text().splitlines() if self.pushes.exists() else []
+        return lines[self.seeded:].count(ref)
+
     def calls(self, who: str) -> list[str]:
         """The argument lines the stub WHO (``csis``, the installed tool, or ``decoy``) was called with."""
         lines = self.log.read_text().splitlines() if self.log.exists() else []
@@ -106,7 +122,7 @@ class World:
     def take(self, *args: str, **env: str) -> subprocess.CompletedProcess:
         environment = {k: v for k, v in os.environ.items() if k not in ("CSIS", "VIRTUAL_ENV")}
         environment.update({"PATH": f"{self.bin}:{os.environ['PATH']}", "STUB_LOG": str(self.log),
-                            "STUB_TOOL_BIN": str(self.toolbin), "LOGIN_LINE": f"session: EXPIRED -- {LOGIN}", "CSIS": str(self.bin / "cs-image-system"),
+                            "STUB_TOOL_BIN": str(self.toolbin), "LOGIN_LINE": f"session: EXPIRED -- {LOGIN}", "RECORD": RECORD, "CSIS": str(self.bin / "cs-image-system"),
                             "GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@example.invalid",
                             "GIT_COMMITTER_NAME": "t", "GIT_COMMITTER_EMAIL": "t@example.invalid", **env})
         return subprocess.run(["just", "take", *args], cwd=self.tree, capture_output=True, text=True, env=environment, timeout=120)
@@ -121,8 +137,8 @@ def test_a_release_that_changed_nothing_the_tree_owns_is_taken_in_one_box(world:
     done = world.take("0.1.6")
     assert done.returncode == 0, done.stdout + done.stderr
     assert (world.tree / ".csis-version").read_text() == "0.1.6\n"
-    assert _git(world.tree, "log", "-1", "--format=%s") == "Take 0.1.6"
-    assert _git(world.origin, "log", "-1", "--format=%s", "develop") == "Take 0.1.6"          # develop was pushed
+    assert _git(world.tree, "log", "-2", "--format=%s").splitlines() == [RECORD, "Take 0.1.6"]
+    assert _git(world.origin, "rev-parse", "develop") == _git(world.tree, "rev-parse", "HEAD")  # develop was pushed
     assert _git(world.origin, "log", "-1", "--format=%s", "main") == "first"                  # main was not touched
     assert "tool install --force cs-image-system==0.1.6" in world.log.read_text()
 
@@ -132,7 +148,7 @@ def test_every_step_runs_by_the_installed_tool_whatever_csis_names(world: World)
     assert done.returncode == 0, done.stdout + done.stderr
     assert world.calls("decoy") == []                                               # neither CSIS nor PATH was asked
     steps = [c.split()[2] for c in world.calls("csis") if c.startswith("--root-dir")]
-    assert steps == ["preflight", "validate"]                                       # the sessions, then `just validate`
+    assert steps == ["preflight", "validate", "run"]                                # the sessions, `just validate`, the record
     assert "--version" in world.calls("csis")
 
 
@@ -156,13 +172,23 @@ FORCE_WRITES = "Justfile tfmodules/m/main.tf tfmodules/other/.csis-module CI_SET
 def test_a_release_whose_changes_are_all_safe_is_refreshed_committed_and_recorded_in_one_run(world: World):
     done = world.take("0.1.6", STUB_PORCELAIN=SAFE, STUB_FORCE_WRITES=FORCE_WRITES)
     assert done.returncode == 0, done.stdout + done.stderr
-    assert _git(world.tree, "log", "-1", "--format=%s") == "Take 0.1.6; refreshed: Justfile, tfmodules/m/; added: CI_SETUP.md"
-    committed = set(_git(world.tree, "show", "--name-only", "--format=", "HEAD").splitlines())
+    assert _git(world.tree, "log", "-2", "--format=%s").splitlines() == [
+        RECORD, "Take 0.1.6; refreshed: Justfile, tfmodules/m/; added: CI_SETUP.md"]
+    committed = set(_git(world.tree, "show", "--name-only", "--format=", "HEAD~1").splitlines())
     assert committed == {"Justfile", "tfmodules/m/main.tf", "CI_SETUP.md", ".csis-version"}
     assert (world.tree / "README.md").read_text() == "a tree\n"                   # --force touched it; not listed, so put back
     assert not (world.tree / "tfmodules" / "other").exists()
     assert _git(world.tree, "status", "--porcelain") == ""
     assert _git(world.origin, "rev-parse", "develop") == _git(world.tree, "rev-parse", "HEAD")
+    assert world.pushed("refs/heads/develop") == 1 and world.pushed("refs/heads/main") == 0
+
+
+def test_a_failed_record_leaves_the_take_commit_unpushed_and_names_the_finish(world: World):
+    done = world.take("0.1.7.dev1", STUB_VERSION="0.1.7.dev1", STUB_RECORD_RC="1")
+    assert done.returncode == 1
+    assert _git(world.tree, "log", "-1", "--format=%s") == "Take 0.1.7.dev1"
+    assert world.pushed("refs/heads/develop") == 0
+    assert "just record" in done.stdout and "git push origin develop" in done.stdout
 
 
 def test_anything_edited_stops_the_take_naming_it_alone_and_nothing_is_committed(world: World):
@@ -190,8 +216,8 @@ def test_patched_commits_what_was_refreshed_by_hand_without_listing_again(world:
     assert refused.returncode == 1 and "patched" in refused.stdout                 # not clean: say patched
     done = world.take("0.1.6", "patched", STUB_PORCELAIN="edited Justfile\n", STUB_PORCELAIN_RC="1")
     assert done.returncode == 0, done.stdout + done.stderr                         # the listing would stop; patched skips it
-    assert _git(world.tree, "log", "-1", "--format=%s") == "Take 0.1.6"
-    assert "Justfile" in _git(world.tree, "show", "--name-only", "--format=", "HEAD").splitlines()
+    assert _git(world.tree, "log", "-1", "--format=%s", "HEAD~1") == "Take 0.1.6"
+    assert "Justfile" in _git(world.tree, "show", "--name-only", "--format=", "HEAD~1").splitlines()
 
 
 def test_the_catch_up_guard_fast_forwards_develop_from_main_first(world: World):
@@ -240,7 +266,7 @@ def test_a_failure_after_the_pin_is_written_puts_the_pin_back(world: World):
     assert _git(world.origin, "log", "-1", "--format=%s", "develop") == "first"
     again = world.take("0.1.6")                                                      # the same command, the cloud answering now
     assert again.returncode == 0, again.stdout + again.stderr
-    assert _git(world.tree, "log", "-1", "--format=%s") == "Take 0.1.6"
+    assert _git(world.tree, "log", "-1", "--format=%s", "HEAD~1") == "Take 0.1.6"
     patched = world.take("0.1.7", "patched", STUB_VERSION="0.1.7", STUB_VALIDATE_RC="1")
     assert patched.returncode == 1 and "just take 0.1.7 patched" in patched.stdout
 
@@ -281,7 +307,7 @@ def test_a_final_version_is_tagged_before_anything_and_a_development_one_is_not(
     assert _git(world.tree, "status", "--porcelain") == "" and _git(world.tree, "rev-parse", "HEAD") == before
     done = world.take("0.1.6")                                                      # found on HEAD: goes on
     assert done.returncode == 0, done.stdout + done.stderr
-    assert _git(world.tree, "rev-parse", "HEAD~1") == before
+    assert _git(world.tree, "rev-parse", "HEAD~2") == before                        # before the Take and the record
     assert _git(world.tree, "cat-file", "-t", "v0.1.6-before") == "tag"            # annotated
     dev = world.take("0.1.7.dev1", STUB_VERSION="0.1.7.dev1")
     assert dev.returncode == 0, dev.stdout + dev.stderr

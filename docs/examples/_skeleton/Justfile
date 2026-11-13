@@ -100,11 +100,13 @@ release runtime: full-test
 #    (refresh it by hand, read `git diff`, then `just take VERSION patched`); otherwise
 #    `init-config . --force` refreshes what was listed, and nothing else;
 # 6. .csis-version, `just init`, `just validate`, and the commit "Take VERSION; refreshed: ...";
-# 7. `git push origin develop`; with `main`, then `git push origin develop:main` (`main` performs:
-#    it bakes and applies), and without it `main` is never pushed.
+# 7. the record (`just record`, by the same binary), its own commit when the emission moved;
+# 8. ONE `git push origin develop` with both; with `main`, then `git push origin develop:main` (`main`
+#    performs: it bakes and applies), and without it `main` is never pushed.
 # Up to the commit a failure puts the tree back as HEAD has it (with `patched`, the pin alone), so the
-# same command runs again; each refusal says what, if anything, was changed (the tag).
-[doc("Take a release in one box: guard, before-tag, install, sessions, refresh what is safe, init, validate, commit, push develop. `patched`: you refreshed the release-owned files by hand; `main`: push develop to main too (main performs)")]
+# same command runs again; each refusal says what, if anything, was changed (the tag). A failed record
+# leaves the commit unpushed and says how to finish: record, then push.
+[doc("Take a release in one box: guard, before-tag, install, sessions, refresh what is safe, init, validate, commit, record, push develop. `patched`: you refreshed the release-owned files by hand; `main`: push develop to main too (main performs)")]
 [positional-arguments]
 take version *words:
 	#!/usr/bin/env bash
@@ -236,8 +238,14 @@ take version *words:
 	list=$(joined ${refreshed[@]+"${refreshed[@]}"}); [ -z "$list" ] || message="$message; refreshed: $list"
 	list=$(joined ${added[@]+"${added[@]}"}); [ -z "$list" ] || message="$message; added: $list"
 	git commit -q -m "$message" || { putback; echo "take: the commit failed (above); .csis-version is back at ${old:-nothing}$back, so run the same command again: $again -- $unchanged"; exit 1; }
+	# the record by the same release (a committing run is held to the pin), so the emission the push
+	# carries is the new pin's and CI's drift check finds it current; then ONE push of develop with both
+	if ! CSIS="$tool" just record; then
+		echo "take: the record failed (above): the commit \"$message\" stands on develop, NOT pushed, and whatever the record wrote is uncommitted. To finish: CSIS=\"$tool\" just record, then git push origin develop$([ "$main" = no ] || echo ', then git push origin develop:main')"
+		exit 1
+	fi
 	git push origin develop
-	echo "take: $version is taken and develop is pushed"
+	echo "take: $version is taken and recorded, and develop is pushed"
 	if [ "$main" = main ]; then
 		git push origin develop:main
 		echo "take: main is pushed: main performs (its CI bakes and applies under the write role)"
