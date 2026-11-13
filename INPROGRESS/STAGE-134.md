@@ -1,9 +1,10 @@
 # 134. Hygiene bundle XXVII
 
-**Status: IN PROGRESS since "do 134", 2026-11-13 (the decisions are
-under each item). The operator's rule for this run: anything found
-that would need a new hygiene stage is asked first, fix it here or
-not.**
+**Status: EXECUTED 2026-11-13 on feature/hygiene-xxvii; waits for
+"merge 134" after the bar and the full-test legs. Items 1 to 10
+landed, 10(d) excepted, which opened [§135](STAGE-135.md). The
+operator's rule for this run: anything found that would need a new
+hygiene stage was asked first, fix it here or not.**
 
 The findings carried out of [§133](../docs/CHANGES.md#s133)
 (hygiene bundle XXVI), found while its last batch ran; none is
@@ -128,7 +129,12 @@ blocking, each its own commit on the bundle's branch.
     d. `register_built_instance` silently overwrites an own-namespace
        name, and a global-id index entry, held by a DIFFERENT instance
        (a debug line only); `flatten_dataclass` refuses that case by
-       id, the registry does not.
+       id, the registry does not. Not done here: real loads rely on
+       the overwrite (child items keyed by bare name, and the
+       provider-specific image's deliberate replacement), so it needs
+       a design first. The operator, 2026-11-13: carried as a design
+       item to a new stage, [§135](STAGE-135.md), with the duplicate
+       state backend and a leftover comment item 10 also found.
 
 **Acceptance**: each item its own commit; a golden move is shown to
 the operator before it is regenerated; `just test` green at the end,

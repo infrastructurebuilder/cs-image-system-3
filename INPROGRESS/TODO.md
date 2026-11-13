@@ -97,6 +97,9 @@ is preference.
 - [§134](STAGE-134.md), hygiene bundle XXVII: the open bundle for the
   small findings; opened 2026-11-12 with §133's five carried items.
   Waits for "do 134".
+- [§135](STAGE-135.md), registered instances carry a namespace:
+  planned 2026-11-13 from §134 (child items keyed by bare name
+  overwrite each other in the registry); waits for "do 135".
 - [§112](STAGE-112.md), a release in two boxes: planned 2026-11-03,
   re-planned 2026-11-13 after the 0.1.7 and 0.1.8 walks (sixteen
   boxes today; three new decisions); waits for "do 112".
@@ -121,6 +124,7 @@ and validated by the operator before its "do N")
 - [§113, The kit and the engine: `base` splits where the plugins stop](STAGE-113.md)
 - [§116, A runtime installed from outside](STAGE-116.md)
 - [§134, Hygiene bundle XXVII](STAGE-134.md)
+- [§135, Registered instances carry a namespace](STAGE-135.md)
 
 **Release**
 
