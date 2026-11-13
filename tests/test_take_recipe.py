@@ -221,3 +221,30 @@ def test_main_pushes_main_after_develop_and_its_absence_never_does(world: World)
     alone = world.take("0.1.8", "main", STUB_VERSION="0.1.8")
     assert alone.returncode == 0, alone.stdout + alone.stderr
     assert _git(world.origin, "rev-parse", "main") == _git(world.tree, "rev-parse", "HEAD")
+
+
+def test_a_final_version_is_tagged_before_anything_and_a_development_one_is_not(world: World):
+    before = _git(world.tree, "rev-parse", "HEAD")
+    refused = world.take("0.1.6", STUB_INSTALL_RC="1")                              # the tag is the first act
+    assert refused.returncode == 1
+    assert _git(world.origin, "rev-parse", "v0.1.6-before^{commit}") == before
+    assert _git(world.tree, "status", "--porcelain") == "" and _git(world.tree, "rev-parse", "HEAD") == before
+    done = world.take("0.1.6")                                                      # found on HEAD: goes on
+    assert done.returncode == 0, done.stdout + done.stderr
+    assert _git(world.tree, "rev-parse", "HEAD~1") == before
+    assert _git(world.tree, "cat-file", "-t", "v0.1.6-before") == "tag"            # annotated
+    dev = world.take("0.1.7.dev1", STUB_VERSION="0.1.7.dev1")
+    assert dev.returncode == 0, dev.stdout + dev.stderr
+    assert _git(world.origin, "tag", "--list").splitlines() == ["v0.1.6-before"]
+
+
+def test_a_before_tag_that_marks_another_commit_is_refused(world: World):
+    _git(world.tree, "tag", "-a", "v0.1.6-before", "-m", "elsewhere", "HEAD")
+    (world.tree / "LOCAL.md").write_text("develop moves\n")
+    _git(world.tree, "add", "-A")
+    _git(world.tree, "commit", "-q", "-m", "local work")
+    head = _git(world.tree, "rev-parse", "HEAD")
+    done = world.take("0.1.6")
+    assert done.returncode == 1
+    assert _git(world.tree, "rev-parse", "HEAD") == head and (world.tree / ".csis-version").read_text() == "0.1.5\n"
+    assert _git(world.origin, "tag", "--list") == "" and world.log.exists() is False      # nothing installed, nothing pushed

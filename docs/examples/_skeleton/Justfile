@@ -127,6 +127,20 @@ take version *words:
 		git merge --ff-only origin/main >/dev/null || { echo "take: develop cannot fast-forward to origin/main -- reconcile them first; nothing was changed"; exit 1; }
 		git merge-base --is-ancestor origin/main HEAD || { echo "take: origin/main is not an ancestor of develop -- nothing was changed"; exit 1; }
 	fi
+	# a FINAL version marks the tree as it stood before it: the tag v<version>-before on HEAD, pushed
+	# (a development version gets none); a run again finds it on HEAD and goes on
+	unchanged="nothing was changed"
+	if [[ "$version" != *.dev* ]]; then
+		tag="v$version-before"
+		if at=$(git rev-parse -q --verify "refs/tags/$tag^{commit}"); then
+			[ "$at" = "$(git rev-parse HEAD)" ] || { echo "take: the tag $tag exists and marks $at, not HEAD ($(git rev-parse HEAD)) -- a tree is tagged once, before its take; nothing was changed"; exit 1; }
+			echo "take: the tag $tag already marks HEAD"
+		else
+			git tag -a "$tag" -m "The tree before it took $version"
+		fi
+		git push -q origin "refs/tags/$tag" || { echo "take: the tag $tag could not be pushed (above); it marks HEAD here, and running again pushes it"; exit 1; }
+		unchanged="nothing was changed but the tag $tag on HEAD, pushed (running again finds it)"
+	fi
 	old=$(git show HEAD:.csis-version 2>/dev/null | head -1 || true)
 	# a development release is on TestPyPI only, with PyPI as the extra index
 	test_index=(--index-url https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple/ --index-strategy unsafe-first-match)
@@ -136,13 +150,13 @@ take version *words:
 	extras=$(just extras)
 	# always the release from the index, as the uv tool: a committing run is held to exactly that, and
 	# every step of the take runs by this binary, whatever CSIS names for the tree's other recipes
-	uv tool install --force ${index[@]+"${index[@]}"} "cs-image-system${extras:+[$extras]}==$version" >/dev/null 2>&1 || { echo "take: cs-image-system${extras:+[$extras]}==$version could not be installed from the index (a development release is on TestPyPI, a final one on PyPI) -- nothing was changed"; exit 1; }
+	uv tool install --force ${index[@]+"${index[@]}"} "cs-image-system${extras:+[$extras]}==$version" >/dev/null 2>&1 || { echo "take: cs-image-system${extras:+[$extras]}==$version could not be installed from the index (a development release is on TestPyPI, a final one on PyPI) -- $unchanged"; exit 1; }
 	tool="$(uv tool dir --bin)/cs-image-system"
 	have=$("$tool" --version 2>/dev/null | awk '{print $NF}' || true)
-	[ "$have" = "$version" ] || { echo "take: the installed tool $tool reports '${have:-nothing}', not $version -- nothing was changed"; exit 1; }
+	[ "$have" = "$version" ] || { echo "take: the installed tool $tool reports '${have:-nothing}', not $version -- $unchanged"; exit 1; }
 	if [ "$patched" = no ] && [ -n "$old" ] && [ "$old" != "$version" ]; then
 		prev=$(uvx ${oldindex[@]+"${oldindex[@]}"} --from "cs-image-system==$old" python -c 'from cs_image_system.system import starters; print(starters.starters_root())' 2>/dev/null) \
-			|| { echo "take: the previous release $old could not be fetched to compare with -- nothing was changed"; exit 1; }
+			|| { echo "take: the previous release $old could not be fetched to compare with -- $unchanged"; exit 1; }
 		if ! "$tool" init-config . --changes-since "$prev"; then
 			echo "take: STOP -- the release changed files it owns (above). Refresh them by hand: \`cs-image-system init-config . --force\` (it keeps your values where the release has REPLACE-ME), read \`git diff\`, then \`just take $version patched\`. Nothing was committed"
 			exit 1
