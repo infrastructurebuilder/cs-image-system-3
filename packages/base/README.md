@@ -568,7 +568,7 @@ Each object renders in a `SmartContext` that exposes:
 | ------ | ------- |
 | `this` | The object being resolved. |
 | every `fk` field name | The referenced object (or the raw id when unresolved). |
-| `builder` | The owning builder model, when an `also_set_on_update` foreign key resolved. |
+| `builder` | The model a resolved `also_set_on_update` foreign key names: for a group or a user, the builder model its `type` names (its parent); for an entry of an image's or a base image's `runtimes` list, the owning image or base image, because the entry's own parent field (`_model_id`) declares `also_set_on_update`, so an entry's templates can write `{{ builder.<field> }}`. That declaration on the parent field is not a no-op: without it an entry's context has no `builder`. A storage's `type` declares none (a storage holds no parent), so a storage's context has no `builder`. |
 | `image`, `instance`, `group`, `user`, `storage`, `storagemapping` | The object itself, injected under its own lower-case class name (`SelfInjectedNameProtocol`). |
 | `this.identified_model` | On sub-items, the parent model. It is a property, not a field, so it is reached through `this`; a bare `identified_model` names nothing in the context and a template that writes it is kept as written. |
 | `execution`, `ENV` | The run values and the environment. |

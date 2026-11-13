@@ -65,6 +65,10 @@ class ImageImageBuilderSubconfig(NameTyped, ParentPropertyHolding):
                     "description": "The machine type to use for this runtime.",
     })
 
+    # `also_set_on_update` on the parent field itself is not a no-op: it is
+    # what puts the parent (the owning image) into the entry's template
+    # context as `builder`, so an entry's templates can name
+    # `{{ builder.<field> }}`; the base image's entry declares the same
     _model_id: str | None = parent_field(VCT.IMAGE_BUILDER_MODEL, also_set_on_update="model_id", description="The name of the model this property holding object is associated with")
     tags: dict[str, str] = field(default_factory=dict)
 
