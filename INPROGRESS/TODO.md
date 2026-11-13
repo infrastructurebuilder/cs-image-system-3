@@ -42,9 +42,9 @@ numbers and re-measured after §132.
 
 **The open stages against each other** (re-evaluated 2026-11-13; no
 two demand incompatible outcomes, and each file carries what was
-found). §134 landed first, as proposed (2026-11-13). The order
-proposed for the rest: [§112](STAGE-112.md) (then a release as its
-proof), [§113](STAGE-113.md) (alone: it rewrites imports in
+found). §134 and §112 landed first, as proposed (2026-11-13); a
+release carrying §112 comes next, and the release after that is its
+live proof. The order proposed for the rest: [§113](STAGE-113.md) (alone: it rewrites imports in
 ninety-one test files), [§116](STAGE-116.md), §117; and
 [§135](STAGE-135.md), which changes the registry and the resolver's
 keys, before §113 or after it but not beside it. **YOUR DECISION:**
@@ -60,7 +60,7 @@ constraint, the rest is preference.
   absorbed §114 and §115, so the contract holds the run context, its
   services and its own version, and the §30 shims are gone.
 - §126, the package shape: landed 2026-11-06 under shape (b), the
-  twenty-two projects kept; it re-scoped [§112](STAGE-112.md) (whole)
+  twenty-two projects kept; it re-scoped §112 (whole)
   and [§116](STAGE-116.md) (the external-repository proof, docker
   first). Its release proof, a development release on TestPyPI, is the
   operator's box.
@@ -106,9 +106,11 @@ constraint, the rest is preference.
 - [§135](STAGE-135.md), registered instances carry a namespace:
   planned 2026-11-13 from §134 (child items keyed by bare name
   overwrite each other in the registry); waits for "do 135".
-- [§112](STAGE-112.md), a release in two boxes: planned 2026-11-03,
-  re-planned 2026-11-13 after the 0.1.7 and 0.1.8 walks (sixteen
-  boxes today; three new decisions); waits for "do 112".
+- §112, a release in two boxes: landed 2026-11-13. The walk is
+  `just release-take <part> <index> [main]`, the login halfway, and
+  `just release-watch <version>`; the first take after the release
+  that carries it is still the old walk, since a tree runs the `take`
+  of the release it is on.
 - [§113](STAGE-113.md) and [§116](STAGE-116.md), the decomposition that
   remains (the kit and the engine; a runtime installed from outside):
   planned 2026-11-03, §113 re-planned 2026-11-05 on §124's numbers
@@ -126,7 +128,6 @@ constraint, the rest is preference.
 **Stage files** (one per stage, in this directory; the plan is read
 and validated by the operator before its "do N")
 
-- [§112, A release in two boxes](STAGE-112.md)
 - [§113, The kit and the engine: `base` splits where the plugins stop](STAGE-113.md)
 - [§116, A runtime installed from outside](STAGE-116.md)
 - [§135, Registered instances carry a namespace](STAGE-135.md)
@@ -209,6 +210,20 @@ and validated by the operator before its "do N")
 
 **Landed since 2026-10-05** (newest first)
 
+- §112, a release in two boxes: 2026-11-13, its squash commit
+  (feature/release-in-two-boxes kept). `release` fetches origin and
+  refuses when it holds commits the local branches lack, moves to
+  `main` itself, resyncs the venv, cuts, pushes `main` with its tag,
+  brings `develop` level and pushes it; a failure before the bump puts
+  the checkout back. The starter skeleton's `take` runs in one box: it
+  tags a final version's tree, installs and uses the released CLI
+  whatever `CSIS` says, asks the sessions first, refreshes the
+  release-owned files itself when none is edited (a module judged by
+  its stamp: `init-config --changes-since --porcelain`), records, and
+  pushes `develop` once, `main` only when told `main`. `release-take`
+  chains the two; `release-watch` gives one verdict per run and reads
+  past the job colour (proved live against the 0.1.8 walk). The first
+  take after the release carrying this is still the old walk.
 - §134, hygiene bundle XXVII: 2026-11-13, its squash commit
   (feature/hygiene-xxvii kept). Five carried items and five rounds of
   findings, each asked and fixed in the stage (items 6 to 10). A parent
