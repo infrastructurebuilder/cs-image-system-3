@@ -31,16 +31,19 @@ JUSTFILE = REPO / "docs" / "examples" / "_skeleton" / "Justfile"      # the skel
 pytestmark = pytest.mark.skipif(shutil.which("just") is None or shutil.which("git") is None, reason="needs just and git")
 
 CSIS_STUB = """#!/bin/sh
-echo "tool $*" >> "$STUB_LOG"
+echo "csis $*" >> "$STUB_LOG"
 case "$1" in
   --version) echo "cs-image-system ${STUB_VERSION:-0.1.6}" ;;
   --help) echo help ;;
   --root-dir) [ "$3" = validate ] && exit ${STUB_VALIDATE_RC:-0}
               [ "$3" = preflight ] && [ "${STUB_PREFLIGHT_RC:-0}" != 0 ] && { echo "$LOGIN_LINE"; exit $STUB_PREFLIGHT_RC; }
               exit 0 ;;
-  init-config) echo "init-config: changes since the previous release, in the release-owned files of standard-aws"
-               [ "${STUB_CHANGES:-0}" = 1 ] && { echo "init-config:   Justfile"; exit 1; }
-               echo "init-config: nothing the release owns changed in a file your tree holds" ;;
+  init-config) case "$*" in
+                 *--porcelain*) printf '%b' "${STUB_PORCELAIN:-}"; exit ${STUB_PORCELAIN_RC:-0} ;;
+                 *--force*) for f in ${STUB_FORCE_WRITES:-}; do mkdir -p "$(dirname "$f")"; echo "# the release's" >> "$f"; done
+                            echo "${STUB_VERSION:-0.1.6}" > .csis-version
+                            exit ${STUB_FORCE_RC:-0} ;;
+               esac ;;
 esac
 exit 0
 """
@@ -96,7 +99,7 @@ class World:
         self.seed = seed
 
     def calls(self, who: str) -> list[str]:
-        """The argument lines the stub WHO (``tool`` or ``decoy``) was called with."""
+        """The argument lines the stub WHO (``csis``, the installed tool, or ``decoy``) was called with."""
         lines = self.log.read_text().splitlines() if self.log.exists() else []
         return [ln[len(who) + 1:] for ln in lines if ln.startswith(who + " ")]
 
@@ -128,9 +131,9 @@ def test_every_step_runs_by_the_installed_tool_whatever_csis_names(world: World)
     done = world.take("0.1.6")
     assert done.returncode == 0, done.stdout + done.stderr
     assert world.calls("decoy") == []                                               # neither CSIS nor PATH was asked
-    steps = [c.split()[2] for c in world.calls("tool") if c.startswith("--root-dir")]
+    steps = [c.split()[2] for c in world.calls("csis") if c.startswith("--root-dir")]
     assert steps == ["preflight", "validate"]                                       # the sessions, then `just validate`
-    assert "--version" in world.calls("tool")
+    assert "--version" in world.calls("csis")
 
 
 def test_a_development_release_is_installed_from_testpypi_with_the_index_strategy(world: World):
@@ -141,23 +144,54 @@ def test_a_development_release_is_installed_from_testpypi_with_the_index_strateg
     assert "cs-image-system==0.1.7.dev1" in installed
 
 
-def test_files_the_release_owns_stop_the_take_before_anything_is_committed(world: World):
-    done = world.take("0.1.6", STUB_CHANGES="1")
-    assert done.returncode == 1
-    assert "STOP" in done.stdout and "init-config:   Justfile" in done.stdout and "just take 0.1.6 patched" in done.stdout
-    assert (world.tree / ".csis-version").read_text() == "0.1.5\n"
+def _stopped_on(done: subprocess.CompletedProcess) -> list[str]:
+    """The entries a stopped take names: its indented lines."""
+    return [ln.split(None, 2)[2] for ln in done.stdout.splitlines() if ln.startswith("take:   ")]
+
+
+SAFE = "refresh Justfile\nrefresh tfmodules/m/\nadded CI_SETUP.md\n"
+FORCE_WRITES = "Justfile tfmodules/m/main.tf tfmodules/other/.csis-module CI_SETUP.md README.md"
+
+
+def test_a_release_whose_changes_are_all_safe_is_refreshed_committed_and_recorded_in_one_run(world: World):
+    done = world.take("0.1.6", STUB_PORCELAIN=SAFE, STUB_FORCE_WRITES=FORCE_WRITES)
+    assert done.returncode == 0, done.stdout + done.stderr
+    assert _git(world.tree, "log", "-1", "--format=%s") == "Take 0.1.6; refreshed: Justfile, tfmodules/m/; added: CI_SETUP.md"
+    committed = set(_git(world.tree, "show", "--name-only", "--format=", "HEAD").splitlines())
+    assert committed == {"Justfile", "tfmodules/m/main.tf", "CI_SETUP.md", ".csis-version"}
+    assert (world.tree / "README.md").read_text() == "a tree\n"                   # --force touched it; not listed, so put back
+    assert not (world.tree / "tfmodules" / "other").exists()
     assert _git(world.tree, "status", "--porcelain") == ""
-    assert _git(world.origin, "log", "-1", "--format=%s", "develop") == "first"
+    assert _git(world.origin, "rev-parse", "develop") == _git(world.tree, "rev-parse", "HEAD")
+
+
+def test_anything_edited_stops_the_take_naming_it_alone_and_nothing_is_committed(world: World):
+    for edited in (".gitignore", "tfmodules/m/"):
+        done = world.take("0.1.6", STUB_PORCELAIN=f"refresh Justfile\nedited {edited}\nadded CI_SETUP.md\n",
+                          STUB_PORCELAIN_RC="1", STUB_FORCE_WRITES=FORCE_WRITES)
+        assert done.returncode == 1
+        assert _stopped_on(done) == [edited]
+        assert "just take 0.1.6 patched" in done.stdout
+        assert not [c for c in world.calls("csis") if "--force" in c]                # nothing refreshed
+        assert (world.tree / ".csis-version").read_text() == "0.1.5\n"
+        assert _git(world.tree, "status", "--porcelain") == ""
+        assert _git(world.origin, "log", "-1", "--format=%s", "develop") == "first"
+
+
+def test_a_listing_that_cannot_compare_stops_and_changes_nothing(world: World):
+    done = world.take("0.1.7.dev1", STUB_VERSION="0.1.7.dev1", STUB_PORCELAIN_RC="2")
+    assert done.returncode == 1
+    assert (world.tree / ".csis-version").read_text() == "0.1.5\n" and _git(world.tree, "status", "--porcelain") == ""
 
 
 def test_patched_commits_what_was_refreshed_by_hand_without_listing_again(world: World):
     (world.tree / "Justfile").write_text((world.tree / "Justfile").read_text() + "\n# refreshed by hand\n")
     refused = world.take("0.1.6")
-    assert refused.returncode == 1 and "must be clean" in refused.stdout and "patched" in refused.stdout
-    done = world.take("0.1.6", "patched", STUB_CHANGES="1")                       # the listing would stop; patched skips it
-    assert done.returncode == 0, done.stdout + done.stderr
-    assert _git(world.tree, "show", "--stat", "--format=%s", "HEAD").splitlines()[0] == "Take 0.1.6"
-    assert "Justfile" in _git(world.tree, "show", "--stat", "--format=", "HEAD")
+    assert refused.returncode == 1 and "patched" in refused.stdout                 # not clean: say patched
+    done = world.take("0.1.6", "patched", STUB_PORCELAIN="edited Justfile\n", STUB_PORCELAIN_RC="1")
+    assert done.returncode == 0, done.stdout + done.stderr                         # the listing would stop; patched skips it
+    assert _git(world.tree, "log", "-1", "--format=%s") == "Take 0.1.6"
+    assert "Justfile" in _git(world.tree, "show", "--name-only", "--format=", "HEAD").splitlines()
 
 
 def test_the_catch_up_guard_fast_forwards_develop_from_main_first(world: World):
@@ -200,8 +234,7 @@ def test_a_failure_after_the_pin_is_written_puts_the_pin_back(world: World):
     """A Google 503 mid-take once left .csis-version changed and the tree
     dirty, and only `patched` got past the dirty tree. Now the same command runs again."""
     broken = world.take("0.1.6", STUB_VALIDATE_RC="1")
-    assert broken.returncode == 1
-    assert "`just validate` failed" in broken.stdout and "back at 0.1.5" in broken.stdout and "just take 0.1.6\n" in broken.stdout
+    assert broken.returncode == 1 and "just take 0.1.6" in broken.stdout and "just take 0.1.6 patched" not in broken.stdout
     assert (world.tree / ".csis-version").read_text() == "0.1.5\n"
     assert _git(world.tree, "status", "--porcelain") == ""                          # nothing half-done
     assert _git(world.origin, "log", "-1", "--format=%s", "develop") == "first"
@@ -210,6 +243,20 @@ def test_a_failure_after_the_pin_is_written_puts_the_pin_back(world: World):
     assert _git(world.tree, "log", "-1", "--format=%s") == "Take 0.1.6"
     patched = world.take("0.1.7", "patched", STUB_VERSION="0.1.7", STUB_VALIDATE_RC="1")
     assert patched.returncode == 1 and "just take 0.1.7 patched" in patched.stdout
+
+
+def test_a_failure_after_the_refresh_puts_the_tree_and_the_pin_back_as_head_has_them(world: World):
+    """`init-config --force` moves the tree's pin too, so the pin restored is HEAD's, not the tree's."""
+    justfile = (world.tree / "Justfile").read_text()
+    broken = world.take("0.1.6", STUB_PORCELAIN=SAFE, STUB_FORCE_WRITES=FORCE_WRITES, STUB_VALIDATE_RC="1")
+    assert broken.returncode == 1
+    assert [c for c in world.calls("csis") if "--force" in c]                       # the refresh ran first
+    assert (world.tree / ".csis-version").read_text() == "0.1.5\n"
+    assert (world.tree / "Justfile").read_text() == justfile and not (world.tree / "CI_SETUP.md").exists()
+    assert _git(world.tree, "status", "--porcelain") == ""
+    forced = world.take("0.1.6", STUB_PORCELAIN=SAFE, STUB_FORCE_WRITES=FORCE_WRITES, STUB_FORCE_RC="1")
+    assert forced.returncode == 1
+    assert (world.tree / ".csis-version").read_text() == "0.1.5\n" and _git(world.tree, "status", "--porcelain") == ""
 
 
 def test_main_pushes_main_after_develop_and_its_absence_never_does(world: World):
@@ -259,4 +306,4 @@ def test_a_missing_session_refuses_naming_the_login_before_anything_changes(worl
     assert done.returncode == 1 and LOGIN in done.stdout
     assert (world.tree / ".csis-version").read_text() == "0.1.5\n" and _git(world.tree, "status", "--porcelain") == ""
     assert _git(world.tree, "rev-parse", "HEAD") == head and _git(world.origin, "rev-parse", "develop") == head
-    assert [c for c in world.calls("tool") if "init-config" in c or "validate" in c] == []
+    assert [c for c in world.calls("csis") if "init-config" in c or "validate" in c] == []

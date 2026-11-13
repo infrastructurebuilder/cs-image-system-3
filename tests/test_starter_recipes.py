@@ -66,10 +66,10 @@ def test_every_starter_carries_the_same_take_recipe(rendered_starters: Path):
     # the catch-up guard is the first act on the repository, before the release is installed or a file written
     _order(recipe, "git fetch -q origin", "git merge --ff-only origin/main", "merge-base --is-ancestor origin/main HEAD",
            "uv tool install", "--changes-since", "> .csis-version")
-    # init, then validate, as one loop that puts the pin back when either fails
-    _order(recipe, "> .csis-version", "for step in init validate", 'git commit -q -m "Take $version"')
-    assert "git push origin develop" in recipe and "origin develop:main" in recipe      # pushing main stays the operator's own act
-    assert "init-config . --force" in recipe                                            # the refresh is by hand, by decision
+    # what is safe is refreshed after the listing; init, then validate, as one loop that puts the tree back when either fails
+    _order(recipe, '--changes-since "$prev" --porcelain', "init-config . --force", "\"$version\" > .csis-version",
+           "for step in init validate", 'git commit -q -m "$message"')
+    assert "git push origin develop" in recipe and "origin develop:main" in recipe      # pushing main only when told `main`
     assert "--index-strategy unsafe-first-match" in recipe                              # a development release comes from TestPyPI
 
 
