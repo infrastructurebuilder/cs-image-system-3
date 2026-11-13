@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-# The CI runner image (stage 92): AlmaLinux 10 with every tool a
+# The CI runner image: AlmaLinux 10 with every tool a
 # cs-image-system configuration's CI calls, at pinned versions, placed where
 # the starters' cfg/executables.yml pins them. docs/CI_RUNNER.md is the
 # requirements this image implements; the versions here are the one list.
@@ -12,7 +12,7 @@
 # release-owned lines. The docker CLIENT alone is here: a job mounts the
 # host's socket, and `mod_tests` drives the host daemon through it.
 #
-# The base is pinned by digest (almalinux:10.2, amd64, read 2026-10-16).
+# The base is pinned by digest (almalinux:10.2, amd64): a new base is a new digest.
 ARG BASE_DIGEST=sha256:838c2fafefb1a8a0d7f8cdbc3b0551c2a2b1eb0cd87aad6d62aecadb18311f1b
 FROM --platform=linux/amd64 docker.io/library/almalinux:10@${BASE_DIGEST}
 
@@ -25,8 +25,8 @@ ARG AWSCLI_VERSION=2.37.1
 ARG SSM_PLUGIN_VERSION=1.2.835.0
 ARG GCLOUD_VERSION=589.0.0
 # Google's rpm signing key is refused by EL10's rpm policy ("No binding signature at
-# time ...", read 2026-10-16), so the Cloud CLI comes from Google's versioned archive,
-# pinned by its checksum (computed on 2026-10-16; a new version gets a new checksum).
+# time ..."), so the Cloud CLI comes from Google's versioned archive, pinned by its
+# checksum (a new version gets a new checksum).
 ARG GCLOUD_SHA256=f865da648f6fdae2015abb5b32eaa0eb10520e88f0ca735cfb33795868c8d26f
 ARG SFT_VERSION=1.115.0
 ARG DOCKER_CLI_VERSION=29.9.1
@@ -35,8 +35,8 @@ ARG ANSIBLE_CORE_VERSION=2.21.4
 # in the community.docker collection, not in ansible-core (the third image failed there)
 ARG COMMUNITY_DOCKER_VERSION=5.4.0
 ARG YQ_VERSION=4.53.6
-# AlmaLinux 10's own jq answers `jq --version` with "jq-" and no number (read
-# 2026-10-16), which the system's version floor would refuse; upstream's binary does
+# AlmaLinux 10's own jq answers `jq --version` with "jq-" and no number, which
+# the system's version floor would refuse; upstream's binary does
 ARG JQ_VERSION=1.8.2
 ARG AGE_VERSION=1.3.2
 ARG PYTHON_VERSION=3.13
@@ -45,7 +45,7 @@ ARG PYTHON_VERSION=3.13
 ARG NODE_MAJOR=22
 
 LABEL org.opencontainers.image.title="csis-ci" \
-      org.opencontainers.image.description="AlmaLinux 10 CI runner for cs-image-system configuration repositories (stage 92)" \
+      org.opencontainers.image.description="AlmaLinux 10 CI runner for cs-image-system configuration repositories" \
       org.opencontainers.image.source="https://github.com/infrastructurebuilder/cs-image-system-3" \
       org.opencontainers.image.licenses="Apache-2.0"
 
@@ -59,7 +59,7 @@ RUN dnf -y -q install git sudo openssh-clients unzip tar gzip which findutils pr
     && ln -sf /usr/bin/bash /usr/local/bin/bash \
     # a job's checkout is owned by the runner's user while the container runs as root, and git
     # refuses such a directory ("fatal: not in a git directory" from `git config` on the first
-    # run inside the image, 2026-10-16); every job commits, scans or configures in that checkout
+    # run inside the image); every job commits, scans or configures in that checkout
     && git config --system --add safe.directory '*'
 
 # ---- the vendors' EL10 repositories, each pinned to one package version
