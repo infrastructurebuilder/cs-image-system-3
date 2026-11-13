@@ -244,10 +244,10 @@ take version *words:
 		echo "take: the record failed (above): the commit \"$message\" stands on develop, NOT pushed, and whatever the record wrote is uncommitted. To finish: CSIS=\"$tool\" just record, then git push origin develop$([ "$main" = no ] || echo ', then git push origin develop:main')"
 		exit 1
 	fi
-	git push origin develop
+	git push origin develop || { echo "take: develop could not be pushed (above); the take and its record are committed here -- to finish: git push origin develop$([ "$main" = no ] || echo ', then git push origin develop:main')"; exit 1; }
 	echo "take: $version is taken and recorded, and develop is pushed"
 	if [ "$main" = main ]; then
-		git push origin develop:main
+		git push origin develop:main || { echo "take: main could not be pushed (above); develop is pushed -- to finish: git push origin develop:main"; exit 1; }
 		echo "take: main is pushed: main performs (its CI bakes and applies under the write role)"
 	else
 		echo "take: main was not pushed; when main should perform: git push origin develop:main (or take with 'main')"

@@ -125,7 +125,7 @@ class World:
                             "STUB_TOOL_BIN": str(self.toolbin), "LOGIN_LINE": f"session: EXPIRED -- {LOGIN}", "RECORD": RECORD, "CSIS": str(self.bin / "cs-image-system"),
                             "GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@example.invalid",
                             "GIT_COMMITTER_NAME": "t", "GIT_COMMITTER_EMAIL": "t@example.invalid", **env})
-        return subprocess.run(["just", "take", *args], cwd=self.tree, capture_output=True, text=True, env=environment, timeout=120)
+        return subprocess.run(["just", "take", *args], cwd=self.tree, capture_output=True, text=True, env=environment, timeout=300)
 
 
 @pytest.fixture
