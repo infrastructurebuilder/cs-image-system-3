@@ -100,10 +100,44 @@ def is_parent_reference(obj: Any, fld: Field[Any]) -> bool:
     a foreign key the resolver never defaults: unset means the item is not
     parented yet, and the model that holds the item in its list sets it
     (a deferred list's owner when it enters the item, an OS builder or an
-    image model in its own construction). The registry's default for the
-    target would name ANOTHER builder's model for every item but the
-    default's own."""
+    image model in its own construction, the loader for a group or a user
+    whose ``type`` is written: :func:`parent_by_written_type`). The
+    registry's default for the target would name ANOTHER builder's model
+    for every item but the default's own."""
     return fld.name == PARENT_REFERENCE_FIELD and isinstance(obj, ParentPropertyHoldingProtocol)
+
+
+#: The property a foreign key names in ``also_set_on_update`` when the
+#: model it references is also the item's parent (a group's or a user's
+#: ``type``).
+PARENT_SETTER = "model_id"
+
+
+def parent_by_written_type(reg: Any, obj: Any) -> None:
+    """Parent ``obj`` to the model its written ``type`` names, before any
+    resolution reads it. The item holds its parent by reference and its
+    ``type`` is a foreign key that also sets the parent
+    (``also_set_on_update="model_id"``: a group's, a user's). A type left
+    at ``default`` is parented by the ``fk`` kind in the first pass, where
+    the default it fills in is the parent; a written type sets no parent
+    there, and the parent reference itself is never defaulted
+    (:func:`is_parent_reference`), so without this such an item would hold
+    none. An item already parented, or whose type names no registered
+    model, is left as it is (the type is then a foreign key that names
+    nothing, which ``validate`` refuses)."""
+    if not (is_dataclass(obj) and isinstance(obj, ParentPropertyHoldingProtocol)) or obj.model_id:
+        return
+    for f in fields(obj):
+        target: VCT | None = f.metadata.get(FK_TARGET, None)
+        if f.name == PARENT_REFERENCE_FIELD or not target or f.metadata.get(FK_ALSO_SET_ON_UPDATE) != PARENT_SETTER:
+            continue
+        val = getattr(obj, f.name)
+        if not isinstance(val, str) or val in OOPS_DEFAULTS or field_set_to_default(f, val):
+            continue
+        parent = reg.get_instance_by_name_or_alias(target, val)
+        if isinstance(parent, NameTypedProtocol):
+            obj.model_id = parent.global_id
+        return
 
 
 def default_fk_value(reg: Any, obj: Any, target: VCT) -> str | None:
