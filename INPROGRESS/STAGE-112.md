@@ -1,7 +1,13 @@
 # 112. A release in two boxes
 
 **Status: OPEN 2026-11-03; RE-PLANNED 2026-11-13 against develop at
-`a2c81f1`, after the 0.1.7 and 0.1.8 walks. Waits for "do 112".**
+`a2c81f1`, after the 0.1.7 and 0.1.8 walks. IN PROGRESS since "do
+112", 2026-11-13. The operator took every default: the recipe pushes
+(item 1); `take` always uses the release it installs (3), refreshes
+what is safe (4), records (5), refuses a missing session naming the
+login (6) and makes the before-tag (7); `take` pushes `main` only when
+told `main` (8); `release-take` is a separate recipe (9); the bar,
+then the full-test legs.**
 Re-scoped by §126 (2026-11-06, its item 6 under shape (b)): this
 stage stays whole; the release walk keeps its packages, so its boxes
 are the recipes' to shrink, not a package count's.
