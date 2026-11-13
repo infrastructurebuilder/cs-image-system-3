@@ -520,7 +520,11 @@ release in one command, on `develop`, in this order:
 
 1. **The guard.** The checkout is on `develop` and the tree is clean,
    and `develop` is fast-forwarded from `origin/main` (refused if it
-   cannot be).
+   cannot be). A take that already finished (`HEAD` pins the version
+   and `develop` is level with `origin/develop`) says the version is
+   already taken and exits 0 here, having changed nothing, so running
+   the same command twice is harmless; with `main`, when `origin/main`
+   does not hold it yet, it names the push instead and exits 1.
 2. **The before-tag**, for a final version only (no `.dev`): the tag
    `v<version>-before` on `HEAD`, annotated and pushed, so the tree as
    it stood before the release has a name. A tag that already marks
@@ -554,8 +558,10 @@ release in one command, on `develop`, in this order:
    keeps your text), and prints each entry with its class.
 6. **The pin, init, validate, the commit.** `.csis-version`, `just
    init` and `just validate` (as the tree runs them, by the installed
-   binary), and one commit whose message names what was refreshed:
-   "Take 0.1.8; refreshed: Justfile, .gitignore".
+   binary), and one commit whose subject is `Take 0.1.8` alone and
+   whose body names what was refreshed and added, one line per class
+   (`refreshed: Justfile, .gitignore`, `added: CI_SETUP.md`), so a
+   release that refreshed eight modules still has a short subject.
 7. **The record.** `just record` by the same binary: the emission and
    meta-state of the new pin, committed when they moved, so the push
    arrives with the record CI's drift check looks for.

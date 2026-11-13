@@ -238,9 +238,11 @@ login, before anything changes; it lists what the release changed
 --porcelain`, a terraform module judged by its stamp) and STOPS, naming
 them, on anything you also edited; otherwise it refreshes what was
 listed itself (`init-config . --force`, nothing else kept), writes the
-pin, runs `just init` and `just validate`, commits "Take <version>;
-refreshed: ...", makes the record (`just record`) and pushes `develop`
-once with both commits. After a stop, refresh those entries by hand
+pin, runs `just init` and `just validate`, commits "Take <version>"
+(the body lists what was refreshed and added, one line per class),
+makes the record (`just record`) and pushes `develop` once with both
+commits. Run again after it finished, it says the version is already
+taken and changes nothing. After a stop, refresh those entries by hand
 with `cs-image-system init-config . --force`, review the diff, then
 `just take <version> patched`. A failure before the commit puts the
 tree back as `HEAD` has it (with `patched`, the pin alone), so the same

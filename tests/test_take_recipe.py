@@ -172,8 +172,9 @@ FORCE_WRITES = "Justfile tfmodules/m/main.tf tfmodules/other/.csis-module CI_SET
 def test_a_release_whose_changes_are_all_safe_is_refreshed_committed_and_recorded_in_one_run(world: World):
     done = world.take("0.1.6", STUB_PORCELAIN=SAFE, STUB_FORCE_WRITES=FORCE_WRITES)
     assert done.returncode == 0, done.stdout + done.stderr
-    assert _git(world.tree, "log", "-2", "--format=%s").splitlines() == [
-        RECORD, "Take 0.1.6; refreshed: Justfile, tfmodules/m/; added: CI_SETUP.md"]
+    assert _git(world.tree, "log", "-2", "--format=%s").splitlines() == [RECORD, "Take 0.1.6"]   # the subject alone
+    assert _git(world.tree, "log", "-1", "--format=%b", "HEAD~1").splitlines() == [
+        "refreshed: Justfile, tfmodules/m/", "added: CI_SETUP.md"]                    # the list, one line per class
     committed = set(_git(world.tree, "show", "--name-only", "--format=", "HEAD~1").splitlines())
     assert committed == {"Justfile", "tfmodules/m/main.tf", "CI_SETUP.md", ".csis-version"}
     assert (world.tree / "README.md").read_text() == "a tree\n"                   # --force touched it; not listed, so put back
@@ -333,3 +334,19 @@ def test_a_missing_session_refuses_naming_the_login_before_anything_changes(worl
     assert (world.tree / ".csis-version").read_text() == "0.1.5\n" and _git(world.tree, "status", "--porcelain") == ""
     assert _git(world.tree, "rev-parse", "HEAD") == head and _git(world.origin, "rev-parse", "develop") == head
     assert [c for c in world.calls("csis") if "init-config" in c or "validate" in c] == []
+
+
+def test_a_take_run_again_after_it_finished_says_so_and_changes_nothing(world: World):
+    """The before-tag marks the commit before the take, so a second run of a finished final take
+    would refuse at the tag; it stops before that, exit 0, with nothing installed, tagged or pushed."""
+    done = world.take("0.1.6")
+    assert done.returncode == 0, done.stdout + done.stderr
+    head, log, pushes = _git(world.tree, "rev-parse", "HEAD"), world.log.read_text(), world.pushes.read_text()
+    again = world.take("0.1.6")
+    assert again.returncode == 0, again.stdout + again.stderr
+    assert "already taken" in again.stdout
+    assert _git(world.tree, "rev-parse", "HEAD") == head and _git(world.tree, "status", "--porcelain") == ""
+    assert world.log.read_text() == log and world.pushes.read_text() == pushes      # nothing installed, nothing pushed
+    unpushed = world.take("0.1.6", "main")                                          # asked for main, which lacks it
+    assert unpushed.returncode == 1 and "git push origin develop:main" in unpushed.stdout
+    assert world.pushes.read_text() == pushes

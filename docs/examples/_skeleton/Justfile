@@ -91,6 +91,8 @@ release runtime: full-test
 
 # Take a release: the whole walk of moving this tree onto VERSION, in one box, in this order:
 # 1. the guard: on develop, the tree clean (unless `patched`), develop fast-forwarded from origin/main;
+#    a take that already finished (HEAD pins VERSION, develop level with origin/develop) says so and
+#    exits 0 here, having changed nothing;
 # 2. a FINAL version only: the tag v<VERSION>-before on HEAD, pushed (one already on HEAD is passed);
 # 3. the release installed as the uv tool with this tree's extras (`just extras`); every later step
 #    runs by THAT binary, whatever CSIS names for the other recipes;
@@ -99,7 +101,8 @@ release runtime: full-test
 #    a module judged by its stamp): anything `edited` in this tree STOPS the take, naming it alone
 #    (refresh it by hand, read `git diff`, then `just take VERSION patched`); otherwise
 #    `init-config . --force` refreshes what was listed, and nothing else;
-# 6. .csis-version, `just init`, `just validate`, and the commit "Take VERSION; refreshed: ...";
+# 6. .csis-version, `just init`, `just validate`, and the commit "Take VERSION", whose body names what
+#    was refreshed and added, one line per class;
 # 7. the record (`just record`, by the same binary), its own commit when the emission moved;
 # 8. ONE `git push origin develop` with both; with `main`, then `git push origin develop:main` (`main`
 #    performs: it bakes and applies), and without it `main` is never pushed.
@@ -130,6 +133,19 @@ take version *words:
 	fi
 	# the catch-up guard of develop from origin/main, its own first act (missed twice before it was a recipe)
 	git fetch -q origin
+	# a take that already finished: HEAD pins VERSION, the tree is clean and develop is level with
+	# origin/develop, so running it again says so and changes nothing (the before-tag below marks the
+	# commit before that take, and would refuse)
+	pinned=$(git show HEAD:.csis-version 2>/dev/null | head -1 || true)
+	if [ "$pinned" = "$version" ] && [ -z "$(git status --porcelain)" ] \
+		&& [ "$(git rev-parse HEAD)" = "$(git rev-parse -q --verify origin/develop || true)" ]; then
+		if [ "$main" = main ] && ! git merge-base --is-ancestor HEAD origin/main 2>/dev/null; then
+			echo "take: $version is already taken and develop is pushed, but origin/main does not hold it -- nothing was changed; to push it: git push origin develop:main"
+			exit 1
+		fi
+		echo "take: $version is already taken: HEAD pins it and develop is level with origin/develop -- nothing was changed"
+		exit 0
+	fi
 	if git rev-parse -q --verify origin/main >/dev/null; then
 		git merge --ff-only origin/main >/dev/null || { echo "take: develop cannot fast-forward to origin/main -- reconcile them first; nothing was changed"; exit 1; }
 		git merge-base --is-ancestor origin/main HEAD || { echo "take: origin/main is not an ancestor of develop -- nothing was changed"; exit 1; }
@@ -232,12 +248,15 @@ take version *words:
 	done
 	git add -A
 	git diff --cached --quiet && { echo "take: nothing changed -- $version is already what this tree pins"; exit 0; }
-	# the commit names what the take refreshed and added: "Take 0.1.8; refreshed: Justfile, .gitignore"
+	# the subject is "Take VERSION" alone; the body names what the take refreshed and added, one line per
+	# class ("refreshed: Justfile, .gitignore", "added: CI_SETUP.md"), however many entries there are
 	message="Take $version"
 	joined() { local out="" entry; for entry in "$@"; do out="${out:+$out, }$entry"; done; printf '%s' "$out"; }
-	list=$(joined ${refreshed[@]+"${refreshed[@]}"}); [ -z "$list" ] || message="$message; refreshed: $list"
-	list=$(joined ${added[@]+"${added[@]}"}); [ -z "$list" ] || message="$message; added: $list"
-	git commit -q -m "$message" || { putback; echo "take: the commit failed (above); .csis-version is back at ${old:-nothing}$back, so run the same command again: $again -- $unchanged"; exit 1; }
+	body=""
+	list=$(joined ${refreshed[@]+"${refreshed[@]}"}); [ -z "$list" ] || body="refreshed: $list"
+	list=$(joined ${added[@]+"${added[@]}"}); [ -z "$list" ] || body="${body:+$body$'\n'}added: $list"
+	body_args=(); [ -z "$body" ] || body_args=(-m "$body")
+	git commit -q -m "$message" ${body_args[@]+"${body_args[@]}"} || { putback; echo "take: the commit failed (above); .csis-version is back at ${old:-nothing}$back, so run the same command again: $again -- $unchanged"; exit 1; }
 	# the record by the same release (a committing run is held to the pin), so the emission the push
 	# carries is the new pin's and CI's drift check finds it current; then ONE push of develop with both
 	if ! CSIS="$tool" just record; then
