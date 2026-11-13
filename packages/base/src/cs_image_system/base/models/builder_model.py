@@ -18,10 +18,11 @@ from typing import TYPE_CHECKING, Annotated, Any
 from pydantic import Field, ValidationInfo, model_validator
 from pydantic.dataclasses import dataclass  # validation at construction
 
-from cs_image_system.contract.constants import DEFAULT, NO_MODEL_ID, OOPS_DEFAULTS, UNSET_MODEL_ID, VCT
+from cs_image_system.contract.constants import DEFAULT, NO_MODEL_ID, OOPS_DEFAULTS, VCT
 from cs_image_system.contract.core import (
     BuilderModelProtocol,
     NameTypedProtocol,
+    ParentPropertyHoldingProtocol,
     RuntimeEnabledBuilderModelProtocol,
 )
 from cs_image_system.contract.model_config import CSIS_MODEL_CONFIG
@@ -65,9 +66,14 @@ class NameTyped(NameTypedProtocol):
         return VCT.UNCLASSIFIED
     @property
     def global_id(self) -> str:
-        """A unique identifier for this model: ``<classification>::<model id>::<name>``."""
+        """A unique identifier for this model: ``<classification>::<model id>::<name>``.
+
+        The model id is the parent's global id, read only from a model that
+        holds its parent by reference (``ParentPropertyHoldingProtocol``);
+        any other model's is ``NO_MODEL_ID``, whatever attributes it carries,
+        so a stray attribute named ``model_id`` never changes an id."""
         classifier = self.get_classification() if hasattr(self, "get_classification") else VCT.UNCLASSIFIED.value
-        mid = getattr(self, "model_id", UNSET_MODEL_ID) if hasattr(self, "model_id") else NO_MODEL_ID
+        mid = self.model_id if isinstance(self, ParentPropertyHoldingProtocol) else NO_MODEL_ID
         return f"{classifier}::{mid}::{self.get_name()}"
     # --- the run a model belongs to
     # A model holds no context. The converter that structures it hands it
