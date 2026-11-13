@@ -513,11 +513,12 @@ class TemplateResolver:
         """Enter one newly structured item of a deferred list: it takes the
         owning model's global id as its parent when it holds a parent property
         and has none, goes into the flat map under its own global id (so its
-        templates are resolved with the rest), and is registered. An id that
-        cannot be read is a warning; the item is registered all the same. A
-        parent that cannot be set (the setter's registration refused: a name
-        or an alias another item holds) is the load's error, raised before
-        the item enters the flat map."""
+        templates are resolved with the rest), and is registered. Its id is
+        read as every model's is (a model's id is formatted from its
+        classification, its parent reference and its name, none of which
+        raises). A parent that cannot be set (the setter's registration
+        refused: a name or an alias another item holds) is the load's error,
+        raised before the item enters the flat map."""
         reg = self.reg
         # a sub-item its MODEL already claimed (an OS builder's runtime
         # subconfig, parented in the model's __post_init__) keeps that parent
@@ -526,13 +527,8 @@ class TemplateResolver:
             concrete_mod.model_id = obj.global_id
         # 6. CRITICAL: Add the newly structured model to the flattened map
         # so that TemplateResolver.resolve_all() will process its Jinja tags!
-        if isinstance(concrete_mod, NameTypedProtocol):
-            try:
-                _gid = concrete_mod.global_id
-                if _gid:
-                    self.flattened_map[_gid] = concrete_mod
-            except Exception as e:
-                log.warning(f"Structured object {concrete_mod} does not have a valid global_id. It will not be added to the flattened map for template resolution. Error: {e}")
+        if isinstance(concrete_mod, NameTypedProtocol) and concrete_mod.global_id:
+            self.flattened_map[concrete_mod.global_id] = concrete_mod
         reg.register_built_instance(concrete_mod)  # Register the newly structured model in the registry
 
     def upgrade_deferred_list_object(self, obj, dfield):        

@@ -330,6 +330,31 @@ def test_a_registration_refused_while_parenting_is_the_loads_error(clean_registr
     assert tr.reg.get_instance(VCT.MOD_BUILDER_ITEM_MODEL, "shared") is holder
 
 
+class UnidentifiableItem:
+    """A deferred item whose own id cannot be read."""
+    def __init__(self, name: str):
+        self.name = name
+    def get_name(self): return self.name
+    def get_type(self): return "unidentifiable"
+    def get_description(self): return None
+    def get_aliases(self): return set()
+    def get_classification(self): return VCT.MOD_BUILDER_ITEM_MODEL
+    @property
+    def global_id(self): raise LookupError("no id")
+
+
+def test_an_item_whose_id_cannot_be_read_is_the_loads_error(clean_registry):
+    tr = clean_registry
+    owner, item = Runtime("aws"), UnidentifiableItem("i1")
+    before = dict(tr.flattened_map)
+
+    with pytest.raises(LookupError):
+        tr._enter_deferred_item(owner, item)
+
+    assert tr.flattened_map == before
+    assert tr.reg.get_instance(VCT.MOD_BUILDER_ITEM_MODEL, "i1") is None
+
+
 @dataclass
 class CountingHolder(Holder):
     """A holder that counts how often its sub-item overrides are asked for."""
