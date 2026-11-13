@@ -1470,7 +1470,30 @@ an upload (`just index-ready [test|pypi]` asks the same on its own, and
 means the index cannot take an upload now, nothing was changed, and it
 is the index's condition, not the release's
 ([OPERATIONS.md](OPERATIONS.md), "`just build`, `just release`,
-`just publish`, `just publish-tree`"). The recipes here drive that reference
+`just publish`, `just publish-tree`").
+
+The reference configuration then takes the release, and that is part of
+the same walk: `just release-take <part|version> <test|pypi>` (with
+`main` when the reference's `main` should perform, `yes` for the dry
+form) runs the release and then `just take <version>` in the reference,
+the version read back from what the release cut; the take installs that
+release, refreshes what is safe, commits, makes the record itself by
+the pinned release and pushes `develop` once, so the record is no longer
+a box of its own. A release that refuses or fails runs no take; a take
+that stops names the command that finishes it there. `just release
+<part|version> <index>` and then `just take <version>` in the reference
+are the same walk in two commands. Then `just release-watch <version>`
+waits on the runs both pushed and says one verdict each, reading the
+index and the template repositories for the tag's run and the guard and
+the bake plan for the reference's `main`; when `main` performed, its
+closing line names `develop`'s fast-forward to CI's records. The walk is
+those commands and the login halfway through a PyPI release. The first
+take after the release that carries `release-take` is still the old
+walk, since a tree runs the `take` of the release it is on (section
+1.9): that once, the record by the pinned release and the pushes are
+by hand, as that section says.
+
+The recipes here drive that reference
 configuration only through `just cli ...`, for the system's own live
 proofs; its cycles, like any team's, run from its own `Justfile` (`cd
 ../cs-image-system-testconfig && just cloud-cycle gcloud-east1`), which
@@ -1486,9 +1509,10 @@ carries. A record made that way once reached the tree's CI and failed
 its drift check as BEHIND. So choose, each time: `CSIS_ALLOW_UNPINNED=1
 just record` when the point is to prove the checkout's code (the run
 says `ALLOWED unpinned` in one line and goes on), or
-`CSIS="$HOME/.local/bin/cs-image-system" just record` for the record
-`main` will carry, made by the pinned release your local machine has
-from `just take` ([OPERATIONS.md](OPERATIONS.md), "`--commit`"). The
+`CSIS="$HOME/.local/bin/cs-image-system" just record` for a record
+`main` will carry made between releases, by the pinned release your
+local machine has from `just take` ([OPERATIONS.md](OPERATIONS.md),
+"`--commit`"); the record that follows a release is the take's own. The
 same holds for `just cli run ... --commit` from here. The starter trees
 under
 `docs/examples/` are the source the release is built from: change them

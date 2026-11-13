@@ -617,11 +617,17 @@ and validated by the operator before its "do N")
   fast-forward after; since stage 112 the fast-forwards, the push of
   `main` with the tag, the push of `develop` and the venv's resync are
   the recipe's (`just release` is run from `develop`; the operator's
-  decision: the recipe pushes); a refusal before the bump returns to the
-  starting branch; a failed release leaves its evidence on `main`
-  alone; a maintenance branch `release/<major.minor>` serves an old
-  version's fix and pushes itself alone. (`develop` alone from stage 83
-  to 0.1.5.)
+  decision: the recipe pushes), after a `git fetch origin` that refuses
+  an origin holding commits a pushed branch lacks; a refusal before the
+  bump returns to the starting branch; a failed release leaves its
+  evidence on `main` alone; a maintenance branch `release/<major.minor>`
+  serves an old version's fix and pushes itself alone. (`develop` alone
+  from stage 83 to 0.1.5.) The walk is `just release-take <part>
+  <index>` (the release, then `just take <version>` in the reference,
+  which records and pushes `develop`; a separate recipe, the operator's
+  decision), the login halfway, and `just release-watch <version>`; the
+  reference's `main` is pushed only when `main` is said. The first take
+  onto the release carrying stage 112 is still the old walk.
 - The plugin contract (§30) is provisional until the operator commits
   to it: Tier C declares the context protocol without injecting it, and
   the contract stays 0.x until the operator says. The core's re-export

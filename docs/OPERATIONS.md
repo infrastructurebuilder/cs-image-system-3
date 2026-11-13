@@ -2193,6 +2193,88 @@ then the same ending as the release (step 7): the pushes, `develop`'s
 fast-forward from `main`, and the resync. It is never run from
 `develop`: the bump it finishes is on `main`.
 
+**The whole walk: `just release-take` and `just release-watch`.** A
+release is taken by the live configuration (`config_root`: the
+reference configuration beside this repository, or
+`CSIS_CONFIG_ROOT`), and its CI runs for twenty to thirty minutes
+after the pushes, so the walk is three commands and a login halfway:
+
+```sh
+just release-take <part|version> <test|pypi>      # [main] [yes]
+# halfway through a PyPI release, from a second terminal: aws sso login
+just release-watch <version>
+```
+
+`just release-take <part|version> <index> [main] [yes]` is a separate
+recipe, the operator's decision: `release` alone still serves a
+configuration that takes a release at its own pace. Its logic is
+`release.py release-take`, in this order:
+
+1. the live configuration is asked first, before anything changes
+   here: it is configured (`cfg/_config.yml`), a git checkout, and its
+   `Justfile` has a `take` recipe (`just --summary` there); otherwise
+   it refuses naming which, with nothing changed;
+2. the release, exactly as `just release <part|version> <index>` runs
+   it, probes, gate, upload, tag, pushes and resync included;
+3. the version read back from the tree the release left (`bump-my-version
+   show current_version`, and the tag `v<version>` here), never
+   recomputed from the part;
+4. `just take <version>` in the live configuration, with `main` passed
+   through when given (the take then pushes `develop` to `main`, and
+   `main` performs). The take's own order is the one
+   [DAILY_DRIVER.md](DAILY_DRIVER.md), section 1.9, gives: the
+   before-tag, the install, the sessions, the refresh of what is safe,
+   the pin, init, validate, the commit, the record and one push.
+
+A release that refuses or fails runs no take, and says what the release
+says. A take that stops (a file the release changed and you edited, a
+lapsed session) leaves the release done -- it is never run again -- and
+the closing line names the command that finishes the take there (`cd
+<config_root> && just take <version> [main]`, with `patched` after a
+refresh by hand, as the take's own lines say); the exit code is the
+take's. `yes` is the dry form: the release's dry form, every line of
+it, then `release-take: dry -- would run: cd <config_root> && just take
+<version> [main]`; nothing is changed in either repository.
+
+`just release-watch <version>` (`scripts/release-watch`) waits on the
+runs the walk started, found by commit and never by time, and prints
+one verdict line each, so the walk ends on a recipe's closing line and
+not on a person polling GitHub. Here the commit is the tag's (the
+release pushed it as `main` and `develop` too): the tag's run of CI
+(its `publish` job), `main`'s and `develop`'s runs of CI, and
+`develop`'s run of "CI from scratch". In the live configuration it is
+the commit the take pushed (the `Take <version>` commit on `develop`,
+or the record committed right after it): its run of CI on `develop`
+and, when `origin/main` holds that commit, on `main`. Each run is asked
+every thirty seconds (`gh run list --commit <sha>`, with
+`GH_PAGER=cat`; `gh` from `PATH`, else `/usr/local/opt/gh/bin/gh`)
+until it completes, sixty minutes at most (`--timeout`), and the
+verdict is `passed`, `FAILED -- <conclusion>`, `NEVER STARTED` (no run
+of that workflow on that branch for the commit) or `STILL RUNNING`.
+A green job is not proof that its steps ran, so two runs are read
+further:
+
+- **the tag's run**: the index the version belongs on (TestPyPI for a
+  development version, PyPI for a final one) must list `cs-image-system
+  <version>` (`scripts/index-knows`), and for a final version every
+  template repository (`scripts/starter-tree --list`) must hold the tag
+  `v<version>` (`git ls-remote --tags`, as `just publish-starters`
+  asks); a green run whose index does not list the version is not good;
+- **the configuration's `main` run**: the `perform` job's log
+  (`gh run view <run> --job <job> --log`) must carry the guard's
+  verdict -- its `runtime-unchanged:` lines, none `CHANGED`, or the line
+  that no runtime is guarded; none at all means its steps did not run
+  -- and the bake plan of the performing step (`bake plan: <key>: bake:
+  ...`) is said as what was baked, or `baked nothing`.
+
+Exit 0 only when every verdict is good; a configuration with no `Take
+<version>` commit on `develop` is a verdict too, not good. When the
+configuration's `main` run passed, the closing line names the last
+step, which only follows the run: `develop` fast-forwarded to the
+records CI committed on `main` (`git fetch origin`, then `git checkout
+develop && git merge --ff-only origin/main && git push origin develop`
+there).
+
 **A first release to PyPI takes days.** Production PyPI lets an account
 create only a few NEW projects a day. A first release of many projects
 is refused at the fifth new project of each run with `429 Too many new
@@ -2486,9 +2568,11 @@ repository's, which the release ships.
 | `build` | sdist + wheel of every workspace member under `dist/` (the system package carries the five starter trees) | nothing |
 | `test` | lint → typecheck → pytest, all blocking (the bar) | nothing |
 | `full-test` | `test`, then `full-test-legs`: the dev-pin resolution check (`scripts/dev-pin-resolves`), the docker legs (`test-mods --strict`, `test-posix-accounts`, `test-bake-steps`, `runner-image`, `test-docker-bake`, `test-docker-cycle`, `test-podman-cycle`, `test-podman-desktop-cycle`) and, gated on `preflight`, a dry `run --all` and `state query --strict` over a copy of the reference configuration | docker, the network, reference configuration, runtime sessions; each leg skips loudly |
-| `release <part\|version> [test\|pypi] [yes]` | probe (branch `main` with `develop` an ancestor, or `release/<major.minor>`; the index ready and free of the version; token; tag), the bar or `full-test`, the index again, `bump-my-version`, `uv lock`, `publish`, the `CHANGES.md` row, commit, tag `v<version>`; `yes` = dry (the logic is `scripts/release.py`) | `UV_PUBLISH_TOKEN`; for `pypi`: clean trees, mod-test evidence, `full-test`'s needs |
+| `release <part\|version> [test\|pypi] [yes]` | from `develop`: probe (the branch; a clean tree; the index ready and free of the version; token; tag; the remote, fetched, holding nothing `main` or `develop` lacks), the move to `main` and `uv sync`, the venv's probes, the bar or `full-test`, the index again, `bump-my-version`, `uv lock`, `publish`, the `CHANGES.md` row, commit, tag `v<version>`, then the pushes of `main` and `develop` and the resync; `yes` = dry (the logic is `scripts/release.py`) | `UV_PUBLISH_TOKEN`; for `pypi`: clean trees, mod-test evidence, `full-test`'s needs |
+| `release-take <part\|version> <test\|pypi> [main] [yes]` | the live configuration asked first, then `release`, then `just take <version>` there (the version read back), `main` passed through; `yes` = dry | `release`'s needs, and the live configuration's sessions for the take |
+| `release-watch <version>` | waits on the runs the walk started, found by commit, here and in the live configuration; one verdict each, the index and the template repositories read for the tag's run, the guard and the bake plan for the configuration's `main`; exit 0 only when all are good | `gh`, logged in; the network |
 | `publish [test\|pypi]` | the index asked first, clean `dist/`, `build`, then `scripts/publish-dist`: one project at a time (sdist with wheel, dependencies first, `cs-image-system` last), skip what is there, exit 75 on PyPI's limit on new projects, prove the token when nothing went up | `UV_PUBLISH_TOKEN` |
-| `release-finish [test\|pypi]` | after a release's upload stopped part-way and `publish` completed it: on `main` (or a maintenance branch), the bump uncommitted and nothing else, every project holding the version -- then the evidence commit (PyPI), the `CHANGES.md` row, the commit and the tag; pushes nothing | the index, `develop` |
+| `release-finish [test\|pypi]` | after a release's upload stopped part-way and `publish` completed it: on `main` (or a maintenance branch), the bump uncommitted and nothing else, every project holding the version -- then the evidence commit (PyPI), the `CHANGES.md` row, the commit and the tag, then the release's pushes and resync | the index, `develop` |
 | `index-ready [test\|pypi] [wait]` | can the index take an upload now: the upload endpoint and every project page, one line each; exit 0 ready, 75 not now; `wait` probes every minute, two hours at most | the network |
 | `full-test-legs` | `full-test` without `test`: the dev-pin check, every docker leg above, then a headless dry run `--all` and a `state query --strict` over a private copy of the reference configuration; re-run these after a session renewal instead of the whole `full-test` | `preflight` gates the two copy legs |
 | `format` | `ruff format packages tests` | nothing |
