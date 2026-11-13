@@ -10,14 +10,22 @@ reproduce byte-for-byte.
 """
 import logging
 from dataclasses import dataclass
+from typing import Any
 
 import jinja2
 import pytest
 
 from cs_image_system.base import orchestrator
+from cs_image_system.base.models.mixins import ParentPropertyHolding
 from cs_image_system.base.orchestrator import SmartContext
 from cs_image_system.contract.constants import DEFAULT, NO_MODEL_ID, VCT
-from cs_image_system.contract.fields import deferred_list_field, fk_field, lookup_dataclass_field, templated_field
+from cs_image_system.contract.fields import (
+    deferred_list_field,
+    fk_field,
+    lookup_dataclass_field,
+    parent_field,
+    templated_field,
+)
 
 
 @dataclass
@@ -281,16 +289,45 @@ class UnparentableItem:
     def builder(self): return None
 
 
-def test_an_item_whose_parent_cannot_be_set_enters_the_map_under_its_own_id(clean_registry, caplog):
+def test_an_item_whose_parent_cannot_be_set_is_the_loads_error(clean_registry):
     tr = clean_registry
     owner, item = Runtime("aws"), UnparentableItem("i1")
 
-    with caplog.at_level(logging.WARNING, logger=orchestrator.__name__):
+    with pytest.raises(ValueError):
         tr._enter_deferred_item(owner, item)
 
-    assert tr.flattened_map[item.global_id] is item
-    warnings = [r.getMessage() for r in caplog.records if r.levelno == logging.WARNING and r.name == orchestrator.__name__]
-    assert len(warnings) == 1 and repr(item.global_id) in warnings[0]
+    assert item.global_id not in tr.flattened_map
+    assert tr.reg.get_instance_by_global_id(item.global_id) is None
+
+
+@dataclass
+class AliasedChild(ParentPropertyHolding):
+    """A deferred item bound to its run's registry, with one alias."""
+    name: str
+    alias: str
+    run_registry: Any = None
+    _model_id: str | None = parent_field(VCT.MOD_BUILDER_MODEL)
+    def _own_registry(self): return self.run_registry
+    def get_name(self): return self.name
+    def get_type(self): return "aliased"
+    def get_description(self): return None
+    def get_aliases(self): return {self.alias}
+    def get_classification(self): return VCT.MOD_BUILDER_ITEM_MODEL
+    @property
+    def global_id(self): return f"{self.get_classification()}::{self.model_id}::{self.name}"
+
+
+def test_a_registration_refused_while_parenting_is_the_loads_error(clean_registry):
+    tr = clean_registry
+    holder = AliasedChild("holder", alias="shared")
+    tr.reg.register_built_instance(holder)
+    owner, item = Runtime("aws"), AliasedChild("i1", alias="shared", run_registry=tr.reg)
+
+    with pytest.raises(ValueError):
+        tr._enter_deferred_item(owner, item)
+
+    assert item.global_id not in tr.flattened_map
+    assert tr.reg.get_instance(VCT.MOD_BUILDER_ITEM_MODEL, "shared") is holder
 
 
 @dataclass

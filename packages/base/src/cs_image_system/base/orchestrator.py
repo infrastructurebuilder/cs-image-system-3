@@ -515,36 +515,24 @@ class TemplateResolver:
         and has none, goes into the flat map under its own global id (so its
         templates are resolved with the rest), and is registered. An id that
         cannot be read is a warning; the item is registered all the same. A
-        parent that cannot be set leaves the item without one, and the
-        warning says under which id it entered the flat map nonetheless."""
+        parent that cannot be set (the setter's registration refused: a name
+        or an alias another item holds) is the load's error, raised before
+        the item enters the flat map."""
         reg = self.reg
-        no_parent: Exception | None = None
+        # a sub-item its MODEL already claimed (an OS builder's runtime
+        # subconfig, parented in the model's __post_init__) keeps that parent
+        if (isinstance(concrete_mod, ParentPropertyHoldingProtocol)
+                and isinstance(obj, NameTypedProtocol) and not concrete_mod.model_id):
+            concrete_mod.model_id = obj.global_id
         # 6. CRITICAL: Add the newly structured model to the flattened map
         # so that TemplateResolver.resolve_all() will process its Jinja tags!
-        if isinstance(concrete_mod, ParentPropertyHoldingProtocol):
-            try:
-                # a sub-item its MODEL already claimed (an OS builder's runtime
-                # subconfig, parented in the model's __post_init__) keeps
-                # that parent; this used to overwrite it with the builder's id and
-                # warn four times per load
-                if isinstance(obj, NameTypedProtocol) and not concrete_mod.model_id:
-                    concrete_mod.model_id = obj.global_id
-            except Exception as e:
-                no_parent = e
-        entered_as: str | None = None
         if isinstance(concrete_mod, NameTypedProtocol):
             try:
                 _gid = concrete_mod.global_id
                 if _gid:
                     self.flattened_map[_gid] = concrete_mod
-                    entered_as = _gid
             except Exception as e:
                 log.warning(f"Structured object {concrete_mod} does not have a valid global_id. It will not be added to the flattened map for template resolution. Error: {e}")
-        if no_parent is not None:
-            where = (f"it is added to the flattened map all the same, under its own global id {entered_as!r}"
-                     if entered_as else "it is not in the flattened map either")
-            log.warning(f"Structured object {concrete_mod} does not have a valid _model_id, so it has no parent; "
-                        f"{where}. Error: {no_parent}")
         reg.register_built_instance(concrete_mod)  # Register the newly structured model in the registry
 
     def upgrade_deferred_list_object(self, obj, dfield):        
