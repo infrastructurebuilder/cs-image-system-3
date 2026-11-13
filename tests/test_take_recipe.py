@@ -183,7 +183,8 @@ def test_a_diverged_develop_is_refused_and_nothing_changes(world: World):
 
 def test_refusals_come_before_any_change(world: World):
     assert world.take("banana").returncode == 2
-    assert world.take("0.1.6", "later").returncode == 2
+    assert world.take("0.1.6", "later").returncode == 2                              # an unknown argument
+    assert world.take("0.1.6", "patched", "mian").returncode == 2
     assert world.take("0.1.6", STUB_VERSION="0.1.5").returncode == 1                  # the tool is not that release
     assert world.take("0.1.6", STUB_INSTALL_RC="1").returncode == 1                  # the index did not give it
     _git(world.tree, "checkout", "-q", "-b", "feature/x")
@@ -206,3 +207,17 @@ def test_a_failure_after_the_pin_is_written_puts_the_pin_back(world: World):
     assert _git(world.tree, "log", "-1", "--format=%s") == "Take 0.1.6"
     patched = world.take("0.1.7", "patched", STUB_VERSION="0.1.7", STUB_VALIDATE_RC="1")
     assert patched.returncode == 1 and "just take 0.1.7 patched" in patched.stdout
+
+
+def test_main_pushes_main_after_develop_and_its_absence_never_does(world: World):
+    done = world.take("0.1.6")
+    assert done.returncode == 0, done.stdout + done.stderr
+    assert _git(world.origin, "rev-parse", "main") == _git(world.seed, "rev-parse", "HEAD")      # main untouched
+    (world.tree / "Justfile").write_text((world.tree / "Justfile").read_text() + "\n# refreshed by hand\n")
+    both = world.take("0.1.7", "patched", "main", STUB_VERSION="0.1.7")
+    assert both.returncode == 0, both.stdout + both.stderr
+    head = _git(world.tree, "rev-parse", "HEAD")
+    assert _git(world.origin, "rev-parse", "develop") == head and _git(world.origin, "rev-parse", "main") == head
+    alone = world.take("0.1.8", "main", STUB_VERSION="0.1.8")
+    assert alone.returncode == 0, alone.stdout + alone.stderr
+    assert _git(world.origin, "rev-parse", "main") == _git(world.tree, "rev-parse", "HEAD")

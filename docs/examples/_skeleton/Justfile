@@ -98,17 +98,27 @@ release runtime: full-test
 # `cs-image-system init-config . --force`, read `git diff`, then `just take VERSION patched`. With
 # nothing to patch (or `patched`) it writes .csis-version, runs `just init` and `just validate`,
 # commits "Take VERSION" and pushes `develop`; if `just init` or `just validate` fails the pin is put back, so
-# the same command can be run again. Pushing `develop` to `main` is its own act: `main` performs.
-[doc("Take a release in one box: guard, install, list what the release changed, init, validate, commit, push develop; `patched` after refreshing by hand")]
-take version patched="no":
+# the same command can be run again. Pushing `develop` to `main` happens only when the
+# command says `main` (`main` performs: it bakes and applies); without it `main` is never pushed.
+[doc("Take a release in one box: guard, install, list what the release changed, init, validate, commit, push develop. Then `patched`: you refreshed the release-owned files by hand; `main`: push develop to main too (main performs)")]
+[positional-arguments]
+take version *words:
 	#!/usr/bin/env bash
 	set -euo pipefail
-	version="{{version}}"
+	version="$1"; shift
 	[[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+(\.dev[0-9]+)?$ ]] || { echo "take: '$version' is not a release version (for example 0.1.6 or 0.1.6.dev2)"; exit 2; }
-	[ "{{patched}}" = "no" ] || [ "{{patched}}" = "patched" ] || { echo "take: the second argument is 'patched' (you refreshed the release-owned files by hand) or nothing"; exit 2; }
+	patched=no; main=no
+	for word in "$@"; do
+		case "$word" in
+			patched) patched=patched ;;
+			main) main=main ;;
+			*) echo "take: '$word' is not an argument of take: 'patched' (you refreshed the release-owned files by hand), 'main' (push develop to main at the end), both, or neither"; exit 2 ;;
+		esac
+	done
+	again="just take $version"; [ "$patched" = no ] || again="$again patched"; [ "$main" = no ] || again="$again main"
 	branch=$(git rev-parse --abbrev-ref HEAD)
 	[ "$branch" = develop ] || { echo "take: this checkout is on '$branch'; a release is taken on develop -- nothing was changed"; exit 1; }
-	if [ "{{patched}}" = "no" ]; then
+	if [ "$patched" = no ]; then
 		[ -z "$(git status --porcelain)" ] || { echo "take: the tree must be clean first (commit or discard; after refreshing the release-owned files by hand, say 'patched'):"; git status --short; exit 1; }
 	fi
 	# the catch-up guard of develop from origin/main, its own first act (missed twice before it was a recipe)
@@ -130,7 +140,7 @@ take version patched="no":
 	tool="$(uv tool dir --bin)/cs-image-system"
 	have=$("$tool" --version 2>/dev/null | awk '{print $NF}' || true)
 	[ "$have" = "$version" ] || { echo "take: the installed tool $tool reports '${have:-nothing}', not $version -- nothing was changed"; exit 1; }
-	if [ "{{patched}}" = "no" ] && [ -n "$old" ] && [ "$old" != "$version" ]; then
+	if [ "$patched" = no ] && [ -n "$old" ] && [ "$old" != "$version" ]; then
 		prev=$(uvx ${oldindex[@]+"${oldindex[@]}"} --from "cs-image-system==$old" python -c 'from cs_image_system.system import starters; print(starters.starters_root())' 2>/dev/null) \
 			|| { echo "take: the previous release $old could not be fetched to compare with -- nothing was changed"; exit 1; }
 		if ! "$tool" init-config . --changes-since "$prev"; then
@@ -145,7 +155,7 @@ take version patched="no":
 	for step in init validate; do
 		CSIS="$tool" just "$step" || {
 			if [ "$had" = yes ]; then printf '%s\n' "$prior" > .csis-version; else rm -f .csis-version; fi
-			echo "take: \`just $step\` failed (above); .csis-version is back at ${prior:-nothing}, so run the same command again: just take $version{{ if patched == "patched" { " patched" } else { "" } }}"
+			echo "take: \`just $step\` failed (above); .csis-version is back at ${prior:-nothing}, so run the same command again: $again"
 			exit 1
 		}
 	done
@@ -153,7 +163,13 @@ take version patched="no":
 	git diff --cached --quiet && { echo "take: nothing changed -- $version is already what this tree pins"; exit 0; }
 	git commit -q -m "Take $version"
 	git push origin develop
-	echo "take: $version is taken and develop is pushed. Pushing develop to main is its own act (main performs): git push origin develop:main"
+	echo "take: $version is taken and develop is pushed"
+	if [ "$main" = main ]; then
+		git push origin develop:main
+		echo "take: main is pushed: main performs (its CI bakes and applies under the write role)"
+	else
+		echo "take: main was not pushed; when main should perform: git push origin develop:main (or take with 'main')"
+	fi
 
 # The extras of the umbrella this tree needs, comma-separated in the order aws,gcloud,docker,okta
 # (empty when it needs none): `uv tool install cs-image-system` carries no runtime, and each provider
