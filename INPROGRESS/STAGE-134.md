@@ -76,10 +76,29 @@ blocking, each its own commit on the bundle's branch.
    b. `Storage.type_` declares that it also sets `model_id`, but a
       storage holds no parent, so the resolver writes a stray plain
       attribute onto it, and the field's description says "For User
-      items": the setter goes and the description says what it is;
+      items". Not harmless: a storage left at the default `type` (the
+      fixture's `mnt_data`) then has an item id that names its builder
+      while its keys in the map and the registry use the short form,
+      so its own id finds nothing. The setter goes and the description
+      says what the field is (the operator, 2026-11-13);
    c. the two image subconfig models declare on their parent field
-      that it also sets `model_id`, the field itself: the
-      self-reference goes.
+      that it also sets `model_id`, the field itself. Not a no-op, as
+      first written: the declaration is what gives an image entry's
+      templates the name `builder` (the owning image). It stays, and
+      the base README says so (the operator, 2026-11-13).
+8. Three more of the same kind, found by item 7 (the operator,
+   2026-11-13: all fixed in this stage):
+   a. the parent setter (`ParentPropertyHolding.model_id`) swallows
+      every registration error with a silent `except`, which hid the
+      alias collision item 7(a) met: real errors surface;
+   b. registering the same runtime builder model again raises a name
+      collision in the runtime namespaces, the flaw item 7(a) fixed
+      for aliases: the same instance under its own name is not a
+      collision, a different one still is;
+   c. an item's id (`NameTyped.global_id`) reads any attribute named
+      `model_id` through `hasattr`, so a stray one changes the id (the
+      root of 7(b)): the id reads a parent only from a model that holds
+      its parent by reference.
 
 **Acceptance**: each item its own commit; a golden move is shown to
 the operator before it is regenerated; `just test` green at the end,
