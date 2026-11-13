@@ -154,8 +154,8 @@ section 1.8: CI installs the pin and compares what you committed with
 what it generates, so a record made by another version fails there as
 BEHIND, after the push. The refusal starts `run --commit: REFUSED
 unpinned` and names the pinned version, the running one, and both ways
-out: record with the pinned release (`just take <version>` installs it
-and moves the pin with it), or say `CSIS_ALLOW_UNPINNED=1 just record`
+out: record with the pinned release (`just take <version>` installs it,
+moves the pin with it and makes the record by it), or say `CSIS_ALLOW_UNPINNED=1 just record`
 to go on deliberately. A dry run (`just dry`) and `just validate` commit
 nothing and are never held. If the command is the pinned version from
 the index (`just take` leaves it so; so does `uv run` beside a
@@ -516,28 +516,88 @@ release's tag on GitHub, since a relative one would point nowhere in a
 repository of its own (a template repository's do the same).
 
 `just take <version>` does the whole procedure of moving a tree onto a
-release in one command, on `develop`: it fast-forwards `develop` from
-`origin/main` first (and refuses if it cannot), installs the release (a
-development one from TestPyPI), asks `init-config . --changes-since`
-which files the release owns
-and changed, and **stops there if any did**, because refreshing them is yours
-to do by hand. The listing splits them in two: the files your tree still holds
-exactly as the previous release wrote them (a workflow with only your values
-in it counts), which are safe to refresh, and the files the release changed
-that you also edited, which you read both of. After the refresh below and `git
-diff`, `just take <version> patched` writes `.csis-version`, runs `just init`
-and `just validate`, commits "Take <version>" and pushes `develop`. Pushing
-`develop` to `main` stays its own act: `main` performs.
+release in one command, on `develop`, in this order:
 
-Two refusals are worth knowing. When `CSIS` (your `.envrc` points it at the
-system checkout's `.venv/bin/cs-image-system`) answers with the previous
-version, the venv simply has not been synced since the release: `take` names
-that checkout and says to run `just init` there, then to run the same command
-again; it never reaches into another repository's venv itself. And if `just
-init` or `just validate` fails after the pin was written (a cloud API that
-answered 503, an expired session), `take` puts `.csis-version` back as it was
-and says so, so the same command can simply be run again and the tree is
-never left half-taken; `patched` is only for the files you refreshed by hand.
+1. **The guard.** The checkout is on `develop` and the tree is clean,
+   and `develop` is fast-forwarded from `origin/main` (refused if it
+   cannot be).
+2. **The before-tag**, for a final version only (no `.dev`): the tag
+   `v<version>-before` on `HEAD`, annotated and pushed, so the tree as
+   it stood before the release has a name. A tag that already marks
+   `HEAD` (a second run after a stop) is said and passed; one that marks
+   another commit is refused before anything else happens. A
+   development version gets no tag.
+3. **The install.** The release is installed as the uv tool (`uv tool
+   install --force`, with the extras `just extras` names; a development
+   one from TestPyPI), and every later step of the take runs by that
+   binary, found through `uv tool dir --bin`, whatever `CSIS` names. A
+   committing run is held to exactly that release from an index
+   (section 1.1), so a `CSIS` that points at a system checkout's venv
+   does not stand in the way: `CSIS` stays what the tree's other recipes
+   use.
+4. **The sessions.** `just preflight`, by that binary. A session absent
+   or lapsed refuses the take before anything changes, and preflight's
+   own line names the command that renews it (the login itself, in a
+   browser, stays yours).
+5. **What the release changed.** `init-config . --changes-since <the
+   previous release's starters> --porcelain` lists one entry per line,
+   `<class> <path>`: `refresh` (the release changed it and your copy is
+   still the previous release's own; a workflow with only your values
+   in it counts), `edited` (the release changed it and you edited it
+   too) and `added` (new in the release). A terraform module is ONE
+   entry, `tfmodules/<module>/`, judged by its stamp, not by its text:
+   a copy nobody edited since it was written is `refresh`, an edited
+   copy is `edited`. Anything `edited` **stops the take**, naming those
+   entries alone. Otherwise the take runs `init-config . --force`
+   itself, keeps exactly what was listed (anything else `--force`
+   touched goes back to `HEAD`, so a file the release did not change
+   keeps your text), and prints each entry with its class.
+6. **The pin, init, validate, the commit.** `.csis-version`, `just
+   init` and `just validate` (as the tree runs them, by the installed
+   binary), and one commit whose message names what was refreshed:
+   "Take 0.1.8; refreshed: Justfile, .gitignore".
+7. **The record.** `just record` by the same binary: the emission and
+   meta-state of the new pin, committed when they moved, so the push
+   arrives with the record CI's drift check looks for.
+8. **One push of `develop`**, carrying both commits. `just take
+   <version> main` then pushes `develop` to `main` as well
+   (`git push origin develop:main`) and says that `main` performs: its
+   CI bakes and applies under the write role. Without `main`, `take`
+   never pushes `main`.
+
+When the take stops on `edited` entries, read the release's version
+beside yours and refresh by hand: `cs-image-system init-config .
+--force` keeps your values where the release has `REPLACE-ME`; an
+edited module is kept by naming it under `config: module_sources`, or
+deleted to take the release's. Read `git diff`, then `just take
+<version> patched` (or `patched main`): `patched` skips the listing and
+commits what you refreshed. Any other word after the version is
+refused before anything changes.
+
+What a failure leaves. Up to the commit, a failure (`init-config
+--force`, `just init`, `just validate`: a cloud API that answered 503,
+say) puts the tree back as `HEAD` has it, `.csis-version` included,
+read from `HEAD` because `--force` has moved the tree's copy; the line
+says so, and the same command simply runs again. With `patched` only
+the pin goes back, and your refresh stays. A refusal after the
+before-tag says the tag is the one thing that changed, and the second
+run finds it. A record that fails leaves the "Take" commit on `develop`,
+unpushed, with whatever the record wrote uncommitted, and the line says
+how to finish: the record by the installed binary
+(`CSIS="$(uv tool dir --bin)/cs-image-system" just record`), then `git
+push origin develop`.
+
+**The first take onto the release that brings this recipe is still the
+old walk.** A tree runs the `take` of the release it is ON, and gets the
+new recipe only by refreshing its `Justfile` at that take. So that one
+take is the previous recipe's: the tag `v<version>-before` by hand for a
+final version; `uv tool install --force "cs-image-system[$(just
+extras)]==<version>"` by hand when `CSIS` is set (the old recipe
+installs only without it); the stop on the listing, the refresh by hand
+and `just take <version> patched`; then `CSIS="$HOME/.local/bin/cs-image-system"
+just record`, `git push origin develop` and, when `main` should perform,
+`git push origin develop:main`. Every take after it is the one command
+above.
 
 Run `init-config` again, in the repository, after upgrading the release:
 into a tree that already holds a configuration it writes only the parts
@@ -996,7 +1056,7 @@ below; this is the order a person meets them.
 | Rotate the admin key | add the new key, bake, upgrade every instance, remove the old key, repeat | "Rotate the admin key" |
 | Move a root's state | change `state_configuration`, `just cli --no-dry-run run <lifecycle> --migrate-state <root>` | backs up, copies, accepts only a clean plan at the new location, records the move |
 | Adopt something made by hand | `just cli state import`; for memberships, `tofu import` then a no-op apply | "Adopt out-of-band group membership". An adopted image counts as current when its tagged fingerprint matches today's inputs, so it is not baked again; it carries no in-bake record, so the release grace does not cover it |
-| Upgrade the system | `just take <version>` (guard, install, list what the release changed, validate, commit, push `develop`); or `uv tool upgrade cs-image-system` (or bump the pin and `uv lock`) and `.csis-version` for CI | `just validate`, `just dry`, and read the diff of `generated/`: an emission change is what a system upgrade looks like. A release that asks something of the tree is refused by `validate` until it is given: make the change in the same commit (section 1.1) |
+| Upgrade the system | `just take <version>` (guard, before-tag, install, sessions, refresh what is safe, init, validate, commit, record, push `develop`; `main` pushes `main` too); or `uv tool upgrade cs-image-system` (or bump the pin and `uv lock`) and `.csis-version` for CI | `just validate`, `just dry`, and read the diff of `generated/`: an emission change is what a system upgrade looks like. A release that asks something of the tree is refused by `validate` until it is given: make the change in the same commit (section 1.1) |
 
 Three habits keep changes safe. Dry-run first and read the script: a dry
 run regenerates and lists the commands the real run will execute -- it

@@ -1397,7 +1397,7 @@ both ways out (`uv tool install` and `just take` put the release at
 
 ```sh
 CSIS="$HOME/.local/bin/cs-image-system" just record   # with the pinned release
-just take <version>                                   # first, if the tree should move
+just take <version>                                   # if the tree should move: it records by the release
 CSIS_ALLOW_UNPINNED=1 just record                     # or go on, with what is running
 ```
 
@@ -3418,7 +3418,7 @@ is likely to break the GCE code path; then one live cycle, torn down.
 | `test-mods` | the modification tests |
 | `mask` | a `::add-mask::` line for every value the configuration carries encrypted, so a CI log never shows one; a configuration repository's `live` and `perform` jobs run it before anything prints |
 | `materialize <source> [<destination>]` | copy a generated root into the private mirror (`_private/`), every ENC marker substituted with its plaintext, and print where it landed ("Encrypted values" above) |
-| `init-config <destination> [--from <starter>] [--force] [--changes-since <dir>]` | write a starter configuration repository from this release: an empty destination takes the whole starter (the YAML, the Justfile, the workflow, the hook, `.gitignore`, `tfmodules/` written from the installed plugins and stamped, `.csis-version`), an existing one only the parts the release owns, its module copies refreshed by their stamps (an edited copy is kept and named); `--force` overwrites a release-owned file that differs, never an edited module; `--changes-since` lists what this release changed against the previous release's starters (either layout) and writes nothing |
+| `init-config <destination> [--from <starter>] [--force] [--changes-since <dir> [--porcelain]]` | write a starter configuration repository from this release: an empty destination takes the whole starter (the YAML, the Justfile, the workflow, the hook, `.gitignore`, `tfmodules/` written from the installed plugins and stamped, `.csis-version`), an existing one only the parts the release owns, its module copies refreshed by their stamps (an edited copy is kept and named); `--force` overwrites a release-owned file that differs, never an edited module; `--changes-since` lists what this release changed against the previous release's starters (either layout) and writes nothing, a terraform module as one entry judged by its stamp (a copy nobody edited is safe to refresh, an edited one is `edited`); `--porcelain` prints it for a recipe, `<class> <path>` per line (`refresh`, `edited`, `added`), exit 0 when nothing is `edited`, 1 when something is, 2 when it cannot compare: `just take` reads it and refreshes by itself when nothing is `edited` |
 | `bootstrap [--quiet] [--answers <file>] [--section <name>]...` | the one-time initialisation as terraform, from an interview, run in a configuration repository ("The bootstrap" above); loads no configuration |
 | `config-drift` | is the committed emission current with the declarations? ("`config-drift` and `fixture-live`" above) |
 | `runtime-unchanged <rt> [--ref <ref>]` | has that runtime's emission changed since the ref (default `HEAD`)? 0 unchanged, or only the vendor's newest image moved under a base not yet baked; 1 with the diff; 2 for an unknown runtime; CI's performing job asks it of each `GUARD_RUNTIME` |
