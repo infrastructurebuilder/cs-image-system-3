@@ -359,11 +359,17 @@ EXEMPT_ENTRY_KEYS: frozenset[str] = frozenset({"name", "type"})
 #: process's environment names, and every reader takes a plaintext more as one
 #: more value to hide (a stricter scan, a derived value marked, a record
 #: written as ciphertext), never as one value fewer; what another run opened
-#: can only tighten a run's guards.
+#: can only tighten a run's guards. Kept shared by decision: a store per run
+#: would move every reader (the emission check, the resolver's marking, the
+#: YAML representer, which is registered for the whole process and knows no
+#: run) into the safety path for no guard gained. The cost is that a
+#: long-lived process, in practice the test suite, holds every plaintext it
+#: ever opened until :func:`reset_decrypted_plaintexts` is called.
 _OPENED: dict[str, str] = {}
 
 def decrypted_plaintexts(include_public_by_decision: bool = False) -> set[str]:
-    """The run's plaintext set -- what must not appear in a committed file.
+    """The plaintexts opened in this process (every run's: the store is shared,
+    above) -- what must not appear in a committed file.
 
     Values read ONLY under :data:`PUBLIC_BY_DECISION_KEYS` are left out: a
     username is emitted in clear by the stage-34 decision. Pass
