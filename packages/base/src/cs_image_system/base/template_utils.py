@@ -396,7 +396,7 @@ def string_stage(tree: dict, cycles: int = 10, addl: dict | None = None) -> dict
     for _name, fn in resolution_stages.resolution_passes():
         current = fn(current, addl=addl, cycles=cycles)
     # a tag that remains after the string passes legitimately
-    # resolves at the object stage (`{{ group.name }}`, `{{ identified_model.name }}`);
+    # resolves at the object stage (`{{ group.name }}`, `{{ this.identified_model.name }}`);
     # it is not a warning. (A comment in the files never reaches the tree.)
     remaining = _tagged_leaves(current)
     if remaining:

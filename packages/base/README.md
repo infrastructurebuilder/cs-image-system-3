@@ -527,6 +527,7 @@ The kinds:
 | `templated_field(replace_value, ...)` | `templated` | When the value is `default`, `replace_value` (a Jinja string) is rendered in its place. |
 | `deferred_list_field(builder_vct, item_vct)` | `deferred_list` | A list of mappings structured late, after every builder is registered: each entry's `type` selects a builder of `builder_vct`; the entry is structured as the item class registered under `item_vct` for that builder's type, else the owning model's `get_subitem_overrides()` entry for `item_vct`, else `item_vct`'s default model (the item model a plugin's metadata injected as that classification's default, such as the base's `storage_mapping`). Used for `modifications:` and `storages:`. |
 | `deferred_list_fk_field(target)` | `deferred_list_fk` | A list of foreign keys resolved late. |
+| `parent_field(target, ...)` | `fk` | The `_model_id` of an item that holds its parent by reference: the parent's global id, never a YAML key. It is the one foreign key the resolver never defaults: unset means the item is not parented yet, and the model that holds the item in its list sets it (an OS builder model and an image in their own construction, a deferred list's owner when it enters the item). The registry's default for `target` would name another builder for every item but the default's own. |
 
 A plugin may register a new kind and stamp `field_kind` metadata on its own
 fields.
@@ -569,7 +570,7 @@ Each object renders in a `SmartContext` that exposes:
 | every `fk` field name | The referenced object (or the raw id when unresolved). |
 | `builder` | The owning builder model, when an `also_set_on_update` foreign key resolved. |
 | `image`, `instance`, `group`, `user`, `storage`, `storagemapping` | The object itself, injected under its own lower-case class name (`SelfInjectedNameProtocol`). |
-| `identified_model` | On sub-items, the parent model. |
+| `this.identified_model` | On sub-items, the parent model. It is a property, not a field, so it is reached through `this`; a bare `identified_model` names nothing in the context and a template that writes it is kept as written. |
 | `execution`, `ENV` | The run values and the environment. |
 | any `global_id` | Every registered object, by id. Hyphen and underscore spellings of a key are tried interchangeably. |
 
@@ -644,6 +645,12 @@ a default sentinel.
 `config: dict[str, Any]`, both empty by default) is the base of images,
 instances, groups and users. `SubRootItem` adds the parent link
 (`_model_id`, `identified_model`, `builder`) used by sub-items.
+`identified_model` raises `ValueError` while the reference is unset or
+names nothing in the run's registry. A parent set twice is one parent
+when the second id refines the first (a bare name replaced by a global
+id ending in it, or a model's global id replaced by its builder's, the
+same model id and name under the builder's classification); a different
+parent is a warning.
 
 ### `ExecutableModel` (`cfg/executables.yml`, key `executables`)
 
@@ -738,7 +745,7 @@ live credentials for each.
 | ------- | ------ | --------- | --------- |
 | `image_builder` | `str` (fk `IMAGE_BUILDER_MODEL`) | `default` | The image builder, and through it the runtime. |
 | `name` | `str \| None` | `None` | Unique within the OS builder. |
-| `type` | `str` (templated) | the OS builder name | Filled from the parent. |
+| `type` | `str` (templated) | the OS builder name | `{{ this.identified_model.name }}`: the name of the OS builder whose `runtimes` list holds the entry. The OS builder model parents each entry in its own construction, so the resolver's first pass renders it; the OS builder that wraps the model then refines the reference to its own global id. |
 | `description` | `str` | templated | Free text. |
 | `image_id` | `str \| None` | `None` | A pinned vendor image instead of a query. On the base-image lifecycle `predefined_resolve` skips `query_provider_image` and calls the runtime's `query_provider_image_by_id(entry, image_id)`: on AWS an AMI id, on GCE an image name searched in the entry's owner projects. An id the provider does not know stops resolution. Pinning makes base bakes reproducible. |
 | `auto_update` | `bool \| None` | `None` | `None` inherits the OS builder's. |
@@ -823,7 +830,9 @@ values, so a module's own default applies to the rest.
 
 `ImageImageBuilderSubconfig`: `image_builder` (fk, default → the default
 image builder), `name` (defaults to the image builder), `type`
-(templated), `ssh_username` (`default`), `image_identifier`, `machine_type`
+(the image builder's name, set at construction; its template,
+`{{ this.identified_model.name }}`, applies only when the entry names no
+image builder and none is the default, and then names the image), `ssh_username` (`default`), `image_identifier`, `machine_type`
 (templated: the runtime's default machine type), `tags`, `owners`
 (`[self]`). The image's `_runtime_map` is keyed by each entry's runtime.
 

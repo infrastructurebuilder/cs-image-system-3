@@ -91,9 +91,14 @@ class OsBuilderModel(BuilderModel, OsBuilderModelProtocol):
                     f"{r.get_image_builder()}; one entry per image builder"
                 )
             nameset.add(r.get_image_builder())
-            # the runtime subconfigs are parented ONCE, by the OS builder
-            # that wraps this model (OsBuilderBase.__post_init__, "self-registers");
-            # a claim of the model's own here used to be overwritten there on every load
+            # each entry's parent is this model from the start, as an image
+            # parents its own entries: the resolver renders the entries
+            # before any builder exists, and a template that reads the
+            # parent (the entry's `type`) needs it then. The OS builder that
+            # wraps this model refines the reference to its own global id
+            # (OsBuilderBase.__post_init__), which is what the entries hold
+            # after the load.
+            r.model_id = self.global_id
         if self.default_primary_disk_size == DEFAULT:
             self.default_primary_disk_size = 200
         self.family = str(self.family).strip().lower()

@@ -27,6 +27,17 @@ from cs_image_system.contract.core import (
 log = logging.getLogger(__name__)
 
 
+def refines_parent(current: str, new: str) -> bool:
+    """Whether the parent reference ``new`` names the parent ``current``
+    names, more precisely: ``current`` is a bare name, or ``new`` ends in
+    it, or both are global ids (``<classification>::<model id>::<name>``)
+    that differ only in the classification, as a model's and its
+    builder's do."""
+    if "::" not in current or new.endswith(f"::{current}"):
+        return True
+    return "::" in new and current.partition("::")[2] == new.partition("::")[2]
+
+
 class SelfInjectedName(SelfInjectedNameProtocol):
     """Enter the Jinja context under the lower-cased class name."""
 
@@ -102,12 +113,13 @@ class ParentPropertyHolding(ParentPropertyHoldingProtocol):
         if not model_name:
             return
         if self._model_id and self._model_id != model_name:
-            # a bare NAME is the placeholder the foreign-key fill writes
-            # (`_model_id: default` resolved to the default builder's name); the
-            # builder that wraps the model then assigns its global id, which ends in
-            # that name -- a refinement, not a second parent. Two different global
-            # ids would be, and stay a warning.
-            if "::" in self._model_id and not model_name.endswith(f"::{self._model_id}"):
+            # a refinement of the same parent is not a second one: a bare
+            # name replaced by a global id, or a model's global id replaced
+            # by that of the builder that wraps it (the same model id and
+            # name under the builder's classification: an OS builder model
+            # parents its entries, then its builder does). Two different
+            # parents are, and stay a warning.
+            if not refines_parent(self._model_id, model_name):
                 log.warning(
                     f"Model {self} already has a model assigned: "
                     f"{self._model_id}. Overwriting with {model_name}."

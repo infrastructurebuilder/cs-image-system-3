@@ -88,6 +88,24 @@ class ModelBinding:
     image_sources: ImageSourceCatalog
 
 
+#: The field that holds an item's parent by reference: the contract's
+#: ``ParentPropertyHoldingProtocol`` names it, and ``fields.parent_field``
+#: declares it.
+PARENT_REFERENCE_FIELD = "_model_id"
+
+
+def is_parent_reference(obj: Any, fld: Field[Any]) -> bool:
+    """Whether ``fld`` is the parent reference of ``obj``: the
+    ``_model_id`` field of an item that holds its parent by reference. It is
+    a foreign key the resolver never defaults: unset means the item is not
+    parented yet, and the model that holds the item in its list sets it
+    (a deferred list's owner when it enters the item, an OS builder or an
+    image model in its own construction). The registry's default for the
+    target would name ANOTHER builder's model for every item but the
+    default's own."""
+    return fld.name == PARENT_REFERENCE_FIELD and isinstance(obj, ParentPropertyHoldingProtocol)
+
+
 def default_fk_value(reg: Any, obj: Any, target: VCT) -> str | None:
     """What a foreign key left at ``default`` resolves to: the registry's default
     for its target -- except a root's ``state_configuration``, which inherits
@@ -596,8 +614,9 @@ class TemplateResolver:
         """One field of one model, in one pass. A field left at its default
         takes its foreign key's default (the registry's for the target, a
         root's runtime's state backend) as the value the rest of the pass
-        works with, and its replace template, when it has one, is compiled
-        and rendered once and set on the model. A replace template that
+        works with, except a parent reference, which stays unset
+        (:func:`is_parent_reference`), and its replace template, when it
+        has one, is compiled and rendered once and set on the model. A replace template that
         names something undefined is logged as an error and ends the field
         for this pass (a later pass may define it); one that does not
         compile is logged the same way and raised, since no pass can mend
@@ -610,7 +629,7 @@ class TemplateResolver:
         val = getattr(obj, f.name)
         target: VCT | None = f.metadata.get(FK_TARGET,None)
         if field_set_to_default(f, val):
-            if target:
+            if target and not is_parent_reference(obj, f):
                 val = default_fk_value(reg, obj, target) or DEFAULT
             if f.metadata.get(IS_REPLACE) and f.metadata.get(REPLACE_VALUE):
                 templ = f.metadata[REPLACE_VALUE]
@@ -944,13 +963,19 @@ def unstructure(obj: Any) -> Any:
 
 
 class _FkFieldHandler(field_kinds.FieldKindHandler):
-    """Built-in ``fk`` kind: dereference a foreign-key id into its object in context."""
+    """Built-in ``fk`` kind: dereference a foreign-key id into its object in
+    context. A parent reference that is still unset is not one that names
+    nothing: it is put in the context as it is, neither defaulted nor
+    recorded (:func:`is_parent_reference`)."""
     def contribute_context(self, ctx, obj, field, reg) -> None:
         fk_id = getattr(obj, field.name)
         newval = fk_id
         target: VCT | None = field.metadata.get(FK_TARGET, None)
         if not target:
             raise ValueError(f"Field '{field.name}' in object '{obj}' is marked as FK but has no 'fk_target' metadata.")
+        if not fk_id and is_parent_reference(obj, field):
+            ctx[field.name] = fk_id
+            return
         update_this_field = False
         if field_set_to_default(field, fk_id):
             if target:
