@@ -57,6 +57,15 @@ blocking, each its own commit on the bundle's branch.
 5. `config_loader.py` passes `collect=decrypted_plaintexts()`, a fresh
    copy on every call, so the `collect` argument does nothing there
    (found by §133 item 21). It goes.
+6. Groups and users are parented to the builder their `type` names.
+   Item 1's fix showed the same flaw in four identity items of the
+   fixture (the groups `pxgroup` and `readers`, the users
+   `taylor_tango` and `unity_uniform`): their `type` names a builder
+   other than the default, and nothing sets their parent reference to
+   it, so it held the default builder's bare name (never resolvable)
+   and now holds nothing. Each group and user is parented to its own
+   builder before the first resolution, and a test pins it (found by
+   item 1; the operator, 2026-11-13: fixed in this stage).
 
 **Acceptance**: each item its own commit; a golden move is shown to
 the operator before it is regenerated; `just test` green at the end,
