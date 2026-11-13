@@ -13,7 +13,7 @@ from typing import Generic, TypeVar, cast
 
 log = logging.getLogger(__name__)
 from cs_image_system.contract.assets import AssetSet
-from cs_image_system.contract.constants import NO_MODEL_ID, UNSET_MODEL_ID, VCT
+from cs_image_system.contract.constants import NO_MODEL_ID, VCT
 from cs_image_system.contract.context import RunContextProtocol
 from cs_image_system.contract.core import BuilderProtocol
 from cs_image_system.contract.executables import CFExecutables
@@ -87,10 +87,12 @@ class BuilderBase(ABC, BuilderProtocol, Generic[C]):
     # OsBuilderBase.__post_init__ assigns it to subconfig model_ids.
     @property
     def global_id(self) -> str:
-        """Unique identifier for this builder: 'classification::model_id::name'."""
-        classifier = self.get_classification() if hasattr(self, "get_classification") else VCT.UNCLASSIFIED.value
-        mid = getattr(self, "model_id", UNSET_MODEL_ID) if hasattr(self, "model_id") else NO_MODEL_ID
-        return f"{classifier}::{mid}::{self.get_name()}"
+        """Unique identifier for this builder: ``<classification>::<model id>::<name>``.
+
+        A builder holds no parent, so its model id is always ``NO_MODEL_ID``,
+        whatever attributes it carries: a stray attribute named ``model_id``
+        never changes a builder's id."""
+        return f"{self.get_classification()}::{NO_MODEL_ID}::{self.get_name()}"
     def get_config(self) -> dict[str, str] | None:
         return None
     def add_item(self, item, *args, **kwargs) -> None:
