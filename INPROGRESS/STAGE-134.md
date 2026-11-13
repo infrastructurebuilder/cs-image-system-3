@@ -99,6 +99,21 @@ blocking, each its own commit on the bundle's branch.
       `model_id` through `hasattr`, so a stray one changes the id (the
       root of 7(b)): the id reads a parent only from a model that holds
       its parent by reference.
+9. Four more of the same kind, found by item 8 (the operator,
+   2026-11-13: all fixed in this stage):
+   a. a builder's id (`BuilderBase.global_id`) reads any attribute
+      named `model_id`, the pattern 8(c) removed from items; builders
+      hold no parent;
+   b. OS builder entries are keyed in the resolver's map under their
+      model's id, while their own id later moves to the builder's, so
+      key and id disagree (five entries in the fixture; the registry
+      still finds them);
+   c. `TemplateResolver._enter_deferred_item` still wraps setting a
+      deferred item's parent in a catch-all, so a registration
+      collision there is a warning, not a failure;
+   d. `register_built_instance` writes the name into the item's own
+      namespace before the runtime-namespace check, so a colliding
+      registration overwrites that entry and then raises.
 
 **Acceptance**: each item its own commit; a golden move is shown to
 the operator before it is regenerated; `just test` green at the end,
