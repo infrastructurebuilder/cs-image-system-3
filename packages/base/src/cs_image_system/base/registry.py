@@ -370,41 +370,58 @@ class Registry:
         if not classifier:
             log.warning(f"Could not determine classification for instance {instance}. Skipping registration.")
             return
+        own_name = model.get_name()
+        aliases = list(model.get_aliases()) if isinstance(model, NameTypedProtocol) else []
+        # every key the registration writes is checked before any is
+        # written: a refused registration leaves the registry as it was
+        self._check_registration(classifier, own_name, model_name, aliases, instance)
         # Register by name within the namespace
-        if model.get_name() in self.instances[classifier]:
-            log.debug(f"Overwriting instance {model.get_name()} in namespace {classifier}")  # expected: re-registered across resolve passes
-        self.instances[classifier][model.get_name()] = instance
+        if own_name in self.instances[classifier]:
+            log.debug(f"Overwriting instance {own_name} in namespace {classifier}")  # expected: re-registered across resolve passes
+        self.instances[classifier][own_name] = instance
         try:
             _gid = instance.global_id
             if _gid:
                 self.instances_by_global_id[_gid] = instance
         except Exception as e:
             log.warning(f"Instance {instance} does not have a valid global_id. Skipping registration in global_id registry. Error: {e}")
-            
         self._enter_runtime_namespace(classifier, model_name, instance)
-        
-        # Register aliases within the namespace; an alias the same instance
-        # already holds is no collision (an item is registered again when its
-        # parent is set, as a name is)
-        for alias in (model.get_aliases() if isinstance(model, NameTypedProtocol) else set()):
-            if alias in self.instances[classifier] and self.instances[classifier][alias] is not instance:
-                raise ValueError(f"Instance Alias Collision: '{alias}' is already in use for {classifier}!")
+        for alias in aliases:
             self.instances[classifier][alias] = instance
             self._enter_runtime_namespace(classifier, alias, instance)
+
+    def _check_registration(self, classifier: VCT, own_name: str, model_name: str,
+                            aliases: list[str], instance: Any) -> None:
+        """Refuse a registration that would take a key another instance
+        holds, before anything is written: an alias in the instance's own
+        namespace (its name there is overwritten, as an instance is entered
+        again across resolve passes), its name or an alias in the runtime
+        namespace a cloud or container classification is entered in too.
+        The same instance already under a key is no collision (an item is
+        registered again when its parent is set)."""
+        own = self.instances[classifier]
+        namespace = RUNTIME_NAMESPACE_OF.get(classifier)
+        runtime_table = self.instances[namespace] if namespace is not None else {}
+
+        def runtime_collision(key: str) -> None:
+            if namespace is not None and key in runtime_table and runtime_table[key] is not instance:
+                raise ValueError(f"Instance name collision: '{key}' is already registered in {namespace.name} namespace!")
+
+        runtime_collision(model_name)
+        for alias in aliases:
+            if alias != own_name and alias in own and own[alias] is not instance:
+                raise ValueError(f"Instance Alias Collision: '{alias}' is already in use for {classifier}!")
+            runtime_collision(alias)
 
     def _enter_runtime_namespace(self, classifier: VCT, key: str, instance: Any) -> None:
         """Enter a cloud or container ``instance`` under ``key`` (its name or
         an alias) in the runtime namespace its classification belongs to;
-        nothing for any other classification. The same instance already
-        there is no collision (an instance is registered again, as its name
-        is in its own namespace); another instance under ``key`` is."""
+        nothing for any other classification. The key is checked first
+        (:meth:`_check_registration`): the same instance already there is no
+        collision, another instance under ``key`` is."""
         namespace = RUNTIME_NAMESPACE_OF.get(classifier)
-        if namespace is None:
-            return
-        table = self.instances[namespace]
-        if key in table and table[key] is not instance:
-            raise ValueError(f"Instance name collision: '{key}' is already registered in {namespace.name} namespace!")
-        table[key] = instance
+        if namespace is not None:
+            self.instances[namespace][key] = instance
 
     def get_all_instances_by_classification(self, classifier: VCT) -> dict[str, Any]:
         """Get all registered instances under a specific classification."""
