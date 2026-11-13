@@ -382,7 +382,7 @@ class Registry:
         try:
             _gid = instance.global_id
             if _gid:
-                self.instances_by_global_id[_gid] = instance
+                self._enter_global_id(_gid, instance)
         except Exception as e:
             log.warning(f"Instance {instance} does not have a valid global_id. Skipping registration in global_id registry. Error: {e}")
         self._enter_runtime_namespace(classifier, model_name, instance)
@@ -412,6 +412,17 @@ class Registry:
             if alias != own_name and alias in own and own[alias] is not instance:
                 raise ValueError(f"Instance Alias Collision: '{alias}' is already in use for {classifier}!")
             runtime_collision(alias)
+
+    def _enter_global_id(self, global_id: str, instance: Any) -> None:
+        """Index ``instance`` under ``global_id``, its id now. An instance
+        registered again under a new id (its parent reference refined, which
+        moves the id) leaves every id it was indexed under before: an entry
+        under an old id is removed only when it holds this same instance, so
+        the index never keeps an id its object no longer has."""
+        index = self.instances_by_global_id
+        for old in [key for key, held in index.items() if held is instance and key != global_id]:
+            del index[old]
+        index[global_id] = instance
 
     def _enter_runtime_namespace(self, classifier: VCT, key: str, instance: Any) -> None:
         """Enter a cloud or container ``instance`` under ``key`` (its name or
