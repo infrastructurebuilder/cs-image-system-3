@@ -4,12 +4,13 @@
 
 """``init-config TREE --changes-since PREVIOUS_STARTERS``.
 
-A tree takes a release by refreshing the files the release owns, by hand. This
-read-only listing is what the person reads first: which of those files the release
-changed, split into the ones the tree still holds as the previous release wrote
-them (safe to refresh) and the ones the tree also edited (read both), and which are
-new. The previous release is stood in for by a copy of the packaged starters with a
-few files made older; the tree is a whole starter written by ``init-config``.
+A tree takes a release by refreshing the files the release owns. This read-only
+listing is what is read first, by a person or (``--porcelain``) by ``just take``:
+which of those files the release changed, split into the ones the tree still holds
+as the previous release wrote them (safe to refresh) and the ones the tree also
+edited (read both), and which are new. A terraform module is one entry, judged by
+its stamp. The previous release is stood in for by a copy of the packaged starters
+with a few files made older; the tree is a whole starter written by ``init-config``.
 """
 from __future__ import annotations
 
@@ -18,6 +19,7 @@ from pathlib import Path
 
 from typer.testing import CliRunner
 
+from cs_image_system.base.modules import STAMP_FILE, Stamp, content_hash, installed_modules
 from cs_image_system.system import starters
 from cs_image_system.system.cli import app
 
@@ -48,7 +50,7 @@ def test_a_file_the_release_changed_and_the_tree_still_has_as_the_old_release_wr
     (tree / "Justfile").write_text(_older(previous, "Justfile"))
     report = starters.changes_since(tree, previous, "standard-aws")
     assert report.refresh == ["Justfile"] and report.edited == [] and report.added == []
-    assert not report.clear and report.unchanged >= 5       # the other release-owned files; a previous root of this layout holds no module to count
+    assert not report.clear and report.unchanged >= 5       # the other release-owned files, and every module the stamps call current
 
 
 def test_a_changed_file_the_tree_also_edited_is_listed_apart(tmp_path: Path):
@@ -113,3 +115,111 @@ def test_a_directory_that_is_not_a_configuration_is_refused(tmp_path: Path):
     empty.mkdir()
     result = runner.invoke(app, ["init-config", str(empty), "--changes-since", str(previous)])
     assert result.exit_code == 2 and "not a configuration repository" in result.output
+
+
+# ------------------------------------------------------------ the porcelain form, and the modules by their stamps
+
+def _porcelain(tree: Path, previous: Path) -> tuple[int, list[tuple[str, str]]]:
+    result = runner.invoke(app, ["init-config", str(tree), "--from", "standard-aws", "--changes-since", str(previous),
+                                 "--porcelain"])
+    entries = [tuple(line.split(" ", 1)) for line in result.output.splitlines() if line]
+    return result.exit_code, [(e[0], e[1]) for e in entries]
+
+
+def _a_module(tree: Path) -> tuple[str, Path]:
+    """(the entry ``tfmodules/<name>/``, the copy) of the first installed module, as the tree holds it."""
+    name = next(iter(installed_modules()))
+    return f"{starters.MODULES_DIR}/{name}/", tree / starters.MODULES_DIR / name
+
+
+def _as_another_release_wrote_it(copy: Path) -> None:
+    """The copy's content made older and its stamp to match: what a previous release wrote, nobody's edit since."""
+    tf = sorted(copy.glob("*.tf"))[0]
+    tf.write_text(tf.read_text() + "# the previous release's line\n")
+    old = Stamp.read(copy / STAMP_FILE)
+    assert old is not None
+    Stamp(plugin=old.plugin, release="0.0.1", hash=content_hash(copy)).write(copy / STAMP_FILE)
+
+
+def test_porcelain_a_refresh_is_one_line_and_exits_0(tmp_path: Path):
+    previous, tree = _world(tmp_path)
+    (tree / "Justfile").write_text(_older(previous, "Justfile"))
+    code, entries = _porcelain(tree, previous)
+    assert code == 0 and entries == [(starters.CHANGE_REFRESH, "Justfile")]
+
+
+def test_porcelain_an_edited_file_exits_1(tmp_path: Path):
+    previous, tree = _world(tmp_path)
+    (tree / "Justfile").write_text(_older(previous, "Justfile"))
+    _older(previous, ".gitignore")
+    (tree / ".gitignore").write_text("# a local edit\n" + (tree / ".gitignore").read_text())
+    code, entries = _porcelain(tree, previous)
+    assert code == 1
+    assert entries == [(starters.CHANGE_REFRESH, "Justfile"), (starters.CHANGE_EDITED, ".gitignore")]
+
+
+def test_porcelain_an_added_file_exits_0(tmp_path: Path):
+    previous, tree = _world(tmp_path)
+    (tree / "CI_SETUP.md").unlink()
+    (previous / "standard-aws" / "CI_SETUP.md").write_text("an older guide\n")
+    code, entries = _porcelain(tree, previous)
+    assert code == 0 and entries == [(starters.CHANGE_ADDED, "CI_SETUP.md")]
+
+
+def test_porcelain_a_clear_tree_prints_nothing_and_exits_0(tmp_path: Path):
+    previous, tree = _world(tmp_path)
+    assert _porcelain(tree, previous) == (0, [])
+
+
+def test_porcelain_that_cannot_compare_exits_2(tmp_path: Path):
+    previous, tree = _world(tmp_path)
+    shutil.rmtree(previous / "standard-aws")
+    assert _porcelain(tree, previous)[0] == 2
+    alone = runner.invoke(app, ["init-config", str(tree), "--porcelain"])           # the form of --changes-since alone
+    assert alone.exit_code == 2
+
+
+def test_a_module_another_release_wrote_and_nobody_edited_is_one_refresh_entry(tmp_path: Path):
+    previous, tree = _world(tmp_path)
+    entry, copy = _a_module(tree)
+    _as_another_release_wrote_it(copy)
+    report = starters.changes_since(tree, previous, "standard-aws")
+    assert report.refresh == [entry] and report.edited == []                      # per module, not per file
+    code, entries = _porcelain(tree, previous)
+    assert code == 0 and entries == [(starters.CHANGE_REFRESH, entry)]
+    forced = runner.invoke(app, ["init-config", str(tree), "--from", "standard-aws", "--force"])
+    assert forced.exit_code == 0, forced.output                                   # and --force takes it, as judged
+    assert content_hash(copy) == content_hash(installed_modules()[copy.name].path)
+
+
+def test_a_module_edited_since_its_stamp_is_edited_and_exits_1(tmp_path: Path):
+    previous, tree = _world(tmp_path)
+    entry, copy = _a_module(tree)
+    tf = sorted(copy.glob("*.tf"))[0]
+    tf.write_text(tf.read_text() + "# a local edit\n")                            # the stamp still names the release's hash
+    code, entries = _porcelain(tree, previous)
+    assert code == 1 and entries == [(starters.CHANGE_EDITED, entry)]
+
+
+def test_a_module_the_tree_lacks_is_added_and_one_named_in_module_sources_is_not_judged(tmp_path: Path):
+    previous, tree = _world(tmp_path)
+    entry, copy = _a_module(tree)
+    shutil.rmtree(copy)
+    assert _porcelain(tree, previous) == (0, [(starters.CHANGE_ADDED, entry)])
+    cfg = tree / "cfg" / "_config.yml"
+    cfg.write_text(cfg.read_text().replace("config:\n", f"config:\n  module_sources:\n    {copy.name}: ../elsewhere\n", 1))
+    assert _porcelain(tree, previous) == (0, [])
+
+
+def test_an_unstamped_module_is_judged_by_content(tmp_path: Path):
+    previous, tree = _world(tmp_path)
+    entry, copy = _a_module(tree)
+    (copy / STAMP_FILE).unlink()
+    assert _porcelain(tree, previous) == (0, [])                                  # identical to the release's: adopted, unchanged
+    tf = sorted(copy.glob("*.tf"))[0]
+    tf.write_text(tf.read_text() + "# unknown origin\n")
+    assert _porcelain(tree, previous) == (1, [(starters.CHANGE_EDITED, entry)])
+    # a previous release of the older layout carried the module in its tree: the same content is that release's own
+    held = previous / "standard-aws" / starters.MODULES_DIR / copy.name
+    shutil.copytree(copy, held)
+    assert _porcelain(tree, previous) == (0, [(starters.CHANGE_REFRESH, entry)])

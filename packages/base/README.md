@@ -1582,8 +1582,13 @@ name, `force` or not; an unstamped copy is adopted when identical to the
 release's and refused otherwise (`force` replaces it); a module named in
 `overrides` (the keys of `config: module_sources`, which
 `declared_overrides(config_root)` reads from the raw `cfg/_config.yml`)
-is skipped. `cs-image-system modules [--write DIR] [--force]` is the
-command over it, and `init-config` uses it for a tree's copies.
+is skipped. `module_verdict(copy, release_hash)` is that judgement of one
+copy, writing nothing (`absent`, `refresh`, `adopt`, `current`, `edited`,
+`unstamped`, `not-a-directory`): `materialise_modules` acts on it, and
+`init-config --changes-since` reports each module by it, so a copy nobody
+edited is listed safe to refresh and an edited one is listed as edited.
+`cs-image-system modules [--write DIR] [--force]` is the command over it,
+and `init-config` uses it for a tree's copies.
 
 The emission reads none of this: `module_source` in `utils.py` resolves a
 call's `source` from `config: module_source_base` (every module) and
@@ -1595,7 +1600,7 @@ elsewhere, or edit a copy and keep the edit by naming it.
 
 | Module | Purpose |
 | -------- | --------- |
-| [`modules.py`](src/cs_image_system/base/modules.py) | The installed terraform modules (`installed_modules`, from the `cs_image_system.modules` entry points, no plugin import), their materialisation into a tree with a stamp per copy (`materialise_modules`, `Stamp`, `content_hash`, `ModulesReport`) and the names `config: module_sources` declares (`declared_overrides`); see [The terraform modules](#the-terraform-modules). |
+| [`modules.py`](src/cs_image_system/base/modules.py) | The installed terraform modules (`installed_modules`, from the `cs_image_system.modules` entry points, no plugin import), their materialisation into a tree with a stamp per copy (`materialise_modules`, `module_verdict`, `Stamp`, `content_hash`, `ModulesReport`) and the names `config: module_sources` declares (`declared_overrides`); see [The terraform modules](#the-terraform-modules). |
 | [`state_query.py`](src/cs_image_system/base/state_query.py) | Asks every plugin for reality (images by lineage tags, storages by name, groups by gid), diffs it against meta-state, and classifies drift as `missing`, `foreign`, `changed` or `stale`. Hard drift (a pinned build gone, a storage recorded live but absent, a managed group unknown to the provider, an instance pinned to an unrecorded build) makes the next run's validation refuse. `import_foreign` adopts foreign artifacts into meta-state; nothing here writes to a cloud or to terraform state. The report is `generated/state-report.json`. |
 | [`storage_state.py`](src/cs_image_system/base/storage_state.py) | The storage state machine: legal transitions (`active` to `archived` and back, either to `destroyed`, and regeneration of a destroyed name), the rule that a storage must be unattached to leave `active`, transitions for undeclared storages, and the recording of applied transitions. |
 | [`v2_validation.py`](src/cs_image_system/base/v2_validation.py) | Generation-time rules, all hard: managed groups may not disappear; allowed groups exist; the strict attach rule; single-attach cardinality; data lifecycles only where the builder realizes them; storage transitions are legal; an instance image's group exists and every instance image has one; declared types resolve to configured plugins; admin keys are public keys; every base image has a debug path (keys or a session mechanism); capability resolution on both axes; test specs use the known vocabulary; update policies are valid. |

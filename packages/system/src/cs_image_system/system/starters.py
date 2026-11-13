@@ -83,11 +83,18 @@ import yaml
 from packaging.version import InvalidVersion, Version
 
 from cs_image_system.base.modules import (
+    ABSENT,
+    ADOPT,
+    CURRENT,
+    REFRESH,
     STAMP_FILE,
+    UNSTAMPED,
     ModulesReport,
+    content_hash,
     declared_overrides,
     installed_modules,
     materialise_modules,
+    module_verdict,
 )
 from cs_image_system.base.pinned_release import PIN_FILE
 
@@ -613,21 +620,36 @@ def init_config(destination: Path, starter: str | None = None, *, force: bool = 
     return report
 
 
+#: The classes of ``init-config --changes-since --porcelain``, the first word of each line.
+CHANGE_REFRESH = "refresh"
+CHANGE_EDITED = "edited"
+CHANGE_ADDED = "added"
+
+
 @dataclass
 class ChangesReport:
-    """What a release changed in the release-owned files of an existing tree.
-    Nothing is written: this is the list a person reads before refreshing by
-    hand."""
+    """What a release changed in the release-owned files and the terraform
+    modules of an existing tree. Nothing is written: this is the list a
+    person reads, or ``take`` reads in its porcelain form, before the
+    release-owned parts are refreshed (``init-config --force``); a tree
+    with nothing ``edited`` may be refreshed without reading."""
     starter: str
     inferred: bool
-    refresh: list[str] = field(default_factory=list)    # changed by the release; the tree still has the previous release's text
-    edited: list[str] = field(default_factory=list)     # changed by the release; the tree's copy also differs from the previous release's
-    added: list[str] = field(default_factory=list)      # new in the release; the tree has no such file
+    refresh: list[str] = field(default_factory=list)    # changed by the release; the tree still has the previous release's text (a module: its stamp says unedited)
+    edited: list[str] = field(default_factory=list)     # changed by the release; the tree's copy also differs from the previous release's (a module: edited since its stamp)
+    added: list[str] = field(default_factory=list)      # new in the release; the tree has no such file or module
     unchanged: int = 0
 
     @property
     def clear(self) -> bool:
         return not (self.refresh or self.edited or self.added)
+
+    def porcelain(self) -> list[str]:
+        """One line per entry, ``<class> <path>``, for a recipe to read: the
+        classes are ``refresh``, ``edited`` and ``added`` (a module's path
+        ends in ``/``); nothing at all when the tree is clear."""
+        return [f"{cls} {p}" for cls, paths in ((CHANGE_REFRESH, self.refresh), (CHANGE_EDITED, self.edited),
+                                                 (CHANGE_ADDED, self.added)) for p in paths]
 
     def lines(self) -> list[str]:
         out = [f"init-config: changes since the previous release, in the release-owned files of {self.starter}"
@@ -667,6 +689,39 @@ def installed_module_files(base: str) -> dict[str, Path]:
     return out
 
 
+def _judge_modules(destination: Path, base: str, previous_tree: Path, report: ChangesReport) -> None:
+    """Each installed module, one entry ``<base>/<module>/``, judged by its
+    stamp as ``materialise_modules`` judges it (``module_verdict``): absent
+    is added; a stamped copy nobody edited of another release is refresh;
+    one already the release's, or an unstamped copy identical to it, is
+    unchanged; a stamped copy edited since, or something that is not a
+    directory, is edited. An unstamped copy that differs is the previous
+    release's own when that release carried whole trees and its module of
+    that name is the copy's content (refresh); otherwise edited. A module
+    ``config: module_sources`` names is the tree's and is not judged."""
+    skip = set(declared_overrides(destination))
+    for name, module in installed_modules().items():
+        if name in skip:
+            continue
+        entry = f"{base}/{name}/"
+        copy = destination / base / name
+        verdict = module_verdict(copy, content_hash(module.path))
+        if verdict == ABSENT:
+            report.added.append(entry)
+        elif verdict == REFRESH:
+            report.refresh.append(entry)
+        elif verdict in (CURRENT, ADOPT):
+            report.unchanged += 1
+        elif verdict == UNSTAMPED and _previous_module_is(previous_tree / MODULES_DIR / name, copy):
+            report.refresh.append(entry)
+        else:
+            report.edited.append(entry)
+
+
+def _previous_module_is(previous: Path, copy: Path) -> bool:
+    return previous.is_dir() and content_hash(previous) == content_hash(copy)
+
+
 def changes_since(destination: Path, previous_root: Path, starter: str | None = None) -> ChangesReport:
     """Compare, for each release-owned file of this release's starter, the
     previous release's starter (``previous_root``, a ``starters/`` directory
@@ -674,14 +729,11 @@ def changes_since(destination: Path, previous_root: Path, starter: str | None = 
     and the tree's. Writes nothing. A file the release did not change is
     not listed, whatever the tree holds.
 
-    This release's side is the rendered starter plus the installed plugins'
-    modules, as they would sit in the tree's own modules directory. The
-    previous side's modules are the files of its tree when that release
-    carried whole trees; a previous root of the current layout carries no
-    module, and a file it lacks is never counted as unchanged: it is listed
-    as added when the tree has no such file, as edited when the tree's copy
-    differs from this release's, and not at all when it is this release's.
-    The stamps (``.csis-module``) are part of no comparison."""
+    The terraform modules are judged apart, one entry per module, by the
+    copy's stamp (``_judge_modules``), not by text: a previous root of the
+    current layout carries no module to compare with, and the stamp is what
+    tells a copy nobody edited from an edited one. The stamps are part of
+    no file's comparison."""
     destination = destination.resolve()
     if not destination.is_dir() or not holds_configuration(destination):
         raise ValueError(f"{destination} is not a configuration repository (no cfg/_config.yml, no {VERSION_FILE})")
@@ -695,20 +747,12 @@ def changes_since(destination: Path, previous_root: Path, starter: str | None = 
                          "a starter new in this release has no previous text to compare with")
     new = render_sources(starter)
     old = render_sources(starter, previous_root)
-    owned = release_owned_paths(new)
-    base = module_base_of(_cfg_text(destination))
-    if base:
-        modules = installed_module_files(base)
-        new.update(modules)
-        owned.extend(sorted(modules))
     report = ChangesReport(starter=starter, inferred=inferred)
-    for rel in owned:
-        if posixpath.basename(rel) == STAMP_FILE:
-            continue
+    for rel in release_owned_paths(new):
+        if rel.startswith(MODULES_DIR + "/") or posixpath.basename(rel) == STAMP_FILE:
+            continue                                    # a module is judged by its stamp, below
         new_p, mine = new[rel], destination / rel
         old_p = old.get(rel)
-        if old_p is None and base and base != MODULES_DIR and rel.startswith(base + "/"):
-            old_p = old.get(f"{MODULES_DIR}/{rel[len(base) + 1:]}")       # the older layout's modules directory
         if old_p is not None and _same(old_p, new_p):
             report.unchanged += 1
         elif not mine.is_file():
@@ -720,4 +764,10 @@ def changes_since(destination: Path, previous_root: Path, starter: str | None = 
                 report.unchanged += 1
         else:
             report.edited.append(rel)
+    base = module_base_of(_cfg_text(destination))
+    if base:
+        try:
+            _judge_modules(destination, base, previous_root / starter, report)
+        except ValueError as e:
+            raise ValueError(f"{destination / 'cfg' / '_config.yml'}: {e}") from e
     return report
