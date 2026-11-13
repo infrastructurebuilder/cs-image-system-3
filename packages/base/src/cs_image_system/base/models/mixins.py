@@ -130,7 +130,7 @@ class ParentPropertyHolding(ParentPropertyHoldingProtocol):
         reg = self._own_registry()
         if reg is None:
             return      # made in code, outside a load: no run's registry to enter
-        try:
-            reg.register_built_instance(self) # Register the child object in its run's registry for resolution by other builders that depend on it
-        except Exception:
-            pass # Fail silently
+        # entered again in its run's registry, under its id that now names
+        # its parent, for the builders that resolve it; a registration that
+        # fails (a name or an alias another item holds) is the load's error
+        reg.register_built_instance(self)
