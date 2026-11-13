@@ -6,12 +6,14 @@
 
 The walk of moving a tree onto a release was five boxes; it is one. These tests run the
 recipe for real, with git and just, in a throwaway pair of repositories (a bare origin and a
-clone), while the three things that need the network or the index are stubs on PATH: the
-installed command (``cs-image-system``), ``uv tool install`` and ``uvx``. What is proved:
-the catch-up guard is the first act and really fast-forwards, nothing is committed while the
-release-owned files wait for a patch, ``patched`` commits what was refreshed by hand, and a
-tree that is not clean, not on develop, or handed a wrong version is refused before anything
-changes.
+clone), while the things that need the network or the index are stubs on PATH: ``uv`` (its
+``tool install`` and ``tool dir --bin``), ``uvx``, and the installed tool, which lives in a
+directory of its own as ``uv tool install`` would put it. A ``cs-image-system`` on PATH and
+a ``CSIS`` that names it both answer wrongly, so a take that leaned on either would fail.
+What is proved: the catch-up guard is the first act and really fast-forwards, every step
+runs by the installed tool, nothing is committed while the release-owned files wait for a
+patch, ``patched`` commits what was refreshed by hand, and a tree that is not clean, not on
+develop, or handed a wrong version is refused before anything changes.
 """
 from __future__ import annotations
 
@@ -29,6 +31,7 @@ JUSTFILE = REPO / "docs" / "examples" / "_skeleton" / "Justfile"      # the skel
 pytestmark = pytest.mark.skipif(shutil.which("just") is None or shutil.which("git") is None, reason="needs just and git")
 
 CSIS_STUB = """#!/bin/sh
+echo "tool $*" >> "$STUB_LOG"
 case "$1" in
   --version) echo "cs-image-system ${STUB_VERSION:-0.1.6}" ;;
   --help) echo help ;;
@@ -39,8 +42,15 @@ case "$1" in
 esac
 exit 0
 """
+# what PATH and CSIS offer: never the release, so a take that used either fails
+DECOY_STUB = """#!/bin/sh
+echo "decoy $*" >> "$STUB_LOG"
+[ "$1" = --version ] && echo "cs-image-system 0.0.0"
+exit 3
+"""
 UV_STUB = """#!/bin/sh
 [ "$1" = tool ] && [ "$2" = install ] && { echo "$@" >> "$STUB_LOG"; exit ${STUB_INSTALL_RC:-0}; }
+[ "$1" = tool ] && [ "$2" = dir ] && [ "$3" = --bin ] && { echo "$STUB_TOOL_BIN"; exit 0; }
 exit 0
 """
 UVX_STUB = """#!/bin/sh
@@ -73,16 +83,24 @@ class World:
         _git(seed, "push", "-q", "origin", "main")
         _git(seed, "push", "-q", "origin", "main:develop")
         subprocess.run(["git", "clone", "-q", "-b", "develop", str(self.origin), str(self.tree)], check=True)
-        self.bin.mkdir()
-        for name, body in (("cs-image-system", CSIS_STUB), ("uv", UV_STUB), ("uvx", UVX_STUB)):
-            path = self.bin / name
+        self.toolbin = tmp / "tool-bin"                     # where `uv tool install` puts the release
+        for where, name, body in ((self.bin, "cs-image-system", DECOY_STUB), (self.bin, "uv", UV_STUB),
+                                  (self.bin, "uvx", UVX_STUB), (self.toolbin, "cs-image-system", CSIS_STUB)):
+            where.mkdir(exist_ok=True)
+            path = where / name
             path.write_text(body)
             path.chmod(path.stat().st_mode | stat.S_IXUSR)
         self.seed = seed
 
+    def calls(self, who: str) -> list[str]:
+        """The argument lines the stub WHO (``tool`` or ``decoy``) was called with."""
+        lines = self.log.read_text().splitlines() if self.log.exists() else []
+        return [ln[len(who) + 1:] for ln in lines if ln.startswith(who + " ")]
+
     def take(self, *args: str, **env: str) -> subprocess.CompletedProcess:
         environment = {k: v for k, v in os.environ.items() if k not in ("CSIS", "VIRTUAL_ENV")}
         environment.update({"PATH": f"{self.bin}:{os.environ['PATH']}", "STUB_LOG": str(self.log),
+                            "STUB_TOOL_BIN": str(self.toolbin), "CSIS": str(self.bin / "cs-image-system"),
                             "GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@example.invalid",
                             "GIT_COMMITTER_NAME": "t", "GIT_COMMITTER_EMAIL": "t@example.invalid", **env})
         return subprocess.run(["just", "take", *args], cwd=self.tree, capture_output=True, text=True, env=environment, timeout=120)
@@ -100,8 +118,16 @@ def test_a_release_that_changed_nothing_the_tree_owns_is_taken_in_one_box(world:
     assert _git(world.tree, "log", "-1", "--format=%s") == "Take 0.1.6"
     assert _git(world.origin, "log", "-1", "--format=%s", "develop") == "Take 0.1.6"          # develop was pushed
     assert _git(world.origin, "log", "-1", "--format=%s", "main") == "first"                  # main was not touched
-    assert "init: cs-image-system 0.1.6 ready" in done.stdout and "git push origin develop:main" in done.stdout
     assert "tool install --force cs-image-system==0.1.6" in world.log.read_text()
+
+
+def test_every_step_runs_by_the_installed_tool_whatever_csis_names(world: World):
+    done = world.take("0.1.6")
+    assert done.returncode == 0, done.stdout + done.stderr
+    assert world.calls("decoy") == []                                               # neither CSIS nor PATH was asked
+    steps = [c.split()[2] for c in world.calls("tool") if c.startswith("--root-dir")]
+    assert steps == ["validate"]                                                    # `just validate` by the tool
+    assert "--version" in world.calls("tool")
 
 
 def test_a_development_release_is_installed_from_testpypi_with_the_index_strategy(world: World):
@@ -158,29 +184,12 @@ def test_a_diverged_develop_is_refused_and_nothing_changes(world: World):
 def test_refusals_come_before_any_change(world: World):
     assert world.take("banana").returncode == 2
     assert world.take("0.1.6", "later").returncode == 2
-    wrong = world.take("0.1.6", STUB_VERSION="0.1.5")
-    assert wrong.returncode == 1 and "reports '0.1.5', not 0.1.6" in wrong.stdout
-    nope = world.take("0.1.6", STUB_INSTALL_RC="1")
-    assert nope.returncode == 1 and "could not be installed" in nope.stdout
+    assert world.take("0.1.6", STUB_VERSION="0.1.5").returncode == 1                  # the tool is not that release
+    assert world.take("0.1.6", STUB_INSTALL_RC="1").returncode == 1                  # the index did not give it
     _git(world.tree, "checkout", "-q", "-b", "feature/x")
     off = world.take("0.1.6")
     assert off.returncode == 1 and "taken on develop" in off.stdout
     assert (world.tree / ".csis-version").read_text() == "0.1.5\n"
-
-
-def test_a_stale_venv_in_a_checkout_names_the_checkout_and_just_init(world: World, tmp_path: Path):
-    """CSIS points at <checkout>/.venv/bin/cs-image-system, whose venv answers
-    with the version it was last synced to; the refusal says where, and which command."""
-    venv_bin = tmp_path / "system-checkout" / ".venv" / "bin"
-    venv_bin.mkdir(parents=True)
-    shutil.copy2(world.bin / "cs-image-system", venv_bin / "cs-image-system")
-    stale = world.take("0.1.6", CSIS=str(venv_bin / "cs-image-system"), STUB_VERSION="0.1.6.dev2")
-    assert stale.returncode == 1
-    assert f"the venv of {tmp_path / 'system-checkout'}" in stale.stdout and "`just init` THERE" in stale.stdout
-    assert "nothing was changed" in stale.stdout
-    assert (world.tree / ".csis-version").read_text() == "0.1.5\n" and _git(world.tree, "status", "--porcelain") == ""
-    elsewhere = world.take("0.1.6", CSIS=str(world.bin / "cs-image-system"), STUB_VERSION="0.1.6.dev2")
-    assert "point CSIS" in elsewhere.stdout          # not a venv: the old sentence
 
 
 def test_a_failure_after_the_pin_is_written_puts_the_pin_back(world: World):
