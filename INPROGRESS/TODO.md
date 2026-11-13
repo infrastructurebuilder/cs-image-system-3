@@ -99,8 +99,8 @@ order (the default), or [§113](STAGE-113.md) first as its file plans it.
   for "do 113"); §114 and §115 landed inside §125; each waits for its
   "do N".
 - 0.1.8, the latest final release, is cut (2026-11-12): it carries
-  §132 and §133; the reference's `develop` and `main` still run 0.1.7
-  until its take (Release, below).
+  §132 and §133; the reference's `develop` and `main` run it
+  (Release, below).
 - Interval checks (the F44 review, the `STARTER_PUSH_TOKEN` renewal)
   live in [REMINDERS.md](../REMINDERS.md).
 
@@ -125,10 +125,13 @@ and validated by the operator before its "do N")
   0.4.1 (9590cbb), and the release now refuses an unbumped
   own-version package before its gate (`scripts/own-versions-current`,
   23eb98a).
-- The reference configuration's tag `v0.1.8-before` is af99460; its
-  take of 0.1.8 is owed (a comment-only refresh of five release-owned
-  files and the fourteen stamps, previewed; the first record under the
-  pin check, so it names the pinned CLI).
+- The reference configuration runs 0.1.8 (tag `v0.1.8-before` =
+  af99460; take cbb1524, a comment-only refresh of five release-owned
+  files and the fourteen stamps; record b1bf84e with the pinned CLI,
+  the first record under the pin check, CI green on `develop`). Its
+  `main` took 0.1.8 on 2026-11-12 (`perform` green: the guard
+  unchanged, nothing baked, no machine replaced, the login proof ok;
+  records to f112b74, `develop` fast-forwarded to it).
 - 0.1.7, the previous final release: PyPI and TestPyPI, tag `v0.1.7`
   (42a7b34), 2026-11-12, cut from `main`. Carries §110 and §111
   (hygiene XXII and XXIII), the stages of the re-examination (§118 to
@@ -139,7 +142,7 @@ and validated by the operator before its "do N")
   had asked the release's version of the contract, which keeps its
   own, since §125 (fixed in 8dddc33; development releases are gated on
   the bar alone, so the leg had not run since 0.1.6).
-- The reference configuration runs 0.1.7 (tag `v0.1.7-before` =
+- The reference configuration ran 0.1.7 until 0.1.8 (tag `v0.1.7-before` =
   258b75d; take ce727a4, which refreshed the Justfile, `.gitignore`
   and eight modules and committed the fourteen module stamps for the
   first time; record a0c51fc, CI green on `develop`). Its `main` took
