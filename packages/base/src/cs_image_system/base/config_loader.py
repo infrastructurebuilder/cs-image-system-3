@@ -38,7 +38,7 @@ from cs_image_system.contract.model_config import CSIS_MODEL_CONFIG
 
 from .models.ia_config import IAConfig
 from .models.user import User
-from .orchestrator import PydanticConverter, TemplateResolver, parent_by_written_type
+from .orchestrator import PydanticConverter, TemplateResolver, parent_by_default_type, parent_by_written_type
 
 if TYPE_CHECKING:
     from .basic.builder_base_image import ImageBuilderBase
@@ -239,11 +239,13 @@ def read_item_kind(ctx: RunContext, spec: ItemKind) -> list[Any]:
             structured = cvt.structure(raw, model_cls)
             for ri in (structured if isinstance(structured, list) else [structured]):
                 if isinstance(ri, spec.model_cls):
-                    # every builder model is registered by now: an item whose
-                    # written `type` names its parent holds that builder's
-                    # model from before the first pass, as one left at
-                    # `default` does from the first pass on
+                    # every builder model and its default is registered by
+                    # now: an item whose `type` names its parent holds that
+                    # builder's model (the default's, for a type left at
+                    # `default`) before it is entered in the flat map, so
+                    # the key it is entered under names its parent
                     parent_by_written_type(reg, ri)
+                    parent_by_default_type(reg, ri)
                     items.append(ri)
                     template_resolver.flatten_dataclass(ri)
                     reg.register_built_instance(ri)

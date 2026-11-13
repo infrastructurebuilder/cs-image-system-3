@@ -380,9 +380,11 @@ class Registry:
                 raise ValueError(f"Instance name collision: '{model_name}' is already registered in RUNTIME_BUILDER namespace!")
             self.instances[VCT.RUNTIME_BUILDER][model_name] = instance
         
-        # Register aliases within the namespace
+        # Register aliases within the namespace; an alias the same instance
+        # already holds is no collision (an item is registered again when its
+        # parent is set, as a name is)
         for alias in (model.get_aliases() if isinstance(model, NameTypedProtocol) else set()):
-            if alias in self.instances[classifier]:
+            if alias in self.instances[classifier] and self.instances[classifier][alias] is not instance:
                 raise ValueError(f"Instance Alias Collision: '{alias}' is already in use for {classifier}!")
             self.instances[classifier][alias] = instance
             if classifier in [VCT.CLOUD_BUILDER_MODEL, VCT.CONTAINER_BUILDER_MODEL]:

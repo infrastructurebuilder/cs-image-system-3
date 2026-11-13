@@ -101,7 +101,8 @@ def is_parent_reference(obj: Any, fld: Field[Any]) -> bool:
     parented yet, and the model that holds the item in its list sets it
     (a deferred list's owner when it enters the item, an OS builder or an
     image model in its own construction, the loader for a group or a user
-    whose ``type`` is written: :func:`parent_by_written_type`). The
+    by its ``type``: :func:`parent_by_written_type`,
+    :func:`parent_by_default_type`). The
     registry's default for the target would name ANOTHER builder's model
     for every item but the default's own."""
     return fld.name == PARENT_REFERENCE_FIELD and isinstance(obj, ParentPropertyHoldingProtocol)
@@ -113,31 +114,66 @@ def is_parent_reference(obj: Any, fld: Field[Any]) -> bool:
 PARENT_SETTER = "model_id"
 
 
-def parent_by_written_type(reg: Any, obj: Any) -> None:
-    """Parent ``obj`` to the model its written ``type`` names, before any
-    resolution reads it. The item holds its parent by reference and its
-    ``type`` is a foreign key that also sets the parent
-    (``also_set_on_update="model_id"``: a group's, a user's). A type left
-    at ``default`` is parented by the ``fk`` kind in the first pass, where
-    the default it fills in is the parent; a written type sets no parent
-    there, and the parent reference itself is never defaulted
-    (:func:`is_parent_reference`), so without this such an item would hold
-    none. An item already parented, or whose type names no registered
-    model, is left as it is (the type is then a foreign key that names
-    nothing, which ``validate`` refuses)."""
+def _parent_setting_type(obj: Any) -> tuple[Field[Any], VCT, Any] | None:
+    """The foreign key of an unparented ``obj`` that also sets its parent
+    (``also_set_on_update="model_id"``: a group's, a user's ``type``), its
+    target and its value; None when ``obj`` holds no parent by reference,
+    is parented already, or declares no such key."""
     if not (is_dataclass(obj) and isinstance(obj, ParentPropertyHoldingProtocol)) or obj.model_id:
-        return
+        return None
     for f in fields(obj):
         target: VCT | None = f.metadata.get(FK_TARGET, None)
         if f.name == PARENT_REFERENCE_FIELD or not target or f.metadata.get(FK_ALSO_SET_ON_UPDATE) != PARENT_SETTER:
             continue
-        val = getattr(obj, f.name)
-        if not isinstance(val, str) or val in OOPS_DEFAULTS or field_set_to_default(f, val):
-            continue
-        parent = reg.get_instance_by_name_or_alias(target, val)
-        if isinstance(parent, NameTypedProtocol):
-            obj.model_id = parent.global_id
+        return f, target, getattr(obj, f.name)
+    return None
+
+
+def _parent_to(reg: Any, obj: Any, target: VCT, name: str) -> None:
+    """Set ``obj``'s parent to the global id of the ``target`` model named
+    ``name``; nothing when no such model is registered."""
+    parent = reg.get_instance_by_name_or_alias(target, name)
+    if isinstance(parent, NameTypedProtocol):
+        obj.model_id = parent.global_id
+
+
+def parent_by_written_type(reg: Any, obj: Any) -> None:
+    """Parent ``obj`` to the model its written ``type`` names, before any
+    resolution reads it. The item holds its parent by reference and its
+    ``type`` is a foreign key that also sets the parent
+    (``also_set_on_update="model_id"``: a group's, a user's). A written
+    type sets no parent in the ``fk`` kind, and the parent reference itself
+    is never defaulted (:func:`is_parent_reference`), so without this such
+    an item would hold none. A type left at ``default`` is
+    :func:`parent_by_default_type`'s. An item already parented, or whose
+    type names no registered model, is left as it is (the type is then a
+    foreign key that names nothing, which ``validate`` refuses)."""
+    found = _parent_setting_type(obj)
+    if found is None:
         return
+    f, target, val = found
+    if not isinstance(val, str) or val in OOPS_DEFAULTS or field_set_to_default(f, val):
+        return
+    _parent_to(reg, obj, target, val)
+
+
+def parent_by_default_type(reg: Any, obj: Any) -> None:
+    """Parent ``obj`` whose ``type`` is left at ``default`` to the model the
+    default resolves to (:func:`default_fk_value`, as the ``fk`` kind
+    resolves it in the first pass), before the item is entered in the flat
+    map: its global id names its parent, so the key it is entered under is
+    the one it keeps. The ``fk`` kind sets the same parent again there. An
+    item already parented, whose type is written, or whose classification
+    has no default registered, is left as it is."""
+    found = _parent_setting_type(obj)
+    if found is None:
+        return
+    f, target, val = found
+    if not field_set_to_default(f, val):
+        return
+    name = default_fk_value(reg, obj, target)
+    if name and name not in OOPS_DEFAULTS:
+        _parent_to(reg, obj, target, name)
 
 
 def default_fk_value(reg: Any, obj: Any, target: VCT) -> str | None:

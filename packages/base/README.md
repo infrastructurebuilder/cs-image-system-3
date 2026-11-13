@@ -527,7 +527,7 @@ The kinds:
 | `templated_field(replace_value, ...)` | `templated` | When the value is `default`, `replace_value` (a Jinja string) is rendered in its place. |
 | `deferred_list_field(builder_vct, item_vct)` | `deferred_list` | A list of mappings structured late, after every builder is registered: each entry's `type` selects a builder of `builder_vct`; the entry is structured as the item class registered under `item_vct` for that builder's type, else the owning model's `get_subitem_overrides()` entry for `item_vct`, else `item_vct`'s default model (the item model a plugin's metadata injected as that classification's default, such as the base's `storage_mapping`). Used for `modifications:` and `storages:`. |
 | `deferred_list_fk_field(target)` | `deferred_list_fk` | A list of foreign keys resolved late. |
-| `parent_field(target, ...)` | `fk` | The `_model_id` of an item that holds its parent by reference: the parent's global id, never a YAML key. It is the one foreign key the resolver never defaults: unset means the item is not parented yet, and the model that holds the item in its list sets it (an OS builder model and an image in their own construction, a deferred list's owner when it enters the item, the loader for a group or a user whose `type` is written: `parent_by_written_type`, right after the item is structured and before the first pass). The registry's default for `target` would name another builder for every item but the default's own. |
+| `parent_field(target, ...)` | `fk` | The `_model_id` of an item that holds its parent by reference: the parent's global id, never a YAML key. It is the one foreign key the resolver never defaults: unset means the item is not parented yet, and the model that holds the item in its list sets it (an OS builder model and an image in their own construction, a deferred list's owner when it enters the item, the loader for a group or a user by its `type`: `parent_by_written_type` for a written one, `parent_by_default_type` for one left at `default`, right after the item is structured and before it is entered in the flat map, so the key it is entered under names its parent). The registry's default for `target` would name another builder for every item but the default's own. |
 
 A plugin may register a new kind and stamp `field_kind` metadata on its own
 fields.
@@ -884,7 +884,7 @@ ignored.
 
 | Field | Type | Default | Meaning |
 | ------- | ------ | --------- | --------- |
-| `type` | `str` (fk `GROUP_BUILDER_MODEL`) | `default` | The group builder, and the group's parent: the group holds that builder's model (its global id) as `_model_id`, so `identified_model` and `builder` are it. A written `type` is the parent from before the resolver's first pass (the loader sets it), a `type` left at `default` from the first pass on (the default it resolves to sets it). |
+| `type` | `str` (fk `GROUP_BUILDER_MODEL`) | `default` | The group builder, and the group's parent: the group holds that builder's model (its global id) as `_model_id`, so `identified_model` and `builder` are it. The loader sets it right after the group is structured, before the resolver's first pass: a written `type` names it, a `type` left at `default` the registry's default builder for groups. |
 | `is_default` | `bool` | `False` | The group every user joins by default. |
 | `is_root` | `bool` | `False` | The single root group. Exactly one group must set it. |
 | `members` | `set[EncryptedStr]` | empty | User names; each must be a defined user. Entries may be `ENC[age:...]`. |
