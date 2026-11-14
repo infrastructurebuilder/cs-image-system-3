@@ -18,6 +18,7 @@ import pytest
 from cs_image_system.base import orchestrator
 from cs_image_system.base.models.mixins import ParentPropertyHolding
 from cs_image_system.base.orchestrator import SmartContext
+from cs_image_system.base.registry import CORE_NAMESPACE, InstanceCollisionError, InstanceKey
 from cs_image_system.contract.constants import DEFAULT, NO_MODEL_ID, VCT
 from cs_image_system.contract.fields import (
     deferred_list_field,
@@ -319,15 +320,17 @@ class AliasedChild(ParentPropertyHolding):
 
 def test_a_registration_refused_while_parenting_is_the_loads_error(clean_registry):
     tr = clean_registry
-    holder = AliasedChild("holder", alias="shared")
-    tr.reg.register_built_instance(holder)
-    owner, item = Runtime("aws"), AliasedChild("i1", alias="shared", run_registry=tr.reg)
+    owner = Runtime("aws")
+    holder = AliasedChild("holder", alias="shared", run_registry=tr.reg)
+    holder.model_id = owner.global_id            # a sibling under the same owner holds the alias
+    item = AliasedChild("i1", alias="shared", run_registry=tr.reg)
 
-    with pytest.raises(ValueError):
+    with pytest.raises(InstanceCollisionError):
         tr._enter_deferred_item(owner, item)
 
     assert item.global_id not in tr.flattened_map
-    assert tr.reg.get_instance(VCT.MOD_BUILDER_ITEM_MODEL, "shared") is holder
+    shared = InstanceKey(VCT.MOD_BUILDER_ITEM_MODEL, CORE_NAMESPACE, owner.global_id, "shared")
+    assert tr.reg.instances[VCT.MOD_BUILDER_ITEM_MODEL][shared] is holder
 
 
 class UnidentifiableItem:

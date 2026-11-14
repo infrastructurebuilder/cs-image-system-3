@@ -26,6 +26,7 @@ from ..orchestrator import ModelBinding
 from .builder_model import NameTyped
 from .image_builder_model import ImageBuilderModel
 from .mixins import ParentPropertyHolding, SelfInjectedName
+from .references import REFERENCE_TARGET
 from .root_item import RootItem  #, SubRootItem
 
 if TYPE_CHECKING:
@@ -213,7 +214,7 @@ class Image(RootItem, SelfInjectedName):
     #                             "required": True,
     #                         })
     # source image is either SELF, as a base image, some some other Image that eventually is source_image == SELF
-    source_image: str| None  = None
+    source_image: str| None  = field(default=None, metadata={REFERENCE_TARGET: (VCT.BASE_IMAGE_MODEL, VCT.IMAGE_MODEL)})
     auto_update: bool | None = None
     # Convergent bakes: how this image follows its parent series.
     # pinned (N17, default): bakes FROM the pinned parent build until an explicit
@@ -251,12 +252,12 @@ class Image(RootItem, SelfInjectedName):
     # V2 (Q4, DESIGN §3F): an instance image belongs to exactly ONE group. The
     # group name is system-unique, so it alone identifies the backing
     # identity-manager type; every instance of this image shares the group.
-    group: str | None = None
+    group: str | None = field(default=None, metadata={REFERENCE_TARGET: VCT.GROUP_MODEL})
     # EXPLORE image tests: declarative in-bake assertions (files,
     # packages, commands, services, users) run as the LAST provisioner; a
     # failing assertion fails the bake.
     tests: dict[str, Any] = field(default_factory=dict)
-    default_groups: list[str] = field(default_factory=list)
+    default_groups: list[str] = field(default_factory=list, metadata={REFERENCE_TARGET: VCT.GROUP_MODEL})
     runtimes: list[ImageImageBuilderSubconfig] = field(default_factory=list)
     description: str | None = None
 

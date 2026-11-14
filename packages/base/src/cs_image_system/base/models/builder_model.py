@@ -28,7 +28,7 @@ from cs_image_system.contract.core import (
 from cs_image_system.contract.model_config import CSIS_MODEL_CONFIG
 from cs_image_system.contract.names import safe_name
 
-from ..orchestrator import ModelBinding, unstructure
+from ..orchestrator import ModelBinding, unstructure, written_references_bare
 
 if TYPE_CHECKING:
     from ..image_sources import ImageSourceCatalog
@@ -82,6 +82,16 @@ class NameTyped(NameTypedProtocol):
     # in it was bound; a model made in code is bound by its maker
     # (``bind_run``). A copy shares its original's binding: the registry
     # and the catalog are identity objects.
+    @model_validator(mode="before")
+    @classmethod
+    def _references_read_bare(cls, data: Any, info: ValidationInfo) -> Any:
+        """A reference the tree wrote in the qualified form reads as the
+        bare word before the model is built from it, wherever the run's
+        registry holds the instance it names already."""
+        binding = info.context
+        if isinstance(binding, ModelBinding) and isinstance(data, dict):
+            return written_references_bare(binding.reg, cls, data)
+        return data
     @model_validator(mode="after")
     def _bound_by_the_converter(self, info: ValidationInfo) -> Any:
         binding = info.context

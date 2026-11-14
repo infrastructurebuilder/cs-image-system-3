@@ -478,7 +478,10 @@ class RuntimeBuilderBase(BuilderBase[R], RuntimeBuilderProtocol):
             architecture=architecture,
         )
         self.prepare_provider_specific_image(psi)
-        self._run_context().reg.register_built_instance(psi)
+        # the image found for this source on this runtime takes the place
+        # of the one registered for it before (the deferred one a build
+        # promised, or one an earlier query found)
+        self._run_context().reg.replace_built_instance(psi)
         log.debug(f"Registered resolved provider-specific image {psi.get_name()} -> {identifier}")
         return psi
 
@@ -505,7 +508,9 @@ class RuntimeBuilderBase(BuilderBase[R], RuntimeBuilderProtocol):
                           else getattr(image, "architecture", None)),
         )
         self.prepare_provider_specific_image(psi)
-        self._run_context().reg.register_built_instance(psi)
+        # the image this build will produce takes the place of the one
+        # registered for this source on this runtime before
+        self._run_context().reg.replace_built_instance(psi)
         log.debug(f"Registered deferred provider-specific image {psi.get_name()} "
                   f"with pattern {psi.deferred_name_pattern}")
         return psi

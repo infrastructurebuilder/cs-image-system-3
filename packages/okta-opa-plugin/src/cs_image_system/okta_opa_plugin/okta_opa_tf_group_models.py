@@ -2,8 +2,12 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+from dataclasses import field
+
 from pydantic.dataclasses import dataclass  # validation at construction
 
+from cs_image_system.base.models.references import REFERENCE_TARGET
+from cs_image_system.contract.constants import VCT
 from cs_image_system.contract.model_config import CSIS_MODEL_CONFIG
 
 from .okta_tf_models import OKTATF, OKTATF_RO, OktaGroupBuilderModel
@@ -23,7 +27,7 @@ class OktaTfGroupBuilderModel(OktaTfWorkspaceModelMixin, OktaGroupBuilderModel):
     # builder's name, or `none` for no posix configuration. Read as written by
     # the builder's configuration_errors (absent or null is refused; `none` is
     # the opt-out), not as a foreign key, which refuses `none`.
-    posix: str | None = None
+    posix: str | None = field(default=None, metadata={REFERENCE_TARGET: VCT.GROUP_BUILDER_MODEL})
     # opt-in -- the login hook also installs each member's declared
     # `public_keys:` as their authorized_keys (a key path beside OPA's certificates)
     posix_ssh_keys: bool = False

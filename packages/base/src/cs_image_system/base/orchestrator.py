@@ -42,7 +42,14 @@ from cs_image_system.contract.fields import lookup_dataclass_field
 from . import registry, template_utils
 from .encryption import Decrypted, mark_plaintexts
 from .image_sources import ImageSourceCatalog
-from .registry import NAMESPACE_SEPARATOR, UnknownTypeError, split_qualified
+from .models.references import REFERENCE_TARGET
+from .registry import (
+    NAMESPACE_SEPARATOR,
+    PARENT_REFERENCE_FIELD,
+    PARENT_SETTER,
+    UnknownTypeError,
+    split_qualified,
+)
 
 # a foreign key that named nothing during resolution -- (object class,
 # object name, field, value, target). The object stage collects them
@@ -88,12 +95,6 @@ class ModelBinding:
     image_sources: ImageSourceCatalog
 
 
-#: The field that holds an item's parent by reference: the contract's
-#: ``ParentPropertyHoldingProtocol`` names it, and ``fields.parent_field``
-#: declares it.
-PARENT_REFERENCE_FIELD = "_model_id"
-
-
 def is_parent_reference(obj: Any, fld: Field[Any]) -> bool:
     """Whether ``fld`` is the parent reference of ``obj``: the
     ``_model_id`` field of an item that holds its parent by reference. It is
@@ -106,12 +107,6 @@ def is_parent_reference(obj: Any, fld: Field[Any]) -> bool:
     registry's default for the target would name ANOTHER builder's model
     for every item but the default's own."""
     return fld.name == PARENT_REFERENCE_FIELD and isinstance(obj, ParentPropertyHoldingProtocol)
-
-
-#: The property a foreign key names in ``also_set_on_update`` when the
-#: model it references is also the item's parent (a group's or a user's
-#: ``type``).
-PARENT_SETTER = "model_id"
 
 
 def _parent_setting_type(obj: Any) -> tuple[Field[Any], VCT, Any] | None:
@@ -174,6 +169,86 @@ def parent_by_default_type(reg: Any, obj: Any) -> None:
     name = default_fk_value(reg, obj, target)
     if name and name not in OOPS_DEFAULTS:
         _parent_to(reg, obj, target, name)
+
+
+def _bare_word(reg: Any, targets: VCT | tuple[VCT, ...], word: str) -> str:
+    """``word`` read bare under the first of ``targets`` that names its instance."""
+    for target in (targets if isinstance(targets, tuple) else (targets,)):
+        bare = reg.word_for(target, word)
+        if bare is not word:
+            return bare
+    return word
+
+
+def _bare_value(reg: Any, target: VCT | tuple[VCT, ...], val: Any) -> Any:
+    if isinstance(val, str):
+        return _bare_word(reg, target, val)
+    if isinstance(val, (list, set, frozenset, tuple)) and all(isinstance(x, str) for x in val):
+        words = [_bare_word(reg, target, x) for x in val]
+        if all(w is x for w, x in zip(words, val, strict=True)):
+            return val
+        return type(val)(words)
+    return val
+
+
+def _reference_target(f: Field[Any]) -> VCT | tuple[VCT, ...] | None:
+    return f.metadata.get(FK_TARGET) or f.metadata.get(REFERENCE_TARGET)
+
+
+def written_references_bare(reg: Any, cls: type, data: dict[str, Any]) -> dict[str, Any]:
+    """``data``, the mapping a model of ``cls`` is about to be built from,
+    with every reference written in the qualified form read as the bare
+    word (:func:`read_references_bare`'s rule) where the instance it names
+    is registered already; the mapping itself when nothing changes. A
+    model's construction then derives what it derives from a reference (an
+    entry's name from its image builder's) from the word a bare tree
+    writes. A reference to an instance registered later is read bare by
+    :func:`read_references_bare` once it is."""
+    if not is_dataclass(cls):
+        return data
+    out = data
+    aliases: dict[str, Any] = getattr(cls, "__pydantic_fields__", {})
+    for f in fields(cls):
+        target = _reference_target(f)
+        if target is None or f.name == PARENT_REFERENCE_FIELD:
+            continue
+        info = aliases.get(f.name)
+        key = next((k for k in (getattr(info, "alias", None), f.name) if k and k in data), None)
+        if key is None:
+            continue
+        new = _bare_value(reg, target, data[key])
+        if new is not data[key]:
+            out = {**out, key: new}
+    return out
+
+
+def read_references_bare(reg: Any, obj: Any) -> None:
+    """Rewrite, in place, every reference ``obj`` holds in the qualified form
+    (``<namespace>/<name>``) to the word the registry lists its instance by
+    (:meth:`~.registry.Registry.word_for`), and the same in every model
+    nested in it: a foreign key (``FK_TARGET``) or a plain reference field
+    (:data:`REFERENCE_TARGET`), a single word or a collection of them. Every
+    reader after the load (a comparison with a name, a key of a listing, a
+    name in the emission) then reads what a bare tree would have written; a
+    bare word, an alias and a word that names nothing are left as written.
+    The parent reference is a global id, not a word, and is never touched."""
+    if not is_dataclass(obj) or isinstance(obj, type):
+        return
+    for f in fields(obj):
+        if f.name == PARENT_REFERENCE_FIELD:
+            continue
+        val = getattr(obj, f.name, None)
+        target = _reference_target(f)
+        if target is not None:
+            new = _bare_value(reg, target, val)
+            if new is not val:
+                setattr(obj, f.name, new)
+        elif isinstance(val, list):
+            for item in val:
+                if isinstance(item, NameTypedProtocol):
+                    read_references_bare(reg, item)
+        elif isinstance(val, NameTypedProtocol):
+            read_references_bare(reg, val)
 
 
 def default_fk_value(reg: Any, obj: Any, target: VCT) -> str | None:
@@ -525,8 +600,8 @@ class TemplateResolver:
         if (isinstance(concrete_mod, ParentPropertyHoldingProtocol)
                 and isinstance(obj, NameTypedProtocol) and not concrete_mod.model_id):
             concrete_mod.model_id = obj.global_id
-        # 6. CRITICAL: Add the newly structured model to the flattened map
-        # so that TemplateResolver.resolve_all() will process its Jinja tags!
+        # the item enters the flat map under its global id, so the
+        # resolver's passes (resolve_all) render its templates with the rest
         if isinstance(concrete_mod, NameTypedProtocol) and concrete_mod.global_id:
             self.flattened_map[concrete_mod.global_id] = concrete_mod
         reg.register_built_instance(concrete_mod)  # Register the newly structured model in the registry

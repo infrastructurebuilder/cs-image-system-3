@@ -10,6 +10,7 @@ from pydantic.dataclasses import dataclass  # validation at construction
 
 from cs_image_system.base.models.builder_model import NameTyped
 from cs_image_system.base.models.mixins import SelfInjectedName
+from cs_image_system.base.models.references import REFERENCE_TARGET
 from cs_image_system.contract.constants import ALL, DEFAULT, VCT
 from cs_image_system.contract.fields import fk_field
 from cs_image_system.contract.model_config import CSIS_MODEL_CONFIG
@@ -87,7 +88,7 @@ class Storage(NameTyped, SelfInjectedName):
                         f"{DEFAULT} is the default storage builder."),
         "required": True,
         })
-    groups: list[str] = field(default_factory=list)
+    groups: list[str] = field(default_factory=list, metadata={REFERENCE_TARGET: VCT.GROUP_MODEL})
     availability_zone: str | None = None      # meaningful only for a ZONAL storage
     public_read: bool = False
     share_mode: str = SHARE_MODE_PRIVATE

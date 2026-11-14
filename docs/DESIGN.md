@@ -1078,7 +1078,22 @@ plugins are discovered, once per process), so a shortfall is refused at
 load with the member named; the loader, the
 registry and the orchestrator decide what kind of thing they hold by
 `isinstance` against the contract's `runtime_checkable` protocols, and a
-`getattr` that remains reads an optional value with a default. The mapper
+`getattr` that remains reads an optional value with a default. Names are
+namespaced the same way at both levels: a registered class is keyed by
+its classification, its plugin's namespace and its canonical name
+([the stage index](CHANGES.md#s131)), and a registered instance by its
+classification, the namespace of the plugin that serves it, its ancestry
+in the configuration (the global id of the item it is declared in, empty
+for a top-level item) and its name, so the plugin is the most
+significant discriminator and the parent the next. Both keys are typed
+tuples read by their fields; the joined `<namespace>/<name>` form, and
+`<namespace>/<ancestry>/<name>` for an instance declared in another
+item, is only what a tree may write and what a message names. A bare
+word is what a tree normally writes. Two plugins' classes answering to a
+bare `type:` word is a configuration error naming both qualified forms;
+two plugins' instances under one top-level name is refused at load,
+since the emission names every instance by its own name and could write
+out only one of them. The mapper
 dispatches on the contract's surface, not a table of the core's classes:
 a builder-model class that classifies itself and names no type of its own
 is a dispatch point. The

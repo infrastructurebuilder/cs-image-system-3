@@ -15,6 +15,7 @@ from cs_image_system.base.models.provider_specific_image import (
     PSIState,
     psi_key,
 )
+from cs_image_system.base.registry import InstanceCollisionError
 from cs_image_system.contract.constants import VCT
 from cs_image_system.contract.core import NameTypedProtocol
 
@@ -105,16 +106,26 @@ class TestRegistryRoundTrip:
         )
         assert got is psi
 
-    def test_reregistration_overwrites(self, clean_registry):
+    def test_a_replacing_registration_takes_the_old_ones_place(self, clean_registry):
         reg = clean_registry.reg
         first = make_resolved()
         second = make_resolved(identifier="ami-fedcba9876543210f")
         reg.register_built_instance(first)
-        reg.register_built_instance(second)
+        reg.replace_built_instance(second)
         got = reg.get_instance_by_name_or_alias(
             VCT.PROVIDER_SPECIFIC_IMAGE, first.get_name()
         )
         assert got is second
+        assert reg.get_instance_by_global_id(first.global_id) is second
+        assert list(reg.get_all_instances_by_classification(VCT.PROVIDER_SPECIFIC_IMAGE).values()) == [second]
+
+    def test_a_plain_registration_of_another_image_is_refused(self, clean_registry):
+        reg = clean_registry.reg
+        first = make_resolved()
+        reg.register_built_instance(first)
+        with pytest.raises(InstanceCollisionError):
+            reg.register_built_instance(make_resolved(identifier="ami-fedcba9876543210f"))
+        assert reg.get_instance_by_global_id(first.global_id) is first
 
 
 class TestGenericQueryAssets:
@@ -203,3 +214,22 @@ class TestRuntimeBuilderCreation:
             )
             is psi
         )
+
+    def test_a_resolved_image_replaces_the_deferred_one(self, clean_registry, stub_rtb):
+        class StubSubconfig:
+            def get_image_output_name(self):
+                return "my-image-pckr-ebs-ans"
+
+        class StubImage:
+            architecture = "x86_64"
+
+            def get_name(self):
+                return "my-image"
+
+        reg = clean_registry.reg
+        deferred = stub_rtb.create_provider_specific_image_deferred(image=StubImage(), subconfig=StubSubconfig())
+        resolved = stub_rtb.create_provider_specific_image_resolved(
+            source_name="my-image", source_kind=PSISourceKind.IMAGE, identifier="ami-123")
+        assert deferred.global_id == resolved.global_id
+        assert reg.get_instance_by_global_id(resolved.global_id) is resolved
+        assert list(reg.get_all_instances_by_classification(VCT.PROVIDER_SPECIFIC_IMAGE).values()) == [resolved]

@@ -18,6 +18,7 @@ from cs_image_system.contract.model_config import CSIS_MODEL_CONFIG
 
 from ..encryption import EncryptedStr
 from .mixins import ParentPropertyHolding, SelfInjectedName
+from .references import REFERENCE_TARGET
 from .root_item import RootItem
 
 
@@ -53,8 +54,8 @@ class Group(RootItem, SelfInjectedName, ParentPropertyHolding):
                         })
     is_default: bool = False # The 'default' group is the group all users are added to by default.
     is_root: bool = False # The single root/admin group; it becomes the delegated admin of every resource group.
-    members: set[EncryptedStr] = field(default_factory=set)   # each entry may be ENC[age:...]
-    admins: set[EncryptedStr] = field(default_factory=set)
+    members: set[EncryptedStr] = field(default_factory=set, metadata={REFERENCE_TARGET: VCT.USER_MODEL})   # each entry may be ENC[age:...]
+    admins: set[EncryptedStr] = field(default_factory=set, metadata={REFERENCE_TARGET: VCT.USER_MODEL})
     # Group Id is optional and has to be computed/realized at build time.
     # Accepts an int, a digit string, or the DEFAULT sentinel on the way in;
     # __post_init__ normalizes it to `int | None`, where None means "deferred".

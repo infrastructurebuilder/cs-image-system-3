@@ -38,7 +38,13 @@ from cs_image_system.contract.model_config import CSIS_MODEL_CONFIG
 
 from .models.ia_config import IAConfig
 from .models.user import User
-from .orchestrator import PydanticConverter, TemplateResolver, parent_by_default_type, parent_by_written_type
+from .orchestrator import (
+    PydanticConverter,
+    TemplateResolver,
+    parent_by_default_type,
+    parent_by_written_type,
+    read_references_bare,
+)
 
 if TYPE_CHECKING:
     from .basic.builder_base_image import ImageBuilderBase
@@ -257,6 +263,10 @@ def read_item_kind(ctx: RunContext, spec: ItemKind) -> list[Any]:
     # carries them and `validate` refuses them
     ctx.unresolved_foreign_keys = template_resolver.resolve_all()
     for it in items:
+        # every item of the kind is registered by now: a reference to one
+        # of them (an image's source image) written in the qualified form
+        # reads as the bare word too
+        read_references_bare(reg, it)
         if spec.default_missing_type_to is not None and it.type_ in OOPS_DEFAULTS:
             log.debug(f"{spec.name} item '{it.get_name()}' using default builder")
             dflt = reg.get_default_for(spec.default_missing_type_to)
@@ -925,6 +935,9 @@ def process_and_register_builders(
     default_classifier: VCT | None = None
     names: set[str] = set()
     for name, model in builder_models.items():
+        # every builder model is registered by now (at its structuring): a
+        # reference it wrote in the qualified form reads as the bare word
+        read_references_bare(reg, model)
         # the contract's protocol, not the core's base class --
         # a plugin's model that satisfies BuilderModelProtocol structurally (the
         # proof plugin's does) is a builder model

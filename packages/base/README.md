@@ -261,17 +261,37 @@ prefix and the `-plugin` suffix dropped (`aws-runtime`, `tf-ebs-instance`,
 `base` entry point, the generic version checker and the storage mapping,
 carry `base`), unless the plugin's metadata names a `namespace` of its
 own; a plugin with no distribution and no field is refused at discovery.
-The instance-level tables (what the tree declared: built builders and
-items, their aliases, the defaults) are keyed by the tree's own names,
-which carry no namespace. The reasoning is in
-[the stage index](../../docs/CHANGES.md#s131).
+The reasoning is in [the stage index](../../docs/CHANGES.md#s131).
+
+The instance-level table (what the tree declared: built builders and
+items, and their aliases) is keyed the same way, by a typed
+`InstanceKey(classification, namespace, ancestry, name)`, one dict per
+classification. The namespace is the plugin's that serves the instance:
+the namespace its class is registered under (`namespace_of_class`), and
+`base` for a class no plugin registers (the core's own item models: an
+image, an instance, a group, an image's entries). The ancestry is the
+instance's ancestry in the configuration: the global id of the item it
+is declared in (its parent reference, `ancestry_of`), and empty for an
+item a tree declares at its top level. It is never the builder an item's
+`type` names: a group and a user hold a parent reference to that builder,
+but they are declared at the top of a tree, so their ancestry is empty
+like every top-level item's. So the entries of two
+images, both named `pckr-ebs-ans`, are two keys, where a key by bare name
+held one entry for both. An instance is entered under its own name and
+under each alias (the same key with another name), and a cloud or a
+container again in the runtime classification of its kind. The model is
+untouched: its `name` is the name the tree wrote, and its `global_id`
+stays `<classification>::<model id>::<name>`; the key is the registry's
+and is never written out. The joined form, `<namespace>/<name>` for a
+top-level instance and `<namespace>/<ancestry>/<name>` for one declared
+in another item, appears only in a message and in a word a tree writes.
 
 | Store                     | Keyed by                          | Holds |
 | --------------------------- | ----------------------------------- | ------- |
 | `models`                  | `RegistrationKey`                 | Model classes a `type:` value can select (`get_model(vct, word)`; `models_under(vct)` lists them by the shortest word that resolves, `registration_keys(vct)` the keys). A *different* class under a key already taken is a `ValueError` ("Type Collision"); the same class under the same key, or under another namespace, is the same registration. |
 | `builders`                | model class                       | The builder class for a model. |
 | `registry` / `vct_type_registry` / `reverse_registry` | `RegistrationKey` / `VCT` / class | Services by key, the classes per classification (one entry per class, however many plugins carry it), and every key a class is registered under; `get_builder_for_model(type_name, classification)` reads `registry` by the resolution rule below, and `register_service` refuses a different class under a taken key. |
-| `instances`               | `VCT`, then name or alias         | Built objects: builder models, builders, items. Cloud and container builders are mirrored under the runtime classifications. |
+| `instances`               | `VCT`, then `InstanceKey`         | Built objects: builder models, builders, items, each under its own name and each alias. Cloud and container builders are mirrored under the runtime classifications. `get_all_instances_by_classification(vct)` answers each instance once, by the shortest word that names it: a top-level instance's bare name (unique per table), an item declared in another one's qualified form, so no two items collapse into one entry. |
 | `instances_by_global_id`  | `global_id`                       | The same objects by `<classification>::<model_id>::<name>`. |
 | `aliases` / `classified_aliases` | `VCT`                      | Builder aliases; a duplicate alias within a classification is an error. |
 | `defaults_registry`       | `VCT`                             | The name of the default builder per classification. A default may not be a reserved word (`default`, `self`, `none`, empty or `None`). |
@@ -293,6 +313,71 @@ canonicalises an alias to the class's `csis_name` but never rewrites a
 bare word to its qualified form (the mod fingerprint hashes the type word,
 so the golden and every emission are unchanged) nor a qualified one to
 the bare word, and the registry answers either.
+
+**Instances.** A word a tree writes for an instance (a foreign key, a
+`type:` that names a builder) is read against `instances` under one
+classification by the same kind of rule. A **bare** name or alias finds
+the top-level instance (ancestry empty) that answers to it, whatever
+namespace serves it; an item declared in another one is never found by a
+bare word, since its siblings in other parents share its name. No bare
+word has two answers: the emission names every instance by its own name
+(the generated directories, the provider-specific image's
+`<source>::<runtime>`, terraform labels, state keys, tags, the
+meta-state records), so registration keeps a top-level name or alias to
+one instance per table across every plugin (see **Registration** below),
+and the instance-level lookups raise no ambiguity. A **qualified**
+word reads its key directly: `<namespace>/<name>`
+(`aws-runtime/aws-east2-runtime`) or `<namespace>/<ancestry>/<name>`.
+No name, alias or global id carries `/` (the load refuses it in a name
+and an alias), so the split is never ambiguous.
+
+A qualified reference works wherever a bare one does because the load
+reads it as the bare word once, at the edge: `Registry.word_for(vct,
+word)` turns a qualified word that names an instance into the word the
+registry lists that instance by (a top-level instance's bare name; an
+item declared in another one's qualified form), and leaves every other
+word, a bare name and an alias included, as written.
+A model is built from the words read bare where the instance is
+registered already (`NameTyped`'s before-validator,
+`orchestrator.written_references_bare`: an image entry named after its
+image builder takes the builder's name); an item kind's items are read
+bare again once the kind is read (an image's `source_image` naming
+another image), and a builder model before its builder is made (a
+runtime's `state_configuration`). The fields read are the foreign keys
+(`FK_TARGET`) and the plain fields that name instances, marked
+`metadata={REFERENCE_TARGET: <vct>}` (`models/references.py`; a
+tuple for a field that may name
+either of two kinds): a storage's `groups`, an image's `group`,
+`default_groups` and `source_image`, a group's `members` and `admins`,
+the okta group builder's `posix`. Every reader after the load (a
+comparison with a name, a key of a listing such as `ctx.runtime_builders`,
+a name in the emission) reads what a bare tree would have written, so
+a qualified fixture emits exactly what the bare one does. A storage
+mapping's `name` is the mapping's own name (the storage an instance
+mounts), which may not carry `/`, so it is always bare.
+
+**Registration.** `register_built_instance` checks every key it will
+write, and the global id, before it writes any, and refuses
+(`InstanceCollisionError`, naming both declarations by the names the
+tree wrote and their classes, never a model's repr) a key or a global id
+a different instance holds: two declarations under one name (a state
+backend declared twice), an alias another item holds. A top-level name
+or alias is one instance's per table whatever plugin serves it: another
+plugin's instance under a held name (a cloud runtime and a container
+runtime of one name, both entered in the runtime classification; two
+plugins' groups or users of one name under different builders) or under
+a held alias, or an alias equal to another plugin's instance's name, is
+refused the same way, because the emission could write out only one of
+them; rename one. The qualified form is still accepted as a spelling and
+reads as the bare word, but an instance never needs it. The registry is
+as it was after a refusal. The same instance again is no collision: it is
+entered again as its parent reference is set or refined, and moves to
+its key now, leaving every key and id it held before. The one instance
+replaced on purpose is the provider-specific image: a runtime builder
+makes it again for the same source and runtime, through
+`replace_built_instance`, which removes the old image's keys and id and
+puts the new one in its place; a key a third instance holds is still
+refused there.
 
 `get_instance_by_name_or_alias(vct, "default")` resolves to the registered
 default. `reset()` clears an instance; a repeated load makes a new registry
@@ -527,7 +612,7 @@ The kinds:
 | `templated_field(replace_value, ...)` | `templated` | When the value is `default`, `replace_value` (a Jinja string) is rendered in its place. |
 | `deferred_list_field(builder_vct, item_vct)` | `deferred_list` | A list of mappings structured late, after every builder is registered: each entry's `type` selects a builder of `builder_vct`; the entry is structured as the item class registered under `item_vct` for that builder's type, else the owning model's `get_subitem_overrides()` entry for `item_vct`, else `item_vct`'s default model (the item model a plugin's metadata injected as that classification's default, such as the base's `storage_mapping`). Used for `modifications:` and `storages:`. |
 | `deferred_list_fk_field(target)` | `deferred_list_fk` | A list of foreign keys resolved late. |
-| `parent_field(target, ...)` | `fk` | The `_model_id` of an item that holds its parent by reference: the parent's global id, never a YAML key. It is the one foreign key the resolver never defaults: unset means the item is not parented yet, and the model that holds the item in its list sets it (an OS builder model and an image in their own construction, a deferred list's owner when it enters the item, the loader for a group or a user by its `type`: `parent_by_written_type` for a written one, `parent_by_default_type` for one left at `default`, right after the item is structured and before it is entered in the flat map, so the key it is entered under names its parent). The registry's default for `target` would name another builder for every item but the default's own. |
+| `parent_field(target, ...)` | `fk` | The `_model_id` of an item that holds its parent by reference: the parent's global id, never a YAML key. It is the one foreign key the resolver never defaults: unset means the item is not parented yet, and the model that holds the item in its list sets it (an OS builder model and an image in their own construction, a deferred list's owner when it enters the item, the loader for a group or a user by its `type`: `parent_by_written_type` for a written one, `parent_by_default_type` for one left at `default`, right after the item is structured and before it is entered in the flat map, so the key it is entered under names its parent). The registry's default for `target` would name another builder for every item but the default's own. The registry keys an item by it too: it is the item's ancestry in `InstanceKey`, except for a group or a user, whose parent is the builder that serves it. |
 
 A plugin may register a new kind and stamp `field_kind` metadata on its own
 fields.
@@ -950,8 +1035,12 @@ and the `isinstance` check stay the kind's; a subclass only adds fields.
 Not a YAML model. A runtime builder creates one per image and runtime,
 either `resolved` (a concrete identifier such as an AMI id, from a vendor
 query or a pin) or `deferred` (a name pattern a later bake fulfils). It
-registers under `PROVIDER_SPECIFIC_IMAGE` with the key
-`<source>::<runtime>`; `get_query_assets()` returns provider query inputs.
+registers under `PROVIDER_SPECIFIC_IMAGE` by the name
+`<source>::<runtime>`, through `replace_built_instance`: an image made
+again for the same source and runtime (the resolved one a query found
+for the deferred one a build promised) takes the old one's place, the
+one registration that replaces on purpose. `get_query_assets()` returns
+provider query inputs.
 An image holds no context: what it needs of its runtime, the runtime
 builder gives it as it makes it, in `prepare_provider_specific_image(psi)`
 (a hook on `RuntimeBuilderBase`, nothing by default; the docker runtime
@@ -2498,6 +2587,16 @@ code writes it (values in angle brackets).
   error(s).`) -- the tree wrote a bare `type:` word that different
   installed plugins' classes answer to; write one of the qualified forms
   named.
+- `Instance name collision under <classification>: '<written>' (a
+  <Class>) takes '<ns>/<name>' and '<written>' (a <Class>) holds
+  '<ns>/<name>'; the emission names every instance by its own name, so
+  rename one` (`InstanceCollisionError`, from the registry; `alias
+  collision` for an alias; `Instance id collision ... both take the
+  global id ...; rename one` for a global id) -- two declarations under
+  one name (two spellings that normalise to one), two plugins' instances
+  under one name (a cloud and a container runtime, two plugins' groups
+  under different builders), or an alias another instance holds as its
+  name or alias; the registry is as it was.
 - `Plugin <name> is refused: its entry point has no distribution to
   derive a namespace from, and its metadata names none; set
   PluginMetadata.namespace` (`PluginNamespaceError`) -- a plugin

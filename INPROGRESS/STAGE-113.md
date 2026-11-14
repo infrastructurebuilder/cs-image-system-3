@@ -2,7 +2,7 @@
 
 **Status: OPEN 2026-11-03; RE-PLANNED 2026-11-05 on §124's numbers;
 RE-MEASURED 2026-11-12 after §132 (below). Waits for "do 113",
-after [§135](STAGE-135.md) (the operator, 2026-11-14: §135 first).
+after §135 (landed 2026-11-14; the operator: §135 first).
 Its decisions were asked 2026-11-14 and are answered under each one,
 so "do 113" asks nothing more unless the work surfaces a choice. The
 first of the two decomposition stages that remain

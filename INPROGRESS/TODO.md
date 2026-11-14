@@ -12,7 +12,7 @@ Stages from the re-examination of 2026-11-03.
 [REEXAMINE4.md](REEXAMINE4.md) digests the three reviews
 ([REEXAMINE1.md](REEXAMINE1.md), [REEXAMINE2.md](REEXAMINE2.md),
 [REEXAMINE3.md](REEXAMINE3.md)); each stage file
-([§135](STAGE-135.md); §118 to §134
+([§113](STAGE-113.md); §118 to §135
 landed) cites the review section
 it answers. The conventions are the ones above: one file per stage; a
 stage is a plan until the operator says "do N"; **YOUR DECISION** marks
@@ -46,8 +46,9 @@ found). §134 and §112 landed first, as proposed (2026-11-13); a
 release carrying §112 comes next, and the release after that is its
 live proof. The order proposed for the rest: [§113](STAGE-113.md) (alone: it rewrites imports in
 ninety-one test files), [§116](STAGE-116.md), §117; and
-[§135](STAGE-135.md), which changes the registry and the resolver's
-keys, before §113 or after it but not beside it. The operator,
+§135, which changes the registry and the resolver's
+keys, before §113 or after it but not beside it (§135 landed
+2026-11-14). The operator,
 2026-11-14: §135 first, then §113, then §116 and §117; the decisions
 of §113 and §135 are answered in their files.
 
@@ -101,11 +102,14 @@ of §113 and §135 are answered in their files.
   every key in the resolver's map and the registry's index is its
   item's current id; registration checks every key before it writes
   and no catch-all hides its errors; the runner image's sources stop
-  narrating. Its item 10(d) opened [§135](STAGE-135.md). No hygiene
+  narrating. Its item 10(d) opened §135. No hygiene
   bundle is open.
-- [§135](STAGE-135.md), registered instances carry a namespace:
-  planned 2026-11-13 from §134 (child items keyed by bare name
-  overwrite each other in the registry); waits for "do 135".
+- §135, registered instances carry a namespace: landed 2026-11-14
+  (not pushed: the operator's run of §135 then §113). An instance is
+  keyed by classification, plugin namespace, ancestry (its parent's
+  global id) and name; children no longer overwrite each other; a
+  top-level name or alias belongs to one instance per table across
+  plugins; a qualified reference reads as the bare word.
 - §112, a release in two boxes: landed 2026-11-13. The walk is
   `just release-take <part> <index> [main]`, the login halfway, and
   `just release-watch <version>`; the first take after the release
@@ -132,7 +136,6 @@ and validated by the operator before its "do N")
 
 - [§113, The kit and the engine: `base` splits where the plugins stop](STAGE-113.md)
 - [§116, A runtime installed from outside](STAGE-116.md)
-- [§135, Registered instances carry a namespace](STAGE-135.md)
 
 **Release**
 
@@ -228,6 +231,25 @@ and validated by the operator before its "do N")
 
 **Landed since 2026-10-05** (newest first)
 
+- §135, registered instances carry a namespace: 2026-11-14, its squash
+  commit (feature/instance-namespaces kept, not pushed). The registry's
+  instance tables are keyed by `InstanceKey` (classification, the
+  serving plugin's namespace, the ancestry, the name), a typed tuple
+  as §131's class keys are; the ancestry is the parent's global id,
+  empty for an item at a tree's top level (groups and users included);
+  the model's name and global id are untouched. Children of different
+  parents no longer overwrite each other (the fixture's ten image
+  entries, the complete tree's storage mappings), and the listing
+  returns every one. The provider-specific image's replacement is
+  explicit (`replace_built_instance`); every other registration of a
+  different instance under a held key or id is refused before anything
+  is written, a duplicate state backend among them. By the operator's
+  decision while it was built, a top-level name or alias belongs to
+  one instance per table across plugins, since the emission names by
+  own name; a qualified reference (`<namespace>/<name>`) is accepted
+  and reads as the bare word everywhere (a fixture copy written
+  qualified generates the same 148 files). The golden never moved; the
+  contract is unchanged.
 - §112, a release in two boxes: 2026-11-13, its squash commit
   (feature/release-in-two-boxes kept). `release` fetches origin and
   refuses when it holds commits the local branches lack, moves to

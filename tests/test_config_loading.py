@@ -4,7 +4,9 @@
 
 """Loading a configuration: what the loader refuses, reads and builds.
 
-* a registry collision is named without the models' repr; a Python tag in
+* a state backend declared twice (two names that normalise to one) is
+  refused by the registry, naming both declarations and neither model's
+  repr; a Python tag in
   the configuration is refused, not constructed (the reader is
   ``yaml.safe_load``);
 * preflight finds a runtime declared in any cfg file, because the loaded
@@ -28,8 +30,10 @@ import pytest
 import yaml
 from harness import copy_config, load_context, stub_environment
 
+from cs_image_system.base.registry import InstanceCollisionError
 
-def test_a_registry_collision_is_named_without_the_models_repr(tmp_path: Path, monkeypatch):
+
+def test_a_duplicate_state_backend_is_refused_naming_both_declarations(tmp_path: Path, monkeypatch):
     root = copy_config(tmp_path)
     sb = root / "cfg" / "state-backends-2.yml"
     data = yaml.safe_load(sb.read_text())
@@ -39,10 +43,10 @@ def test_a_registry_collision_is_named_without_the_models_repr(tmp_path: Path, m
     data["state_backends"].append(twin)
     sb.write_text(yaml.safe_dump(data, sort_keys=False))
     stub_environment(monkeypatch)
-    with pytest.raises(ValueError) as exc:
+    with pytest.raises(InstanceCollisionError) as exc:
         load_context(root)
     message = str(exc.value)
-    assert "collide" in message, message
+    assert repr(data["state_backends"][0]["name"]) in message and repr(twin["name"]) in message, message
     assert "TofuS3StateBuilderModel(" not in message and "bucket=" not in message, "no repr, no field values"
 
 

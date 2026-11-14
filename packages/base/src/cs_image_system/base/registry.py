@@ -4,20 +4,22 @@
 
 import logging
 import operator
-from functools import reduce
+from dataclasses import fields, is_dataclass
+from functools import cache, reduce
 from importlib.metadata import entry_points
 from typing import Any, NamedTuple
 
 from cs_image_system.contract.core import (
     BuilderProtocol,
     NameTypedProtocol,
+    ParentPropertyHoldingProtocol,
     PluginArtifactProtocol,
     PluginMetadataProtocol,
 )
 
 log = logging.getLogger(__name__)
 
-from cs_image_system.contract.constants import DEFAULT, OOPS_DEFAULTS, VCT
+from cs_image_system.contract.constants import DEFAULT, FK_ALSO_SET_ON_UPDATE, OOPS_DEFAULTS, VCT
 
 #: What joins a namespace to a name in the qualified form of a registration
 #: (``<namespace>/<name>``). No canonical name and no alias carries it: the
@@ -48,6 +50,80 @@ class RegistrationKey(NamedTuple):
         """``<namespace>/<name>``: what a tree writes to name this
         registration and no other."""
         return f"{self.namespace}{NAMESPACE_SEPARATOR}{self.name}"
+
+
+class InstanceKey(NamedTuple):
+    """The one key every instance-level registry table is keyed by: the
+    classification an instance is registered under, the namespace of the
+    plugin that serves it (its class's, :meth:`Registry.namespace_of_class`),
+    its ancestry (the global id of the item it is declared in; empty for an
+    item a tree declares at its top level, :func:`ancestry_of`) and its name
+    or one of its aliases. A typed tuple like :class:`RegistrationKey`, read
+    by its fields: the model's ``name`` and ``global_id`` are untouched, and
+    the joined form is for a message and for a tree that writes it."""
+
+    classification: VCT
+    namespace: str
+    ancestry: str
+    name: str
+
+    @property
+    def qualified(self) -> str:
+        """``<namespace>/<name>`` for a top-level instance,
+        ``<namespace>/<ancestry>/<name>`` for one declared in another item:
+        what a tree writes to name this instance and no other."""
+        parts = (self.namespace, self.ancestry, self.name) if self.ancestry else (self.namespace, self.name)
+        return NAMESPACE_SEPARATOR.join(parts)
+
+
+#: The field that holds an item's parent by reference: the contract's
+#: ``ParentPropertyHoldingProtocol`` names it, and ``fields.parent_field``
+#: declares it.
+PARENT_REFERENCE_FIELD = "_model_id"
+
+#: The property a foreign key names in ``also_set_on_update`` when the
+#: model it references is also the item's parent (a group's or a user's
+#: ``type``).
+PARENT_SETTER = "model_id"
+
+
+@cache
+def _served_by_its_parent(cls: type) -> bool:
+    """Whether an item of ``cls`` takes its parent from its own ``type``: a
+    foreign key other than the parent reference that also sets the parent
+    (a group's, a user's), so the parent is the builder that serves the
+    item, not an item it is declared in."""
+    if not is_dataclass(cls):
+        return False
+    return any(f.name != PARENT_REFERENCE_FIELD and f.metadata.get(FK_ALSO_SET_ON_UPDATE) == PARENT_SETTER
+               for f in fields(cls))
+
+
+def ancestry_of(item: Any) -> str:
+    """The ancestry an instance is keyed by: the global id of the item it
+    is declared in (its parent reference), read only from an item that
+    holds its parent by reference; empty for an item a tree declares at its
+    top level, which includes an item whose parent is the builder that
+    serves it (:func:`_served_by_its_parent`) and every builder."""
+    if isinstance(item, BuilderProtocol) or not isinstance(item, ParentPropertyHoldingProtocol):
+        return ""
+    if _served_by_its_parent(type(item)):
+        return ""
+    return item.model_id or ""
+
+
+def _own_name(instance: Any) -> str:
+    """The name an instance registers under: its model's for a builder."""
+    model = instance.model if isinstance(instance, BuilderProtocol) else instance
+    return model.get_name()
+
+
+def _declared(instance: Any) -> str:
+    """An instance as a tree declared it, for a message: the name it wrote
+    and its class, never its repr (a model's carries every field)."""
+    model = instance.model if isinstance(instance, BuilderProtocol) else instance
+    written = getattr(model, "display_name", None) or _own_name(instance)
+    return f"{written!r} (a {type(instance).__name__})"
 
 
 def split_qualified(word: str) -> tuple[str | None, str]:
@@ -170,6 +246,62 @@ def _names_under(table: dict[RegistrationKey, type], classification: VCT) -> dic
     return out
 
 
+class InstanceCollisionError(ValueError):
+    """A registration that would take a name, an alias or a global id a
+    different instance holds: two declarations under one name, an alias
+    another item holds, or a top-level name or alias another plugin's
+    instance holds in the same table (the emission names every instance by
+    its own name, so two top-level instances of one name could not both be
+    written out). Raised before anything is written, so the registry is as
+    it was; the message names both declarations and never a model's repr."""
+
+
+def instance_key_of_word(classification: VCT, word: str) -> InstanceKey | None:
+    """The key a qualified word a tree wrote names: ``<namespace>/<name>``
+    for a top-level instance, ``<namespace>/<ancestry>/<name>`` for one
+    declared in another item; ``None`` for a word of another shape. No
+    name, alias or global id carries the separator (the load refuses it in
+    a name and an alias), so the split is never ambiguous."""
+    parts = word.split(NAMESPACE_SEPARATOR)
+    if len(parts) == 2:
+        return InstanceKey(classification, parts[0], "", parts[1])
+    if len(parts) == 3:
+        return InstanceKey(classification, parts[0], parts[1], parts[2])
+    return None
+
+
+def _resolve_instance(table: dict[InstanceKey, Any], classification: VCT, word: str) -> Any | None:
+    """The one instance ``word`` names in ``table``. A qualified word reads
+    its key directly (:func:`instance_key_of_word`). A bare name or alias
+    finds the top-level instance (ancestry empty) that answers to it,
+    whatever namespace serves it: registration keeps a top-level name or
+    alias to one instance per table across every namespace, so a bare word
+    never has two answers. ``None`` when none answers. An item declared in
+    another one is never found by a bare word: its siblings in other
+    parents share its name."""
+    if NAMESPACE_SEPARATOR in word:
+        qualified = instance_key_of_word(classification, word)
+        return table.get(qualified) if qualified is not None else None
+    return next((held for key, held in table.items() if key.name == word and not key.ancestry), None)
+
+
+def _words_under(table: dict[InstanceKey, Any]) -> dict[str, Any]:
+    """Every instance in ``table`` once, in the order it was first
+    entered, by the shortest word that names it: a top-level instance's
+    bare name (registration keeps it to one instance per table), an item
+    declared in another one's qualified form (its siblings in other
+    parents share its name). The word is its own key's, the first it is
+    entered under (its name comes before its aliases); alias keys name no
+    entry."""
+    out: dict[str, Any] = {}
+    seen: set[int] = set()
+    for key, held in table.items():
+        if id(held) not in seen:
+            seen.add(id(held))
+            out[key.qualified if key.ancestry else key.name] = held
+    return out
+
+
 #: the runtime namespace a cloud or container classification is entered in
 #: too, so a runtime is found by name whatever its kind
 RUNTIME_NAMESPACE_OF: dict[VCT, VCT] = {
@@ -200,7 +332,9 @@ class Registry:
     # two registries share nothing; reset() gives an explicit lifecycle.
     # the class-level tables (what the plugins registered) are keyed by the
     # typed RegistrationKey (classification, namespace, name); the
-    # instance-level tables (what the tree declared) by the tree's own names
+    # instance-level table (what the tree declared) by the typed InstanceKey
+    # (classification, namespace, ancestry, name), one dict per
+    # classification, so a bare word is answered from its own classification
     registry: dict[RegistrationKey, type]
     vct_type_registry: dict[VCT, list[type]]
     reverse_registry: dict[type, list[RegistrationKey]]
@@ -209,10 +343,11 @@ class Registry:
     aliases: dict[VCT, dict[str, list[str]]]
     classified_aliases: dict[VCT, list[str]]
     defaults_registry: dict[VCT, str | None]
-    instances: dict[VCT, dict[str, Any]]
+    instances: dict[VCT, dict[InstanceKey, Any]]
     instances_by_global_id: dict[str, Any]
     models: dict[RegistrationKey, type]
     builders: dict[type[NameTypedProtocol], type]
+    class_namespaces: dict[type, str]
 
     def __init__(self):
         self._init_state()
@@ -240,6 +375,7 @@ class Registry:
         self.instances_by_global_id = {}
         self.models = {}
         self.builders = {}
+        self.class_namespaces = {}
 
     def reset(self) -> None:
         """Clear all registered models, instances, builders, defaults and aliases.
@@ -264,6 +400,29 @@ class Registry:
             raise ValueError(f"PluginMetadata.namespace {chosen!r} may not contain {NAMESPACE_SEPARATOR!r}")
         return chosen
 
+    def _note_namespace(self, cls: type, namespace: str) -> None:
+        """Remember the namespace ``cls`` is registered under, for its
+        instances' keys: the first in sort order when several plugins carry
+        the one class, so the choice never depends on the load order."""
+        held = self.class_namespaces.get(cls)
+        self.class_namespaces[cls] = namespace if held is None else min(held, namespace)
+
+    def namespace_of_class(self, cls: type) -> str:
+        """The namespace an instance of ``cls`` is keyed by: the one its
+        class is registered under; the core's for a class no plugin
+        registers (the core's own item models: an image, an instance, a
+        group, an image's entries)."""
+        return self.class_namespaces.get(cls, CORE_NAMESPACE)
+
+    def instance_key(self, instance: Any) -> InstanceKey:
+        """The key ``instance`` is registered under by its own name (its
+        aliases take the same key with another name)."""
+        return self._key_under(instance.get_classification(), instance)
+
+    def _key_under(self, classifier: VCT, instance: Any) -> InstanceKey:
+        return InstanceKey(classifier, self.namespace_of_class(type(instance)), ancestry_of(instance),
+                           _own_name(instance))
+
     def _register_model(self, key: RegistrationKey, cls: type) -> None:
         """One entry of ``models``: the same class under the same key is the
         same registration (a plugin's metadata replayed); the same class
@@ -276,6 +435,7 @@ class Registry:
                              f"{registered.__module__}.{registered.__qualname__}, "
                              f"and {cls.__module__}.{cls.__qualname__} registers it too")
         self.models[key] = cls
+        self._note_namespace(cls, key.namespace)
 
     def register_plugin_metadata(self, metadata: PluginMetadataProtocol, namespace: str | None = None):
         """Register what one plugin's metadata declares, every class keyed
@@ -339,7 +499,8 @@ class Registry:
         classes answer to."""
         return _resolve(self.models, classifier, canonical_name)  # type: ignore[return-value]
     def get_instance(self, classifier: VCT, name_or_alias: str) -> NameTypedProtocol | None:
-        return self.instances.get(classifier, {}).get(name_or_alias, None)
+        """The instance a word names under ``classifier`` (:func:`_resolve_instance`)."""
+        return _resolve_instance(self.instances.get(classifier, {}), classifier, name_or_alias)
     def builder_keys(self) -> list[type[NameTypedProtocol]]:
         return list(self.builders.keys())
     def builder_values(self) -> list[type]:
@@ -348,8 +509,26 @@ class Registry:
     def get_instance_by_global_id(self, global_id: str) -> NameTypedProtocol | None:
         return self.instances_by_global_id.get(global_id, None)
 
-    def register_built_instance(self, instance):
-        """Registers a built model into the namespaced runtime state tracker."""
+    def register_built_instance(self, instance: Any) -> None:
+        """Enter a built model or builder in its classification's table
+        under its key and its aliases' (:class:`InstanceKey`), in the
+        runtime table of its kind too for a cloud or a container, and in
+        the global-id index under its id. The same instance again moves to
+        its keys now (its parent reference refined moves its ancestry and
+        its id); a different instance under any of those keys is refused
+        (:meth:`_check_registration`)."""
+        self._register(instance, replacing=False)
+
+    def replace_built_instance(self, instance: Any) -> None:
+        """Register ``instance`` in place of the instance that holds its
+        own key or its global id: the old one's keys, aliases and id are
+        removed and the new one takes its place. The one registration that
+        replaces on purpose (a provider-specific image made again for the
+        same source and runtime); a key a third instance holds is still
+        refused."""
+        self._register(instance, replacing=True)
+
+    def _register(self, instance: Any, *, replacing: bool) -> None:
         if not isinstance(instance, NameTypedProtocol):
             log.debug(f"No registering instance {instance} of type {type(instance)}")
             return
@@ -358,7 +537,6 @@ class Registry:
         model = instance.model if isinstance(instance, BuilderProtocol) else instance
         if not model:
             raise ValueError(f"Cannot register {instance} because it has no model")
-        model_name = model.get_name() if isinstance(model, NameTypedProtocol) else str(model)        
         # Determine the namespace (classification)
         classifier = instance.get_classification()
         if classifier is None:
@@ -370,77 +548,113 @@ class Registry:
         if not classifier:
             log.warning(f"Could not determine classification for instance {instance}. Skipping registration.")
             return
-        own_name = model.get_name()
         aliases = list(model.get_aliases()) if isinstance(model, NameTypedProtocol) else []
         # an id is formatted from the classification, the parent reference
         # and the name, and raises nothing for a real instance; it is read
         # before anything is written, so an id that raises leaves the
         # registry as it was
         global_id = instance.global_id
+        own = self._key_under(classifier, instance)
+        keys = self._keys_of(own, aliases)
         # every key the registration writes is checked before any is
         # written: a refused registration leaves the registry as it was
-        self._check_registration(classifier, own_name, model_name, aliases, instance)
-        # Register by name within the namespace
-        if own_name in self.instances[classifier]:
-            log.debug(f"Overwriting instance {own_name} in namespace {classifier}")  # expected: re-registered across resolve passes
-        self.instances[classifier][own_name] = instance
+        displaced = self._check_registration(own, keys, global_id, instance, replacing)
+        for table_vct, key in keys:
+            self.instances[table_vct][key] = instance
+        self._leave_old_keys(instance, keys, displaced)
         if global_id:
-            self._enter_global_id(global_id, instance)
-        self._enter_runtime_namespace(classifier, model_name, instance)
-        for alias in aliases:
-            self.instances[classifier][alias] = instance
-            self._enter_runtime_namespace(classifier, alias, instance)
+            self._enter_global_id(global_id, instance, displaced)
 
-    def _check_registration(self, classifier: VCT, own_name: str, model_name: str,
-                            aliases: list[str], instance: Any) -> None:
-        """Refuse a registration that would take a key another instance
-        holds, before anything is written: an alias in the instance's own
-        namespace (its name there is overwritten, as an instance is entered
-        again across resolve passes), its name or an alias in the runtime
-        namespace a cloud or container classification is entered in too.
-        The same instance already under a key is no collision (an item is
-        registered again when its parent is set)."""
-        own = self.instances[classifier]
-        namespace = RUNTIME_NAMESPACE_OF.get(classifier)
-        runtime_table = self.instances[namespace] if namespace is not None else {}
+    @staticmethod
+    def _keys_of(own: InstanceKey, aliases: list[str]) -> list[tuple[VCT, InstanceKey]]:
+        """Every (table, key) a registration under ``own`` writes: its name
+        and each alias in its own classification's table, and again in the
+        runtime table of its kind for a cloud or a container."""
+        names = [own.name, *(a for a in aliases if a != own.name)]
+        tables = [own.classification]
+        runtime = RUNTIME_NAMESPACE_OF.get(own.classification)
+        if runtime is not None:
+            tables.append(runtime)
+        return [(table, own._replace(classification=table, name=name)) for table in tables for name in names]
 
-        def runtime_collision(key: str) -> None:
-            if namespace is not None and key in runtime_table and runtime_table[key] is not instance:
-                raise ValueError(f"Instance name collision: '{key}' is already registered in {namespace.name} namespace!")
+    def _check_registration(self, own: InstanceKey, keys: list[tuple[VCT, InstanceKey]], global_id: str,
+                            instance: Any, replacing: bool) -> list[Any]:
+        """Refuse a registration that would take a key or a global id a
+        different instance holds, before anything is written. The same
+        instance already under a key is no collision (an item is
+        registered again when its parent is set). A replacing registration
+        displaces the instance under its own key and the one under its
+        global id, and answers them; any other held key is still refused."""
+        displaced: list[Any] = []
+        if replacing:
+            for held in (self.instances[own.classification].get(own), self.instances_by_global_id.get(global_id)):
+                if held is not None and held is not instance and not any(held is d for d in displaced):
+                    displaced.append(held)
+        for table_vct, key in keys:
+            taken = self._held_by_another(table_vct, key, [instance, *displaced])
+            if taken is not None:
+                held_key, held = taken
+                kind = "name" if key.name == own.name else "alias"
+                raise InstanceCollisionError(
+                    f"Instance {kind} collision under {table_vct.value}: {_declared(instance)} takes "
+                    f"{key.qualified!r} and {_declared(held)} holds {held_key.qualified!r}; the emission "
+                    f"names every instance by its own name, so rename one")
+        held = self.instances_by_global_id.get(global_id) if global_id else None
+        if held is not None and held is not instance and not any(held is d for d in displaced):
+            raise InstanceCollisionError(
+                f"Instance id collision under {own.classification.value}: {_declared(instance)} and "
+                f"{_declared(held)} both take the global id {global_id!r}; rename one")
+        return displaced
 
-        runtime_collision(model_name)
-        for alias in aliases:
-            if alias != own_name and alias in own and own[alias] is not instance:
-                raise ValueError(f"Instance Alias Collision: '{alias}' is already in use for {classifier}!")
-            runtime_collision(alias)
+    def _held_by_another(self, table_vct: VCT, key: InstanceKey, mine: list[Any]) -> tuple[InstanceKey, Any] | None:
+        """The key and the instance, not one of ``mine``, that already
+        hold ``key``'s word in ``table_vct``: the same key for an item
+        declared in another one (its siblings in other parents may share
+        its name), and any top-level key with the same name, whatever its
+        namespace, for a top-level instance (a name or alias is one
+        instance's per table, across plugins)."""
+        table = self.instances[table_vct]
+        if key.ancestry:
+            held = table.get(key)
+            return (key, held) if held is not None and not any(held is m for m in mine) else None
+        return next(((k, held) for k, held in table.items()
+                     if k.name == key.name and not k.ancestry and not any(held is m for m in mine)), None)
 
-    def _enter_global_id(self, global_id: str, instance: Any) -> None:
+    def _leave_old_keys(self, instance: Any, keys: list[tuple[VCT, InstanceKey]], displaced: list[Any]) -> None:
+        """Remove every key ``instance`` held before this registration and
+        does not hold now (its ancestry moved with its parent reference, an
+        alias dropped), and every key a displaced instance still holds, from
+        the tables this registration wrote to. A key the registration wrote
+        keeps its place in its table."""
+        written = set(keys)
+        for table_vct in {t for t, _k in keys}:
+            table = self.instances[table_vct]
+            gone = [key for key, held in table.items()
+                    if (table_vct, key) not in written and (held is instance or any(held is d for d in displaced))]
+            for key in gone:
+                del table[key]
+
+    def _enter_global_id(self, global_id: str, instance: Any, displaced: list[Any] | None = None) -> None:
         """Index ``instance`` under ``global_id``, its id now. An instance
         registered again under a new id (its parent reference refined, which
-        moves the id) leaves every id it was indexed under before: an entry
-        under an old id is removed only when it holds this same instance, so
-        the index never keeps an id its object no longer has."""
+        moves the id) leaves every id it was indexed under before, and a
+        displaced instance leaves every id it held: an entry under another
+        id is removed only when it holds one of those, so the index never
+        keeps an id its object no longer has."""
         index = self.instances_by_global_id
-        for old in [key for key, held in index.items() if held is instance and key != global_id]:
+        leaving = [instance, *(displaced or [])]
+        for old in [key for key, held in index.items()
+                    if key != global_id and any(held is x for x in leaving)]:
             del index[old]
         index[global_id] = instance
 
-    def _enter_runtime_namespace(self, classifier: VCT, key: str, instance: Any) -> None:
-        """Enter a cloud or container ``instance`` under ``key`` (its name or
-        an alias) in the runtime namespace its classification belongs to;
-        nothing for any other classification. The key is checked first
-        (:meth:`_check_registration`): the same instance already there is no
-        collision, another instance under ``key`` is."""
-        namespace = RUNTIME_NAMESPACE_OF.get(classifier)
-        if namespace is not None:
-            self.instances[namespace][key] = instance
-
     def get_all_instances_by_classification(self, classifier: VCT) -> dict[str, Any]:
-        """Get all registered instances under a specific classification."""
-        res: dict[str, Any] = {}
-        for _k, v in self.instances.get(classifier, {}).items():
-            res[v.get_name()] = v           
-        return res
+        """Every instance registered under ``classifier``, once each, by the
+        shortest word that names it (:func:`_words_under`): a top-level
+        instance's bare name, an item declared in another one's qualified
+        form, so no two instances collapse into one entry."""
+        return _words_under(self.instances.get(classifier, {}))
+
     def get_instance_by_name_or_alias(self, classifier: VCT, name_or_alias: str) -> Any | None:
         """Get a registered instance by its name or any of its aliases under a specific classification."""
         if name_or_alias == DEFAULT:
@@ -449,10 +663,26 @@ class Registry:
                 log.warning(f"Default value for classification '{classifier}' is not set. Returning None.")
                 return None
             name_or_alias = d
-        if name_or_alias in self.instances.get(classifier, {}):
-            return self.instances[classifier][name_or_alias]
-        log.debug(f"Name or alias '{name_or_alias}' not found in instances registry under classification '{classifier}'. Returning None.")
-        return None
+        found = _resolve_instance(self.instances.get(classifier, {}), classifier, name_or_alias)
+        if found is None:
+            log.debug(f"Name or alias '{name_or_alias}' not found in instances registry under classification '{classifier}'. Returning None.")
+        return found
+
+    def word_for(self, classifier: VCT, word: str) -> str:
+        """The word a reference a tree wrote reads as everywhere after the
+        load: a qualified word that names an instance under ``classifier``
+        becomes the word the registry lists that instance by
+        (:meth:`get_all_instances_by_classification`: a top-level
+        instance's bare name). Every other word,
+        a bare name, an alias or one that names nothing, is returned as it
+        was written, so a bare tree reads exactly as before."""
+        if not isinstance(word, str) or NAMESPACE_SEPARATOR not in word:
+            return word
+        table = self.instances.get(classifier, {})
+        found = _resolve_instance(table, classifier, word)
+        if found is None:
+            return word
+        return next((listed for listed, held in _words_under(table).items() if held is found), word)
             
     def register_service(self, service: type[PluginArtifactProtocol], 
                          override_classifier:VCT|None = None, *, namespace: str) -> None:
@@ -472,6 +702,7 @@ class Registry:
                              f"{registered.__module__}.{registered.__qualname__}, "
                              f"and {service.__module__}.{service.__qualname__} registers it too")
         self.registry[key] = service
+        self._note_namespace(service, namespace)
         by_classifier = self.vct_type_registry.setdefault(classifier, [])
         if service not in by_classifier:          # one entry per class, however many plugins carry it
             by_classifier.append(service)
@@ -503,15 +734,19 @@ class Registry:
                              f"to '{self.defaults_registry[type]}'. Cannot override with '{value}'.")    
         self.defaults_registry[type] = value
 
-    def get_default_for(self, type: VCT) -> str | None:         
+    def get_default_for(self, type: VCT) -> str | None:
+        """The word that names the default of ``type``: the one set for it,
+        else (when nothing set any default) the first top-level instance
+        that says it is the default. An item declared in another one is
+        never a classification's default: a bare word never finds it."""
         if not self.defaults_registry:
             log.debug("No default values have been set in the registry. Populating....")
             for classifier, inst in self.instances.items():
-                for name, instance in inst.items():
-                    if self.defaults_registry.get(classifier, None) is not None:
+                for key, instance in inst.items():
+                    if key.ancestry or self.defaults_registry.get(classifier, None) is not None:
                         continue
                     if instance.get_is_default():
-                        self.set_default_for(classifier, name)
+                        self.set_default_for(classifier, key.name)
         if not type in self.defaults_registry:
             log.debug(f"No default value set for type '{type}'. Populating.")
             return None
@@ -563,7 +798,7 @@ class Registry:
         # First check if it's a direct name match
         target_name = self.get_registered_name_by_name_or_alias(classification, name_or_alias)
         if target_name:
-            return self.instances.get(classification, {}).get(target_name, None)
+            return _resolve_instance(self.instances.get(classification, {}), classification, target_name)
         log.warning(f"Warning: Name or alias '{name_or_alias}' not found in registry under classification '{classification}'. Returning None.")
         return None
 

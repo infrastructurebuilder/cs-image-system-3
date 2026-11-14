@@ -85,6 +85,25 @@ named. The reasoning is in [the stage index](CHANGES.md#s131); the
 registry's tables and the resolution rule are in
 [base's README](../packages/base/README.md#the-registry).
 
+What a tree declares is keyed the same way: an instance is registered
+under its classification, the namespace of the plugin whose class it is,
+its ancestry (the global id of the item it is declared in, empty for a
+top-level item) and its name. A top-level name or alias is still one
+instance's per table across every plugin: the emission names every
+instance by its own name, so another plugin's instance under a held name
+(a cloud runtime and a container runtime both named `x`) or alias is
+refused at load, and a bare name never has two answers. A builder
+registers what it makes
+with `ctx.reg.register_built_instance`, which refuses a key or a global
+id another instance holds; the one registration that replaces on purpose
+is `replace_built_instance` (a runtime's provider-specific image, made
+again for the same source and runtime). A tree may write any reference in
+the qualified form, and the load reads it as the bare word before any
+reader sees it: a foreign key is read so already, and a plain field of a
+plugin's model that names instances is marked with
+`metadata={REFERENCE_TARGET: VCT.<KIND>}` (`cs_image_system.base.models.references`)
+to be read the same way (the okta group builder's `posix` is).
+
 The three terraform root plugins (`tf-ebs-instance-plugin`,
 `tf-gcp-plugin`, `tf-docker-plugin`) share one implementation of the
 root: the provider-neutral bases in

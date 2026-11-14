@@ -45,7 +45,7 @@ class _Classified(NameTyped):
         return self.classified_as
 
 
-def _unique(table: dict[str, Any]) -> list[Any]:
+def _unique(table: dict[Any, Any]) -> list[Any]:
     seen: dict[int, Any] = {}
     for inst in table.values():
         seen.setdefault(id(inst), inst)

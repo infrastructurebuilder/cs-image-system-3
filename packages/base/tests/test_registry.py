@@ -8,13 +8,15 @@ from typing import Any, cast
 from cs_image_system.base import registry as _registry
 from cs_image_system.contract.constants import VCT
 
+THING = _registry.InstanceKey(VCT.STORAGE_MODEL, "test", "", "thing")
+
 
 def test_a_registry_is_per_run_and_the_process_holds_none():
     # two constructions are two registries that share no table, and the
     # module offers no way to fetch "the" registry
     mine, other = _registry.Registry(), _registry.Registry()
     assert mine is not other
-    mine.instances[VCT.STORAGE_MODEL]["thing"] = object()
+    mine.instances[VCT.STORAGE_MODEL][THING] = object()
     assert other.instances[VCT.STORAGE_MODEL] == {}
     assert not hasattr(_registry, "current_registry") and not hasattr(_registry, "bind_current_registry")
 
@@ -23,7 +25,7 @@ def test_reset_clears_registered_state(clean_registry):
     reg = clean_registry.reg
 
     reg.models[_registry.RegistrationKey(VCT.STORAGE_MODEL, "test", "thing")] = cast(Any, object)
-    reg.instances[VCT.STORAGE_MODEL]["thing"] = object()
+    reg.instances[VCT.STORAGE_MODEL][THING] = object()
     assert reg.get_model(VCT.STORAGE_MODEL, "thing") is not None
     assert reg.get_model(VCT.STORAGE_MODEL, "test/thing") is not None
 
