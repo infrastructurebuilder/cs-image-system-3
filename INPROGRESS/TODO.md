@@ -119,9 +119,11 @@ constraint, the rest is preference.
   moved runtime's fixture, golden and legs live is its main new
   decision); §114 and §115 landed inside §125; each waits for its
   "do N".
-- 0.1.8, the latest final release, is cut (2026-11-12): it carries
-  §132 and §133; the reference's `develop` and `main` run it
-  (Release, below).
+- 0.1.9, the latest final release, is cut (2026-11-14): it carries
+  §134 and §112; the reference's `develop` and `main` run it
+  (Release, below). The next release is the first walked as §112
+  planned: `just release-take`, the login halfway, `just
+  release-watch`.
 - Interval checks (the F44 review, the `STARTER_PUSH_TOKEN` renewal)
   live in [REMINDERS.md](../REMINDERS.md).
 
@@ -134,7 +136,23 @@ and validated by the operator before its "do N")
 
 **Release**
 
-- 0.1.8, the latest final release: PyPI and TestPyPI, tag `v0.1.8`
+- 0.1.9, the latest final release: PyPI and TestPyPI, tag `v0.1.9`
+  (f658aa0), 2026-11-14, the first cut by §112's recipe: started from
+  `develop`, it fetched origin, moved to `main`, cut, pushed `main`
+  with the tag, brought `develop` level, pushed it and resynced the
+  venv. Carries §134 (hygiene XXVII) and §112; the contract stays at
+  0.4.1 (the own-version probe read PyPI's build as this tree's). Its
+  tag published the five template repositories.
+- The reference configuration runs 0.1.9 (tag `v0.1.9-before` =
+  f112b74). The refresh was by hand (`init-config . --force`), since
+  the reference ran 0.1.8's `take`; the refreshed Justfile then ran
+  0.1.9's one-box `take ... patched`: the before-tag, the install, the
+  sessions, the take bb06e42, the record 7382834 and one push of
+  `develop`. Its `main` took 0.1.9 on 2026-11-14 (the operator's push;
+  `perform` green, the guard passed, nothing baked; records to
+  a7dd651, `develop` fast-forwarded to it). `just release-watch 0.1.9`
+  judged every run of the walk good.
+- 0.1.8, the previous final release: PyPI and TestPyPI, tag `v0.1.8`
   (f4708de), 2026-11-12, cut from `main`. Carries §132 (hygiene XXV)
   and §133 (hygiene XXVI); the contract is 0.4.1. Its tag published
   the five template repositories. A first attempt the same day ran its
@@ -145,14 +163,14 @@ and validated by the operator before its "do N")
   0.4.1 (9590cbb), and the release now refuses an unbumped
   own-version package before its gate (`scripts/own-versions-current`,
   23eb98a).
-- The reference configuration runs 0.1.8 (tag `v0.1.8-before` =
+- The reference configuration ran 0.1.8 until 0.1.9 (tag `v0.1.8-before` =
   af99460; take cbb1524, a comment-only refresh of five release-owned
   files and the fourteen stamps; record b1bf84e with the pinned CLI,
   the first record under the pin check, CI green on `develop`). Its
   `main` took 0.1.8 on 2026-11-12 (`perform` green: the guard
   unchanged, nothing baked, no machine replaced, the login proof ok;
   records to f112b74, `develop` fast-forwarded to it).
-- 0.1.7, the previous final release: PyPI and TestPyPI, tag `v0.1.7`
+- 0.1.7, the final release before it: PyPI and TestPyPI, tag `v0.1.7`
   (42a7b34), 2026-11-12, cut from `main`. Carries §110 and §111
   (hygiene XXII and XXIII), the stages of the re-examination (§118 to
   §129 and §131) and §130 (hygiene XXIV); the contract is 0.4.0 and
@@ -169,7 +187,7 @@ and validated by the operator before its "do N")
   0.1.7 on 2026-11-12 (the operator's push; `perform` green, nothing
   baked, no machine replaced, the login proof ok, records to af99460,
   `develop` fast-forwarded to it).
-- 0.1.6, the final release before it: PyPI and TestPyPI, tag `v0.1.6`
+- 0.1.6, an earlier final release: PyPI and TestPyPI, tag `v0.1.6`
   (8ea1dc4), 2026-11-02, the second final release cut from `main` by
   the §107 walk. Carries §103 (the container runtime and its two new
   PyPI projects), §105, §108 and §109. Its tag published the five
