@@ -1,7 +1,10 @@
 # 113. The kit and the engine: `base` splits where the plugins stop
 
 **Status: OPEN 2026-11-03; RE-PLANNED 2026-11-05 on §124's numbers;
-RE-MEASURED 2026-11-12 after §132 (below). Waits for "do 113". The
+RE-MEASURED 2026-11-12 after §132 (below). Waits for "do 113",
+after [§135](STAGE-135.md) (the operator, 2026-11-14: §135 first).
+Its decisions were asked 2026-11-14 and are answered under each one,
+so "do 113" asks nothing more unless the work surfaces a choice. The
 first of the two decomposition stages that remain
 ([§116](STAGE-116.md) is the other; §114 and §115 landed inside
 §125).**
@@ -149,7 +152,8 @@ read again at "do 113"; the script that computes it
    (`base.init`) and `cs_image_system.modules` (`base:tfmodules`,
    which holds the bootstrap's `bootstrap_github`). **YOUR
    DECISION:** where the engine goes. A package of its own, `engine`
-   (the plan's default): the seam is a distribution boundary, at the
+   (the plan's default, and the operator's answer of 2026-11-14): the
+   seam is a distribution boundary, at the
    cost of a twenty-third lock-stepped project (a new PyPI project,
    one more upload in every release), where §126 decided that the
    twenty-two stay and the re-examination asks for fewer. Or into
@@ -169,17 +173,31 @@ read again at "do 113"; the script that computes it
      carries `orchestrator`, `template_utils`, `loader`, `meta_state`
      and the `finalizer` type), or first cut the four kit-side edges
      named above so those modules move too, a smaller kit as
-     REEXAMINE2 and REEXAMINE3 ask, at the cost of new scope.
+     REEXAMINE2 and REEXAMINE3 ask, at the cost of new scope. **The
+     operator, 2026-11-14: cut the four edges first.** So the stage
+     opens with that work, each edge its own commit, the closure
+     re-measured after each: `models.image` and `models.builder_model`
+     stop importing the resolver's `ModelBinding` and `unstructure`;
+     `run_context`, `network_facts` and `alias_pool` stop importing
+     `meta_state`; `public_safe` stops importing `installed_registry`
+     from `loader` (and `meta_state` stops re-exporting `public_safe`);
+     `run_context`'s typing edge to `Finalizer` goes behind a protocol.
+     The kit and engine lists below are read again after the cuts, and
+     the move follows the new line.
    - **YOUR DECISION (the undo):** with no re-export left, undoing this
      stage is reverting its squash. Keep the `s113-before`/
      `s113-after` bracket of the acceptance (the default), or drop it
-     as REEXAMINE1 §3.4 advises against a second bracket.
+     as REEXAMINE1 §3.4 advises against a second bracket. **The
+     operator, 2026-11-14: keep the bracket.**
    - **YOUR DECISION (the two entry points):** keep both in the kit's
      `pyproject.toml` (the default: a `.csis-module` stamp's `plugin:`
      stays `base`, so the reference's and the starters' copies stay
      byte-identical), or move them to the engine's distribution, which
      changes the module entry's namespace from `base` to `engine` and
-     with it every stamp already written.
+     with it every stamp already written. **The operator, 2026-11-14:
+     keep both in the kit, and migrate to the cleaner form after the
+     next release cycle** (a reminder in
+     [REMINDERS.md](../REMINDERS.md)).
 2. The kit reaches the terraform library nowhere. **Done before this
    stage (§123); nothing is left of this item.** `base` and `system`
    import nothing of hashicorp-utils or tofu-roots at any depth,

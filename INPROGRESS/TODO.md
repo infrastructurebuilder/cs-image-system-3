@@ -47,9 +47,9 @@ release carrying §112 comes next, and the release after that is its
 live proof. The order proposed for the rest: [§113](STAGE-113.md) (alone: it rewrites imports in
 ninety-one test files), [§116](STAGE-116.md), §117; and
 [§135](STAGE-135.md), which changes the registry and the resolver's
-keys, before §113 or after it but not beside it. **YOUR DECISION:**
-that order (the default), or another; only "§113 alone" is a
-constraint, the rest is preference.
+keys, before §113 or after it but not beside it. The operator,
+2026-11-14: §135 first, then §113, then §116 and §117; the decisions
+of §113 and §135 are answered in their files.
 
 
 **Open**

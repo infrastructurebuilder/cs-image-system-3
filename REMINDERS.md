@@ -92,6 +92,26 @@ that is a documentation and recipe change, so it becomes a stage then.
 
 - 2026-12-02: (open)
 
+## After the next release cycle
+
+### Base's two entry points move to the engine
+
+**Raise after the release that follows stage 113's** (the operator,
+2026-11-14, at the questions for stage 113). Stage 113 splits `base`
+into a kit and an engine and keeps the two entry points that name
+engine modules in the kit's `pyproject.toml`: the base plugin
+(`cs_image_system.plugins.base`, `base.init`) and the terraform module
+directory (`cs_image_system.modules`, `base:tfmodules`, which holds the
+bootstrap's `bootstrap_github`). That keeps every `.csis-module`
+stamp's `plugin:` at `base`, so no tree's module copies change at that
+release. The cleaner form moves both to the engine's distribution;
+the module entry's namespace then becomes `engine`, every stamp
+changes, and every tree refreshes its modules at its next take, which
+the take now does by itself (stage 112). Plan it as a stage of its
+own then.
+
+- After the next release cycle: (open)
+
 ## Before 1.0
 
 Raised when the first 1.0 release is planned, not on a date.
