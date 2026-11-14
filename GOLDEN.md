@@ -1,7 +1,7 @@
 # The golden fixture
 
-*What `tests/fixtures/v2_golden/` is, how it is produced, and why nearly every
-change in this repository is judged against it.*
+*What `tests/fixtures/v2_golden/` is, how it is produced, and why most 
+changes in this repository are judged against it.*
 
 ## In one sentence
 
