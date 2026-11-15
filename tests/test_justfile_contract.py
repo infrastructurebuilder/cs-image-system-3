@@ -187,7 +187,7 @@ def test_the_live_configuration_never_reaches_the_fast_suite_and_is_guarded_else
     # config-drift: the CLI's command, reached here as `just cli config-drift`; the normaliser is its module
     body = _plan("config-drift", justfile=STARTER)
     assert body.strip().endswith("config-drift")
-    normaliser = (REPO / "packages" / "base" / "src" / "cs_image_system" / "base" / "commands" / "emission.py").read_text()
+    normaliser = (REPO / "packages" / "engine" / "src" / "cs_image_system" / "engine" / "commands" / "emission.py").read_text()
     for needle in ("<RUN>", "<STAMP>", "RUN_LOCAL_FILENAMES", ".terraform.lock.hcl", "archive"):
         assert needle in normaliser, needle
     assert "<ROOT>" not in body + normaliser and "s#--root-dir" not in body + normaliser   # an absolute path in the emission IS drift
@@ -247,8 +247,8 @@ def test_preflight_fails_on_a_credential_that_is_set_but_empty(monkeypatch, tmp_
     """A secret set from a checkout missing its source file passed three
     green CI jobs that ran nothing -- the variable existed and its value was "".
     Set-but-empty is a failure, reported by NAME, never by value."""
-    from cs_image_system.base.commands.preflight import empty_environment_credentials
-    from cs_image_system.base.loader import installed_registry
+    from cs_image_system.engine.commands.preflight import empty_environment_credentials
+    from cs_image_system.engine.loader import installed_registry
     assert empty_environment_credentials(installed_registry(),
                                          {"TF_VAR_X": "", "OKTA_API_TOKEN": "", "AWS_PROFILE": "p", "HOME": ""}) == \
         ["OKTA_API_TOKEN", "TF_VAR_X"]
@@ -295,7 +295,7 @@ def test_the_performing_recipe_and_the_runtime_guard_hold_their_shape():
     record = _plan("record", justfile=STARTER)
     assert record.strip().endswith("run --all --commit") and "--locked" not in record
     assert not (REPO / "scripts" / "normalise-emission").exists()
-    text = (REPO / "packages" / "base" / "src" / "cs_image_system" / "base" / "commands" / "emission.py").read_text()
+    text = (REPO / "packages" / "engine" / "src" / "cs_image_system" / "engine" / "commands" / "emission.py").read_text()
     assert "RUN_LOCAL_FILENAMES" in text and "[0-9]{8}[-_][0-9]{6}" in text
 
 
@@ -308,7 +308,7 @@ def _arity(name: str, justfile: Path | None = None) -> int:
 
 
 def test_preflight_readiness_marks_presence():
-    from cs_image_system.base.commands.preflight import SessionInfo, _merge
+    from cs_image_system.engine.commands.preflight import SessionInfo, _merge
     a = SessionInfo("r1", "aws", "profile p", None, "no SSO token cached", present=False)
     b = SessionInfo("r2", "aws", "profile p", None, "no SSO token cached", present=False)
     merged = _merge([a, b])

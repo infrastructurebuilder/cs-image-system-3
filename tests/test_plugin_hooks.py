@@ -32,7 +32,7 @@ def v2(tmp_path, monkeypatch):
 def test_hook_plugins_are_discovered_and_notifier_fires(v2, tmp_path, monkeypatch):
     notify = tmp_path / "notify.jsonl"
     monkeypatch.setenv("CSIS_NOTIFY_FILE", str(notify))
-    from cs_image_system.base.commands import run_lifecycles as rl
+    from cs_image_system.engine.commands import run_lifecycles as rl
     assert rl.load_hook_plugins(force=True) >= 1
     summary = v2.run(["identity"], apply=False)
     assert summary.ok, summary.error
@@ -41,8 +41,8 @@ def test_hook_plugins_are_discovered_and_notifier_fires(v2, tmp_path, monkeypatc
 
 
 def test_plugin_registered_lifecycle_participates_like_a_builtin(v2, monkeypatch):
-    from cs_image_system.base.commands import run_lifecycles as rl
     from cs_image_system.base.lifecycles import all_lifecycles, parse_lifecycles, unregister_lifecycle
+    from cs_image_system.engine.commands import run_lifecycles as rl
     monkeypatch.setenv("CSIS_DUMMY_LIFECYCLE", "1")
     rl.load_hook_plugins(force=True)
     names = [lc.value for lc in all_lifecycles()]

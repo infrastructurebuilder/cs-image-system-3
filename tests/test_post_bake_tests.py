@@ -121,7 +121,7 @@ def test_an_image_without_post_bake_tests_verifies_as_before(run, monkeypatch):
 
 
 def test_release_requires_a_passing_post_bake_record_where_declared(run):
-    from cs_image_system.base.release import ReleaseError, release
+    from cs_image_system.engine.release import ReleaseError, release
     _seed_gce_chain(run)
     ms = run.ctx.meta_state
     with pytest.raises(ReleaseError, match="has no post-bake test record while 'imgfile-basic-dask' declares"):
@@ -142,9 +142,9 @@ def test_release_requires_a_passing_post_bake_record_where_declared(run):
 
 
 def test_released_builds_survive_retention_and_count_as_declared(run, monkeypatch):
-    from cs_image_system.base.commands.dispose import retention_plan
-    from cs_image_system.base.commands.runtime_facts import emptiness, released_ids
-    from cs_image_system.base.release import release
+    from cs_image_system.engine.commands.dispose import retention_plan
+    from cs_image_system.engine.commands.runtime_facts import emptiness, released_ids
+    from cs_image_system.engine.release import release
     from cs_image_system.gcloud_runtime.gcp_runtime_builders import GCPCloudBuilder
     _seed_gce_chain(run)
     ms = run.ctx.meta_state
@@ -176,7 +176,7 @@ def test_declared_release_targets_the_verified_head_only(run):
     already current -- found live: on an ephemeral runtime the operator's
     explicit `release` has no moment between the verification and the
     closing retention, which disposed the verified build first."""
-    from cs_image_system.base.release import declared_release_targets, releases
+    from cs_image_system.engine.release import declared_release_targets, releases
     _seed_gce_chain(run)
     ms = run.ctx.meta_state
     assert run.ctx.images_map[DASK].release == {"model": "default"}
@@ -190,7 +190,7 @@ def test_declared_release_targets_the_verified_head_only(run):
     script = (run.generated / "release" / "run-release.sh").read_text()
     assert "release --declared" in script and "--no-dry-run" in script
     # the deferred step, executed: released, then nothing more to do
-    from cs_image_system.base.release import release
+    from cs_image_system.engine.release import release
     for name, _rt, build_id, model in declared_release_targets(run.ctx):
         release(run.ctx, name, build_id, model=model)
     assert releases(ms)["current"]["default"][DASK] == BUILD
@@ -207,7 +207,7 @@ def test_release_cli_picks_the_runtimes_head(run):
     ms = run.ctx.meta_state
     ms.record_image_test(BUILD, {"ok": True, "run": "r2", "checks": []})
     release_command(ctx=cli_context(run.ctx), image=DASK, build="", model="default", note="", runtime=GCE, declared=False)
-    from cs_image_system.base.release import releases
+    from cs_image_system.engine.release import releases
     assert releases(ms)["current"]["default"][DASK] == BUILD
     with pytest.raises(typer.Exit) as e:
         release_command(ctx=cli_context(run.ctx), image=None, build="", model="default", note="", runtime=None, declared=False)

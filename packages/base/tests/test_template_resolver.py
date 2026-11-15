@@ -15,9 +15,7 @@ from typing import Any
 import jinja2
 import pytest
 
-from cs_image_system.base import orchestrator
 from cs_image_system.base.models.mixins import ParentPropertyHolding
-from cs_image_system.base.orchestrator import SmartContext
 from cs_image_system.base.registry import CORE_NAMESPACE, InstanceCollisionError, InstanceKey
 from cs_image_system.contract.constants import DEFAULT, NO_MODEL_ID, VCT
 from cs_image_system.contract.fields import (
@@ -27,6 +25,8 @@ from cs_image_system.contract.fields import (
     parent_field,
     templated_field,
 )
+from cs_image_system.engine import orchestrator
+from cs_image_system.engine.orchestrator import SmartContext
 
 
 @dataclass
@@ -255,8 +255,8 @@ def test_an_item_with_no_model_of_its_own_takes_the_item_classifications_default
     storage mapping item classification; a model with no override whose
     storage builder's type has no item model structures its storages
     into that default."""
-    from cs_image_system.base.init import BaseInitTypes
     from cs_image_system.base.models.instance import StorageMapping
+    from cs_image_system.engine.init import BaseInitTypes
     tr = clean_registry
     tr.reg.register_plugin_metadata(BaseInitTypes(), namespace="base")
     tr.reg.register_built_instance(UnmappedStorageBuilder("scratch"))

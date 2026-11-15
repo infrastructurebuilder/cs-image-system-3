@@ -23,9 +23,9 @@ from typing import Any
 import pytest
 
 from cs_image_system.base import launch_params as lp
-from cs_image_system.base.commands import validate as validate_module
-from cs_image_system.base.commands.validate import check_canonical_hostnames
 from cs_image_system.contract.lifecycles import Lifecycle
+from cs_image_system.engine.commands import validate as validate_module
+from cs_image_system.engine.commands.validate import check_canonical_hostnames
 from tests.harness import V2Run
 
 # ------------------------------------------------------------ step 3

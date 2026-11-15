@@ -81,7 +81,7 @@ def test_the_whole_system_package_exposes_the_command_to_uv_tool_install():
 
 @pytest.mark.parametrize("name", starters.STARTERS)
 def test_init_config_writes_the_whole_starter_into_an_empty_destination(tmp_path, name):
-    from cs_image_system.base.modules import STAMP_FILE, installed_modules
+    from cs_image_system.engine.modules import STAMP_FILE, installed_modules
     dest = tmp_path / "team-config"
     result = _invoke(str(dest), "--from", name)
     assert result.exit_code == 0, result.output
@@ -367,7 +367,7 @@ def test_locked_needs_the_cache_directory_variable(monkeypatch, tmp_path):
 
 
 def test_the_lock_module_keeps_the_shape_the_script_had(tmp_path):
-    from cs_image_system.base import tofu_lock
+    from cs_image_system.engine import tofu_lock
     env = {"TF_PLUGIN_CACHE_DIR": str(tmp_path / "c")}
     release = tofu_lock.acquire(env)
     assert (tmp_path / "c" / ".lock" / "pid").read_text().strip() == str(os.getpid())
@@ -384,7 +384,7 @@ def test_the_lock_module_keeps_the_shape_the_script_had(tmp_path):
 # ------------------------------------------------------- the normaliser
 
 def test_normalise_emission_removes_residue_and_placeholders_run_ids_and_stamps(tmp_path):
-    from cs_image_system.base.commands.emission import normalise_emission
+    from cs_image_system.engine.commands.emission import normalise_emission
     root = tmp_path / "generated"
     (root / "instance-image" / "b" / ".terraform").mkdir(parents=True)
     (root / "instance-image" / "b" / ".terraform.lock.hcl").write_text("x")
@@ -409,7 +409,7 @@ def test_normalise_emission_removes_residue_and_placeholders_run_ids_and_stamps(
 
 
 def test_diff_trees_names_what_differs_and_nothing_when_equal(tmp_path):
-    from cs_image_system.base.commands.emission import diff_trees
+    from cs_image_system.engine.commands.emission import diff_trees
     a, b = tmp_path / "a", tmp_path / "b"
     for r in (a, b):
         (r / "d").mkdir(parents=True)
@@ -455,7 +455,7 @@ def _copy_of_committed(v2):
 
 
 def test_config_drift_reads_current_then_behind_then_nothing_committed(tmp_path, monkeypatch):
-    from cs_image_system.base.commands.emission import config_drift
+    from cs_image_system.engine.commands.emission import config_drift
     v2 = _generated_tree(tmp_path, monkeypatch)
     root = v2.config_root
     said: list[str] = []
@@ -498,7 +498,7 @@ def test_config_drift_copies_a_relative_module_source_base_that_escapes_the_tree
     """The reference configuration reached the system's modules at
     ../cs-image-system-3/tfmodules before the release shipped them; a copy for a dry run
     puts the modules at the same relative place beside it."""
-    from cs_image_system.base.commands.emission import copy_tree_for_a_dry_run
+    from cs_image_system.engine.commands.emission import copy_tree_for_a_dry_run
     site = tmp_path / "site"
     (site / "cs-image-system-3" / "tfmodules" / "m").mkdir(parents=True)
     (site / "cs-image-system-3" / "tfmodules" / "m" / "main.tf").write_text("module\n")
@@ -523,7 +523,7 @@ def test_config_drift_leaves_the_provider_cache_out_of_the_copy(tmp_path, monkey
     dry run reads the original's through TF_PLUGIN_CACHE_DIR. Left out by its
     starter name at any depth, and as TF_PLUGIN_CACHE_DIR names it inside the
     tree; a directory of the same name elsewhere is copied."""
-    from cs_image_system.base.commands.emission import copy_tree_for_a_dry_run
+    from cs_image_system.engine.commands.emission import copy_tree_for_a_dry_run
     root = tmp_path / "tree"
     for rel in ("cfg/_config.yml", ".tofu-plugin-cache/registry.opentofu.org/hashicorp/aws/6.70.0/p",
                 "tools/providers/registry.opentofu.org/hashicorp/google/8.8.1/p", "tools/keep.txt",
@@ -548,7 +548,7 @@ def test_the_dry_run_is_logged_as_it_goes_and_says_where_it_is(tmp_path):
     the run's own INFO records, never from a captured step's indented output."""
     import sys
 
-    from cs_image_system.base.commands.emission import _took, subprocess_dry_run
+    from cs_image_system.engine.commands.emission import _took, subprocess_dry_run
     record = [
         "[13:52:29] INFO     Found 1 base plugins.                           loader.py:32",
         "           INFO     [identity] regenerating                run_lifecycles.py:321",
@@ -582,7 +582,7 @@ def test_the_dry_run_is_logged_as_it_goes_and_says_where_it_is(tmp_path):
 def test_config_drift_is_a_command_that_loads_nothing(tmp_path, monkeypatch):
     """The dry run happens in a process of its own; this process needs no
     identity and no session, only the tree and its git history."""
-    from cs_image_system.base.commands import emission
+    from cs_image_system.engine.commands import emission
     v2 = _generated_tree(tmp_path, monkeypatch)
     monkeypatch.setattr(emission, "subprocess_dry_run", _copy_of_committed(v2))
     monkeypatch.delenv("CSIS_CONFIG_IDENTITY", raising=False)
@@ -596,7 +596,7 @@ def test_config_drift_is_a_command_that_loads_nothing(tmp_path, monkeypatch):
 # ------------------------------------------------------ runtime-unchanged
 
 def test_runtime_unchanged_compares_one_runtimes_directories_across_records(tmp_path, monkeypatch):
-    from cs_image_system.base.commands.emission import runtime_unchanged
+    from cs_image_system.engine.commands.emission import runtime_unchanged
     v2 = _generated_tree(tmp_path, monkeypatch)
     root = v2.config_root
     os.chdir(root)

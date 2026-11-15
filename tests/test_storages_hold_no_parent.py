@@ -20,8 +20,8 @@ import yaml
 from harness import copy_config, load_context, stub_environment
 
 from cs_image_system.base.models.storage import Storage
-from cs_image_system.base.orchestrator import PARENT_SETTER
 from cs_image_system.contract.constants import DEFAULT, FK_ALSO_SET_ON_UPDATE
+from cs_image_system.engine.orchestrator import PARENT_SETTER
 
 DEFAULT_TYPED = "mnt_data"      # the fixture's storage that writes no `type`
 

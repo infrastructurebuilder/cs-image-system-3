@@ -13,6 +13,7 @@ license-files = ["LICENSE"]
 requires-python = ">=3.13"
 dependencies = [
     "cs-image-system-base==0.1.9",
+    "cs-image-system-engine==0.1.9",
     "typer>=0.26",
     "rich>=15.0",
     "PyYAML>=6.0",

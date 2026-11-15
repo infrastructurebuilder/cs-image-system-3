@@ -164,7 +164,7 @@ def test_changed_base_under_pinned_bakes_the_base_alone_and_reports_stale(conver
     summary = run.run(["instance-image"], apply=True, only=[f"{DASK}@{GCE_RT}"])
     assert summary.ok, summary.error
     assert _pkr_sources(run) == set()                            # pinned: the child does not follow
-    from cs_image_system.base.state_query import DRIFT_STALE, image_drift
+    from cs_image_system.engine.state_query import DRIFT_STALE, image_drift
     drift = image_drift(run.ctx, {GCE_RT: [{"image_id": b["build_id"], "tags": {}} for b in lineage["builds"]]})
     stale = [d for d in drift if d.drift == DRIFT_STALE]
     assert [d.name for d in stale] == [f"{DASK}@{GCE_RT}"] and not stale[0].hard
@@ -280,7 +280,7 @@ def test_strict_state_query_reports_stale_but_does_not_fail_on_it(monkeypatch, c
     drift class still fails."""
     import typer
 
-    from cs_image_system.base.state_query import DRIFT_MISSING, DRIFT_STALE, Drift, StateReport
+    from cs_image_system.engine.state_query import DRIFT_MISSING, DRIFT_STALE, Drift, StateReport
     from cs_image_system.system import cli
 
     def fake_query(report_drift):

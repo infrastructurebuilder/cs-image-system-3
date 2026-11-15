@@ -154,7 +154,7 @@ def test_a_runtime_without_verification_refuses(prepared, monkeypatch):
 
 
 def test_state_query_reports_a_standing_ephemeral(prepared, monkeypatch):
-    from cs_image_system.base.state_query import DRIFT_CHANGED, StateReport, standing_ephemeral_drift
+    from cs_image_system.engine.state_query import DRIFT_CHANGED, StateReport, standing_ephemeral_drift
     from cs_image_system.gcloud_runtime.gcp_runtime_builders import GCPCloudBuilder
     root, make = prepared
     run = make()
@@ -324,7 +324,7 @@ def test_assert_last_verification(prepared):
 
 
 def test_standing_report_states_the_policy(prepared, monkeypatch):
-    from cs_image_system.base.state_query import StateReport, standing_ephemeral_drift
+    from cs_image_system.engine.state_query import StateReport, standing_ephemeral_drift
     from cs_image_system.gcloud_runtime.gcp_runtime_builders import GCPCloudBuilder
     root, make = prepared
     _set_instance(root, "gce-test", teardown_after="1h")

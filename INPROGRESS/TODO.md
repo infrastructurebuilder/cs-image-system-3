@@ -12,7 +12,7 @@ Stages from the re-examination of 2026-11-03.
 [REEXAMINE4.md](REEXAMINE4.md) digests the three reviews
 ([REEXAMINE1.md](REEXAMINE1.md), [REEXAMINE2.md](REEXAMINE2.md),
 [REEXAMINE3.md](REEXAMINE3.md)); each stage file
-([§113](STAGE-113.md); §118 to §135
+(§113 and §118 to §135
 landed) cites the review section
 it answers. The conventions are the ones above: one file per stage; a
 stage is a plan until the operator says "do N"; **YOUR DECISION** marks
@@ -30,27 +30,27 @@ scope for this file: the model image (the purpose; "hygiene before
 purpose" stands) and populating the Azure and Google Cloud
 repositories.
 
-**Order, and the relation to [§113](STAGE-113.md) to
+**Order, and the relation to §113 to
 [§116](STAGE-116.md).** All three reviews find that
-[§113](STAGE-113.md)'s closure line is crossed by the imports it claims
+§113's closure line is crossed by the imports it claims
 to follow (REEXAMINE1 §5.2, REEXAMINE3 §3.1) and that
 [§116](STAGE-116.md)'s proof as planned would install the AWS runtime
 under the GCE one (REEXAMINE1 §5.3, REEXAMINE3 §3.1 flaw 1). That
 was answered by doing it: §118 to §133 landed first, §125 absorbed
-§114 and §115, and [§113](STAGE-113.md) was re-planned on §124's
+§114 and §115, and §113 was re-planned on §124's
 numbers and re-measured after §132.
 
 **The open stages against each other** (re-evaluated 2026-11-13; no
 two demand incompatible outcomes, and each file carries what was
 found). §134 and §112 landed first, as proposed (2026-11-13); a
 release carrying §112 comes next, and the release after that is its
-live proof. The order proposed for the rest: [§113](STAGE-113.md) (alone: it rewrites imports in
+live proof. The order proposed for the rest: §113 (alone: it rewrites imports in
 ninety-one test files), [§116](STAGE-116.md), §117; and
 §135, which changes the registry and the resolver's
-keys, before §113 or after it but not beside it (§135 landed
-2026-11-14). The operator,
-2026-11-14: §135 first, then §113, then §116 and §117; the decisions
-of §113 and §135 are answered in their files.
+keys, before §113 or after it but not beside it. The operator,
+2026-11-14: §135 first, then §113, then §116 and §117. §135 and §113
+landed 2026-11-14; a hygiene bundle (XXVIII) for what they found comes
+before the next release.
 
 
 **Open**
@@ -94,7 +94,7 @@ of §113 and §135 are answered in their files.
   rendered value inherits encryption; a refused `--only` changes
   nothing; the narration rule reads across line breaks and the starter
   trees; and twenty-four smaller findings of §132's cuts.
-  [§113](STAGE-113.md)'s plan is re-measured. Its last findings opened
+  §113's plan is re-measured. Its last findings opened
   §134.
 - §134, hygiene bundle XXVII: landed 2026-11-13. Parent references
   are right at every moment of a load (never defaulted; OS builder
@@ -104,8 +104,14 @@ of §113 and §135 are answered in their files.
   and no catch-all hides its errors; the runner image's sources stop
   narrating. Its item 10(d) opened §135. No hygiene
   bundle is open.
+- §113, the kit and the engine: landed 2026-11-14 (not pushed). The
+  core is two packages: the kit, `cs-image-system-base`, is what the
+  plugins import, and the engine, `cs-image-system-engine`, is what
+  only the system runs; the kit imports nothing of the engine. The
+  engine is a new project on the index at the next release; the
+  contract is 0.4.2.
 - §135, registered instances carry a namespace: landed 2026-11-14
-  (not pushed: the operator's run of §135 then §113). An instance is
+  (not pushed). An instance is
   keyed by classification, plugin namespace, ancestry (its parent's
   global id) and name; children no longer overwrite each other; a
   top-level name or alias belongs to one instance per table across
@@ -115,14 +121,10 @@ of §113 and §135 are answered in their files.
   `just release-watch <version>`; the first take after the release
   that carries it is still the old walk, since a tree runs the `take`
   of the release it is on.
-- [§113](STAGE-113.md) and [§116](STAGE-116.md), the decomposition that
-  remains (the kit and the engine; a runtime installed from outside):
-  planned 2026-11-03, §113 re-planned 2026-11-05 on §124's numbers
-  and re-measured 2026-11-12 (§133 item 22, with three new decisions
-  for "do 113"); §116 re-planned 2026-11-13 (docker first; where the
-  moved runtime's fixture, golden and legs live is its main new
-  decision); §114 and §115 landed inside §125; each waits for its
-  "do N".
+- [§116](STAGE-116.md), the decomposition that remains (a runtime
+  installed from outside): re-planned 2026-11-13 (docker first; where
+  the moved runtime's fixture, golden and legs live is its main new
+  decision); it waits for "do 116".
 - 0.1.9, the latest final release, is cut (2026-11-14): it carries
   §134 and §112; the reference's `develop` and `main` run it
   (Release, below). The next release is the first walked as §112
@@ -134,7 +136,6 @@ of §113 and §135 are answered in their files.
 **Stage files** (one per stage, in this directory; the plan is read
 and validated by the operator before its "do N")
 
-- [§113, The kit and the engine: `base` splits where the plugins stop](STAGE-113.md)
 - [§116, A runtime installed from outside](STAGE-116.md)
 
 **Release**
@@ -231,6 +232,24 @@ and validated by the operator before its "do N")
 
 **Landed since 2026-10-05** (newest first)
 
+- §113, the kit and the engine: 2026-11-14, its squash commit
+  (feature/kit-and-engine kept, not pushed; tags `s113-before` and
+  `s113-after`). The core's 136 modules split along the measured
+  closure of what the plugins import: the kit (`cs-image-system-base`,
+  72 modules: the base classes, the models, the registry, the run
+  context and the vocabulary) keeps its name and paths, so no plugin
+  changed an import or a dependency; the engine
+  (`cs-image-system-engine`, 64 modules: the commands, the loader, the
+  orchestrator, the finalizer, the meta-state store, the bootstrap,
+  releases and retention) is a package of its own. Four edges from
+  the kit into the engine were cut first: the run context names its
+  resolver, converter and finalizer by protocols, the kit reads the
+  meta-state by a protocol, and the models' binding helpers live
+  beside them. The rule tests hold contract, kit, engine in that
+  order; base's two entry points stay in its manifest, the plugin's
+  pointing at the engine's `init` (REMINDERS.md holds the move). The
+  golden never moved; the contract's README and its direction test
+  name the engine, a PATCH (0.4.2).
 - §135, registered instances carry a namespace: 2026-11-14, its squash
   commit (feature/instance-namespaces kept, not pushed). The registry's
   instance tables are keyed by `InstanceKey` (classification, the

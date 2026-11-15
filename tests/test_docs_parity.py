@@ -61,7 +61,7 @@ def _documents(text: str, field: str) -> bool:
 
 
 def _registered_models() -> list[type]:
-    from cs_image_system.base.loader import installed_registry
+    from cs_image_system.engine.loader import installed_registry
     seen: dict[type, None] = {}
     for cls in installed_registry().models.values():
         if dataclasses.is_dataclass(cls):

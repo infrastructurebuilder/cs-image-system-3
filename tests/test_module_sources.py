@@ -20,9 +20,9 @@ from typing import Any
 import pytest
 from typer.testing import CliRunner
 
-from cs_image_system.base import modules as m
 from cs_image_system.base.utils import module_source, module_source_overrides
 from cs_image_system.contract.modules import MODULES_ENTRY_POINT_GROUP
+from cs_image_system.engine import modules as m
 from cs_image_system.system.cli import app
 
 EXPECTED = {
@@ -114,7 +114,7 @@ def test_a_bad_module_sources_value_is_refused_by_key(tmp_path: Path):
 
 
 def test_validation_names_a_bad_module_sources_value(tmp_path: Path):
-    from cs_image_system.base.v2_validation import validate_module_sources
+    from cs_image_system.engine.v2_validation import validate_module_sources
     problems = validate_module_sources(_ctx(tmp_path, module_sources=[1]), [])
     assert len(problems) == 1 and problems[0].startswith("config: module_sources") and problems[0].endswith("not list")
     assert validate_module_sources(_ctx(tmp_path, module_sources={"x": "../x"}), []) == []
@@ -260,7 +260,7 @@ def test_the_command_lists_and_writes(tmp_path: Path):
 # ------------------------------------------------------------ the dry run's copy
 
 def test_a_relative_override_outside_the_tree_is_copied_beside_the_dry_run_copy(tmp_path: Path):
-    from cs_image_system.base.commands.emission import copy_tree_for_a_dry_run
+    from cs_image_system.engine.commands.emission import copy_tree_for_a_dry_run
     site = tmp_path / "site"
     root = site / "cfg-repo"
     (root / "cfg").mkdir(parents=True)

@@ -16,9 +16,9 @@ from typing import Any, cast
 
 import pytest
 
-from cs_image_system.base import config_loader
 from cs_image_system.base.models.builder_model import NameTyped
 from cs_image_system.contract.constants import NO_MODEL_ID, VCT
+from cs_image_system.engine import config_loader
 
 
 def _read(stub, spec):

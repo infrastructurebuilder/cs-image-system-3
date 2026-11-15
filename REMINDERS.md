@@ -100,7 +100,7 @@ that is a documentation and recipe change, so it becomes a stage then.
 2026-11-14, at the questions for stage 113). Stage 113 splits `base`
 into a kit and an engine and keeps the two entry points that name
 engine modules in the kit's `pyproject.toml`: the base plugin
-(`cs_image_system.plugins.base`, `base.init`) and the terraform module
+(`cs_image_system.plugins.base`, `engine.init`) and the terraform module
 directory (`cs_image_system.modules`, `base:tfmodules`, which holds the
 bootstrap's `bootstrap_github`). That keeps every `.csis-module`
 stamp's `plugin:` at `base`, so no tree's module copies change at that

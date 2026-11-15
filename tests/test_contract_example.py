@@ -80,7 +80,7 @@ def test_the_model_and_the_builder_conform_to_the_kinds_protocols():
 
 
 def test_the_plugin_loads_by_entry_point_and_the_registry_holds_its_classes():
-    from cs_image_system.base.loader import installed_registry
+    from cs_image_system.engine.loader import installed_registry
     reg = installed_registry()
     assert reg.get_model(VCT.STATE_BACKEND_MODEL, INMEM) is InmemStateBackendModel
     assert reg.builders[InmemStateBackendModel] is InmemStateBuilder

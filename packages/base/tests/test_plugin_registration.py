@@ -83,8 +83,8 @@ def test_a_plugin_that_does_not_conform_is_refused_at_load():
     import pytest
 
     from cs_image_system.base.basic.builder_base_storage import StorageBuilderBase
-    from cs_image_system.base.loader import PluginConformanceError, check_conformance
     from cs_image_system.base.models.storage_builder import StorageBuilderModel
+    from cs_image_system.engine.loader import PluginConformanceError, check_conformance
 
     class HalfModel(StorageBuilderModel):
         @classmethod

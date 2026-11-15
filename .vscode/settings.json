@@ -7,6 +7,7 @@
     "${workspaceFolder}/packages/bash-mod-plugin/src",
     "${workspaceFolder}/packages/default-os-plugin/src",
     "${workspaceFolder}/packages/dummy-plugin/src",
+    "${workspaceFolder}/packages/engine/src",
     "${workspaceFolder}/packages/gcloud-runtime-plugin/src",
     "${workspaceFolder}/packages/hashicorp-utils/src",
     "${workspaceFolder}/packages/okta-opa-plugin/src",

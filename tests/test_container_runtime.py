@@ -188,7 +188,7 @@ def test_the_deferred_image_is_the_floating_tag_and_the_build_id_the_image_id(pr
 
 # ------------------------------------------------------------------ validation
 def _errors(root: Path, monkeypatch) -> list[str]:
-    from cs_image_system.base.commands.validate import collect_validation_errors
+    from cs_image_system.engine.commands.validate import collect_validation_errors
     ctx = load_context(root)
     return [str(e) for e in collect_validation_errors(ctx)]
 
@@ -241,8 +241,8 @@ def test_a_too_long_prefix_is_refused_by_the_tag_rule(tmp_path, monkeypatch):
 # ------------------------------------------------------------------ outside the seam
 def test_preflight_reads_the_daemon_in_one_line(prepared, monkeypatch):
     """The probe is the docker plugin's (its `session_status` hook); the core prints what it answers."""
-    from cs_image_system.base.commands import preflight
     from cs_image_system.docker_runtime import docker_runtime_builders as drb
+    from cs_image_system.engine.commands import preflight
     seen: list[tuple[str, dict[str, str]]] = []
 
     def probe(binary, env, timeout=20):
@@ -265,8 +265,8 @@ def test_preflight_reads_the_daemon_in_one_line(prepared, monkeypatch):
 
 
 def test_the_loaded_configuration_preflights_the_daemon_too(prepared, monkeypatch):
-    from cs_image_system.base.commands import preflight
     from cs_image_system.docker_runtime import docker_runtime_builders as drb
+    from cs_image_system.engine.commands import preflight
     monkeypatch.setattr(drb, "probe_daemon", lambda b, e, timeout=20: (True, "answers: engine 29.8.2 (api 1.56)"))
     ctx = load_context(prepared)
     infos = preflight.session_infos(ctx)
@@ -275,8 +275,8 @@ def test_the_loaded_configuration_preflights_the_daemon_too(prepared, monkeypatc
 
 
 def test_an_unreachable_daemon_is_a_one_line_environment_failure():
-    from cs_image_system.base.commands.load_failures import classify_load_failure
     from cs_image_system.docker_runtime.docker_runtime_builders import DockerUnreachable
+    from cs_image_system.engine.commands.load_failures import classify_load_failure
     wrapped = RuntimeError("resolution failed")
     wrapped.__cause__ = DockerUnreachable("docker runtime docker-local: the daemon at context orbstack cannot be reached (x)")
     failure = classify_load_failure(wrapped)
@@ -629,8 +629,9 @@ def _fake_runtime(delivery="session", state="running", answers=None):
 def test_the_launch_script_is_delivered_once_through_the_session(prepared_instances, monkeypatch, caplog):
     import logging
 
-    from cs_image_system.base import launch_delivery, power_state
+    from cs_image_system.base import power_state
     from cs_image_system.contract.lifecycles import Lifecycle
+    from cs_image_system.engine import launch_delivery
     ctx = load_context(prepared_instances)
     ctx.config["apply_instances"] = True
     rec = ctx.meta_state.launch_params()
@@ -665,7 +666,7 @@ def test_the_launch_script_is_delivered_once_through_the_session(prepared_instan
 def test_the_hook_is_registered_between_the_launch_records_and_the_accounts():
     import inspect
 
-    from cs_image_system.base.commands import run_lifecycles
+    from cs_image_system.engine.commands import run_lifecycles
     src = inspect.getsource(run_lifecycles._register_builtin_hooks)
     order = [src.index("launch_params.register"), src.index("launch_delivery.register"), src.index("accounts_reconcile.register")]
     assert order == sorted(order)

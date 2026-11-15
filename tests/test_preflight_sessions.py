@@ -21,7 +21,7 @@ def test_static_keys_are_present_and_not_judged(tmp_path):
     from datetime import datetime, timezone
 
     from cs_image_system.aws_runtime import session as aws_session  # the plugin reads; the core judges
-    from cs_image_system.base.commands import preflight
+    from cs_image_system.engine.commands import preflight
     d = tmp_path / "aws"
     d.mkdir()
     (d / "config").write_text("[profile static]\nregion = us-east-2\n")

@@ -17,8 +17,8 @@ from pathlib import Path
 import pytest
 from harness import FIXTURE_CONFIG, REPO
 
-from cs_image_system.base.meta_state import commit_meta_state
-from cs_image_system.base.public_safe import (
+from cs_image_system.engine.meta_state import commit_meta_state
+from cs_image_system.engine.public_safe import (
     Finding,
     PublicSafeError,
     allow_from_config,

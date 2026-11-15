@@ -121,7 +121,7 @@ def record_network_facts(root: Path, checked_at: str = FIXED_CHECKED_AT) -> Path
 def module_path(name: str) -> Path:
     """The directory of one installed terraform module, inside the plugin
     that ships it (``installed_modules()[name].path``)."""
-    from cs_image_system.base.modules import installed_modules
+    from cs_image_system.engine.modules import installed_modules
     return installed_modules()[name].path
 
 
@@ -129,7 +129,7 @@ def modules_beside(config_root: Path) -> Path:
     """Every installed module written (and stamped) into
     ``<config_root>/../tfmodules``, where the fixture's ``module_source_base``
     (``../tfmodules``) expects them; the directory is returned."""
-    from cs_image_system.base.modules import materialise_modules
+    from cs_image_system.engine.modules import materialise_modules
     dest = config_root.parent / "tfmodules"
     report = materialise_modules(dest)
     assert report.ok, "\n".join(report.lines())
@@ -140,7 +140,7 @@ def modules_inside(config_root: Path) -> Path:
     """Every installed module written into the tree's own ``tfmodules``
     directory, where a starter's ``module_source_base`` (``tfmodules``)
     expects them; the directory is returned."""
-    from cs_image_system.base.modules import materialise_modules
+    from cs_image_system.engine.modules import materialise_modules
     dest = config_root / "tfmodules"
     report = materialise_modules(dest)
     assert report.ok, "\n".join(report.lines())
@@ -209,7 +209,7 @@ def os_type_for_family(family: str | None) -> type:
     ``ctx.services.images.os_type_for_family``, for a test that drives no
     run."""
     from cs_image_system.base import os_types
-    from cs_image_system.base.loader import installed_registry
+    from cs_image_system.engine.loader import installed_registry
     return os_types.os_type_for_family(family, installed_registry())
 
 
@@ -221,7 +221,7 @@ def stub_environment(monkeypatch) -> list[str]:
     # for the root suite; a package's tests and `tests/golden.py` run without
     # that conftest, so the harness does it here too (memoised: free after
     # the first call).
-    from cs_image_system.base.loader import discover_plugins
+    from cs_image_system.engine.loader import discover_plugins
     discover_plugins()
     monkeypatch.setenv("USER", "testuser")
     monkeypatch.setenv("OKTA_API_PRIVATE_KEY", "dummy")
@@ -230,7 +230,7 @@ def stub_environment(monkeypatch) -> list[str]:
     # the frozen fixture's TEST identity opens its encrypted values
     monkeypatch.setenv("CSIS_CONFIG_IDENTITY", str(FIXTURE_CONFIG / ".age-identity"))
 
-    from cs_image_system.base import config_loader
+    from cs_image_system.engine import config_loader
     monkeypatch.setattr(config_loader, "datetime", _FixedDT)     # the loader's clock is the run's
 
     # The cloud discovery stubs: a LOAD never calls them --
@@ -341,8 +341,8 @@ def stub_environment(monkeypatch) -> list[str]:
     # reads one journal; a test of the in-process path itself registers
     # its own runner after constructing its V2Run.
     import cs_image_system.system.cli  # noqa: F401 - registers the real runner BEFORE the patch window, so the
-    from cs_image_system.base import in_process as _in_process
     from cs_image_system.contract.constants import SYSTEM_CLI
+    from cs_image_system.engine import in_process as _in_process
     #                                      teardown restores it instead of None (a first import inside the window
     #                                      would be undone with the patch)
 
@@ -352,7 +352,7 @@ def stub_environment(monkeypatch) -> list[str]:
 
     monkeypatch.setattr(_in_process, "_RUNNER", _fake_runner)
 
-    from cs_image_system.base.commands import validate as _validate
+    from cs_image_system.engine.commands import validate as _validate
     monkeypatch.setattr(_validate, "check_executables_exist_and_versions", lambda ctx: [])
     return journal
 
@@ -364,7 +364,7 @@ def load_context(config_root: Path, dry_run: bool = True, overlays: list[Path] |
     with a registry, an image-source catalog and a template resolver of its
     own: the returned one is THE context of the run the test drives, and
     nothing of an earlier load is left in the process to reset."""
-    from cs_image_system.base.config_loader import read_config_and_transform
+    from cs_image_system.engine.config_loader import read_config_and_transform
     return read_config_and_transform(cast(Any, types.SimpleNamespace(obj={})),
                                      config_root, False, dry_run=dry_run,
                                      overlays=list(overlays or []), undeclare=list(undeclare or []))
@@ -383,8 +383,8 @@ def run_v2(ctx, lifecycles: list[str] | str = "all", *, apply: bool = True, comm
     """``ctx`` is the context ``load_context`` returned (passed, never
     fetched). ``state_query`` is OFF here: the real hooks would reach AWS/OPA. Tests
     of the pre-run query stub the hooks and pass ``state_query=True``."""
-    from cs_image_system.base.commands.run_lifecycles import run_lifecycles
     from cs_image_system.base.lifecycles import parse_lifecycles
+    from cs_image_system.engine.commands.run_lifecycles import run_lifecycles
     names = [lifecycles] if isinstance(lifecycles, str) else lifecycles
     return run_lifecycles(ctx, parse_lifecycles(names), apply=apply, commit=commit,
                           state_query=state_query, only=only, force_bake=force_bake)

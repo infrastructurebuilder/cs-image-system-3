@@ -28,10 +28,10 @@ from typing import Any
 import pytest
 from harness import copy_config, load_context, stub_environment
 
-from cs_image_system.base import orchestrator
 from cs_image_system.base.models.group import Group
 from cs_image_system.base.models.user import User
 from cs_image_system.contract.constants import DEFAULT, VCT
+from cs_image_system.engine import orchestrator
 
 #: The fixture's items whose written type names a builder other than the
 #: default one, and that builder.

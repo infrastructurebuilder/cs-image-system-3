@@ -140,7 +140,7 @@ def test_aws_detach_whitelists_the_attachment_resource(prepared):
 def test_gate_plan_requires_the_unmount_receipt(tmp_path, monkeypatch):
     import typer
 
-    from cs_image_system.base.commands.unmount import write_receipt
+    from cs_image_system.engine.commands.unmount import write_receipt
     from cs_image_system.system.cli import gate_plan_command
     plan = tmp_path / "plan.json"
     plan.write_text(json.dumps({"resource_changes": []}))
@@ -157,7 +157,7 @@ def test_gate_plan_requires_the_unmount_receipt(tmp_path, monkeypatch):
 
 
 def test_operator_confirmation_is_a_receipt_with_their_name(prepared, tmp_path, monkeypatch):
-    from cs_image_system.base.commands.unmount import read_receipt, unmount_storage
+    from cs_image_system.engine.commands.unmount import read_receipt, unmount_storage
     root, make = prepared
     run = make()
     monkeypatch.setenv("USER", "avery.alpha")
@@ -172,7 +172,7 @@ def test_gce_unmount_runs_over_the_iap_tunnel_and_writes_the_receipt(prepared, m
     import subprocess
     from types import SimpleNamespace
 
-    from cs_image_system.base.commands.unmount import read_receipt, unmount_script, unmount_storage
+    from cs_image_system.engine.commands.unmount import read_receipt, unmount_script, unmount_storage
     root, make = prepared
     run = make()
     calls: list[list[str]] = []

@@ -610,7 +610,7 @@ when the plugin is installed, and `cs-image-system --help` lists them.
   [--timeout] [--record-only]`** -- the login proof: over `sft ssh` for
   this plugin's groups, as the workload when `OPA_TOKEN` is set, else as
   the enrolled client. The command is the core's one callback
-  (`cs_image_system.base.commands.login_proof.verify_login_command`: which
+  (`cs_image_system.engine.commands.login_proof.verify_login_command`: which
   instances are targets, the skips, the record in
   `meta-state/login-proofs.yaml`), **shared with the posix-identity
   plugin**: each identity plugin mounts the same callback and the console
@@ -948,12 +948,12 @@ root needs.`
 
 **At `validate` (and before every run).** The plugin's item checks run
 through the base's `validate_identity_items`
-([identity_attributes.py](../base/src/cs_image_system/base/identity_attributes.py)):
+([identity_attributes.py](../engine/src/cs_image_system/engine/identity_attributes.py)):
 `OktaTfUserRoBuilder.validate_user` refuses `managed: true`;
 `validate_attributes` refuses unknown names, wrong types, ids below 1024
 and blank strings on groups and users. Around them the base checks that a
 group the read-model recorded as managed is still declared
-([v2_validation.py](../base/src/cs_image_system/base/v2_validation.py)),
+([v2_validation.py](../engine/src/cs_image_system/engine/v2_validation.py)),
 that every base image's `identity_types` names a registered plugin, that
 an instance image's group resolves to an identity type its base declares,
 and, when the instance-image lifecycle is requested with `apply_instances`
@@ -996,7 +996,7 @@ reads every planned item's live attributes and the team's conflict report
 and prints `would set: ...` lines; it never writes.
 
 **After apply.** With `apply_identity` on and the workload fields set, the
-base's [workload_access.py](../base/src/cs_image_system/base/workload_access.py)
+base's [workload_access.py](../engine/src/cs_image_system/engine/workload_access.py)
 calls `ensure_workload_access` for every managed group and records
 `{action: created|updated|unchanged|failed, policy, id, role_id, run}`
 under the group's `workload` key in `meta-state/identity.yaml`; a failure
@@ -1008,7 +1008,7 @@ calls `retire_servers_named` for its recorded hostname and logs the
 retirement or an `ERROR` naming the stale server.
 
 **In the state query** (`state query [--strict]`, every run's first step;
-[state_query.py](../base/src/cs_image_system/base/state_query.py)).
+[state_query.py](../engine/src/cs_image_system/engine/state_query.py)).
 `query_state` reads every managed group's `<group>_user` attributes,
 members, the `<group>_admin` members, the login project's enrollment
 tokens and, with the workload fields set, the policies, roles and
@@ -1027,7 +1027,7 @@ any drift but `stale` and on any `unavailable:` line; a plain run refuses
 only on `[HARD]` drift.
 
 **In the login proof** (`verify login`, `just ci-login-proof`, the `sft`
-leg of `cloud-verify`; [login_proof.py](../base/src/cs_image_system/base/commands/login_proof.py)).
+leg of `cloud-verify`; [login_proof.py](../engine/src/cs_image_system/engine/commands/login_proof.py)).
 For each standing instance of a group whose builder names the workload
 objects: the machine is running, exactly one registration answers to its
 hostname (`registered_servers`), `sft resolve` succeeds, `id` runs over
@@ -1300,21 +1300,21 @@ Failures the code raises:
   [builder_base_group.py](../base/src/cs_image_system/base/basic/builder_base_group.py),
   [builder_base_user.py](../base/src/cs_image_system/base/basic/builder_base_user.py).
 - Base code that calls this plugin's hooks:
-  [read_models.py](../base/src/cs_image_system/base/read_models.py)
+  [read_models.py](../engine/src/cs_image_system/engine/read_models.py)
   (the identity read-model),
-  [state_query.py](../base/src/cs_image_system/base/state_query.py)
+  [state_query.py](../engine/src/cs_image_system/engine/state_query.py)
   (drift rules),
-  [workload_access.py](../base/src/cs_image_system/base/workload_access.py)
+  [workload_access.py](../engine/src/cs_image_system/engine/workload_access.py)
   (the CI policy reconcile),
   [launch_params.py](../base/src/cs_image_system/base/launch_params.py)
   (launch parameters, the enrollment token, the registry),
-  [identity_attributes.py](../base/src/cs_image_system/base/identity_attributes.py)
+  [identity_attributes.py](../engine/src/cs_image_system/engine/identity_attributes.py)
   (attributes),
-  [identity_gids.py](../base/src/cs_image_system/base/commands/identity_gids.py)
+  [identity_gids.py](../engine/src/cs_image_system/engine/commands/identity_gids.py)
   (the gid shim command),
-  [login_proof.py](../base/src/cs_image_system/base/commands/login_proof.py)
+  [login_proof.py](../engine/src/cs_image_system/engine/commands/login_proof.py)
   (`verify login`),
-  [state_migration.py](../base/src/cs_image_system/base/commands/state_migration.py)
+  [state_migration.py](../engine/src/cs_image_system/engine/commands/state_migration.py)
   (the state backup), and the CLI in
   [cli.py](../system/src/cs_image_system/system/cli.py).
 - Library:

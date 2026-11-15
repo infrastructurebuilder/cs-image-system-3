@@ -21,8 +21,9 @@ from typing import Any, cast
 
 import yaml
 
-from cs_image_system.base import ansible_launch, launch_params
+from cs_image_system.base import launch_params
 from cs_image_system.contract.lifecycles import Lifecycle
+from cs_image_system.engine import ansible_launch
 from tests.harness import V2Run
 
 

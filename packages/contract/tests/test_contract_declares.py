@@ -26,7 +26,12 @@ from cs_image_system.contract.testing import assert_conforms, conformance_proble
 
 PACKAGE = Path(contract.__file__).resolve().parent
 PYPROJECT = PACKAGE.parents[2] / "pyproject.toml"
-CORE = ("cs_image_system.base", "cs_image_system.system", "cs_image_system.hashicorp_utils")
+CORE = (
+    "cs_image_system.base",
+    "cs_image_system.engine",
+    "cs_image_system.system",
+    "cs_image_system.hashicorp_utils",
+)
 
 
 def _modules() -> list[str]:

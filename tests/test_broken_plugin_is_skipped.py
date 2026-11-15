@@ -19,8 +19,8 @@ from typing import Any
 
 import pytest
 
-from cs_image_system.base import loader
 from cs_image_system.contract.metadata import PluginMetadata
+from cs_image_system.engine import loader
 
 
 class _FakeEntryPoints:

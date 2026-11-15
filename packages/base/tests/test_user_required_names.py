@@ -77,7 +77,7 @@ def test_user_structures_with_names(converter_ready):
 @pytest.fixture
 def converter_ready(clean_registry):
     """The converter of a registry of the test's own, plugins loaded (see test_group_gid)."""
-    from cs_image_system.base.loader import load_plugins
+    from cs_image_system.engine.loader import load_plugins
 
     load_plugins(clean_registry.reg)
     return clean_registry.converter

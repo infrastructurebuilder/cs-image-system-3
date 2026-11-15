@@ -83,7 +83,7 @@ def _only_bash(ctx):
 
 
 def test_container_image_is_derived_from_the_root_os(v2):
-    from cs_image_system.base.mod_tests import test_image_for
+    from cs_image_system.engine.mod_tests import test_image_for
     dask = v2.ctx.images_map["imgfile-basic-dask"]           # <- basic-rh-10
     assert test_image_for(v2.ctx, dask) == "almalinux:10"     # family_version 10; AlmaLinux from 10
     ds = v2.ctx.images_map["imgfile-data-science"]           # <- my-deb-12
@@ -93,7 +93,7 @@ def test_container_image_is_derived_from_the_root_os(v2):
 
 
 def test_bash_mod_passes_and_is_idempotent(v2):
-    from cs_image_system.base.mod_tests import run_mod_tests
+    from cs_image_system.engine.mod_tests import run_mod_tests
     _only_bash(v2.ctx)
     results = run_mod_tests(v2.ctx, images=["imgfile-basic-dask"], make_target=lambda img: FakeTarget(img))
     assert [r.status for r in results] == ["pass"]
@@ -111,7 +111,7 @@ def test_bash_mod_passes_and_is_idempotent(v2):
 
 
 def test_non_idempotent_mod_is_reported(v2):
-    from cs_image_system.base.mod_tests import run_mod_tests
+    from cs_image_system.engine.mod_tests import run_mod_tests
     _only_bash(v2.ctx)
     results = run_mod_tests(v2.ctx, images=["imgfile-basic-dask"],
                             make_target=lambda img: FakeTarget(img, idempotent=False))
@@ -121,7 +121,7 @@ def test_non_idempotent_mod_is_reported(v2):
 
 
 def test_failing_mod_is_reported_and_cached_results_are_reused(v2):
-    from cs_image_system.base.mod_tests import run_mod_tests
+    from cs_image_system.engine.mod_tests import run_mod_tests
     _only_bash(v2.ctx)
     results = run_mod_tests(v2.ctx, images=["imgfile-basic-dask"],
                             make_target=lambda img: FakeTarget(img, fail_first=True))
@@ -138,8 +138,8 @@ def test_failing_mod_is_reported_and_cached_results_are_reused(v2):
 
 
 def test_without_a_daemon_results_are_skipped_not_failed(v2, monkeypatch):
-    from cs_image_system.base import mod_tests
     from cs_image_system.docker_runtime import local_target
+    from cs_image_system.engine import mod_tests
     monkeypatch.setattr(local_target, "docker_available", lambda docker="docker": False)
     _only_bash(v2.ctx)
     results = mod_tests.run_mod_tests(v2.ctx, images=["imgfile-basic-dask"])
@@ -151,8 +151,8 @@ def test_the_target_comes_from_the_runtime_that_offers_one(v2, monkeypatch):
     """The harness asks the registry, never a name of its own: with no
     runtime offering a local target every modification is skipped, and the
     factory it does find is handed the tree's executables."""
-    from cs_image_system.base import mod_tests
     from cs_image_system.docker_runtime.local_target import docker_binary
+    from cs_image_system.engine import mod_tests
     _only_bash(v2.ctx)
     assert docker_binary(v2.ctx.executables) == "/usr/local/bin/docker"           # the fixture's declared CLI
     assert docker_binary({}) == "docker" and docker_binary(None) == "docker"
@@ -174,8 +174,8 @@ def test_the_target_comes_from_the_runtime_that_offers_one(v2, monkeypatch):
 
 @pytest.mark.skipif(not os.environ.get("CSIS_DOCKER_TESTS"), reason="set CSIS_DOCKER_TESTS=1 to run against docker")
 def test_live_docker_bash_mod(v2):
-    from cs_image_system.base.mod_tests import run_mod_tests
     from cs_image_system.docker_runtime.local_target import docker_available
+    from cs_image_system.engine.mod_tests import run_mod_tests
     if not docker_available():
         pytest.skip("docker not available")
     _only_bash(v2.ctx)

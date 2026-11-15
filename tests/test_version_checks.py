@@ -41,7 +41,7 @@ CANNED = {
 def plugins():
     """The installed plugins in a registry of the test's own: where a
     checker is looked up, as a run looks it up in ``ctx.reg``."""
-    from cs_image_system.base.loader import installed_registry
+    from cs_image_system.engine.loader import installed_registry
     return installed_registry()
 
 
@@ -54,8 +54,8 @@ def _fake(tmp_path: Path, name: str, output: str) -> str:
 
 
 def test_a_checker_is_found_by_name_then_type_then_the_generic_default(plugins):
-    from cs_image_system.base.commands.validate import version_checker_for
     from cs_image_system.base.models.executable import ExecutableModel
+    from cs_image_system.engine.commands.validate import version_checker_for
     def checker(name: str, type_: str) -> str:
         found = version_checker_for(ExecutableModel(name=name, type_=type_), plugins)
         assert found is not None, name
@@ -72,8 +72,8 @@ def test_a_checker_is_found_by_name_then_type_then_the_generic_default(plugins):
 
 @pytest.mark.parametrize("name", sorted(CANNED))
 def test_each_checker_reads_its_tools_version_and_judges_the_requirement(plugins, tmp_path, name):
-    from cs_image_system.base.commands.validate import check_single_version
     from cs_image_system.base.models.executable import ExecutableModel
+    from cs_image_system.engine.commands.validate import check_single_version
     type_, output, requirement, version = CANNED[name]
     binary = _fake(tmp_path, name, output)
     checked: list[str] = []
@@ -84,8 +84,8 @@ def test_each_checker_reads_its_tools_version_and_judges_the_requirement(plugins
 
 
 def test_a_missing_binary_an_unparsable_version_and_no_requirement(plugins, tmp_path, caplog):
-    from cs_image_system.base.commands.validate import check_single_version
     from cs_image_system.base.models.executable import ExecutableModel
+    from cs_image_system.engine.commands.validate import check_single_version
     (error,) = check_single_version(ExecutableModel(name="docker", type_="executable", binary="/nowhere/docker", version=">=24"), plugins)
     assert "/nowhere/docker" in str(error) and "executables.yml" in str(error)
     (error,) = check_single_version(ExecutableModel(name="jq", type_="executable", binary=_fake(tmp_path, "jq", "no numbers here"), version=">=1.7"), plugins)
@@ -99,8 +99,8 @@ def test_a_missing_binary_an_unparsable_version_and_no_requirement(plugins, tmp_
 
 
 def test_the_fixture_declares_a_checked_requirement_for_every_tool(plugins):
-    from cs_image_system.base.commands.validate import version_checker_for
     from cs_image_system.base.models.executable import ExecutableModel
+    from cs_image_system.engine.commands.validate import version_checker_for
     entries = yaml.safe_load((FIXTURE_CONFIG / "cfg" / "executables.yml").read_text())["executables"]
     assert [e["name"] for e in entries] == ["aws-cli", "packer", "gcloud", "ansible-playbook", "bash", "docker", "open-tofu-1", "yq", "jq"]
     for e in entries:
@@ -117,7 +117,7 @@ def test_the_fixture_declares_a_checked_requirement_for_every_tool(plugins):
 def test_validate_says_what_it_cannot_check_once_as_information(caplog):
     """A provider without an executable is information, not a warning apiece
     (the tools themselves are version-checked)."""
-    from cs_image_system.base.commands.validate import check_existence_of_executable
+    from cs_image_system.engine.commands.validate import check_existence_of_executable
     unspecified: list[str] = []
     with caplog.at_level(logging.DEBUG):
         providers = {"aws-east2-runtime": SimpleNamespace(model=SimpleNamespace(executable=None), type_="aws")}

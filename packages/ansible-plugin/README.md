@@ -601,8 +601,8 @@ Failures the code raises:
 - Lineage records for modifications:
   [lineage.py](../base/src/cs_image_system/base/lineage.py) (`mod_records`).
 - The version check and the modification test harness:
-  [validate.py](../base/src/cs_image_system/base/commands/validate.py),
-  [mod_tests.py](../base/src/cs_image_system/base/mod_tests.py).
+  [validate.py](../engine/src/cs_image_system/engine/commands/validate.py),
+  [mod_tests.py](../engine/src/cs_image_system/engine/mod_tests.py).
 - Manuals: [docs/CONFIGURATION.md](../../docs/CONFIGURATION.md) (section 7,
   `cfg/mod-builders.yml`), [docs/OPERATIONS.md](../../docs/OPERATIONS.md),
   [docs/DESIGN.md](../../docs/DESIGN.md) (M2).

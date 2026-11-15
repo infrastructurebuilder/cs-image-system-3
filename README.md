@@ -55,9 +55,9 @@ run and applied by the operator. The manual describes each.
 
 ## Layout
 
-`packages/` holds the uv workspace: five core packages and seventeen
+`packages/` holds the uv workspace: six core packages and seventeen
 plugins, each with its own README ([docs/PLUGINS.md](docs/PLUGINS.md)
-describes them together). Twenty are published; `uv tool install
+describes them together). Twenty-one are published; `uv tool install
 cs-image-system` installs the core and the plugins marked **bare**, each
 provider's plugins come with the extra marked beside them (`[aws]`,
 `[gcloud]`, `[docker]`, `[okta]`; `[all]` is every one), and the two
@@ -65,8 +65,11 @@ marked **never published** are workspace-only. The core (all **bare**):
 
 - [contract](packages/contract/README.md) — the plugin contract: what a
   plugin is written against.
-- [base](packages/base/README.md) — the models, the lifecycles, the
-  registry and plugin loader, state and the records.
+- [base](packages/base/README.md) — the kit: the base classes, the
+  models, the registry and the run context a plugin is written against.
+- [engine](packages/engine/README.md) — the engine: the plugin loader,
+  the configuration reader, the resolver, the lifecycle runner and its
+  commands, meta-state, state and the records. No plugin imports it.
 - [system](packages/system/README.md) — the `cs-image-system` CLI.
 - [hashicorp-utils](packages/hashicorp-utils/README.md) — the terraform
   library (a library, not a plugin): HCL rendering and the per-run

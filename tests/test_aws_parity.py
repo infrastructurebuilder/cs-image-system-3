@@ -68,7 +68,7 @@ def test_aws_dispose_deregisters_and_deletes_snapshots(aws):
 
 
 def test_dispose_image_command_now_works_for_amis(aws):
-    from cs_image_system.base.commands.dispose import dispose_images
+    from cs_image_system.engine.commands.dispose import dispose_images
     run, ec2 = aws
     ms = run.ctx.meta_state
     ms.add_build({"build_id": "ami-old", "series": "imgfile-basic-dask", "runtime": "aws-east2-runtime",
@@ -150,8 +150,8 @@ def test_an_aws_instance_may_be_ephemeral(tmp_path, monkeypatch):
 # ------------------------------------------------------------------ restamp
 
 def test_restamp_records_the_current_fingerprint_on_heads_and_retags(tmp_path, monkeypatch):
-    from cs_image_system.base.commands.restamp import restamp, restamp_plan
     from cs_image_system.base.lineage import bake_reason, find_image
+    from cs_image_system.engine.commands.restamp import restamp, restamp_plan
     root = copy_config(tmp_path)
     run = V2Run(tmp_path, monkeypatch, config_root=root, dry_run=False)   # the harness journals retags
     retags = run.retags
@@ -185,7 +185,7 @@ def test_restamp_records_the_current_fingerprint_on_heads_and_retags(tmp_path, m
 
 
 def test_restamp_dry_run_changes_nothing(tmp_path, monkeypatch):
-    from cs_image_system.base.commands.restamp import restamp
+    from cs_image_system.engine.commands.restamp import restamp
     root = copy_config(tmp_path)
     run = V2Run(tmp_path, monkeypatch, config_root=root)                    # dry run
     try:
@@ -229,7 +229,7 @@ def test_relabel_retags_only_the_images_whose_tags_disagree_with_their_record(tm
     parent kept packer's generation-time labels (`series-…` parent, a
     placeholder fingerprint); its record is the truth, so relabel re-tags it
     and leaves the consistent base image alone."""
-    from cs_image_system.base.commands.relabel import relabel, relabel_plan
+    from cs_image_system.engine.commands.relabel import relabel, relabel_plan
     from cs_image_system.gcloud_runtime.gcp_runtime_builders import GCPCloudBuilder
     root = copy_config(tmp_path)
     run = V2Run(tmp_path, monkeypatch, config_root=root, dry_run=False)
@@ -257,7 +257,7 @@ def test_relabel_retags_only_the_images_whose_tags_disagree_with_their_record(tm
 
 
 def test_relabel_dry_run_retags_nothing(tmp_path, monkeypatch):
-    from cs_image_system.base.commands.relabel import relabel
+    from cs_image_system.engine.commands.relabel import relabel
     from cs_image_system.gcloud_runtime.gcp_runtime_builders import GCPCloudBuilder
     root = copy_config(tmp_path)
     run = V2Run(tmp_path, monkeypatch, config_root=root)                    # dry run

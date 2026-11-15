@@ -35,7 +35,7 @@ How a YAML entry selects these classes:
 - A modification item under an image's `modifications:` uses `type:` to
   name a *builder*: the builder's `name`, one of its `aliases:`, or
   `default`. The orchestrator
-  ([orchestrator.py](../base/src/cs_image_system/base/orchestrator.py))
+  ([orchestrator.py](../engine/src/cs_image_system/engine/orchestrator.py))
   looks the builder up by name or alias, reads the builder's own `type`
   (`bash-remote`) and loads the item into the class registered under that
   service key for `MOD_BUILDER_ITEM_MODEL`: `BashModItemModel`. The
@@ -349,7 +349,7 @@ VM it assumes:
 
 **The modification tests.** `just test-mods` applies the same item twice in
 a throwaway container on the operator's machine
-([mod_tests.py](../base/src/cs_image_system/base/mod_tests.py)); it needs
+([mod_tests.py](../engine/src/cs_image_system/engine/mod_tests.py)); it needs
 `docker` on `PATH` and a daemon that answers `docker info`, no cloud
 session. The container gets a `sudo` shim when it has none, so the `sudo`
 in `ensure` lines works there too.
@@ -485,7 +485,7 @@ builder declaring both `configuration_user` and `execute_command`, or
 `ValueError` (or `KeyError` for the type) that stops the load; the CLI
 prints it and exits 1. Nothing loads, so nothing is generated.
 
-**At `validate`** ([validate.py](../base/src/cs_image_system/base/commands/validate.py)).
+**At `validate`** ([validate.py](../engine/src/cs_image_system/engine/commands/validate.py)).
 The builder's `executable:` must name an `executables:` entry; the `bash`
 entry's binary must exist, its version must parse and, when declared, meet
 the requirement. Every failure is collected by name and printed; `validate`
@@ -518,7 +518,7 @@ of each script file and the `ensure` mapping. That hash feeds the image's
 image on the next run. The on-image bundle under `/opt/csis/mods/` carries
 the same record.
 
-**In `test-mods`** ([mod_tests.py](../base/src/cs_image_system/base/mod_tests.py)).
+**In `test-mods`** ([mod_tests.py](../engine/src/cs_image_system/engine/mod_tests.py)).
 The item is applied twice in a container of the image's OS family. Run one
 must exit 0; run two must exit 0 and change no file outside the volatile
 paths (`docker diff`). The verdict lands in the live configuration's
@@ -545,7 +545,7 @@ to do:
 |---|---|---|
 | A `# Modifications for ...` comment line outside a `provisioner "shell" {` block, or `exit 0` in a build file | `generated/`; `packer validate` fails | The builder wrote raw lines into the build file instead of provisioner blocks. [tests/test_bash_provisioner.py](tests/test_bash_provisioner.py) and [test_modifications.py](../../tests/test_modifications.py) pin the block form; this is a regression of the plugin, not of the item. |
 | A bash item recorded in lineage as `ansible-default` with no content, or its script files dropped | `meta-state/lineage.yaml` after a bake | The item was resolved to the default mod builder instead of the builder its `type:` names. The same two tests pin the lookup by the item's `type`; check the item's `type:` names this builder. |
-| `test-mods` reports `unsupported` with `no local test image for the root OS family` | `test-mods` | The OS family and version have no stand-in container image (`test_image_for` in [mod_tests.py](../base/src/cs_image_system/base/mod_tests.py)): Docker Hub's `rockylinux` library stops at 9, so `rhel` 10 and above stand in as `almalinux:<version>`, and a family outside that table has none. Set `local_test_image` on the OS builder. |
+| `test-mods` reports `unsupported` with `no local test image for the root OS family` | `test-mods` | The OS family and version have no stand-in container image (`test_image_for` in [mod_tests.py](../engine/src/cs_image_system/engine/mod_tests.py)): Docker Hub's `rockylinux` library stops at 9, so `rhel` 10 and above stand in as `almalinux:<version>`, and a family outside that table has none. Set `local_test_image` on the OS builder. |
 | `Invalid template directive` or `Invalid template interpolation` from `packer fmt` or `validate` on a line you wrote | the Packer plugin's run-now commands | `%{` and `${` open Packer template directives; this plugin's `_hcl_string` escapes both as `%%{` / `$${` (the sibling shell emitter for image tests, [v2_provisioners.py](../packer-plugin/src/cs_image_system/packer_plugin/v2_provisioners.py), does the same). If the line in `generated/` does not read so, the escape regressed. |
 | A `script:` line written `check || { echo no; }` never fails the build however false `check` is | the bake, green | Under `sh -e` a command inside an AND-OR list other than the last does not abort the script, so a bake can go green asserting a package that does not exist (the same trap holds for an image's `tests:`; [OPERATIONS.md](../../docs/OPERATIONS.md), "What a green bake proves"). If a `script` line must be able to stop the bake, end it in something that exits nonzero (`\|\| exit 1`), not in a braced group that returns 0. The plugin's own `commands` form, `( unless ) \|\| { run; }`, is deliberate: the group is the LAST element, so a failing `run` does abort. |
 | `AssertionError: No mod builder bash found in context for <image>` in the run log, summary `ok: false` with no validation errors, after load and `validate` passed | generation | An item's `type:` reached generation as the builder's alias; the loader rewrites an alias to the builder's name at load (`tests/test_modifications.py` generates a fixture copy with `type: bash`), so a tree whose loader does not is on an older form ([the stage index](../../docs/CHANGES.md#s63)). Write the builder's name, or update. |
@@ -604,7 +604,7 @@ to do:
   [v2_local_mods.py](../packer-plugin/src/cs_image_system/packer_plugin/v2_local_mods.py)).
 - Lineage records for modifications:
   [lineage.py](../base/src/cs_image_system/base/lineage.py) (`mod_records`);
-  the release gate in [release.py](../base/src/cs_image_system/base/release.py).
+  the release gate in [release.py](../engine/src/cs_image_system/engine/release.py).
 - Tests: [tests/test_bash_provisioner.py](tests/test_bash_provisioner.py)
   (two blocks for files plus inline, builder options, script copying);
   [test_modifications.py](../../tests/test_modifications.py)

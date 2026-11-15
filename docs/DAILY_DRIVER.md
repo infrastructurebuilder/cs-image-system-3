@@ -1226,7 +1226,7 @@ Open list in [INPROGRESS/TODO.md](../INPROGRESS/TODO.md) names.
 | `note: storages/<s>: a persistent disk of that name belongs to configuration '<id>' (csis_config); ... ours is absent`; `empty: left alone on <rt>: N disks of configuration '<id>'` | another tree shares the project or account and made a thing of that name; it is theirs, counted and left alone | nothing for theirs; if ours is absent, declare a name the cloud does not hold yet |
 | `empty: disks still present on <rt>: old-scratch (no csis_config)` | a thing with no configuration id, made before the system labelled what it makes; it is counted as ours to answer for | if it is ours and declared, `just cloud-relabel <rt> no` gives it the id; if it is nothing of ours, remove it by hand |
 | a job fails in "Initialize containers" before any step of yours: `denied`, `unauthorized` or `manifest unknown` pulling `ghcr.io/.../csis-ci:alma10-<date>` | the runner image could not be pulled: the tag does not exist yet (the Runner image workflow has not published the date the workflow pins); or the job's `permissions:` block lacks `packages: read`, so its token pulls as nobody (a job with no block pulls; one with a block that lacks the line is denied); or the package is PRIVATE and this repository was not granted access to it (a package publishes private when the organisation disallows public packages) | a missing tag: the system's maintainers run the Runner image workflow and you rerun; a missing line: take the release that carries it; a private package: on the package's page, "Manage Actions access", add this repository with Read (same organisation), or have the organisation's administrators allow public packages ([docs/CI_RUNNER.md](CI_RUNNER.md), section 4); never a credential in the workflow for it ([INCIDENTS.md](INCIDENTS.md#the-ci-runner-image-took-four-builds-and-its-first-pull-was-refused)) |
-| `release: testpypi cannot take an upload now (above) -- nothing was changed; it is the index's condition, not the release's` (exit 75) | the index's upload endpoint or one of the twenty-one project pages (the umbrella and the twenty published packages) did not answer, or answered 5xx; the release stopped before the bar, or after it and before the bump, so the tree is clean; the probe exists because an outage found only at the upload wastes the whole bar ([INCIDENTS.md](INCIDENTS.md#testpypi-was-down-and-a-release-found-it-only-at-the-upload)) | `just index-ready test wait`, then the release again; nothing to discard |
+| `release: testpypi cannot take an upload now (above) -- nothing was changed; it is the index's condition, not the release's` (exit 75) | the index's upload endpoint or one of the twenty-two project pages (the umbrella and the twenty-one published packages) did not answer, or answered 5xx; the release stopped before the bar, or after it and before the bump, so the tree is clean; the probe exists because an outage found only at the upload wastes the whole bar ([INCIDENTS.md](INCIDENTS.md#testpypi-was-down-and-a-release-found-it-only-at-the-upload)) | `just index-ready test wait`, then the release again; nothing to discard |
 | `release: this checkout is on '<branch>'; a release is cut on main alone (from develop it moves there itself) (or a maintenance branch release/<major.minor>)` | the checkout is on neither `develop`, `main` nor a maintenance branch; the rule exists so that a version is never cut, committed and tagged on a branch `main` does not hold ([CHANGES.md](CHANGES.md#s107)) | `git checkout develop`, then the release again |
 | `release: main is behind develop -- a release never leaves a stage behind` | run from `main`: a stage landed on `develop` that `main` has not taken | the release from `develop` (it fast-forwards `main` itself), or on `main`: `git merge --ff-only develop`, then the release again |
 | `release: main cannot be fast-forwarded to develop: it holds commits develop does not` | run from `develop`: `main` has a commit `develop` lacks (a release whose fast-forward back never ran, say); refused before any checkout | bring `develop` up: `git checkout develop && git merge --ff-only main` (or one merge commit of `main` when that refuses), then the release again |
@@ -1257,16 +1257,24 @@ declares.
   [configuration](../packages/contract/README.md#configuration-reference) ·
   [tests](../packages/contract/README.md#what-it-tests-and-verifies) ·
   [failures](../packages/contract/README.md#when-it-fails)
-- [base](../packages/base/README.md): the core. Models and builder bases that
-  implement the contract, the plugin registry and loader,
-  lifecycles and phases, the run context, meta-state, encryption, the
-  public-safe gate, lineage, releases, retention, launch parameters,
-  generations, aliases, the state query. Every rule in the manual's
-  section 5 is enforced here.
+- [base](../packages/base/README.md): the kit. Models and builder bases
+  that implement the contract, the plugin registry, lifecycles and
+  phases, the run context, encryption, lineage, launch parameters,
+  generations, aliases: what a plugin is written against. Its README
+  describes the core as one, the kit and the engine together.
   [prerequisites](../packages/base/README.md#prerequisites-and-integration) ·
   [configuration](../packages/base/README.md#configuration-reference) ·
   [tests](../packages/base/README.md#what-it-tests-and-verifies) ·
   [failures](../packages/base/README.md#when-it-fails)
+- [engine](../packages/engine/README.md): the engine. The plugin loader,
+  the configuration reader and resolver, the lifecycle runner and its
+  commands, meta-state, the public-safe gate, releases, retention, the
+  state query, the bootstrap. Every rule in the manual's section 5 is
+  enforced by the kit and the engine together.
+  [prerequisites](../packages/engine/README.md#prerequisites-and-integration) ·
+  [configuration](../packages/engine/README.md#configuration-reference) ·
+  [tests](../packages/engine/README.md#what-it-tests-and-verifies) ·
+  [failures](../packages/engine/README.md#when-it-fails)
 - [system](../packages/system/README.md): the `cs-image-system` command and
   every subcommand; the global options that decide dry or real, overlays,
   undeclares; the commands runner scripts call back into.

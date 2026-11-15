@@ -527,7 +527,7 @@ def test_the_gcp_runtime_names_its_gcloud_entry_and_resolves_its_binary(ctx):
 def test_an_undeclared_gcloud_entry_is_refused_by_validate(tmp_path: Path, monkeypatch):
     # the harness stubs the executables check (no real binaries in tests); the
     # existence half it wraps is called directly
-    from cs_image_system.base.commands.validate import check_existence_of_executable
+    from cs_image_system.engine.commands.validate import check_existence_of_executable
     root = copy_config(tmp_path)
     ex = root / "cfg" / "executables.yml"
     data = yaml.safe_load(ex.read_text())
@@ -682,7 +682,7 @@ def _zoned_copy(tmp_path: Path, disk_zone: str) -> Path:
 
 
 def _zone_errors(root: Path, monkeypatch) -> list[str]:
-    from cs_image_system.base.commands.validate import check_availability_zones
+    from cs_image_system.engine.commands.validate import check_availability_zones
     stub_environment(monkeypatch)
     ctx = load_context(root)
     return [str(e) for e in check_availability_zones(ctx)]
@@ -748,7 +748,7 @@ def test_query_images_returns_only_the_series_asked_about(tmp_path: Path, monkey
 
 
 def test_a_tag_key_gce_cannot_take_is_refused_at_validate(tmp_path: Path, monkeypatch):
-    from cs_image_system.base.commands.validate import check_label_keys
+    from cs_image_system.engine.commands.validate import check_label_keys
     root = copy_config(tmp_path)
 
     def edit(d):
@@ -763,7 +763,7 @@ def test_a_tag_key_gce_cannot_take_is_refused_at_validate(tmp_path: Path, monkey
 
 
 def test_the_fixture_has_no_label_finding(tmp_path: Path, monkeypatch):
-    from cs_image_system.base.commands.validate import check_label_keys
+    from cs_image_system.engine.commands.validate import check_label_keys
     stub_environment(monkeypatch)
     ctx = load_context(copy_config(tmp_path))
     assert check_label_keys(ctx) == []

@@ -20,9 +20,10 @@ from typing import Any, cast
 import pytest
 import yaml
 
-from cs_image_system.base import ansible_launch, launch_enrollment, launch_params
+from cs_image_system.base import launch_enrollment, launch_params
 from cs_image_system.base.basic.builder_base_group import GroupBuilderBase
-from cs_image_system.base.commands import login_proof
+from cs_image_system.engine import ansible_launch
+from cs_image_system.engine.commands import login_proof
 
 
 def _params(kind: str | None) -> dict:
@@ -136,12 +137,12 @@ def test_a_literal_gid_reaches_the_roots_and_no_identity_state_is_read(tmp_path,
 # ------------------------------------------------ step 3: the ids, by the operator's rule
 
 def _claims(*rows):
-    from cs_image_system.base.posix_ids import Claim
+    from cs_image_system.engine.posix_ids import Claim
     return [Claim(*row) if len(row) > 4 else Claim(*row) for row in rows]
 
 
 def test_two_sides_that_supply_different_ids_for_one_name_are_a_configuration_error():
-    from cs_image_system.base.posix_ids import Claim, resolve_posix_ids
+    from cs_image_system.engine.posix_ids import Claim, resolve_posix_ids
     r = resolve_posix_ids([Claim("OPA", "group", "coops", 60123, rank=10),
                            Claim("the configuration", "group", "coops", 3000, rank=20)])
     assert r.ids == {} and len(r.problems) == 1
@@ -149,7 +150,7 @@ def test_two_sides_that_supply_different_ids_for_one_name_are_a_configuration_er
 
 
 def test_a_side_with_only_the_name_takes_the_other_sides_id_in_serial_order():
-    from cs_image_system.base.posix_ids import Claim, resolve_posix_ids
+    from cs_image_system.engine.posix_ids import Claim, resolve_posix_ids
     r = resolve_posix_ids([Claim("the configuration", "group", "coops", None, rank=20),
                            Claim("OPA", "group", "coops", 60123, rank=10),
                            Claim("the machine", "group", "coops", None, rank=90)])
@@ -157,7 +158,7 @@ def test_a_side_with_only_the_name_takes_the_other_sides_id_in_serial_order():
 
 
 def test_a_name_no_side_supplies_is_refused_unless_a_side_will_supply_it_later():
-    from cs_image_system.base.posix_ids import DEFERRED, Claim, resolve_posix_ids
+    from cs_image_system.engine.posix_ids import DEFERRED, Claim, resolve_posix_ids
     r = resolve_posix_ids([Claim("the configuration", "group", "lonely", None)])
     assert len(r.problems) == 1 and r.problems[0].startswith("group lonely:") and "`gid:`" in r.problems[0]
     r = resolve_posix_ids([Claim("OPA", "group", "coops", DEFERRED, rank=10),
@@ -166,7 +167,7 @@ def test_a_name_no_side_supplies_is_refused_unless_a_side_will_supply_it_later()
 
 
 def test_two_names_on_one_id_are_refused_within_a_kind_but_a_users_private_group_may_share_its_uid():
-    from cs_image_system.base.posix_ids import Claim, resolve_posix_ids
+    from cs_image_system.engine.posix_ids import Claim, resolve_posix_ids
     r = resolve_posix_ids([Claim("cfg", "group", "a", 3001), Claim("cfg", "group", "b", 3001),
                            Claim("cfg", "user", "u", 3001)])
     assert len(r.problems) == 1 and r.problems[0].startswith("groups a, b") and "3001" in r.problems[0]
@@ -198,7 +199,7 @@ def _posix_tree(tmp_path, *, gid=3101, uids=(3201, 3202), extra_group=None):
 
 
 def _posix_errors(root, monkeypatch) -> list[str]:
-    from cs_image_system.base.commands.validate import check_posix_ids
+    from cs_image_system.engine.commands.validate import check_posix_ids
     from tests.harness import load_context, stub_environment
     stub_environment(monkeypatch)
     return [str(e) for e in check_posix_ids(load_context(root))]
@@ -252,7 +253,7 @@ def test_a_gid_below_the_floor_is_refused_when_the_group_loads(tmp_path, monkeyp
 def test_a_posix_group_or_user_declaring_attributes_is_refused(tmp_path, monkeypatch):
     """Their ids are `gid:` and `uid:`: provider attributes would drag them
     into the OPA attribute plan, which asks a provider the posix plugin is not."""
-    from cs_image_system.base.identity_attributes import validate_identity_items
+    from cs_image_system.engine.identity_attributes import validate_identity_items
     from tests.harness import load_context, stub_environment
     root = _posix_tree(tmp_path)
     for rel, key, name in (("groups/group-pxgroup.yaml", "groups", "pxgroup"), ("groups/users.yaml", "users", "unity_uniform")):
@@ -286,7 +287,7 @@ def test_the_posix_group_renders_its_whole_accounts_script(monkeypatch):
 
 
 def test_a_posix_group_member_without_a_posix_account_is_refused(tmp_path, monkeypatch):
-    from cs_image_system.base.commands.validate import check_group_builders
+    from cs_image_system.engine.commands.validate import check_group_builders
     from tests.harness import load_context, stub_environment
     root = _posix_tree(tmp_path, extra_group={"name": "pxextra", "type": "posix-local", "gid": 3102,
                                               "members": ["blake.bravo"]})
@@ -330,8 +331,8 @@ def _posix_instance_run(tmp_path, monkeypatch, prepare=None):
 
 
 def test_a_launched_running_machine_of_a_posix_group_gets_its_accounts(tmp_path, monkeypatch):
-    from cs_image_system.base import accounts_reconcile
     from cs_image_system.contract.lifecycles import Lifecycle
+    from cs_image_system.engine import accounts_reconcile
     session = _Session(monkeypatch)
     run = _posix_instance_run(tmp_path, monkeypatch)
     try:
@@ -346,8 +347,8 @@ def test_a_launched_running_machine_of_a_posix_group_gets_its_accounts(tmp_path,
 
 @pytest.mark.parametrize("why", ["not launched", "applies off", "wrong lifecycle", "stopped"])
 def test_no_accounts_are_sent_when_they_should_not_be(tmp_path, monkeypatch, why):
-    from cs_image_system.base import accounts_reconcile
     from cs_image_system.contract.lifecycles import Lifecycle
+    from cs_image_system.engine import accounts_reconcile
     session = _Session(monkeypatch, state="stopped" if why == "stopped" else "running")
     run = _posix_instance_run(tmp_path, monkeypatch)
     try:
@@ -366,8 +367,8 @@ def test_no_accounts_are_sent_when_they_should_not_be(tmp_path, monkeypatch, why
 def test_a_refused_script_is_logged_as_an_error_and_never_stops_the_run(tmp_path, monkeypatch, caplog):
     import logging
 
-    from cs_image_system.base import accounts_reconcile
     from cs_image_system.contract.lifecycles import Lifecycle
+    from cs_image_system.engine import accounts_reconcile
     _Session(monkeypatch, rc=1, out="posix accounts: group pxgroup has gid 4000 here; the configuration says 3101\n")
     run = _posix_instance_run(tmp_path, monkeypatch)
     try:
@@ -392,7 +393,7 @@ def _okta_posix(root, value):
 
 
 def _okta_findings(root, monkeypatch):
-    from cs_image_system.base.commands.validate import check_group_builders
+    from cs_image_system.engine.commands.validate import check_group_builders
     from tests.harness import load_context, stub_environment
     stub_environment(monkeypatch)
     ctx = load_context(root)
@@ -574,8 +575,8 @@ def test_a_name_opa_does_not_give_stops_the_list_and_guesses_nothing(monkeypatch
 def test_a_machine_is_left_as_it_stands_when_an_account_name_cannot_be_read(tmp_path, monkeypatch, caplog):
     import logging
 
-    from cs_image_system.base import accounts_reconcile
     from cs_image_system.contract.lifecycles import Lifecycle
+    from cs_image_system.engine import accounts_reconcile
     from tests.harness import V2Run
     _Opa(monkeypatch, attribute_error=RuntimeError("HTTP 503 from OPA"))
     session = _Session(monkeypatch)
@@ -593,8 +594,8 @@ def test_a_machine_is_left_as_it_stands_when_an_account_name_cannot_be_read(tmp_
 
 
 def test_an_okta_machine_gets_its_group_after_apply(tmp_path, monkeypatch):
-    from cs_image_system.base import accounts_reconcile
     from cs_image_system.contract.lifecycles import Lifecycle
+    from cs_image_system.engine import accounts_reconcile
     from tests.harness import V2Run
     _Opa(monkeypatch)
     session = _Session(monkeypatch)
@@ -610,8 +611,8 @@ def test_an_okta_machine_gets_its_group_after_apply(tmp_path, monkeypatch):
 
 
 def test_posix_none_sends_an_okta_machine_nothing(tmp_path, monkeypatch):
-    from cs_image_system.base import accounts_reconcile
     from cs_image_system.contract.lifecycles import Lifecycle
+    from cs_image_system.engine import accounts_reconcile
     from tests.harness import V2Run, copy_config
     root = copy_config(tmp_path)
     _okta_posix(root, "none")
@@ -630,8 +631,8 @@ def test_posix_none_sends_an_okta_machine_nothing(tmp_path, monkeypatch):
 def test_an_opa_that_cannot_be_asked_is_an_error_not_a_crash(tmp_path, monkeypatch, caplog):
     import logging
 
-    from cs_image_system.base import accounts_reconcile
     from cs_image_system.contract.lifecycles import Lifecycle
+    from cs_image_system.engine import accounts_reconcile
     from tests.harness import V2Run
     _Opa(monkeypatch, error=RuntimeError("HTTP 401 from OPA"))
     session = _Session(monkeypatch)
@@ -720,7 +721,7 @@ def _with_proof_user(root):
 
 def test_verify_login_proves_a_posix_machine_as_its_proof_user(tmp_path, monkeypatch):
     from cs_image_system.aws_runtime.aws_runtime_builders import AwsCloudBuilder
-    from cs_image_system.base.commands import login_proof as lp
+    from cs_image_system.engine.commands import login_proof as lp
     _Session(monkeypatch)
     _Ssh(monkeypatch)
     monkeypatch.setattr(AwsCloudBuilder, "ssh_proxy_command", lambda s, n: ["aws", "ssm", "start-session", "--target", "i-0abc"])
@@ -735,7 +736,7 @@ def test_verify_login_proves_a_posix_machine_as_its_proof_user(tmp_path, monkeyp
 
 
 def test_a_posix_group_without_a_proof_user_is_skipped_naming_why(tmp_path, monkeypatch):
-    from cs_image_system.base.commands import login_proof as lp
+    from cs_image_system.engine.commands import login_proof as lp
     _Session(monkeypatch)
     run = _posix_instance_run(tmp_path, monkeypatch)
     try:

@@ -25,7 +25,7 @@ A starter is assembled from two parts (``render``):
   skeleton file.
 
 The terraform modules are in neither: they are package data of the plugins
-that own them (``cs_image_system.base.modules``), and ``write_starter``
+that own them (``cs_image_system.engine.modules``), and ``write_starter``
 materialises the installed ones into the tree's ``module_source_base``
 directory (every starter declares ``tfmodules``), each copy stamped so a
 later ``init-config`` can tell an unmodified copy from an edited one. A
@@ -82,7 +82,7 @@ from pathlib import Path
 import yaml
 from packaging.version import InvalidVersion, Version
 
-from cs_image_system.base.modules import (
+from cs_image_system.engine.modules import (
     ABSENT,
     ADOPT,
     CURRENT,
@@ -96,7 +96,7 @@ from cs_image_system.base.modules import (
     materialise_modules,
     module_verdict,
 )
-from cs_image_system.base.pinned_release import PIN_FILE
+from cs_image_system.engine.pinned_release import PIN_FILE
 
 from .starter_links import rewrite_tree
 

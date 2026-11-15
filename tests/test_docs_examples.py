@@ -49,7 +49,7 @@ TREES = list(STARTERS)
 STANDARD = [name for name in TREES if name != "complete"]
 
 # The `type:` keys each plugin package answers to (docs/PLUGINS.md and the
-# packages' models). Packages that register no `type:` (base, the contract,
+# packages' models). Packages that register no `type:` (base, engine, the contract,
 # system, the hashicorp-utils library), the contract's proof plugin (the
 # `inmem` backend, never a backend for a real tree) and the dummy plugin (an extension template and
 # test double, never a configured builder) are not part of the contract.
@@ -70,7 +70,8 @@ PLUGIN_TYPES: dict[str, set[str]] = {
     "tf-docker-plugin": {"tofu-docker", "tf-docker-volume"},
     "tf-s3-state-plugin": {"s3"},
 }
-NOT_PLUGINS = {"base", "contract", "contract-example-plugin", "system", "hashicorp-utils", "tofu-roots", "dummy-plugin"}
+NOT_PLUGINS = {"base", "engine", "contract", "contract-example-plugin", "system", "hashicorp-utils", "tofu-roots",
+               "dummy-plugin"}
 MARKER = re.compile(r"ENC\[age:[A-Za-z0-9+/=]+\]")
 
 
@@ -155,7 +156,7 @@ def tree(request, tmp_path, monkeypatch, rendered_starters):
 
 
 def _validation_errors(ctx) -> list[str]:
-    from cs_image_system.base.commands.run_lifecycles import validate_only
+    from cs_image_system.engine.commands.run_lifecycles import validate_only
     return validate_only(ctx)
 
 
@@ -312,7 +313,7 @@ def test_every_example_is_a_whole_repository_a_team_can_copy(rendered_starters):
     source the release is built from)."""
     import stat
 
-    from cs_image_system.base.modules import STAMP_FILE, installed_modules
+    from cs_image_system.engine.modules import STAMP_FILE, installed_modules
     from cs_image_system.system.starters import starters_root
     # the constant is the directory: every tree under docs/examples but the skeleton
     assert sorted(STARTERS) == sorted(p.name for p in EXAMPLES.iterdir() if p.is_dir() and not p.name.startswith("_"))
@@ -618,7 +619,7 @@ def test_each_starter_as_written_is_public_safe_once_its_values_are_filled(tmp_p
     starter is scanned as written (the rendered tree, module stamps and
     all), its placeholders filled with plausible values, against its own
     allow list."""
-    from cs_image_system.base.public_safe import allow_from_config, scan_tree
+    from cs_image_system.engine.public_safe import allow_from_config, scan_tree
     for name in TREES:
         root = copy_example(tmp_path / name, name, rendered_starters)
         for f in root.rglob("*"):

@@ -21,9 +21,9 @@ from typing import Any, cast
 
 import pytest
 
-from cs_image_system.base import loader
 from cs_image_system.contract.constants import PLUGIN_TYPES, VCT
 from cs_image_system.contract.metadata import PluginMetadata
+from cs_image_system.engine import loader
 
 
 def _registering(*kinds: VCT) -> list[PluginMetadata]:

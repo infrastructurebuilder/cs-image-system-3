@@ -249,7 +249,7 @@ def _published() -> set[str]:
 def test_the_root_is_the_core_and_each_provider_is_an_extra():
     """`cs-image-system` is buildable, carries one module of its own (the
     extras table, src/cs_image_system/extras.py, declared to the core by an entry point), and
-    its dependencies plus its extras pin exactly the twenty published
+    its dependencies plus its extras pin exactly the twenty-one published
     packages (nothing else, nothing twice). The dependencies are the core
     -- no runtime, no terraform-root plugin, no provider state backend, no
     Okta -- so a bare install carries no runtime; `[aws]`, `[gcloud]`,
@@ -270,7 +270,7 @@ def test_the_root_is_the_core_and_each_provider_is_an_extra():
     provided = set().union(*(set(reqs) for reqs in extras.values()))
     assert not (set(siblings) & provided), "a package is both a dependency and an extra's"
     assert set(siblings) | provided == _published()
-    assert len(_published()) == 20 and len(siblings) == 11 and len(provided) == 9
+    assert len(_published()) == 21 and len(siblings) == 12 and len(provided) == 9
     assert not any(n for n in siblings if "runtime" in n or n.startswith("cs-image-system-tf-") or "okta" in n
                    or n in ("cs-image-system-gcs-state-plugin",)), "the bare install carries a provider"
     names = {i["name"]: i for i in root["tool"]["uv"]["index"]}
@@ -338,7 +338,7 @@ def _bump(cwd: Path, *args: str) -> subprocess.CompletedProcess[str]:
 
 @pytest.fixture
 def tree(tmp_path: Path) -> Path:
-    """The twenty-three pyproject files in their layout, and nothing else."""
+    """The twenty-four pyproject files in their layout, and nothing else."""
     for path in [ROOT, *(p / "pyproject.toml" for p in PACKAGES)]:
         dest = tmp_path / path.relative_to(REPO)
         dest.parent.mkdir(parents=True, exist_ok=True)

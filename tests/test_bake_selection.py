@@ -50,7 +50,7 @@ def _run_help() -> dict[str, str]:
 # ------------------------------------------------- the flags narrow
 
 def test_only_runtime_alone_is_every_image_baked_there(run):
-    from cs_image_system.base.commands.runtime_facts import images_on_runtime, runtime_bake_selection
+    from cs_image_system.engine.commands.runtime_facts import images_on_runtime, runtime_bake_selection
     expected = [f"{img}@{GCE}" for img in images_on_runtime(run.ctx, GCE)]
     assert expected == [f"basic-rh-10@{GCE}", f"imgfile-basic-dask@{GCE}"]
     assert runtime_bake_selection(run.ctx, GCE, None) == expected
@@ -58,7 +58,7 @@ def test_only_runtime_alone_is_every_image_baked_there(run):
 
 
 def test_beside_only_it_narrows_to_the_runtime_and_never_adds(run):
-    from cs_image_system.base.commands.runtime_facts import runtime_bake_selection
+    from cs_image_system.engine.commands.runtime_facts import runtime_bake_selection
     assert runtime_bake_selection(run.ctx, GCE, ["imgfile-basic-dask"]) == [f"imgfile-basic-dask@{GCE}"]
     # the same name twice, bare and qualified with this runtime, is one entry
     assert runtime_bake_selection(run.ctx, GCE, ["imgfile-basic-dask", f"imgfile-basic-dask@{GCE}"]) \
@@ -66,7 +66,7 @@ def test_beside_only_it_narrows_to_the_runtime_and_never_adds(run):
 
 
 def test_none_stays_the_empty_bake_surface(run, monkeypatch):
-    from cs_image_system.base.commands import runtime_facts
+    from cs_image_system.engine.commands import runtime_facts
     assert runtime_facts.runtime_bake_selection(run.ctx, GCE, ["none"]) == ["none"]
     assert runtime_facts.runtime_bake_selection(run.ctx, GCE, ["NONE"]) == ["none"]
     monkeypatch.setattr(runtime_facts, "images_on_runtime", lambda ctx, runtime: [])
@@ -74,7 +74,7 @@ def test_none_stays_the_empty_bake_surface(run, monkeypatch):
 
 
 def test_every_entry_it_cannot_honour_is_refused_at_once(run):
-    from cs_image_system.base.commands.runtime_facts import runtime_bake_selection
+    from cs_image_system.engine.commands.runtime_facts import runtime_bake_selection
     with pytest.raises(ValueError) as e:
         runtime_bake_selection(run.ctx, GCE, ["imgfile-posix", f"imgfile-basic-dask@{AWS}", "none"])
     message = str(e.value)
@@ -88,7 +88,7 @@ def test_the_run_bakes_only_the_named_image_on_the_runtime(run):
     """End to end: the bake plan selects the one named series and every
     other entry -- the runtime's other images included -- is
     `skip: not selected (--only)`."""
-    from cs_image_system.base.commands.runtime_facts import runtime_bake_selection
+    from cs_image_system.engine.commands.runtime_facts import runtime_bake_selection
     only = runtime_bake_selection(run.ctx, GCE, ["imgfile-basic-dask"])
     run.ctx.only_runtime_scope = GCE
     try:
@@ -132,7 +132,7 @@ def test_apply_runtime_implies_the_scope_beside_only(tmp_path, monkeypatch):
         monkeypatch.setattr(cli, "_run", lambda ctx, lifecycles, **kw: None)
         cli.run_command(cli_context(run.ctx), lifecycles=["instance-image"], only=["none"], apply_runtime=AWS)
         assert run.ctx.only_runtime_scope == AWS and run.ctx.implied_scope == AWS
-        from cs_image_system.base.commands.run_lifecycles import out_of_scope_builder_dirs
+        from cs_image_system.engine.commands.run_lifecycles import out_of_scope_builder_dirs
         assert "tofu-gce" in out_of_scope_builder_dirs(run.ctx), "the other cloud's root is out of the scoped run"
     finally:
         run.restore_cwd()

@@ -23,10 +23,10 @@ from typing import Any
 
 from harness import copy_config, load_context, stub_environment
 
-from cs_image_system.base import orchestrator
 from cs_image_system.base.models.os_builder_runtime_config import OSBuilderBaseImageBuilderSubconfig
 from cs_image_system.contract.constants import VCT
 from cs_image_system.contract.core import NameTypedProtocol
+from cs_image_system.engine import orchestrator
 
 
 def _entries(ctx) -> list[tuple[Any, OSBuilderBaseImageBuilderSubconfig]]:

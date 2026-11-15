@@ -94,7 +94,7 @@ def test_an_override_lands_on_a_query_key_by_key():
 # ----------------------------------------------------------------- the catalog
 def test_the_release_catalog_knows_the_families_the_plugins_serve():
     from cs_image_system.base.image_sources import packaged_default_entries
-    from cs_image_system.base.loader import installed_registry
+    from cs_image_system.engine.loader import installed_registry
     entries = packaged_default_entries(installed_registry().runtime_builder_classes())
     families = {e.family for e in entries}
     assert {"rhel", "alma-linux", "rocky-linux", "debian", "ubuntu", "fedora"} <= families
@@ -132,7 +132,7 @@ IS_BEFORE_THE_SPLIT = {"alma-linux": "rhel", "rocky-linux": "rhel", "centos-stre
 
 def test_the_split_catalog_merges_back_to_exactly_what_the_one_file_held():
     from cs_image_system.base.image_sources import packaged_default_entries
-    from cs_image_system.base.loader import installed_registry
+    from cs_image_system.engine.loader import installed_registry
     entries = packaged_default_entries(installed_registry().runtime_builder_classes())
     merged = {(e.family, tuple(e.versions), rt) for e in entries for rt in e.sources}
     assert len(CATALOG_BEFORE_THE_SPLIT) == 19
@@ -168,7 +168,7 @@ def test_each_runtime_ships_only_its_own_blocks(package: str, runtime_type: str)
 
 def test_the_stand_in_runtime_is_the_one_that_offers_a_local_target():
     from cs_image_system.base.image_sources import ImageSourceCatalog, stand_in_runtime_type
-    from cs_image_system.base.loader import installed_registry
+    from cs_image_system.engine.loader import installed_registry
     installed = installed_registry()
     assert stand_in_runtime_type(installed.runtime_builder_classes()) == "docker"
     # a registry holding no runtime that offers one: no stand-in at all
@@ -214,7 +214,7 @@ def test_the_tree_layer_lands_on_the_releases_and_a_version_on_the_generic(ctx):
 
 def test_a_family_is_what_the_catalog_says_it_is(ctx):
     from cs_image_system.base.image_sources import container_reference
-    from cs_image_system.base.mod_tests import test_image_for
+    from cs_image_system.engine.mod_tests import test_image_for
     model = ctx.os_builders["basic-rh-10"].model
     assert model.get_vendor_family() == "alma-linux" and model.get_family() == "rhel"
     assert type(model).families() == ("rhel", "alma-linux", "rocky-linux", "centos", "centos-stream")
@@ -280,8 +280,8 @@ def test_the_fingerprint_hashes_the_effective_query(ctx):
 
 # ----------------------------------------------------------------- validation
 def test_validate_prints_every_resolved_query_in_both_vocabularies(ctx, caplog):
-    from cs_image_system.base.commands.validate import check_image_sources
-    with caplog.at_level(logging.INFO, logger="cs_image_system.base.commands.validate"):
+    from cs_image_system.engine.commands.validate import check_image_sources
+    with caplog.at_level(logging.INFO, logger="cs_image_system.engine.commands.validate"):
         assert check_image_sources(ctx) == []
     lines = [r.getMessage() for r in caplog.records if r.getMessage().startswith("image source:")]
     assert any(ln.startswith("image source:") and "'basic-rh-10'" in ln and AWS_RUNTIME in ln and "name=AlmaLinux OS 10*x86_64*" in ln
@@ -293,7 +293,7 @@ def test_validate_prints_every_resolved_query_in_both_vocabularies(ctx, caplog):
 
 
 def _errors(tmp_path, monkeypatch, change) -> list[str]:
-    from cs_image_system.base.commands.validate import check_image_sources
+    from cs_image_system.engine.commands.validate import check_image_sources
     stub_environment(monkeypatch)
     root = copy_config(tmp_path)
     _edit_os_builders(root, change)

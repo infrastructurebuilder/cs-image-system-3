@@ -2,8 +2,8 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""The core names no runtime: no source of the contract, the core or the
-system package carries a provider's word. Every opinion about a specific
+"""The core names no runtime: no source of the contract, the core (the
+kit and the engine) or the system package carries a provider's word. Every opinion about a specific
 cloud or container platform lives in its runtime plugin and reaches the
 core through a hook; the core's pages name providers only as examples a
 reader needs, and its sources not at all.
@@ -18,7 +18,7 @@ import re
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[1]
-CORE = [REPO / "packages" / p / "src" for p in ("contract", "base", "system")]
+CORE = [REPO / "packages" / p / "src" for p in ("contract", "base", "engine", "system")]
 
 #: The words: each is one provider's, or one provider's tool's, or its
 #: cloud's vocabulary (the operator's choice at the stage that wrote this

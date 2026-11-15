@@ -22,8 +22,8 @@ import pytest
 
 from cs_image_system.base import alias_pool as ap
 from cs_image_system.base import launch_params as lp
-from cs_image_system.base import provider_aliases as pa
 from cs_image_system.contract.lifecycles import Lifecycle
+from cs_image_system.engine import provider_aliases as pa
 from tests.harness import V2Run
 
 POOL = "bright-otter\nquiet-heron\n\n# spent-eel  -- instance old as old-001 2026-09-21T10:00:00Z run r0\nred-cod\n"
@@ -181,7 +181,7 @@ def test_an_empty_pool_is_a_warning_and_the_launch_proceeds(real, caplog):
 # ---------------------------------------------------------- validation
 
 def test_validate_refuses_a_free_line_a_machine_could_not_take_and_counts_the_rest(dry, caplog):
-    from cs_image_system.base.commands.validate import check_alias_pool
+    from cs_image_system.engine.commands.validate import check_alias_pool
     ctx = dry.ctx
     _seed(dry, "bright-otter\nNot A Label\nbright-otter\ntest\n" + "x" * 64 + "\n")
     errors = [str(e) for e in check_alias_pool(ctx)]
@@ -200,7 +200,7 @@ def test_validate_refuses_a_free_line_a_machine_could_not_take_and_counts_the_re
 
 
 def test_validate_is_silent_without_a_pool(dry):
-    from cs_image_system.base.commands.validate import check_alias_pool
+    from cs_image_system.engine.commands.validate import check_alias_pool
     assert check_alias_pool(dry.ctx) == []
 
 

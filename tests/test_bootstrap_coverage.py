@@ -27,8 +27,8 @@ from pathlib import Path
 import pytest
 from harness import module_path
 
-from cs_image_system.base import bootstrap as bs
-from cs_image_system.base.bootstrap.questions import COVERAGE_STATUSES
+from cs_image_system.engine import bootstrap as bs
+from cs_image_system.engine.bootstrap.questions import COVERAGE_STATUSES
 from tests.test_bootstrap import EXAMPLES, _assigned, _git, _starter_copy
 from tests.test_bootstrap_aws import _account as _aws_account
 from tests.test_bootstrap_aws import _facts, _filled
@@ -85,7 +85,7 @@ def _aws_root(tmp_path: Path, buckets: dict[str, bool]) -> tuple[Path, Path, dic
 
 
 def test_the_facts_know_which_backends_a_root_is_bound_to(tmp_path: Path):
-    from cs_image_system.base.bootstrap.facts import bound_backend_names, other_state_backends
+    from cs_image_system.engine.bootstrap.facts import bound_backend_names, other_state_backends
     facts = bs.gather(_complete_tree(tmp_path), gh=False)
     assert [b["name"] for b in other_state_backends(facts, "s3")] == ["s3-east1"]
     assert bound_backend_names(facts) >= {"s3-east2", "s3-east1", "local-dev"}
@@ -133,7 +133,7 @@ def test_a_backend_bound_to_no_root_is_left_out_with_a_line_saying_so(tmp_path: 
 
 
 def test_a_bucket_the_account_cannot_be_asked_about_is_refused_not_guessed(tmp_path: Path):
-    from cs_image_system.base.bootstrap.questions import Refused
+    from cs_image_system.engine.bootstrap.questions import Refused
     root = _complete_tree(tmp_path)
     facts = bs.gather(root, gh=False)
     facts.owner_id, facts.repo_id = 4242, 987654

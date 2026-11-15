@@ -97,7 +97,7 @@ def test_an_unscoped_run_still_wipes_and_regenerates_each_lifecycle(repo):
 
 
 def test_out_of_scope_builder_dirs_name_the_other_runtimes_builders(repo):
-    from cs_image_system.base.commands.run_lifecycles import out_of_scope_builder_dirs
+    from cs_image_system.engine.commands.run_lifecycles import out_of_scope_builder_dirs
     make, _ = repo
     run = make()
     assert run.run(["storage"], apply=False).ok
@@ -110,7 +110,7 @@ def test_out_of_scope_builder_dirs_name_the_other_runtimes_builders(repo):
 
 
 def test_runtime_facts_carry_builders_and_emission_directories(repo):
-    from cs_image_system.base.commands.runtime_facts import builders_on_runtime, describe_runtime, emission_dirs
+    from cs_image_system.engine.commands.runtime_facts import builders_on_runtime, describe_runtime, emission_dirs
     make, _ = repo
     run = make()
     assert run.run("all", apply=False).ok
@@ -129,8 +129,8 @@ def test_a_scoped_retention_disposes_within_its_runtime_alone(repo, monkeypatch)
     """The retention lifecycle's deferred command carries ``--runtime`` under
     a runtime scope: CI performs on AWS with an identity that must never
     write to the GCE runtime."""
-    from cs_image_system.base import retention
     from cs_image_system.base.lifecycles import all_lifecycles
+    from cs_image_system.engine import retention
     make, _ = repo
     run = make()
     assert run.run(["storage"], apply=False).ok

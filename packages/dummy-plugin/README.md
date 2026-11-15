@@ -41,7 +41,7 @@ The first is a builder plugin. `initialize()` in
 `DummyPluginMetadata` whose services map the key `dummy` to four classes
 and whose `builders_for_models` names a builder class per model class.
 The entry-point group is `group`, the kind the plugin is: the loader
-([loader.py](../base/src/cs_image_system/base/loader.py)) refuses a plugin
+([loader.py](../engine/src/cs_image_system/engine/loader.py)) refuses a plugin
 whose group names a kind none of its classes registers (this one registers
 user builders beside its group builders; the group names the kind it is,
 not every kind it has), walks the groups in a fixed order, and registers
@@ -72,7 +72,7 @@ key. No other package imports anything from this one.
 The second is a hook plugin. `initialize()` in
 [hooks.py](src/cs_image_system/dummy_plugin/hooks.py) returns a `HookSet`
 (defined in
-[run_lifecycles.py](../base/src/cs_image_system/base/commands/run_lifecycles.py))
+[run_lifecycles.py](../engine/src/cs_image_system/engine/commands/run_lifecycles.py))
 carrying:
 
 | Hook | Registered | What it does |
@@ -316,7 +316,7 @@ need:
 
 - **When the hooks load.** `load_hook_plugins()` runs at the start of
   `run_lifecycles()` and `validate_only()` in
-  [run_lifecycles.py](../base/src/cs_image_system/base/commands/run_lifecycles.py),
+  [run_lifecycles.py](../engine/src/cs_image_system/engine/commands/run_lifecycles.py),
   and the `run` command in
   [cli.py](../system/src/cs_image_system/system/cli.py) calls it before it
   resolves lifecycle names, so `notify` is a valid name for `run notify`
@@ -373,7 +373,7 @@ is every field these two models accept and what, if anything, reads it.
 
 Users ([user.py](../base/src/cs_image_system/base/models/user.py)) and
 groups carry a `type:` whose default is `default`. The loader
-([config_loader.py](../base/src/cs_image_system/base/config_loader.py))
+([config_loader.py](../engine/src/cs_image_system/engine/config_loader.py))
 resolves `default` to the list's default builder and any other value to a
 builder by name or alias, then calls the builder's `add_user_to_builder()`
 or `add_group_to_builder()`. So `type: dummy-users` on a user attaches it
@@ -463,12 +463,12 @@ What is checked around it, and where the verdict lands:
   is written because there is no run.
 - **At `validate` (and at the start of every run).** The core's
   `validate_identity_items` in
-  [identity_attributes.py](../base/src/cs_image_system/base/identity_attributes.py)
+  [identity_attributes.py](../engine/src/cs_image_system/engine/identity_attributes.py)
   asks the owning builder about each user and group. For a dummy builder
   that yields one error string per item that declares `attributes:`
   (`user '<name>': builder <builder> (dummy) supports no attributes
   (declared [...])`) and nothing otherwise. `validate_base_images` in
-  [v2_validation.py](../base/src/cs_image_system/base/v2_validation.py)
+  [v2_validation.py](../engine/src/cs_image_system/engine/v2_validation.py)
   accepts `identity_types: [dummy]` on a base image exactly when a dummy
   group builder is declared (its `identity_type()` is `dummy`), and
   `validate_capabilities` accepts an instance image whose group is
@@ -491,7 +491,7 @@ What is checked around it, and where the verdict lands:
   after every run, including failed ones; it never changes the verdict
   and cannot fail the run (the runner logs a failing notifier and moves
   on).
-- **In the state query** ([state_query.py](../base/src/cs_image_system/base/state_query.py)):
+- **In the state query** ([state_query.py](../engine/src/cs_image_system/engine/state_query.py)):
   `query_state()` raises `NotImplementedError`, which the query treats as
   "not part of the picture": groups under a dummy builder appear nowhere
   in `generated/state-report.json`, not even under `unavailable`. The
@@ -502,7 +502,7 @@ What is checked around it, and where the verdict lands:
   `identity_type: dummy` and `gid_policy: provider-assigned`, and each
   dummy user builder as `<name>: dummy`.
 - **The gid shim** (`cs-image-system identity export-gids`, in
-  [identity_gids.py](../base/src/cs_image_system/base/commands/identity_gids.py))
+  [identity_gids.py](../engine/src/cs_image_system/engine/commands/identity_gids.py))
   does not skip it: a query naming `identity_type: dummy` finds
   `DummyGroupBuilder`, whose `export_gids()` raises, and the command
   prints `export-gids: DummyGroupBuilder does not implement a gid shim;
@@ -529,14 +529,14 @@ are the traps a plugin copied from this template falls into.
 |---|---|---|
 | A `notify` entry in a run summary or a golden diff of a run you did not ask for it in, and a `generated/notify/` directory | `CSIS_DUMMY_LIFECYCLE` is set in that shell: a registered lifecycle joins `run --all`, which is why the lifecycle is opt-in (registered unconditionally, it would grow every run a fifth lifecycle) | unset the variable in that shell |
 | `run notify` refused with `Unknown lifecycle 'notify'; expected one of [...]` and exit code 2 although the variable is set | the command path resolved the lifecycle names before it loaded the hook plugins, so every plugin-registered lifecycle was absent from `--all` and from `run <name>` | the `run` command loads the hooks before parsing names; a library caller must call `load_hook_plugins()` before `parse_lifecycles()`, and a test of a plugin-registered lifecycle must load the hook plugins itself rather than rely on an earlier test having done so |
-| `ERROR cs_image_system.base.commands.run_lifecycles:AttributeError: 'list' object has no attribute 'sort_and_write'` from the identity lifecycle's during step ([gen_users.py](../base/src/cs_image_system/base/commands/gen_users.py), [gen_groups.py](../base/src/cs_image_system/base/commands/gen_groups.py)) | a builder's `generate_items_*` hook returned a plain `list` where the contract wants an `AssetSet` | return `AssetSet()` from every generation hook; [tests/test_plugin_hooks.py](../../tests/test_plugin_hooks.py) runs a declared dummy builder through the identity lifecycle dry to pin it |
+| `ERROR cs_image_system.engine.commands.run_lifecycles:AttributeError: 'list' object has no attribute 'sort_and_write'` from the identity lifecycle's during step ([gen_users.py](../engine/src/cs_image_system/engine/commands/gen_users.py), [gen_groups.py](../engine/src/cs_image_system/engine/commands/gen_groups.py)) | a builder's `generate_items_*` hook returned a plain `list` where the contract wants an `AssetSet` | return `AssetSet()` from every generation hook; [tests/test_plugin_hooks.py](../../tests/test_plugin_hooks.py) runs a declared dummy builder through the identity lifecycle dry to pin it |
 | A plugin's file lands beside the builder directories (`generated/identity/<something>/<file>`) instead of under `<builder>/<phase>/` | the builder built the path from a helper of its own instead of `get_path_for_phase()`, and a template copied from it teaches the wrong layout | build every asset path with `get_path_for_phase(phase, ..., suffix=...)`; `test_the_dummy_user_builder_writes_under_its_own_root` checks the user builder's file and the absence of a `Dummy-tf` directory |
 | pydantic `Unexpected keyword argument` naming `key`, `secret` or `api_host` on a dummy builder | the template has no credential field on purpose; the key is unknown | delete it; a real plugin reads a credential from the environment or a credential cache |
 
 ## Related
 
 - Base classes: [group_builder.py](../base/src/cs_image_system/base/models/group_builder.py), [user_builder.py](../base/src/cs_image_system/base/models/user_builder.py), [builder_base.py](../base/src/cs_image_system/base/basic/builder_base.py), [builder_base_group.py](../base/src/cs_image_system/base/basic/builder_base_group.py), [builder_base_user.py](../base/src/cs_image_system/base/basic/builder_base_user.py), [abstract_plugin_metadata.py](../base/src/cs_image_system/base/basic/abstract_plugin_metadata.py).
-- Plugin loading: [loader.py](../base/src/cs_image_system/base/loader.py) (builder plugins), [run_lifecycles.py](../base/src/cs_image_system/base/commands/run_lifecycles.py) (hook plugins and `HookSet`), [lifecycles.py](../base/src/cs_image_system/base/lifecycles.py) (`LifecycleSpec`).
+- Plugin loading: [loader.py](../engine/src/cs_image_system/engine/loader.py) (builder plugins), [run_lifecycles.py](../engine/src/cs_image_system/engine/commands/run_lifecycles.py) (hook plugins and `HookSet`), [lifecycles.py](../base/src/cs_image_system/base/lifecycles.py) (`LifecycleSpec`).
 - The real identity plugin the fixture uses: [okta-opa-plugin](../okta-opa-plugin).
 - [docs/PLUGINS.md](../../docs/PLUGINS.md) for the package index; [docs/DESIGN.md](../../docs/DESIGN.md) for the design.
 - [The configuration reference](../../docs/CONFIGURATION.md) -- every field of the YAML this plugin reads, with an example.

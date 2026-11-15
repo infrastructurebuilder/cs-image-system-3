@@ -68,7 +68,7 @@ def test_non_numeric_gids_are_rejected(raw):
 def converter(clean_registry):
     """The converter of a registry of the test's own, the installed plugins
     loaded into it (`clean_registry`, see conftest)."""
-    from cs_image_system.base.loader import load_plugins
+    from cs_image_system.engine.loader import load_plugins
 
     load_plugins(clean_registry.reg)
     return clean_registry.converter

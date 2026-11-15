@@ -111,7 +111,7 @@ def test_the_bound_comes_from_the_environment():
 def test_the_shim_refuses_loudly_when_the_wait_ends_without_a_gid(monkeypatch):
     """End to end through `export-gids`: what terraform's external program
     gets when a group still has no gid after the bounded wait."""
-    from cs_image_system.base.commands.identity_gids import export_gids
+    from cs_image_system.engine.commands.identity_gids import export_gids
     from cs_image_system.okta_opa_plugin import okta_opa_tf_group_builder as mod
     seen: dict[str, object] = {}
 

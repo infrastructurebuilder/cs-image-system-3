@@ -144,7 +144,7 @@ def test_which_commands_each_identity_plugins_entry_point_brings(monkeypatch):
     assert "workload" in {g.name for g in root.registered_groups}
     assert "login" in {c.name for c in verify.registered_commands}
     # both installed (name order): one `verify login`, the core's callback
-    from cs_image_system.base.commands.login_proof import verify_login_command
+    from cs_image_system.engine.commands.login_proof import verify_login_command
     root, verify = _root()
     monkeypatch.setattr(cli, "entry_points", lambda group: [_entry("okta_opa_plugin", okta_mounts),
                                                              _entry("posix_identity_plugin", posix_mounts)])
@@ -161,7 +161,7 @@ def test_the_installed_cli_carries_the_okta_commands_from_the_real_entry_point(m
 
     from typer.main import get_command
 
-    from cs_image_system.base.commands.login_proof import verify_login_command
+    from cs_image_system.engine.commands.login_proof import verify_login_command
     from cs_image_system.system.cli import app
     assert "workload" in {g.name for g in app.registered_groups}
     assert [c.callback for g in app.registered_groups if g.name == "verify" and g.typer_instance
@@ -187,9 +187,9 @@ def _with_a_profile_field(root: Path) -> None:
 
 
 def test_a_tree_with_okta_profile_fields_loads_with_the_plugin_and_is_refused_without_it(tmp_path, monkeypatch):
-    from cs_image_system.base.config_loader import read_config_and_transform
-    from cs_image_system.base.loader import installed_registry
     from cs_image_system.base.models.user import User
+    from cs_image_system.engine.config_loader import read_config_and_transform
+    from cs_image_system.engine.loader import installed_registry
     from cs_image_system.okta_opa_plugin.okta_user import OktaUser
     stub_environment(monkeypatch)
     root = copy_config(tmp_path)
@@ -248,7 +248,7 @@ def test_each_identity_plugin_answers_the_container_runtime_question():
 
 
 def test_validate_refuses_an_okta_group_and_accepts_a_posix_group_on_a_container_runtime(tmp_path, monkeypatch):
-    from cs_image_system.base.commands.validate import check_container_runtimes
+    from cs_image_system.engine.commands.validate import check_container_runtimes
     stub_environment(monkeypatch)
     _stub_daemon(monkeypatch)
     root = copy_config(tmp_path)
@@ -266,8 +266,8 @@ def test_validate_refuses_an_okta_group_and_accepts_a_posix_group_on_a_container
 def test_the_core_reads_the_accounts_report_and_the_alias_verdict_by_the_contract():
     import inspect
 
-    from cs_image_system.base import accounts_reconcile, provider_aliases
     from cs_image_system.contract.group import ACCOUNTS_IN_PLACE, ACCOUNTS_REPORT_PREFIX, ALIASES_CHANGED
+    from cs_image_system.engine import accounts_reconcile, provider_aliases
     from cs_image_system.okta_opa_plugin.server_aliases import alt_names_script
     assert ACCOUNTS_IN_PLACE.startswith(ACCOUNTS_REPORT_PREFIX)
     assert "ACCOUNTS_IN_PLACE" in inspect.getsource(accounts_reconcile)
@@ -278,8 +278,8 @@ def test_the_core_reads_the_accounts_report_and_the_alias_verdict_by_the_contrac
 
 
 def test_the_state_query_words_for_workload_access_are_the_plugins(tmp_path, monkeypatch):
-    from cs_image_system.base import state_query as sq
     from cs_image_system.contract.group import WORKLOAD_CONNECTION_INACTIVE, WORKLOAD_ROLE_ABSENT
+    from cs_image_system.engine import state_query as sq
     from cs_image_system.okta_opa_plugin.okta_opa_tf_group_builder import OktaTfGroupBuilder
     stub_environment(monkeypatch)
     ctx = load_context(copy_config(tmp_path))

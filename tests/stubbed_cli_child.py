@@ -57,7 +57,7 @@ def main(argv: list[str]) -> int:
     patch.setattr(socket, "create_connection", _refused("opened a connection"))
     journal = stub_environment(patch)
 
-    from cs_image_system.base import config_loader
+    from cs_image_system.engine import config_loader
     from cs_image_system.system.cli import app
     patch.setattr(config_loader, "datetime", Clock(datetime.fromisoformat(moment)))
     code = 0

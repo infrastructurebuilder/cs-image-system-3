@@ -20,9 +20,9 @@ from dataclasses import dataclass
 
 from cs_image_system.base.models import mixins
 from cs_image_system.base.models.mixins import ParentPropertyHolding, refines_parent
-from cs_image_system.base.orchestrator import PARENT_REFERENCE_FIELD, SmartContext, UnresolvedForeignKey
 from cs_image_system.contract.constants import DEFAULT, NO_MODEL_ID, VCT
 from cs_image_system.contract.fields import fk_field, parent_field
+from cs_image_system.engine.orchestrator import PARENT_REFERENCE_FIELD, SmartContext, UnresolvedForeignKey
 
 DEFAULT_BUILDER = "basic"
 

@@ -16,8 +16,8 @@ from harness import FIXTURE_CONFIG, load_context, stub_environment
 
 from cs_image_system.base import image_sources
 from cs_image_system.base.image_sources import ImageSourceCatalog
-from cs_image_system.base.loader import installed_registry
 from cs_image_system.base.registry import Registry
+from cs_image_system.engine.loader import installed_registry
 
 
 def test_each_load_makes_its_own_catalog_and_its_models_hold_it(monkeypatch):

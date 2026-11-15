@@ -19,9 +19,9 @@ from pathlib import Path
 
 import pytest
 
-from cs_image_system.base import state_query as sq
 from cs_image_system.base.lineage import TAG_PREFIX
 from cs_image_system.contract.lifecycles import Lifecycle
+from cs_image_system.engine import state_query as sq
 from tests.harness import V2Run
 
 
@@ -168,7 +168,7 @@ def _all_seen(ctx) -> None:
 def test_group_drift(world):
     run, reality = world
     ctx = run.ctx
-    from cs_image_system.base.read_models import identity_read_model
+    from cs_image_system.engine.read_models import identity_read_model
     ctx.meta_state.write_identity_read_model(identity_read_model(ctx))
     _all_seen(ctx)
     model = ctx.meta_state.identity_read_model()["groups"]
@@ -250,13 +250,13 @@ def test_report_file_is_public_safe_json(world):
 def test_report_refuses_secret_shaped_reality(world):
     run, reality = world
     reality["images"] = {_runtime(run.ctx): [{"image_id": "ami-x", "tags": {"note": "AK" + "IAABCDEFGHIJKLMNOP"}}]}
-    from cs_image_system.base.meta_state import MetaStateSecretError
+    from cs_image_system.engine.meta_state import MetaStateSecretError
     with pytest.raises(MetaStateSecretError):
         sq.query_state(run.ctx)
 
 
 def test_state_query_is_a_registered_validator():
-    from cs_image_system.base.commands import run_lifecycles as rl
+    from cs_image_system.engine.commands import run_lifecycles as rl
     assert sq.validate_state_report in rl._VALIDATORS
 
 
@@ -320,7 +320,7 @@ def test_runtimes_without_the_boot_query_make_no_claim(world, monkeypatch):
 # ------------------------------------------- a lookup a builder cannot answer
 
 def test_an_unimplemented_lookup_is_reported_unavailable_not_dropped():
-    from cs_image_system.base.state_query import StateReport, _query
+    from cs_image_system.engine.state_query import StateReport, _query
     report = StateReport(run="test")
 
     def cannot():

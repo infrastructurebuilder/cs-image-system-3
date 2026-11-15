@@ -24,7 +24,7 @@ import math
 import sys
 from pathlib import Path
 
-from cs_image_system.base.commands.preflight import session_minutes_left
+from cs_image_system.engine.commands.preflight import session_minutes_left
 
 
 def _load(root: Path):
@@ -32,7 +32,7 @@ def _load(root: Path):
     import types
     from typing import Any, cast
 
-    from cs_image_system.base.config_loader import read_config_and_transform
+    from cs_image_system.engine.config_loader import read_config_and_transform
     return read_config_and_transform(cast(Any, types.SimpleNamespace(obj={})), root, False, dry_run=True)
 
 

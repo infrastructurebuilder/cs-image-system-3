@@ -99,116 +99,35 @@ and survives every wipe. Read
 
 ### engine
 
-The engine is the planned name for the half of the core that only the
-system runs: the commands, the orchestrator, the loader and finalizer,
-meta-state, the state query, releases and retention, the generators. The
-other half, the kit, is what a plugin needs. The split is a plan, not a
-package that exists today: `base` still holds both, and the
-decomposition stages describe where the line falls and how it is
-measured (the transitive closure of what the plugins import). The engine
-is not the `system` package, which is the CLI, and not the contract,
-which is the leaf everything is written against. Read
-[INPROGRESS/STAGE-113.md](../INPROGRESS/STAGE-113.md) and
-[the stage index](CHANGES.md#s124).
-
-### finding
-
-A finding is one numbered observation from a walk or a review, written
-`F<nn>`: something the documents said too little about, a
-recipe that refused where it could have acted, a defect met on the way.
-A finding is raised where it is met, counted in the walk's or review's
-table, and then becomes either a stage of its own or an item of the open
-hygiene bundle; the frozen walk keeps the table it came from. The word
-has a second, narrower use: the public-safe scanner reports "a finding"
-when a file holds something that must never be public, named by path and
-rule, never by value. Read the frozen
-[walk](history/WALK-2026-10.md) for the findings table and
-[OPERATIONS.md, "Public-safe and the hook"](OPERATIONS.md#public-safe-and-the-hook)
-for the scanner's.
-
-### fixture
-
-The fixture (the frozen fixture) is the configuration tree under
-`tests/fixtures/config/` that the tests own: synthetic personas on
-example domains, its own committed TEST age identity, no `meta-state/`
-and no generated output. Every test runs over a private copy of it with
-every cloud, Okta and tool execution stubbed; the system's `live` job
-proves the same fixture against the real accounts read-only. It is not
-the reference configuration, which is a real repository beside this one,
-and nothing under `tests/` reads the reference. Never put a real name in
-the fixture, the golden or a test. Read
-[OPERATIONS.md, "The frozen fixture and the reference configuration"](OPERATIONS.md#the-frozen-fixture-and-the-reference-configuration)
-and [tests/fixtures/config/README.md](../tests/fixtures/config/README.md).
-
-### the gate
-
-The gate is the step between a terraform plan and its apply:
-`gate-plan` reads the plan file and refuses (exit 3) any destroy that is
-not whitelisted by name, a stale plan file, and a detach whose unmount
-has no receipt; `apply-check` then re-reads the apply flags at execution
-time so a script written under yesterday's flags cannot apply under
-today's. The pages also say "the gate" of other refusals that stand
-between a change and reality: the public-safe scanner before a commit
-(the commit gate), the CI secrets gate, the index probe before a
-release. The sense is always a check that refuses rather than warns.
-Read [OPERATIONS.md, "The apply gate"](OPERATIONS.md#the-apply-gate)
-and [DESCRIPTION.md, "How it works"](DESCRIPTION.md#how-it-works).
-
-### generation
-
-Two different things share this word, and the pages keep them apart by
-context. In a run, generation is the first half: writing the emission
-and the read-models, as opposed to finalization, the apply step. For an
-instance or a storage, a generation is one machine or one volume: it
-opens when that thing comes into being, closes when it is destroyed, and
-is numbered (`<name>-003` is the third machine to bear the name); the
-system observes generations from the provider rather than inferring them.
-Read [OPERATIONS.md, "Generation versus finalization"](OPERATIONS.md#generation-versus-finalization)
-for the first sense and
-[OPERATIONS.md, "Instance generations"](OPERATIONS.md#instance-generations)
-for the second.
-
-### golden
-
-The golden is the pinned, committed emission of the frozen fixture under
-`tests/fixtures/v2_golden/`: exactly what `run --all` writes over the
-fixture plus three meta-state read-models. The bar regenerates it in
-memory and reports every removed, added or changed file, so every change
-to the code is asked one question: did it change what the system
-produces? When a change is meant to move the emission, `just
-golden-regen` rewrites it, the diff is read, and the commit message says
-the move is intended; regenerating to make a test pass is how a defect
-becomes the expected output. Read [GOLDEN.md](../GOLDEN.md) and
-[OPERATIONS.md, "The golden"](OPERATIONS.md#the-golden).
-
-### guard
-
-A guard is a check that refuses before anything is changed, and three
-carry the name. The config guard (`config-guard`) is the recipe every
-reference-reading recipe depends on; it exits with the clone command when
-the reference is absent, and `just test` never needs it. The guarded
-runtime (`GUARD_RUNTIME`) is a runtime CI must never bake on: the
-`perform` job compares that runtime's emission in the record just pushed
-with the previous record and fails before anything performs. The take's
-catch-up guard is `take`'s first act: `develop` fast-forwarded to
-`origin/main` before a release is taken. A guard is not the gate: the
-gate stands inside a run, a guard in front of a recipe. Read
-[OPERATIONS.md, "A configuration repository: the `perform` job"](OPERATIONS.md#a-configuration-repository-the-perform-job)
-and [the take](#the-take).
+The engine is the half of the core that only the system runs, the
+package `cs-image-system-engine` (`cs_image_system.engine`): the
+commands, the loader, the orchestrator and its template resolver, the
+finalizer, the configuration loader, the meta-state store and the
+public-safe scan, the state query, materialisation, releases and
+retention, the bootstrap and the generators. The other half, the kit,
+is what a plugin needs. The line between them is measured, not drawn:
+it is the transitive closure of what the plugins import, which
+`tests/import_closure.py` computes and `tests/test_import_closure.py`
+holds, and no module of the kit imports the engine
+(`tests/test_contract.py`). The engine is not the `system` package,
+which is the CLI, and not the contract, which is the leaf everything is
+written against; no plugin imports it. Read
+[DESIGN.md, "The plugin contract"](DESIGN.md#p-the-plugin-contract) and
+[the stage index](CHANGES.md#s113).
 
 ### kit
 
-The kit is the planned name for the half of the core a plugin needs:
-the base classes, the models, the registry, lineage, encryption, the
-public-safe scanner, capabilities, materialisation and the declaration
-vocabulary. The plan keeps the package name `base` and its import paths
-for the kit, so no plugin changes an import, and moves the rest out as
-the engine. Like the engine it is a planned name, not a package that
-exists today; the decomposition stages measure the line and may move it.
-The kit is not the contract: the contract is what a plugin is written
-against, the kit is what it imports beyond that. Read
-[INPROGRESS/STAGE-113.md](../INPROGRESS/STAGE-113.md) and
-[the stage index](CHANGES.md#s124).
+The kit is the half of the core a plugin needs, the package
+`cs-image-system-base` (`cs_image_system.base`, the name it always
+had, so no plugin changes an import): the base classes, the models,
+the registry, the run context, lineage, launch parameters,
+encryption, capabilities, the meta-state's ledger names and the
+declaration vocabulary. The direction is contract, then kit, then
+engine: the kit imports the contract and never the engine. The kit is
+not the contract: the contract is what a plugin is written against,
+the kit is what it imports beyond that. Read
+[DESIGN.md, "The plugin contract"](DESIGN.md#p-the-plugin-contract) and
+[the stage index](CHANGES.md#s113).
 
 ### the ledger
 

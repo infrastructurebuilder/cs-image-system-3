@@ -10,13 +10,17 @@ dependency the layering should show (so it counts with the lazy edges in
 the ``_all`` figures) but it never runs, so it cannot close a cycle at
 import time and stays out of the ``_top`` figures and the lazy-edge count.
 
-Three numbers the decomposition steers by. The strongly connected
-component (SCC): the largest set of ``base`` modules that reach each other
+Three numbers the decomposition steers by, over the core: the kit
+(``base``) and the engine (``engine``) together. The strongly connected
+component (SCC): the largest set of core modules that reach each other
 through imports; function-local imports count as edges, since a lazy import
-is a dependency the layering does not show. The kit closure: every
-``base`` module a plugin (or tofu-roots) reaches, transitively, with the
-top-level and the lazy edges counted separately; the engine is the rest of
-``base``. The cross-plugin edges: one plugin importing another, by pair.
+is a dependency the layering does not show. The kit closure: every core
+module a plugin (or tofu-roots) reaches, transitively, with the top-level
+and the lazy edges counted separately; the measured engine is the rest of
+the core. The two packages are the two measured sets: the kit package is
+the closure (and its own ``__init__``), and the engine package holds no
+module the closure reaches. The cross-plugin edges: one plugin importing
+another, by pair.
 
 ``python tests/import_closure.py [repo root]`` prints the report; the test
 beside this module holds the numbers to a floor that may only fall.
@@ -30,8 +34,10 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 ROOT_PACKAGE = "cs_image_system"
-CORE = ("base",)
-NOT_PLUGINS = {"contract", "base", "system"}
+KIT = "base"
+ENGINE = "engine"
+CORE = (KIT, ENGINE)
+NOT_PLUGINS = {"contract", KIT, ENGINE, "system"}
 
 
 @dataclass
@@ -187,16 +193,19 @@ def closure(g: Graph, seeds: set[str], within: set[str], *, lazy: bool) -> set[s
 
 def report(repo: Path) -> dict[str, object]:
     g = build_graph(repo)
-    base = {m for m in g.modules if package_of(m) == "base"}
+    kit = {m for m in g.modules if package_of(m) == KIT}
+    engine = {m for m in g.modules if package_of(m) == ENGINE}
+    core = kit | engine
     plugins = {m for m in g.modules if package_of(m) not in NOT_PLUGINS}
-    seeds = {w for m in plugins for w in g.edges(m, lazy=True) if w in base}
-    seeds_top = {w for m in plugins for w in g.edges(m, lazy=False) if w in base}
-    kit_top = closure(g, seeds_top, base, lazy=False)
-    kit_all = closure(g, seeds, base, lazy=True)
-    scc_top = sccs(g, base, lazy=False)[0]
-    scc_all = sccs(g, base, lazy=True)[0]
-    lazy_edges = sum(len(v) for k, v in g.lazy.items() if package_of(k) in ("base", "system"))
-    typing_edges = sum(len(v) for k, v in g.typing.items() if package_of(k) in ("base", "system"))
+    seeds = {w for m in plugins for w in g.edges(m, lazy=True) if w in core}
+    seeds_top = {w for m in plugins for w in g.edges(m, lazy=False) if w in core}
+    kit_top = closure(g, seeds_top, core, lazy=False)
+    kit_all = closure(g, seeds, core, lazy=True)
+    scc_top = sccs(g, core, lazy=False)[0]
+    scc_all = sccs(g, core, lazy=True)[0]
+    lazy_edges = sum(len(v) for k, v in g.lazy.items() if package_of(k) in (*CORE, "system"))
+    typing_edges = sum(len(v) for k, v in g.typing.items() if package_of(k) in (*CORE, "system"))
+    kit_to_engine = sorted(f"{m} -> {w}" for m in kit for w in g.edges(m, lazy=True) if w in engine)
     cross: dict[tuple[str, str], int] = defaultdict(int)
     for m in plugins:
         for w in g.edges(m, lazy=True):
@@ -204,13 +213,19 @@ def report(repo: Path) -> dict[str, object]:
             if b not in NOT_PLUGINS and b != "hashicorp_utils" and b != "tofu_roots" and a != b:
                 cross[(a, b)] += 1
     return {
-        "base_modules": len(base), "base_lines": sum(g.lines[m] for m in base),
+        "core_modules": len(core), "core_lines": sum(g.lines[m] for m in core),
+        "kit_modules": len(kit), "kit_lines": sum(g.lines[m] for m in kit),
+        "engine_modules": len(engine), "engine_lines": sum(g.lines[m] for m in engine),
         "lazy_edges_core": lazy_edges, "typing_edges_core": typing_edges,
         "scc_top": len(scc_top), "scc_all": len(scc_all),
         "kit_top": len(kit_top), "kit_all": len(kit_all),
-        "engine_all": len(base - kit_all),
+        "engine_all": len(core - kit_all),
         "cross_plugin": {f"{a}->{b}": n for (a, b), n in sorted(cross.items())},
         "scc_all_members": sorted(scc_all),
+        # the two packages against the two measured sets
+        "kit_unreached": sorted(kit - kit_all - {f"{ROOT_PACKAGE}.{KIT}"}),
+        "engine_reached": sorted(engine & kit_all),
+        "kit_to_engine": kit_to_engine,
     }
 
 
@@ -218,7 +233,7 @@ def main(argv: list[str]) -> int:
     repo = Path(argv[1]).resolve() if len(argv) > 1 else Path(__file__).resolve().parents[1]
     r = report(repo)
     for k, v in r.items():
-        if k != "scc_all_members":
+        if k != "scc_all_members" and (v or k not in ("kit_unreached", "engine_reached", "kit_to_engine")):
             print(f"{k}: {v}")
     return 0
 

@@ -85,12 +85,24 @@ def _imports(path: Path) -> list[tuple[str, int]]:
 
 
 def test_the_contract_imports_nothing_from_the_core():
-    """The direction: base depends on the contract, never the reverse. Every
-    source under the package, every import, at any depth."""
+    """The direction: the kit and the engine depend on the contract, never
+    the reverse. Every source under the package, every import, at any
+    depth."""
     for source in sorted(CONTRACT.rglob("*.py")):
         for module, level in _imports(source):
-            assert not (level == 0 and module.startswith(("cs_image_system.base", "cs_image_system.system",
+            assert not (level == 0 and module.startswith(("cs_image_system.base", "cs_image_system.engine",
+                                                            "cs_image_system.system",
                                                             "cs_image_system.hashicorp_utils"))), \
+                f"{source.relative_to(REPO)} imports {module}"
+
+
+def test_the_kit_imports_nothing_from_the_engine():
+    """contract <- kit <- engine: no source of the kit (``base``) imports
+    the engine, at any depth, lazily, under ``TYPE_CHECKING`` or not; the
+    engine is the kit's consumer, never its dependency."""
+    for source in sorted(_src("base").rglob("*.py")):
+        for module, level in _imports(source):
+            assert not (level == 0 and module.startswith("cs_image_system.engine")), \
                 f"{source.relative_to(REPO)} imports {module}"
 
 
@@ -137,7 +149,7 @@ def test_no_plugin_names_the_kits_context():
     (none today). An exception no hit matches any more is stale and goes."""
     import re
     names = re.compile(r"\bRunContext\b")
-    packages = {p.name for p in (REPO / "packages").iterdir() if p.is_dir()} - {"base", "contract", "system"}
+    packages = {p.name for p in (REPO / "packages").iterdir() if p.is_dir()} - {"base", "engine", "contract", "system"}
     hits: list[str] = []
     for package in sorted(packages):
         for source in sorted(_src(package).rglob("*.py")):
@@ -153,24 +165,31 @@ def test_no_plugin_names_the_kits_context():
 
 
 def test_the_import_order_is_a_dag():
-    """contract <- hashicorp_utils <- tofu_roots, and contract <- base <-
-    tofu_roots: the contract imports no other package; the library only
-    the contract; the core neither the library, nor the roots, nor a
-    plugin; the roots only the contract, the core and the library. A
-    plugin may import any of the four; none of the four imports a plugin."""
-    core = {"contract", "base", "system", "hashicorp_utils", "tofu_roots"}
+    """contract <- hashicorp_utils <- tofu_roots, contract <- base <-
+    tofu_roots and contract <- base <- engine: the contract imports no
+    other package; the library only the contract; the kit (``base``)
+    neither the engine, nor the library, nor the roots, nor a plugin; the
+    engine only the contract and the kit; the roots only the contract, the
+    kit and the library. A plugin may import the contract, the kit, the
+    library and the roots, never the engine; none of them imports a
+    plugin."""
+    core = {"contract", "base", "engine", "system", "hashicorp_utils", "tofu_roots"}
     plugins = {p.name for p in (REPO / "packages").glob("*/src/cs_image_system/*") if p.is_dir()} - core
     assert plugins, "no plugin package found"
     allowed = {
         "contract": {"contract"},
         "hashicorp-utils": {"contract", "hashicorp_utils"},
         "base": {"contract", "base"},
+        "engine": {"contract", "base", "engine"},
         "tofu-roots": {"contract", "base", "hashicorp_utils", "tofu_roots"},
     }
     for package, may in allowed.items():
         reached = _packages_reached(_src(package))
         assert reached <= may, f"{package} imports {sorted(reached - may)}"
         assert not (reached & plugins), f"{package} imports the plugin(s) {sorted(reached & plugins)}"
+    for package in sorted(p.parent.parent.parent.name for p in (REPO / "packages").glob("*/src/cs_image_system/*")
+                          if p.is_dir() and p.name in plugins):
+        assert "engine" not in _packages_reached(_src(package)), f"the plugin {package} imports the engine"
 
 
 def test_a_kind_module_imports_only_the_kinds_it_declares():
@@ -270,10 +289,10 @@ def _core_pairs() -> list[tuple[type, type, set[str]]]:
 def _context_pairs() -> list[tuple[type, type, set[str]]]:
     """The run context, the meta-state, the provider-specific image and the
     service adapters against the contract's context protocols."""
-    from cs_image_system.base.config_loader import SERVICE_PAIRS
-    from cs_image_system.base.meta_state import MetaState
     from cs_image_system.base.models.provider_specific_image import ProviderSpecificImage
     from cs_image_system.base.run_context import RunContext
+    from cs_image_system.engine.config_loader import SERVICE_PAIRS
+    from cs_image_system.engine.meta_state import MetaState
     return [(RunContext, context.RunContextProtocol, set()), (MetaState, context.MetaStateProtocol, set()),
             (ProviderSpecificImage, image.ProviderSpecificImageProtocol, {"csis_name"})] + \
         [(cls, proto, set()) for cls, proto in SERVICE_PAIRS]
@@ -311,8 +330,8 @@ KIND_PROTOCOLS: dict[VCT, tuple[type, type]] = {
 def test_every_built_in_plugin_conforms_to_its_kind():
     """Every built-in plugin's registered model and builder classes conform
     to the protocols of their kind; every shortfall is named at once."""
-    from cs_image_system.base.loader import installed_registry
     from cs_image_system.base.registry import sanitize_classifier
+    from cs_image_system.engine.loader import installed_registry
     reg = installed_registry()           # the installed plugins, in a registry of the test's own
     checked = 0
     problems: list[str] = []
@@ -367,7 +386,6 @@ def test_the_mapper_dispatches_on_the_contracts_surface_not_a_table():
     own is a dispatch point (the nine kind bases); a concrete model, an item
     model (its `type` is a foreign key) and the configuration itself are
     structured as themselves."""
-    from cs_image_system.base.loader import installed_registry
     from cs_image_system.base.models.base_image import BaseImage
     from cs_image_system.base.models.builder_model import BuilderModel, RuntimeEnabledBuilderModel
     from cs_image_system.base.models.executable import ExecutableModel
@@ -387,7 +405,8 @@ def test_the_mapper_dispatches_on_the_contracts_surface_not_a_table():
     from cs_image_system.base.models.storage_builder import StorageBuilderModel
     from cs_image_system.base.models.user import User
     from cs_image_system.base.models.user_builder import UserBuilderModel
-    from cs_image_system.base.orchestrator import PydanticConverter
+    from cs_image_system.engine.loader import installed_registry
+    from cs_image_system.engine.orchestrator import PydanticConverter
     from cs_image_system.local_state_plugin.local_state_models import LocalStateBuilderModel
     conv = PydanticConverter(installed_registry())
     assert not hasattr(conv, "_base_vcts")

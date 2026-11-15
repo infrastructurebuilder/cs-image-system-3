@@ -66,7 +66,7 @@ def test_every_storage_and_instance_module_call_carries_the_id(run):
 # ------------------------------------------------------------ 2. lookups take ours, never theirs
 
 def test_an_ebs_volume_of_our_name_that_is_theirs_is_absent_and_noted(run, monkeypatch):
-    from cs_image_system.base import state_query as sq
+    from cs_image_system.engine import state_query as sq
     from cs_image_system.tf_ebs_instance_plugin.tf_storage_builder import TofuEbsStorageBuilder
 
     class FakeEC2:
@@ -189,7 +189,7 @@ def test_gce_lookups_and_inventory_tell_ours_from_theirs(run, monkeypatch):
 
 
 def test_emptiness_leaves_another_configurations_things_alone_and_names_the_unlabelled(run, monkeypatch):
-    from cs_image_system.base.commands.runtime_facts import emptiness
+    from cs_image_system.engine.commands.runtime_facts import emptiness
     from cs_image_system.gcloud_runtime.gcp_runtime_builders import GCPCloudBuilder
     monkeypatch.setattr(GCPCloudBuilder, "inventory", lambda self: {
         "instances": ["walk-gce-1", "scratch"], "images": ["team-node-x"],
@@ -213,7 +213,7 @@ def test_emptiness_leaves_another_configurations_things_alone_and_names_the_unla
 
 def test_relabel_gives_the_id_to_standing_storages_and_machines_that_lack_it(run, monkeypatch):
     from cs_image_system.aws_runtime.aws_runtime_builders import AwsCloudBuilder
-    from cs_image_system.base.commands.relabel import relabel, relabel_plan
+    from cs_image_system.engine.commands.relabel import relabel, relabel_plan
     from cs_image_system.tf_ebs_instance_plugin.tf_storage_builder import (
         TofuEbsStorageBuilder,
         TofuEfsStorageBuilder,

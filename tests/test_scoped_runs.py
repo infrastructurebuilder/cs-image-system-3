@@ -172,8 +172,8 @@ def test_storage_transitions_are_recorded_only_for_roots_that_applied(v2):
     """The after-apply storage hook reads the list the same way: a copy
     without meta-state has every storage pending None -> active; with the
     flag listing the AWS runtime alone, only the AWS storages become real."""
-    from cs_image_system.base.read_models import record_storage_transitions
     from cs_image_system.contract.lifecycles import Lifecycle
+    from cs_image_system.engine.read_models import record_storage_transitions
     assert v2.run(["storage"], apply=False).ok
     ms = v2.ctx.meta_state
     v2.ctx.config["apply_storage"] = ["aws-east2-runtime"]
@@ -210,7 +210,7 @@ def test_apply_check_refuses_an_unlisted_root(v2, capsys):
 def test_stale_planfile_is_refused_by_the_gate(tmp_path):
     """Finding 33: the exact live failure -- a plan fails, the previous
     sequence's tfplan remains, the gate must not judge it."""
-    from cs_image_system.base.commands.gate import planfile_is_stale
+    from cs_image_system.engine.commands.gate import planfile_is_stale
     root = tmp_path / "instance-generation"
     root.mkdir()
     plan = root / "tfplan"
@@ -258,7 +258,7 @@ def test_a_refused_only_changes_nothing_and_records_nothing(v2, monkeypatch):
     comes back to its caller, and the tree (generated output and
     meta-state), the hook plugins, the context's generated lifecycles and
     the on-summary hooks are exactly as they were."""
-    from cs_image_system.base.commands import run_lifecycles as rl
+    from cs_image_system.engine.commands import run_lifecycles as rl
     assert v2.run(["storage"], apply=False).ok         # generated output, a summary and a journal entry
     before = _checksums(v2.config_root)
     generated = v2.ctx.generated_lifecycles

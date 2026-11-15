@@ -22,10 +22,10 @@ from typing import Any, cast
 
 import pytest
 
-from cs_image_system.base import loader
 from cs_image_system.base.registry import AmbiguousTypeError, RegistrationKey, Registry
 from cs_image_system.contract.constants import VCT
 from cs_image_system.contract.metadata import PluginMetadata
+from cs_image_system.engine import loader
 
 # version checkers: a classification the contract declares no protocol for,
 # so a synthetic class needs only csis_name/csis_classifier
@@ -116,7 +116,7 @@ def test_register_service_refuses_a_second_class_under_the_same_key(two_plugins:
 
 
 def test_validate_reports_the_ambiguous_word_as_one_configuration_error(two_plugins: Registry):
-    from cs_image_system.base.commands.load_failures import classify_load_failure
+    from cs_image_system.engine.commands.load_failures import classify_load_failure
     try:
         two_plugins.get_model(VCT.VERSION_CHECKER, WORD)
     except AmbiguousTypeError as e:
@@ -156,7 +156,7 @@ def test_the_same_class_under_three_namespaces_is_one_registration():
 
 def test_the_installed_roots_resolve_the_checker_by_the_bare_word():
 
-    from cs_image_system.base.loader import installed_registry
+    from cs_image_system.engine.loader import installed_registry
     from cs_image_system.tofu_roots.tofu_instance_builder import TofuVersionChecker
     reg = installed_registry()
     assert reg.get_model(VCT.VERSION_CHECKER, WORD) is TofuVersionChecker

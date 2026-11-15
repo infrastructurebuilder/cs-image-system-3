@@ -1041,7 +1041,7 @@ stays a deliberate human step until there is a real candidate.
 ### P. The plugin contract
 
 The contract is a package of its own, `cs-image-system-contract`
-(`cs_image_system.contract`), with no dependency on the core: `base`
+(`cs_image_system.contract`), with no dependency on the core: the core
 depends on it, never the reverse, and a test holds the direction. It is
 upstream of the core -- the core conforms to it, and a new hook is a
 contract change first, the base's change second, in one branch -- and it
@@ -1138,6 +1138,29 @@ are the contract's as well, and a test holds the import rule with no
 exception left. Deferred, one piece of work of its own: a
 separate repository for the contract once stable, with an external plugin
 as the proof.
+The core is two packages in one direction, contract <- kit <- engine.
+The kit, `cs-image-system-base` (`cs_image_system.base`), is what a
+plugin is written against beyond the contract: the base classes, the
+models, and what they import (the registry, the run context, the
+lifecycles, encryption, lineage, generations, launch parameters,
+capabilities, the meta-state record types). The engine,
+`cs-image-system-engine` (`cs_image_system.engine`), is what runs a
+tree: the plugin loader, the configuration reader, the resolver, the
+finalizer, the lifecycle runner and its commands, meta-state on disk,
+the state query, releases, retention, the bootstrap. The line between
+them is measured, not drawn: the kit is exactly the closure of what the
+plugins and the terraform roots import from the core, over every edge
+(top-level, function-local and `TYPE_CHECKING`), and the engine is the
+rest; `tests/test_import_closure.py` computes both sets and holds each
+package to its set, and `tests/test_contract.py` holds the direction
+(the kit imports nothing of the engine, no plugin imports the engine).
+So a runtime installs with the contract and the kit alone, and the
+engine depends on the kit, never the reverse. The kit's own plugin entry
+point (`cs_image_system.plugins.base`) names the engine's `init`, which
+only the engine's loader calls; it stays declared in the kit so its
+registrations carry the namespace `base`, and so does the modules entry
+point, so a materialised module's stamp still names `base`. The CLI
+host (`system`) and the umbrella depend on the engine.
 The same direction holds among the plugins themselves: a terraform
 root's provider-neutral machinery (the workspace, its variables, the
 state binding and remote-state references, the module calls and outputs,

@@ -35,8 +35,8 @@ import pytest
 from harness import copy_config, load_context, stub_environment, tree
 from typer.testing import CliRunner
 
-from cs_image_system.base import pinned_release
-from cs_image_system.base.pinned_release import (
+from cs_image_system.engine import pinned_release
+from cs_image_system.engine.pinned_release import (
     ALLOW_ENVVAR,
     ALLOW_FLAG,
     ALLOWED,

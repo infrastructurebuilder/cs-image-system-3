@@ -72,7 +72,7 @@ def test_a_load_of_the_fixture_prints_none_of_the_three_warnings(tmp_path, monke
 
 
 def test_the_fixture_resolves_every_foreign_key_and_an_unknown_one_is_refused(tmp_path, monkeypatch):
-    from cs_image_system.base.commands.validate import check_foreign_keys
+    from cs_image_system.engine.commands.validate import check_foreign_keys
     v2 = V2Run(tmp_path, monkeypatch)
     # the object stage returned none to the loader, so the context carries none
     assert v2.ctx.unresolved_foreign_keys == [] and check_foreign_keys(v2.ctx) == []

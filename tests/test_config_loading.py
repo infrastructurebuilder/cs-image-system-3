@@ -57,7 +57,7 @@ def test_a_python_tag_in_the_configuration_is_refused_not_constructed(tmp_path: 
     with pytest.raises(Exception) as exc:
         load_context(root)
     assert "python/object" in str(exc.value) or "could not determine a constructor" in str(exc.value), str(exc.value)
-    from cs_image_system.base import config_loader  # the reader lives in the loader
+    from cs_image_system.engine import config_loader  # the reader lives in the loader
     src = Path(config_loader.__file__).read_text()
     assert "yaml.unsafe_load(stream)" not in src and "yaml.safe_load(stream)" in src
 
@@ -65,7 +65,7 @@ def test_a_python_tag_in_the_configuration_is_refused_not_constructed(tmp_path: 
 def test_preflight_finds_a_runtime_declared_in_any_cfg_file(tmp_path: Path, monkeypatch):
     """The sessions are read over the loaded configuration, which
     reads every cfg file alike; a session that is absent never stops the load."""
-    from cs_image_system.base.commands.preflight import session_infos
+    from cs_image_system.engine.commands.preflight import session_infos
     stub_environment(monkeypatch)
     root = copy_config(tmp_path)
     src = root / "cfg" / "runtime-builders.yml"
@@ -80,7 +80,7 @@ def test_preflight_finds_a_runtime_declared_in_any_cfg_file(tmp_path: Path, monk
 # ----------------------------------------------------- the root
 
 def test_a_load_without_a_root_is_refused_before_any_plugin_loads(monkeypatch):
-    from cs_image_system.base import config_loader
+    from cs_image_system.engine import config_loader
     loaded: list[Any] = []
     catalogs: list[Any] = []
     monkeypatch.setattr(config_loader, "load_plugins", loaded.append)
@@ -105,8 +105,8 @@ def test_the_root_is_the_working_directory_whatever_the_configuration_names(tmp_
 
 
 def test_a_verbose_load_dumps_the_rendered_document_under_the_roots_private_directory(tmp_path: Path, monkeypatch):
-    from cs_image_system.base import config_loader
-    from cs_image_system.base.materialize import PRIVATE_DIRNAME
+    from cs_image_system.engine import config_loader
+    from cs_image_system.engine.materialize import PRIVATE_DIRNAME
     root = copy_config(tmp_path)
     invoking = tmp_path / "invoking"
     invoking.mkdir()

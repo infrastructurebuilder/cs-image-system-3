@@ -29,7 +29,7 @@ def run(tmp_path: Path, monkeypatch):
 
 
 def test_describe_reads_the_runtime_facts_from_the_configuration(run):
-    from cs_image_system.base.commands.runtime_facts import describe_runtime
+    from cs_image_system.engine.commands.runtime_facts import describe_runtime
     facts = describe_runtime(run.ctx, GCE)
     assert facts["project_id"] == "csis-sandbox" and facts["zone"] == "us-east1-b"
     assert facts["images"] == ["basic-rh-10", "imgfile-basic-dask"]
@@ -41,7 +41,7 @@ def test_describe_reads_the_runtime_facts_from_the_configuration(run):
 
 
 def test_emptiness_is_reality_minus_the_declared_storages(run, monkeypatch):
-    from cs_image_system.base.commands.runtime_facts import emptiness
+    from cs_image_system.engine.commands.runtime_facts import emptiness
     from cs_image_system.gcloud_runtime.gcp_runtime_builders import GCPCloudBuilder
     monkeypatch.setattr(GCPCloudBuilder, "inventory", lambda self: {
         "instances": [], "images": [], "disks": ["gce-data"], "buckets": ["csis-sandbox-86233086783-default-bucket"]})
@@ -57,13 +57,13 @@ def test_emptiness_is_reality_minus_the_declared_storages(run, monkeypatch):
 
 
 def test_a_runtime_without_an_inventory_refuses(run, monkeypatch):
-    from cs_image_system.base.commands.runtime_facts import emptiness
+    from cs_image_system.engine.commands.runtime_facts import emptiness
     with pytest.raises(NotImplementedError, match="cannot list its inventory"):
         emptiness(run.ctx, "aws-east2-runtime")
 
 
 def test_only_runtime_is_the_bake_filter_for_everything_baked_there(run):
-    from cs_image_system.base.commands.runtime_facts import images_on_runtime
+    from cs_image_system.engine.commands.runtime_facts import images_on_runtime
     only = [f"{img}@{GCE}" for img in images_on_runtime(run.ctx, GCE)]
     assert only == [f"basic-rh-10@{GCE}", f"imgfile-basic-dask@{GCE}"]
     summary = run.run(["base-image", "instance-image"], apply=True, only=only)

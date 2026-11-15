@@ -60,7 +60,7 @@ def test_resolver_reads_the_user_groups_unix_gid_attribute():
 
 
 def test_missing_gid_is_reported_not_invented():
-    from cs_image_system.base.commands import identity_gids
+    from cs_image_system.engine.commands import identity_gids
     fake = FakeOpa({"coops_user": _live_shape(63001, "sft_coops_user"), "tcmet_user": {"attributes": {}}})
 
     class Cls:
@@ -68,7 +68,7 @@ def test_missing_gid_is_reported_not_invented():
         def export_gids(cls, query, groups):
             return OpaGidResolver("https://h", "t", "k", "s", transport=fake).resolve(groups)
 
-    import cs_image_system.base.commands.identity_gids as mod
+    import cs_image_system.engine.commands.identity_gids as mod
     orig = mod.group_builder_class_for
     mod.group_builder_class_for = lambda t: Cls  # type: ignore[assignment]
     try:
@@ -90,7 +90,7 @@ def test_credentials_come_from_the_environment_only():
 
 
 def test_okta_builder_class_is_the_registered_shim():
-    from cs_image_system.base.commands.identity_gids import group_builder_class_for
+    from cs_image_system.engine.commands.identity_gids import group_builder_class_for
     from cs_image_system.okta_opa_plugin.okta_opa_tf_group_builder import OktaTfGroupBuilder
     assert group_builder_class_for("okta") is OktaTfGroupBuilder
     with pytest.raises(ValueError):

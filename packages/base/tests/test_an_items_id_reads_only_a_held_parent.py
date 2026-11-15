@@ -14,9 +14,9 @@ from __future__ import annotations
 
 from cs_image_system.base.models.group import Group
 from cs_image_system.base.models.storage import Storage
-from cs_image_system.base.orchestrator import PARENT_SETTER
 from cs_image_system.contract.constants import NO_MODEL_ID, VCT
 from cs_image_system.contract.core import ParentPropertyHoldingProtocol
+from cs_image_system.engine.orchestrator import PARENT_SETTER
 
 BUILDER_ID = f"{VCT.STORAGE_BUILDER_MODEL}::{NO_MODEL_ID}::aws-ebs"
 GROUP_BUILDER_ID = f"{VCT.GROUP_BUILDER_MODEL}::{NO_MODEL_ID}::posix-local"

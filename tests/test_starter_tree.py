@@ -24,7 +24,7 @@ from pathlib import Path
 
 import pytest
 
-from cs_image_system.base.modules import STAMP_FILE, installed_modules
+from cs_image_system.engine.modules import STAMP_FILE, installed_modules
 from cs_image_system.system import starters
 from cs_image_system.system.starter_links import rewrite_links
 

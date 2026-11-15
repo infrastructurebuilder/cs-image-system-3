@@ -42,7 +42,7 @@ from typing import Any, cast
 
 from cs_image_system.contract.constants import OOPS_DEFAULTS
 
-from .meta_state import RUNTIME_FACTS
+from .meta_ledgers import RUNTIME_FACTS
 
 log = logging.getLogger(__name__)
 

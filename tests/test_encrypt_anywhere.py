@@ -33,8 +33,8 @@ from cs_image_system.base.encryption import (
     reset_decrypted_plaintexts,
     substitute_markers,
 )
-from cs_image_system.base.materialize import PRIVATE_DIRNAME, materialize, mirror_path
-from cs_image_system.base.public_safe import refused_path, scan_for_plaintexts
+from cs_image_system.engine.materialize import PRIVATE_DIRNAME, materialize, mirror_path
+from cs_image_system.engine.public_safe import refused_path, scan_for_plaintexts
 
 IDENTITY = FIXTURE_CONFIG / ".age-identity"
 RECIPIENT = (FIXTURE_CONFIG / ".age-recipient").read_text().strip()
@@ -303,7 +303,7 @@ def test_materialize_drops_what_the_emission_dropped(tmp_path):
 def test_the_provider_lock_file_comes_back_out_and_nothing_else(tmp_path):
     """`init` runs in the mirror now, and the lock file is a COMMITTED
     artifact; a plan or a state file holds plaintext and stays put."""
-    from cs_image_system.base.materialize import sync_back
+    from cs_image_system.engine.materialize import sync_back
     src = tmp_path / "generated" / "ws"
     src.mkdir(parents=True)
     (src / "main.tf").write_text('x = "1"\n')
@@ -328,8 +328,8 @@ def test_a_derived_value_inherits_its_inputs_encryption():
     nowhere, so its ciphertext is built from the pieces."""
     from types import SimpleNamespace
 
-    from cs_image_system.base.orchestrator import TemplateResolver
     from cs_image_system.base.registry import Registry
+    from cs_image_system.engine.orchestrator import TemplateResolver
     domain = enc("noaa.example")
     decrypt_tree({"email_domain": domain})          # so the map knows it
     ctx = {"user": SimpleNamespace(name="blake.bravo"),
@@ -341,8 +341,8 @@ def test_a_derived_value_inherits_its_inputs_encryption():
 
 
 def test_a_render_with_no_encrypted_input_stays_a_plain_string():
-    from cs_image_system.base.orchestrator import TemplateResolver
     from cs_image_system.base.registry import Registry
+    from cs_image_system.engine.orchestrator import TemplateResolver
     decrypt_tree({"k": enc("something-else")})
     out = TemplateResolver(Registry()).render_inheriting("{{ a }}-suffix", {"a": "plain"})
     assert out == "plain-suffix" and not isinstance(out, Decrypted)
@@ -351,8 +351,8 @@ def test_a_render_with_no_encrypted_input_stays_a_plain_string():
 def test_a_username_is_public_by_decision_and_is_not_marked_in_a_derived_value():
     """A username is the join key between a roster and an access grant, so it
     is emitted in clear -- the stage-34 decision, kept."""
-    from cs_image_system.base.orchestrator import TemplateResolver
     from cs_image_system.base.registry import Registry
+    from cs_image_system.engine.orchestrator import TemplateResolver
     name = enc("blake.bravo")
     domain = enc("noaa.example")
     decrypt_tree({"users": [{"name": name}], "email_domain": domain})
@@ -366,8 +366,8 @@ def test_a_templated_value_of_a_plain_mapping_in_the_map_inherits_its_inputs_enc
     map (the run scopes, ``execution`` and ``ENV``) as it renders a model's
     fields: a value derived there from a decrypted one comes out of the
     resolution as a marker, so an emission of it writes ciphertext."""
-    from cs_image_system.base.orchestrator import TemplateResolver
     from cs_image_system.base.registry import Registry
+    from cs_image_system.engine.orchestrator import TemplateResolver
     domain = enc("noaa.example")
     opened = decrypt_tree({"email_domain": domain})["email_domain"]
     resolver = TemplateResolver(Registry(), addl={
@@ -418,7 +418,7 @@ def is_marker_str(v) -> bool:
 def test_a_record_carries_the_ciphertext_it_was_written_from(tmp_path):
     """A meta-state write says what it READ, so a record and the configuration
     hold the same marker and a rotation moves both together."""
-    from cs_image_system.base.meta_state import MetaState
+    from cs_image_system.engine.meta_state import MetaState
     marker = enc("a-private-bucket")
     value = decrypt_tree({"bucket": marker})["bucket"]
 
@@ -442,7 +442,7 @@ def test_a_record_is_read_back_as_its_plaintext(tmp_path):
     """So a recorded-vs-declared comparison is between plaintexts: two markers
     for one value differ after a rotation, and comparing those would report
     drift that is not there."""
-    from cs_image_system.base.meta_state import MetaState
+    from cs_image_system.engine.meta_state import MetaState
     marker = enc("a-private-bucket")
     value = decrypt_tree({"bucket": marker})["bucket"]
 
@@ -457,7 +457,7 @@ def test_a_record_is_read_back_as_its_plaintext(tmp_path):
 
 
 def test_a_record_with_no_markers_needs_no_identity(tmp_path, monkeypatch):
-    from cs_image_system.base.meta_state import MetaState
+    from cs_image_system.engine.meta_state import MetaState
     ms = MetaState.at(tmp_path)
     ms.write("pins.yaml", {"pins": {"i1": "ami-0123"}})
     ms.invalidate()
@@ -473,8 +473,8 @@ def test_the_run_can_still_commit_once_the_mirror_is_ignored(tmp_path):
     launch succeeded and its commit did not."""
     import subprocess
 
-    from cs_image_system.base.materialize import ensure_ignored
-    from cs_image_system.base.meta_state import _never_staged_pathspecs
+    from cs_image_system.engine.materialize import ensure_ignored
+    from cs_image_system.engine.meta_state import _never_staged_pathspecs
 
     root = tmp_path / "config"
     (root / "generated").mkdir(parents=True)

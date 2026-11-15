@@ -194,7 +194,7 @@ naming `variables:`. Field names are exact: `type` in YAML is the model's
 | `impersonate_service_account` | str or null | null | the service account tofu impersonates; written into the backend file and every consumer's data source when set |
 | `encryption_key` | str or null | null | a customer-supplied encryption key; written into the backend file (never a data source) when set -- in clear when declared in clear, as its `ENC[age:...]` ciphertext when declared encrypted (see Variations) |
 | `kms_encryption_key` | str or null | null | a Cloud KMS key name; written into the backend file only, when set |
-| `executable` | str or null | null | the `cfg/executables.yml` entry the tofu for the roots on this backend comes from. Unset: nothing is checked on the backend's behalf. Declared: `validate` and every run refuse a name that is not an entry of `cfg/executables.yml` (`check_state_backend_executables` in [validate.py](../base/src/cs_image_system/base/commands/validate.py)), and the entry is version-checked like every executables entry. This plugin still runs no commands under it |
+| `executable` | str or null | null | the `cfg/executables.yml` entry the tofu for the roots on this backend comes from. Unset: nothing is checked on the backend's behalf. Declared: `validate` and every run refuse a name that is not an entry of `cfg/executables.yml` (`check_state_backend_executables` in [validate.py](../engine/src/cs_image_system/engine/commands/validate.py)), and the entry is version-checked like every executables entry. This plugin still runs no commands under it |
 | `config` | mapping | `{}` | **accepted, not read** |
 | `gitignore` | list[str] | `[]` | **accepted, not read** |
 | `tags` | mapping[str, str] | `{}` | **accepted, not read** |
@@ -300,7 +300,7 @@ other plugins, decide whether any of it is used:
   backend '<name>' registered twice with different configurations`).
 - **At `validate`, and again at the start of every run** (gated by
   `use_state_backends`; `check_state_locations` in
-  [validate.py](../base/src/cs_image_system/base/commands/validate.py)):
+  [validate.py](../engine/src/cs_image_system/engine/commands/validate.py)):
   every terraform root's backend is resolved through the chain from the
   declarations alone (by name, or by one of a backend's `aliases`); a
   root naming an undeclared backend, a prefix whose
@@ -341,7 +341,7 @@ other plugins, decide whether any of it is used:
   was resolved to, and it is compared, not verified against the bucket.
 - **Executable versions.** When the entry declares `executable`,
   `check_state_backend_executables` in
-  [validate.py](../base/src/cs_image_system/base/commands/validate.py)
+  [validate.py](../engine/src/cs_image_system/engine/commands/validate.py)
   requires it to name an entry of `cfg/executables.yml`, at `validate`
   and at the head of every run, and the tool-version checks version-check
   that entry with the others. Unset, nothing is checked.

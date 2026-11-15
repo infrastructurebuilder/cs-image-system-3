@@ -17,9 +17,9 @@ from pathlib import Path
 
 import pytest
 
-from cs_image_system.base import state_query as sq
-from cs_image_system.base.workload_access import reconcile_workload_access
 from cs_image_system.contract.lifecycles import Lifecycle
+from cs_image_system.engine import state_query as sq
+from cs_image_system.engine.workload_access import reconcile_workload_access
 from tests.harness import V2Run
 
 CONNECTION, ROLE = "github-cs-image-system", "cs-image-system-ci"
@@ -48,7 +48,7 @@ def world(tmp_path: Path, monkeypatch):
 
 
 def _managed(ctx) -> list[str]:
-    from cs_image_system.base.read_models import identity_read_model
+    from cs_image_system.engine.read_models import identity_read_model
     model = identity_read_model(ctx)["groups"]
     # the OPA groups: a posix group is managed too, and has no CI login policy
     return sorted(n for n, r in model.items() if r.get("managed", True) and r.get("identity_type") == "okta")
@@ -56,7 +56,7 @@ def _managed(ctx) -> list[str]:
 
 def test_the_read_model_records_what_each_group_expects(world):
     run, _ = world
-    from cs_image_system.base.read_models import identity_read_model
+    from cs_image_system.engine.read_models import identity_read_model
     model = identity_read_model(run.ctx)["groups"]
     for name in _managed(run.ctx):
         assert model[name]["workload"] == {"connection": CONNECTION, "role": ROLE,
@@ -67,7 +67,7 @@ def test_the_read_model_records_what_each_group_expects(world):
 def test_the_hook_reconciles_every_managed_group_and_records_the_outcome(world, monkeypatch):
     run, _ = world
     ctx = run.ctx
-    from cs_image_system.base.read_models import identity_read_model
+    from cs_image_system.engine.read_models import identity_read_model
     from cs_image_system.okta_opa_plugin.okta_opa_tf_group_builder import OktaTfGroupBuilder
     ctx.meta_state.write_identity_read_model(identity_read_model(ctx))
     ensured: list[str] = []
@@ -102,7 +102,7 @@ def test_the_hook_reconciles_every_managed_group_and_records_the_outcome(world, 
 def test_drift_names_the_role_the_policy_and_the_connection(world):
     run, reality = world
     ctx = run.ctx
-    from cs_image_system.base.read_models import identity_read_model
+    from cs_image_system.engine.read_models import identity_read_model
     ctx.meta_state.write_identity_read_model(identity_read_model(ctx))
     names = _managed(ctx)
     assert len(names) >= 4
@@ -143,7 +143,7 @@ def test_drift_names_the_role_the_policy_and_the_connection(world):
 def test_without_workload_names_nothing_is_expected_or_reported(tmp_path: Path, monkeypatch):
     run = V2Run(tmp_path, monkeypatch)
     try:
-        from cs_image_system.base.read_models import identity_read_model
+        from cs_image_system.engine.read_models import identity_read_model
         model = identity_read_model(run.ctx)["groups"]
         assert not any("workload" in rec for rec in model.values())
         gb = next(b for b in run.ctx.group_builders.values() if hasattr(b, "can_manage_workload_access"))

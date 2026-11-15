@@ -24,7 +24,7 @@ def test_the_tofu_lock_refuses_a_second_holder_and_releases_on_any_exit(tmp_path
     """The wrapper script became `cs-image-system --locked`; the lock's shape
     and exit 75 are unchanged (the command's own tests are in
     tests/test_release_whole.py)."""
-    from cs_image_system.base import tofu_lock
+    from cs_image_system.engine import tofu_lock
     assert not (REPO / "scripts" / "with-tofu-lock").exists()
     cache = tmp_path / "cache"
     env = {"TF_PLUGIN_CACHE_DIR": str(cache)}
@@ -41,7 +41,7 @@ def test_the_tofu_lock_refuses_a_second_holder_and_releases_on_any_exit(tmp_path
 
 
 def test_the_lock_creates_the_cache_directory_and_no_recipe_has_to(tmp_path):
-    from cs_image_system.base import tofu_lock
+    from cs_image_system.engine import tofu_lock
     cache = tmp_path / "never" / "made" / "cache"
     assert not cache.exists()
     release = tofu_lock.acquire({"TF_PLUGIN_CACHE_DIR": str(cache)})      # the lock makes the directory itself

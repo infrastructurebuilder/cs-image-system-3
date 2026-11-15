@@ -58,7 +58,7 @@ def _names(ctx, runtime: str) -> dict[str, tuple[str, bool]]:
 
 
 def _findings(ctx) -> list[str]:
-    from cs_image_system.base.commands.validate import check_image_names
+    from cs_image_system.engine.commands.validate import check_image_names
     return [str(e) for e in check_image_names(ctx)]
 
 
@@ -97,7 +97,7 @@ def test_the_fixtures_prefixes_resolve_as_declared_and_have_no_finding(tmp_path:
     gce = _names(ctx, GCE)
     assert gce["OS builder 'basic-rh-10'"] == ("noscsb-gcp-rh10-gcp-my-rh10", True)
     assert gce["image 'imgfile-basic-dask'"] == ("imgfile-basic-dask-pckr-gce-ans", False)
-    with caplog.at_level(logging.INFO, logger="cs_image_system.base.commands.validate"):
+    with caplog.at_level(logging.INFO, logger="cs_image_system.engine.commands.validate"):
         assert _findings(ctx) == []
     lines = [r.getMessage() for r in caplog.records if r.getMessage().startswith("image name:")]
     assert any("imgfile-basic-dask-pckr-ebs-ans-<timestamp>" in ln and AWS in ln and "declared" not in ln for ln in lines), lines

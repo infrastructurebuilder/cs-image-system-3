@@ -1,7 +1,7 @@
 # The packages
 
-The uv workspace is twenty-two packages under `packages/`, twenty of
-them published. Each has its own
+The uv workspace is twenty-three packages under `packages/`, twenty-one
+of them published. Each has its own
 README that describes it on its own terms: what it registers, its models
 and how they extend the base models, its builder's hooks, what it emits,
 and one example configuration. The core and the CLI are packages too.
@@ -24,8 +24,9 @@ own version; `tests/test_package_metadata.py` holds it to that.
 
 | Package | What it is |
 | --- | --- |
-| [contract](../packages/contract/README.md) | The plugin contract: the protocols a model and a builder satisfy, the constants and field helpers a model is declared with, the lifecycle phases a hook keys on, the data carriers a hook returns. Depends on nothing of the system; `base` depends on it. A plugin is written against this package. |
-| [base](../packages/base/README.md) | The core: the base models and builder bases that implement the contract, the registry and the plugin loader (one registry per run, made by the loader), the lifecycles and phases, the run context (made by the loader and bound to every builder; nothing on it loads or executes), meta-state, encryption, the public-safe gate, lineage, releases, retention, launch parameters. Every built-in plugin depends on it; an external one need not. |
+| [contract](../packages/contract/README.md) | The plugin contract: the protocols a model and a builder satisfy, the constants and field helpers a model is declared with, the lifecycle phases a hook keys on, the data carriers a hook returns. Depends on nothing of the system; the kit and the engine depend on it. A plugin is written against this package. |
+| [base](../packages/base/README.md) | The kit: the base models and builder bases that implement the contract, the registry (one per run, made by the loader), the lifecycles and phases, the run context (made by the loader and bound to every builder; nothing on it loads or executes), encryption, lineage, generations, launch parameters, capabilities. Exactly what the plugins import from the core, measured; it imports nothing of the engine. Every built-in plugin depends on it; an external one need not. |
+| [engine](../packages/engine/README.md) | The engine: the plugin loader, the configuration reader, the resolver, the finalizer, the lifecycle runner and its commands, meta-state on disk, the public-safe gate, the state query, releases, retention, the bootstrap. Depends on the kit; no plugin imports it. The CLI host and the umbrella depend on it. |
 | [system](../packages/system/README.md) | The CLI host: the `cs-image-system` command and every subcommand. |
 | [hashicorp-utils](../packages/hashicorp-utils/README.md) | A library, not a plugin, on the contract alone: the terraform and packer collectors (providers, plugins, backends, sensitive values by reference; one instance per run, reached through the run context, never a process singleton), HCL rendering. It imports nothing of the core. Nine packages use it. |
 | [tofu-roots](../packages/tofu-roots/README.md) | A library, not a plugin: the terraform roots every OpenTofu root plugin subclasses -- the root mixin (init, the gated plan → gate → apply sequence), the provider-neutral instance and storage roots (`TofuInstanceBuilderBase`, `TofuStorageBuilderBase`, their models and the `tofu` version checker) and the run hooks that check and record state locations for the core, which knows no terraform. |
@@ -252,7 +253,7 @@ there). A mount is one of two things:
 The shared-command rule: two plugins may mount the *same* callback (the
 same function object) or the same sub-app object under the same name and
 path, and the script mounts it once -- `verify login` is one callback in
-the core (`cs_image_system.base.commands.login_proof.verify_login_command`)
+the core (`cs_image_system.engine.commands.login_proof.verify_login_command`)
 that every identity plugin mounts, so the proof is there whichever
 identity plugin a tree installs. A *different* callback or sub-app under a
 name a built-in command or an earlier mount already took is refused when

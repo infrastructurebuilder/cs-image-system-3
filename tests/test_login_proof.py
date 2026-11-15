@@ -18,7 +18,7 @@ from pathlib import Path
 import pytest
 
 from cs_image_system.base import power_state as ps
-from cs_image_system.base.commands import login_proof as lp
+from cs_image_system.engine.commands import login_proof as lp
 from cs_image_system.okta_opa_plugin import sft_login
 from tests.harness import V2Run
 

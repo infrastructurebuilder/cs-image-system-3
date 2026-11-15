@@ -14,7 +14,7 @@ so there is nothing to restore afterward.
 import pytest
 
 from cs_image_system.base import registry as _registry
-from cs_image_system.base.orchestrator import TemplateResolver
+from cs_image_system.engine.orchestrator import TemplateResolver
 
 
 @pytest.fixture

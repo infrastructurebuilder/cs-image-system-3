@@ -37,7 +37,7 @@ def _build(ms, build_id: str, series: str, runtime: str, in_bake: bool = True) -
 
 
 def test_the_series_head_under_its_own_proof_is_allowed_and_refused_when_the_proof_fails(run, caplog):
-    from cs_image_system.base.release import release, release_grace, validate_released_pins
+    from cs_image_system.engine.release import release, release_grace, validate_released_pins
     ctx = run.ctx
     ms = ctx.meta_state
     inst = next(i for i in ctx.instances if i.get_name() == "test2")
@@ -80,7 +80,7 @@ def test_the_series_head_under_its_own_proof_is_allowed_and_refused_when_the_pro
 
 
 def test_the_grace_is_only_for_the_series_head_that_was_verified_in_bake(run):
-    from cs_image_system.base.release import release_grace, validate_released_pins
+    from cs_image_system.engine.release import release_grace, validate_released_pins
     ctx = run.ctx
     ms = ctx.meta_state
     inst = next(i for i in ctx.instances if i.get_name() == "test2")

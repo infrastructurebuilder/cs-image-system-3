@@ -102,7 +102,7 @@ def test_a_runtimes_default_owners_join_the_entrys_owners(tmp_path: Path, monkey
 
 def test_nothing_to_name_a_user_is_refused_at_validate(tmp_path: Path, monkeypatch):
     from cs_image_system.aws_runtime.aws_runtime_builders import AwsCloudBuilder
-    from cs_image_system.base.commands.validate import check_bake_users
+    from cs_image_system.engine.commands.validate import check_bake_users
     monkeypatch.setattr(AwsCloudBuilder, "default_bake_user", lambda self, family: None)
     ctx = _ctx(copy_config(tmp_path), monkeypatch)
     errors = [str(e) for e in check_bake_users(ctx)]
@@ -136,7 +136,7 @@ def test_the_gce_provisioner_connects_as_the_user_the_source_bakes_as(tmp_path: 
 
 
 def test_a_gce_image_naming_another_user_than_its_root_is_refused(tmp_path: Path, monkeypatch):
-    from cs_image_system.base.commands.validate import check_bake_users
+    from cs_image_system.engine.commands.validate import check_bake_users
     root = copy_config(tmp_path)
 
     def edit(d):
@@ -152,7 +152,7 @@ def test_a_gce_image_naming_another_user_than_its_root_is_refused(tmp_path: Path
 
 
 def test_the_fixture_has_no_bake_user_finding(tmp_path: Path, monkeypatch):
-    from cs_image_system.base.commands.validate import check_bake_users
+    from cs_image_system.engine.commands.validate import check_bake_users
     ctx = _ctx(copy_config(tmp_path), monkeypatch)
     assert check_bake_users(ctx) == []
 

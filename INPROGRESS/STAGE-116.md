@@ -3,7 +3,7 @@
 **Status: OPEN 2026-11-03; re-scoped by §126 (2026-11-06);
 RE-PLANNED 2026-11-13 against develop at `a2c81f1`. Waits for "do
 116", after §112 (landed; this stage adds a repository to the
-release walk) and preferably after [§113](STAGE-113.md) (so the
+release walk) and preferably after §113 (so the
 range a runtime pins on `cs-image-system-base` means the kit from its
 first release; the name does not change either way).**
 

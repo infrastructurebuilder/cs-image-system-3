@@ -40,7 +40,7 @@ def _move_the_vendor_image(root: Path) -> None:
 # ------------------------------- a vendor move is named, and is not drift
 
 def test_the_vendors_image_moving_under_an_unbaked_base_is_named_and_not_behind():
-    from cs_image_system.base.commands.emission import vendor_image_moves
+    from cs_image_system.engine.commands.emission import vendor_image_moves
     moved = ["diff base-image/packer-ebs/image-generation/block-000/source-el10.pkr.hcl",
              "--- committed/x", "+++ now/x", "@@ -2,5 +2,5 @@", "   filters = {",
              '-    image-id = "ami-0426928e75e7093d4",', '+    image-id = "ami-0281f4b4279b17b5b",', "   }"]
@@ -56,7 +56,7 @@ def test_the_vendors_image_moving_under_an_unbaked_base_is_named_and_not_behind(
 
 
 def test_config_drift_passes_on_a_vendor_image_move_alone(tmp_path, monkeypatch):
-    from cs_image_system.base.commands.emission import config_drift
+    from cs_image_system.engine.commands.emission import config_drift
     v2 = _generated_tree(tmp_path, monkeypatch)
     root = v2.config_root
     def vendor_moved(copy: Path) -> None:
@@ -71,7 +71,7 @@ def test_config_drift_passes_on_a_vendor_image_move_alone(tmp_path, monkeypatch)
 # ------------------------------- the guard passes a vendor move alone
 
 def test_the_guard_passes_the_vendors_image_moving_under_an_unbaked_base(tmp_path, monkeypatch):
-    from cs_image_system.base.commands.emission import runtime_unchanged
+    from cs_image_system.engine.commands.emission import runtime_unchanged
     v2 = _generated_tree(tmp_path, monkeypatch)
     os.chdir(v2.config_root)
     _move_the_vendor_image(v2.config_root)
@@ -83,7 +83,7 @@ def test_the_guard_passes_the_vendors_image_moving_under_an_unbaked_base(tmp_pat
 
 
 def test_the_guard_still_fails_a_vendor_move_beside_a_change_of_the_runtimes(tmp_path, monkeypatch):
-    from cs_image_system.base.commands.emission import runtime_unchanged
+    from cs_image_system.engine.commands.emission import runtime_unchanged
     v2 = _generated_tree(tmp_path, monkeypatch)
     root = v2.config_root
     os.chdir(root)
@@ -98,7 +98,7 @@ def test_the_guard_still_fails_a_vendor_move_beside_a_change_of_the_runtimes(tmp
 # ----------------------------------- a diff cut short is never a move
 
 def test_a_diff_cut_short_is_never_read_as_a_vendor_move():
-    from cs_image_system.base.commands.emission import vendor_image_moves
+    from cs_image_system.engine.commands.emission import vendor_image_moves
     gce = ["diff base-image/pckr-gce-ans/image-generation/block-000/source.pkr.hcl",
            '-  source_image = "almalinux-10-v20261023"', '+  source_image = "almalinux-10-v20261027"']
     assert len(vendor_image_moves(gce)) == 1
@@ -110,7 +110,7 @@ def test_a_diff_cut_short_is_never_read_as_a_vendor_move():
 
 
 def test_a_change_past_the_cut_is_not_excused(tmp_path):
-    from cs_image_system.base.commands.emission import diff_trees, vendor_image_moves
+    from cs_image_system.engine.commands.emission import diff_trees, vendor_image_moves
     a, b = tmp_path / "committed", tmp_path / "now"
     for side, image, size in ((a, "v1", "e2-micro"), (b, "v2", "e2-small")):
         d = side / "base-image" / "pckr-gce-ans" / "image-generation"
@@ -157,8 +157,8 @@ def _edit_os_builders(root: Path, change) -> None:
 
 
 def test_validate_prints_the_stand_in_per_os_builder_and_warns_on_a_query_naming_another_family(tmp_path, monkeypatch, caplog):
-    from cs_image_system.base.commands.validate import check_image_sources, family_named_by_query
     from cs_image_system.contract.image import ImageQuery
+    from cs_image_system.engine.commands.validate import check_image_sources, family_named_by_query
     assert family_named_by_query(ImageQuery(name="AlmaLinux OS 10*x86_64*")) == "alma-linux"
     assert family_named_by_query(ImageQuery(family="rhel-10")) == "rhel"
     assert family_named_by_query(ImageQuery(name="my-golden-*")) is None
@@ -173,7 +173,7 @@ def test_validate_prints_the_stand_in_per_os_builder_and_warns_on_a_query_naming
             "name": "AlmaLinux OS 10*x86_64", "publisher": ["764336703387"]}
     _edit_os_builders(root, change)
     ctx = load_context(root)
-    with caplog.at_level(logging.INFO, logger="cs_image_system.base.commands.validate"):
+    with caplog.at_level(logging.INFO, logger="cs_image_system.engine.commands.validate"):
         assert check_image_sources(ctx) == []
     messages = [r.getMessage() for r in caplog.records]
     stand_ins = [m for m in messages if m.startswith("mod-test stand-in:")]
@@ -185,9 +185,9 @@ def test_validate_prints_the_stand_in_per_os_builder_and_warns_on_a_query_naming
 
 
 def test_a_family_that_says_what_the_image_is_draws_no_warning(tmp_path, monkeypatch, caplog):
-    from cs_image_system.base.commands.validate import check_image_sources
+    from cs_image_system.engine.commands.validate import check_image_sources
     stub_environment(monkeypatch)
     ctx = load_context(copy_config(tmp_path))                                  # the fixture: alma-linux, the catalog's query
-    with caplog.at_level(logging.INFO, logger="cs_image_system.base.commands.validate"):
+    with caplog.at_level(logging.INFO, logger="cs_image_system.engine.commands.validate"):
         assert check_image_sources(ctx) == []
     assert not [r for r in caplog.records if r.levelno == logging.WARNING and "names" in r.getMessage()]

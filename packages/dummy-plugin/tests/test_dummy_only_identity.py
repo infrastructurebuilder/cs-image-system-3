@@ -50,8 +50,8 @@ def dummy_only_identity(root: Path) -> None:
 
 
 def test_the_template_builders_load_validate_and_run_the_identity_lifecycle_dry(tmp_path, monkeypatch):
-    from cs_image_system.base.commands.validate import collect_validation_errors
     from cs_image_system.dummy_plugin.dummy_builders import DummyGroupBuilder, DummyUserBuilder
+    from cs_image_system.engine.commands.validate import collect_validation_errors
     root = copy_config(tmp_path)
     dummy_only_identity(root)
     run = V2Run(tmp_path, monkeypatch, config_root=root)

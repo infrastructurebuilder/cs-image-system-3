@@ -10,7 +10,7 @@ The executor once spawned ``python -m cs_image_system.system ...`` for
 --declared`` and the rest, each child booting Python, loading the plugins
 and reading the whole configuration again. The base's one executor
 (``Finalizer.execute_phase``) hands such a step to the runner the system
-package registers through ``cs_image_system.base.in_process``; the runner
+package registers through ``cs_image_system.engine.in_process``; the runner
 drives the Typer app in this process with the loaded context in its
 object. The committed runner scripts keep the same lines, so a hand run of
 a script still works (and still loads once per step, as a child of the
@@ -36,10 +36,10 @@ from typing import Any, cast
 import pytest
 from harness import V2Run
 
-from cs_image_system.base import in_process
-from cs_image_system.base.finalizer import Finalizer
 from cs_image_system.contract.constants import SYSTEM_CLI
 from cs_image_system.contract.lifecycle import ExecutionLifecyclePhase
+from cs_image_system.engine import in_process
+from cs_image_system.engine.finalizer import Finalizer
 
 SPAWNED_MODULE = [sys.executable, "-m", "cs_image_system.system"]
 
@@ -240,7 +240,7 @@ def test_materialize_runs_in_process_from_the_steps_directory_and_nothing_reload
     first step); through the runner it writes the same mirror the spawned
     step wrote, from the step's directory, and the configuration is NOT
     read again: the loader is refused for the duration."""
-    from cs_image_system.base import config_loader
+    from cs_image_system.engine import config_loader
     from cs_image_system.system import cli
     root = tmp_path / "cfg-root"
     src = root / "generated" / "storage" / "aws-ebs" / "storage-generation"

@@ -26,8 +26,8 @@ import pytest
 import yaml
 from harness import REPO, V2Run
 
-from cs_image_system.base.meta_state import commit_meta_state
 from cs_image_system.contract.constants import RUN_LOCAL_FILENAMES
+from cs_image_system.engine.meta_state import commit_meta_state
 
 GOLDEN = REPO / "tests" / "fixtures" / "v2_golden"
 EXAMPLES = REPO / "docs" / "examples"
@@ -117,8 +117,8 @@ def test_packers_manifest_is_run_local(tmp_path, monkeypatch):
 
 
 def test_the_sanction_list_is_ignored_by_the_emission_and_is_not_drift(tmp_path, monkeypatch):
-    from cs_image_system.base.commands.emission import normalise_emission
     from cs_image_system.contract.constants import DEFAULT_GITIGNORE_ENTRIES
+    from cs_image_system.engine.commands.emission import normalise_emission
     from cs_image_system.okta_opa_plugin.okta_opa_tf_group_builder import OktaTfGroupBuilder
     name = OktaTfGroupBuilder.SANCTIONED_REMOVALS
     assert name in DEFAULT_GITIGNORE_ENTRIES

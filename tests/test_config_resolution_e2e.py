@@ -80,7 +80,7 @@ def test_pipeline_loads_and_resolves_builders(monkeypatch, cwd_guard, tmp_path):
     monkeypatch.setenv("USER", "testuser")
     # the loader makes the run's registry, catalog and resolver: nothing of
     # an earlier test's load is in the process to clear first
-    from cs_image_system.base.config_loader import read_config_and_transform
+    from cs_image_system.engine.config_loader import read_config_and_transform
 
     # over a COPY: loading creates the generation directories where it runs,
     # and the frozen fixture must never be written into
@@ -100,14 +100,15 @@ def test_every_resolution_of_the_load_settles_before_the_pass_limit(monkeypatch,
     later pass counts rendering its template back to `default` as a
     change."""
     monkeypatch.setenv("USER", "testuser")
-    from cs_image_system.base.config_loader import read_config_and_transform
     from cs_image_system.base.models.image import ImageImageBuilderSubconfig
-    from cs_image_system.base.orchestrator import MAX_RESOLVE_PASSES
     from cs_image_system.contract.constants import DEFAULT
+    from cs_image_system.engine.config_loader import read_config_and_transform
+    from cs_image_system.engine.orchestrator import MAX_RESOLVE_PASSES, TemplateResolver
 
     ctx = read_config_and_transform(cast(Any, types.SimpleNamespace(obj={})), copy_config(tmp_path), False)
 
     resolver = ctx.template_resolver
+    assert isinstance(resolver, TemplateResolver)   # the passes it made are the engine's resolver's own
     subconfigs = [o for o in resolver.flattened_map.values() if isinstance(o, ImageImageBuilderSubconfig)]
     assert any(o.machine_type == DEFAULT for o in subconfigs)
     assert resolver.passes_made and all(n < MAX_RESOLVE_PASSES for n in resolver.passes_made), resolver.passes_made
@@ -122,7 +123,7 @@ def test_string_stage_resolves_config_document(monkeypatch):
 
     import yaml
 
-    from cs_image_system.base.template_utils import string_stage
+    from cs_image_system.engine.template_utils import string_stage
 
     def _extend(old, new):
         for k, v in new.items():
@@ -199,12 +200,12 @@ def test_image_to_source_emits_psi_backed_data_block(monkeypatch, cwd_guard, tmp
                     ignore=shutil.ignore_patterns("generated", ".terraform"))
     for f in ("lineage.yaml", "pins.yaml"):
         (root / "meta-state" / f).unlink(missing_ok=True)
-    from cs_image_system.base.config_loader import read_config_and_transform
+    from cs_image_system.engine.config_loader import read_config_and_transform
     ctx = read_config_and_transform(cast(Any, types.SimpleNamespace(obj={})),
                                     root, False)
 
-    from cs_image_system.base.commands.resolve import predefined_resolve
     from cs_image_system.contract.lifecycle import ExecutionLifecyclePhase
+    from cs_image_system.engine.commands.resolve import predefined_resolve
     assert predefined_resolve(ctx, ExecutionLifecyclePhase.RESOLUTION, True)
 
     # Resolution registered a resolved PSI per os-builder x runtime.
@@ -265,12 +266,12 @@ def test_execution_run_defers_base_images_no_query_no_build(monkeypatch, cwd_gua
     for f in ("lineage.yaml", "pins.yaml"):
         (root / "meta-state" / f).unlink(missing_ok=True)
 
-    from cs_image_system.base.config_loader import read_config_and_transform
+    from cs_image_system.engine.config_loader import read_config_and_transform
     ctx = read_config_and_transform(cast(Any, types.SimpleNamespace(obj={})),
                                     root, False)
 
-    from cs_image_system.base.commands.resolve import predefined_resolve
     from cs_image_system.contract.lifecycle import ExecutionLifecyclePhase
+    from cs_image_system.engine.commands.resolve import predefined_resolve
     assert predefined_resolve(ctx, ExecutionLifecyclePhase.RESOLUTION, False)
 
     from cs_image_system.contract.image import PSISourceKind

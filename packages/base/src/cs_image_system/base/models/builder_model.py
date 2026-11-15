@@ -6,6 +6,8 @@ from __future__ import annotations
 
 import copy
 import logging
+from dataclasses import dataclass as plain_dataclass
+from dataclasses import is_dataclass
 
 import yaml
 
@@ -15,7 +17,7 @@ log = logging.getLogger(__name__)
 from dataclasses import field
 from typing import TYPE_CHECKING, Annotated, Any
 
-from pydantic import Field, ValidationInfo, model_validator
+from pydantic import Field, TypeAdapter, ValidationInfo, model_validator
 from pydantic.dataclasses import dataclass  # validation at construction
 
 from cs_image_system.contract.constants import DEFAULT, NO_MODEL_ID, OOPS_DEFAULTS, VCT
@@ -28,11 +30,30 @@ from cs_image_system.contract.core import (
 from cs_image_system.contract.model_config import CSIS_MODEL_CONFIG
 from cs_image_system.contract.names import safe_name
 
-from ..orchestrator import ModelBinding, unstructure, written_references_bare
+from .references import written_references_bare
 
 if TYPE_CHECKING:
     from ..image_sources import ImageSourceCatalog
     from ..registry import Registry
+
+
+@plain_dataclass(frozen=True)
+class ModelBinding:
+    """What a run's converter hands every model it structures, as the
+    validation context: the run's registry and its image-source catalog.
+    A model keeps both (``NameTyped.bind_run``), so a model method reads
+    its own run's and no process-wide one exists to read instead."""
+
+    reg: Registry
+    image_sources: ImageSourceCatalog
+
+
+def unstructure(obj: Any) -> Any:
+    """A model as the mapping it was written as (by alias, defaults left
+    out). It reads no registry, so it needs no run's converter."""
+    if not is_dataclass(obj):
+        return obj
+    return TypeAdapter(type(obj)).dump_python(obj, by_alias=True, exclude_defaults=True)
 
 
 @dataclass(kw_only=True, config=CSIS_MODEL_CONFIG)

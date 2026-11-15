@@ -103,7 +103,7 @@ def test_a_state_backend_alias_binds(tmp_path: Path, monkeypatch):
 
 
 def test_a_state_backends_declared_executable_must_exist(tmp_path: Path, monkeypatch):
-    from cs_image_system.base.commands.validate import check_state_backend_executables
+    from cs_image_system.engine.commands.validate import check_state_backend_executables
     root = copy_config(tmp_path)
     _edit(root / "cfg" / "state-backends-3.yml",
           lambda d: _backend(d, "local-dev").update(executable="no-such-tofu"))
@@ -123,7 +123,7 @@ def test_a_decrypted_backend_setting_is_written_as_its_ciphertext():
 # -------------------------------------- use_state_backends with a producer
 
 def _state_backend_errors(root: Path, monkeypatch) -> list[str]:
-    from cs_image_system.base.commands.validate import collect_validation_errors
+    from cs_image_system.engine.commands.validate import collect_validation_errors
     stub_environment(monkeypatch)
     ctx = load_context(root)
     return [str(e) for e in collect_validation_errors(ctx) if "use_state_backends" in str(e)]
@@ -162,7 +162,7 @@ def test_the_flag_on_raises_nothing(tmp_path: Path, monkeypatch):
 # ------------------------------------ the migration's previous-location file
 
 def test_the_previous_location_file_carries_no_record_only_key():
-    from cs_image_system.base.commands.state_migration import RECORD_ONLY_KEYS, render_record
+    from cs_image_system.engine.commands.state_migration import RECORD_ONLY_KEYS, render_record
     record = {"backend": "s3-east1", "type": "s3", "run": "r0", "location": "s3://old/statefiles/ws.tfstate",
               "bucket": "old", "key": "statefiles", "region": "us-east-1", "encrypt": True}
     lines = render_record(record, "# previous")

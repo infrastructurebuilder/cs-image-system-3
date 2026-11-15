@@ -16,9 +16,14 @@ from pathlib import Path
 
 import yaml
 
-from cs_image_system.base import bootstrap as bs
-from cs_image_system.base.bootstrap.facts import Facts, ci_can_reach, first_runtime_name, first_unreachable_runtime_name
 from cs_image_system.docker_runtime import bootstrap as dk
+from cs_image_system.engine import bootstrap as bs
+from cs_image_system.engine.bootstrap.facts import (
+    Facts,
+    ci_can_reach,
+    first_runtime_name,
+    first_unreachable_runtime_name,
+)
 from tests.test_bootstrap import EXAMPLES, GITHUB_ANSWERS, _starter_copy
 
 MARKER = "ENC[age:" + "A" * 40 + "]"
@@ -133,7 +138,7 @@ def test_the_generated_root_for_a_docker_tree_names_the_secrets_and_the_audit(tm
     readme = (out / "README.md").read_text()
     assert "**docker**" in readme and "the daemon of `docker-main`" in readme
     assert re.search(r"^\| docker \|.*`docker-main`.*\| BY HAND \|", readme, flags=re.M)     # the table row
-    from cs_image_system.base.public_safe import scan_tree
+    from cs_image_system.engine.public_safe import scan_tree
     files = [str(p.relative_to(root)) for p in out.rglob("*") if p.is_file()] + [bs.ANSWERS_FILE]
     assert scan_tree(root, files=files) == []
 

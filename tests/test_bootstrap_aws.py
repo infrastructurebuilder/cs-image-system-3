@@ -23,9 +23,9 @@ import pytest
 from harness import module_path, modules_inside
 
 from cs_image_system.aws_runtime import bootstrap as aws
-from cs_image_system.base import bootstrap as bs
-from cs_image_system.base.bootstrap.facts import default_state_backend, is_placeholder, real, runtime_of_type
-from cs_image_system.base.bootstrap.questions import Refused
+from cs_image_system.engine import bootstrap as bs
+from cs_image_system.engine.bootstrap.facts import default_state_backend, is_placeholder, real, runtime_of_type
+from cs_image_system.engine.bootstrap.questions import Refused
 from tests.starter_support import RENDERED
 from tests.test_bootstrap import EXAMPLES, _assigned, _starter_copy
 

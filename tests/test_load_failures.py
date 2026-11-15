@@ -105,8 +105,8 @@ def test_an_unknown_failure_keeps_its_traceback_and_so_does_verbose(cli_root, mo
 def test_the_classifier_walks_the_cause_chain_and_names_nothing_it_does_not_know():
     from botocore.exceptions import ClientError
 
-    from cs_image_system.base.commands.load_failures import classify_load_failure
     from cs_image_system.base.encryption import MissingIdentityError
+    from cs_image_system.engine.commands.load_failures import classify_load_failure
     inner = ClientError({"Error": {"Code": "ExpiredToken", "Message": "The security token included in the request is expired"}}, "ListBuckets")
     outer = RuntimeError("wrapped")
     outer.__cause__ = inner

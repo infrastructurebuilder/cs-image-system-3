@@ -23,8 +23,8 @@ from pathlib import Path
 from harness import copy_config, load_context, stub_environment
 
 from cs_image_system.aws_runtime import session as aws_session
-from cs_image_system.base.commands import preflight
-from cs_image_system.base.commands.preflight import SessionInfo
+from cs_image_system.engine.commands import preflight
+from cs_image_system.engine.commands.preflight import SessionInfo
 
 
 def _aws_dir(tmp_path: Path, *, session: bool, refresh: bool, minutes: int = 40, profile: str = "p") -> Path:

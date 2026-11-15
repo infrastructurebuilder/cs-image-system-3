@@ -143,7 +143,7 @@ def test_unmanaged_group_is_state_rm_never_destroyed(tmp_path, monkeypatch):
 # ------------------------------------------- the read-only group builder
 
 def test_the_read_only_group_builder_answers_the_read_only_truth(monkeypatch):
-    from cs_image_system.base.read_models import identity_read_model
+    from cs_image_system.engine.read_models import identity_read_model
     from tests.harness import FIXTURE_CONFIG
     stub_environment(monkeypatch)
     ctx = load_context(FIXTURE_CONFIG)
@@ -170,8 +170,8 @@ def test_the_read_only_group_builder_answers_the_read_only_truth(monkeypatch):
 
 
 def test_a_read_only_group_is_looked_up_and_never_drifts(tmp_path: Path, monkeypatch):
-    from cs_image_system.base import state_query
-    from cs_image_system.base.state_query import StateReport
+    from cs_image_system.engine import state_query
+    from cs_image_system.engine.state_query import StateReport
     run = V2Run(tmp_path, monkeypatch)
     try:
         summary = run.run(["identity"], apply=False)

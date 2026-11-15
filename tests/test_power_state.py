@@ -19,7 +19,7 @@ from pathlib import Path
 import pytest
 
 from cs_image_system.base import power_state as ps
-from cs_image_system.base import state_query as sq
+from cs_image_system.engine import state_query as sq
 from tests.harness import V2Run
 
 # --------------------------------------------------------- the vocabulary

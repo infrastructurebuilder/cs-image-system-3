@@ -145,8 +145,8 @@ def test_archive_and_restore_are_legal_when_unattached(tmp_path, monkeypatch):
                                                     "requested_state": "archived",
                                                     "current_state": "active"}
         # after a real apply the transition is recorded and becomes authoritative
-        from cs_image_system.base.read_models import record_storage_transitions
         from cs_image_system.contract.lifecycles import Lifecycle
+        from cs_image_system.engine.read_models import record_storage_transitions
         # truthful-recorders (finding 21): the recorder refuses to write a
         # reality-claiming record while the apply flag is off ...
         record_storage_transitions(run.ctx, Lifecycle.STORAGE)
@@ -308,7 +308,7 @@ def test_unknown_allowed_group_is_a_hard_failure(tmp_path, monkeypatch):
 
 
 def test_gate_plan_whitelists_only_operation_driven_destroys(tmp_path):
-    from cs_image_system.base.commands.gate import gate_plan
+    from cs_image_system.engine.commands.gate import gate_plan
     plan = {"resource_changes": [
         {"address": "module.storage_default_bucket.aws_s3_bucket.this", "change": {"actions": ["delete"]}},
         {"address": "module.storage_mnt_data.aws_ebs_volume.this", "change": {"actions": ["update"]}},

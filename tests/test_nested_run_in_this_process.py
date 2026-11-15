@@ -59,10 +59,11 @@ from harness import FIXED_NOW, FIXED_RUN_ID, V2Run, copy_config, stub_environmen
 from stubbed_cli_child import Clock
 from typer.testing import CliRunner
 
-from cs_image_system.base import alias_pool, config_loader, encryption, in_process, lifecycles
-from cs_image_system.base.commands import run_lifecycles
+from cs_image_system.base import alias_pool, encryption, lifecycles
 from cs_image_system.base.models.executable import ExecutableModel
 from cs_image_system.contract.constants import SYSTEM_CLI
+from cs_image_system.engine import config_loader, in_process
+from cs_image_system.engine.commands import run_lifecycles
 
 TESTS = Path(__file__).resolve().parent
 CHILD = TESTS / "stubbed_cli_child.py"

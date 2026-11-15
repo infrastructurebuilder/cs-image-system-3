@@ -264,7 +264,7 @@ cannot invent a first letter, and GCE requires a label KEY to start with a
 lowercase letter. A tag key such as `2024`, `-env` or `_x` therefore
 becomes a label key GCE refuses. The runtime says so through
 `label_key_problem(key)`, and `validate` runs `check_label_keys` in
-[validate.py](../base/src/cs_image_system/base/commands/validate.py) over
+[validate.py](../engine/src/cs_image_system/engine/commands/validate.py) over
 every declared tag key that becomes a label here: an image's tags for each
 runtime it bakes on, an instance's tags on its runtime, and a storage's
 tags on its storage builder's runtime. A key GCE cannot take is refused,
@@ -434,7 +434,7 @@ metadata SSH keys are provisioned at first boot.
 `query_instance_identity`, `inventory`, `serial_console`, `retag_image`,
 `dispose_image`, `start_instance` and `stop_instance` use `compute_v1`
 clients built from the session config. The state query in
-[state_query.py](../base/src/cs_image_system/base/state_query.py) reads
+[state_query.py](../engine/src/cs_image_system/engine/state_query.py) reads
 `query_images` to classify `missing`, `foreign` and `changed` images
 (asking for every recorded series and every declared OS builder and image,
 so an image labelled with a series the tree neither records nor declares
@@ -452,7 +452,7 @@ reports what is left.
 ### Retention and the GCE cycle
 
 The closing `retention` lifecycle in
-[retention.py](../base/src/cs_image_system/base/retention.py) runs
+[retention.py](../engine/src/cs_image_system/engine/retention.py) runs
 `dispose image --retention` at execution time. For each series on this
 runtime the number of builds kept is, in order: `0` when the runtime is
 `ephemeral`, the image's `retention.keep`, the runtime's `retention_keep`,
@@ -517,7 +517,7 @@ The plugin's output is visible in the golden emission under
   backend written by the state-backend plugin; GCE roots keep their state
   there.
 - Runtime facts: `cs-image-system runtime describe gcloud-east1`
-  ([runtime_facts.py](../base/src/cs_image_system/base/commands/runtime_facts.py))
+  ([runtime_facts.py](../engine/src/cs_image_system/engine/commands/runtime_facts.py))
   reports `runtime`, `type`, `project_id`, `zone`, `region`,
   `default_machine_type`, `ephemeral`, `retention_keep`, the `images`,
   `storages`, `instances` and `ephemeral_instances` declared on it, the
@@ -1239,6 +1239,6 @@ Failures the code raises, by where they surface:
 - [tf-gcp-plugin](../tf-gcp-plugin/README.md): the GCE instance and storage roots that read this model.
 - [dummy-plugin](../dummy-plugin/README.md): the extension template.
 - Base classes: [runtime.py](../base/src/cs_image_system/base/models/runtime.py), [cloud_builder.py](../base/src/cs_image_system/base/models/cloud_builder.py), [credentials.py](../base/src/cs_image_system/base/models/credentials.py), [provider_specific_image.py](../base/src/cs_image_system/base/models/provider_specific_image.py), [builder_base_runtime.py](../base/src/cs_image_system/base/basic/builder_base_runtime.py), [abstract_version_checker.py](../base/src/cs_image_system/base/basic/abstract_version_checker.py), [power_state.py](../base/src/cs_image_system/base/power_state.py).
-- Consumers of the hooks: [state_query.py](../base/src/cs_image_system/base/state_query.py), [retention.py](../base/src/cs_image_system/base/retention.py), [dispose.py](../base/src/cs_image_system/base/commands/dispose.py), [verify_instance.py](../base/src/cs_image_system/base/commands/verify_instance.py), [runtime_facts.py](../base/src/cs_image_system/base/commands/runtime_facts.py), [relabel.py](../base/src/cs_image_system/base/commands/relabel.py), [provider_aliases.py](../base/src/cs_image_system/base/provider_aliases.py), [generations.py](../base/src/cs_image_system/base/generations.py), [validate.py](../base/src/cs_image_system/base/commands/validate.py).
+- Consumers of the hooks: [state_query.py](../engine/src/cs_image_system/engine/state_query.py), [retention.py](../engine/src/cs_image_system/engine/retention.py), [dispose.py](../engine/src/cs_image_system/engine/commands/dispose.py), [verify_instance.py](../base/src/cs_image_system/base/commands/verify_instance.py), [runtime_facts.py](../engine/src/cs_image_system/engine/commands/runtime_facts.py), [relabel.py](../engine/src/cs_image_system/engine/commands/relabel.py), [provider_aliases.py](../engine/src/cs_image_system/engine/provider_aliases.py), [generations.py](../base/src/cs_image_system/base/generations.py), [validate.py](../engine/src/cs_image_system/engine/commands/validate.py).
 - [docs/OPERATIONS.md](../../docs/OPERATIONS.md) for the credential contract and the operator's cycles; [docs/DESIGN.md](../../docs/DESIGN.md) for the design; [docs/PLUGINS.md](../../docs/PLUGINS.md) for the package index.
 - [The configuration reference](../../docs/CONFIGURATION.md) -- every field of the YAML this plugin reads, with an example.

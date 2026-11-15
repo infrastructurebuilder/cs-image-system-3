@@ -31,9 +31,9 @@ def _assigned(text: str, key: str, value: str) -> bool:
     """``key = value`` on a line of HCL, however aligned."""
     return re.search(rf"^\s*{re.escape(key)}\s*=\s*{re.escape(value)}\s*$", text, flags=re.M) is not None
 
-from cs_image_system.base import bootstrap as bs
-from cs_image_system.base.bootstrap.facts import Facts, parse_remote
-from cs_image_system.base.bootstrap.questions import Question, Refused, Rendered, Section
+from cs_image_system.engine import bootstrap as bs
+from cs_image_system.engine.bootstrap.facts import Facts, parse_remote
+from cs_image_system.engine.bootstrap.questions import Question, Refused, Rendered, Section
 
 REPO = Path(__file__).resolve().parents[1]
 EXAMPLES = REPO / "docs" / "examples"
@@ -197,10 +197,10 @@ def test_the_secrets_script_is_the_union_of_the_loaded_sections_secrets():
     each name once. A section with no secrets adds none, a section not
     loaded contributes none, and a wanted section whose render sets a secret
     from an output of the applied root beats the file."""
-    from cs_image_system.base.bootstrap.facts import ci_can_reach, runtime_of_type, runtimes_of_type
-    from cs_image_system.base.bootstrap.generate import render_files
-    from cs_image_system.base.bootstrap.github import SECRETS, github_section, secrets_union
-    from cs_image_system.base.bootstrap.questions import Secret
+    from cs_image_system.engine.bootstrap.facts import ci_can_reach, runtime_of_type, runtimes_of_type
+    from cs_image_system.engine.bootstrap.generate import render_files
+    from cs_image_system.engine.bootstrap.github import SECRETS, github_section, secrets_union
+    from cs_image_system.engine.bootstrap.questions import Secret
 
     assert [s.name for s in SECRETS] == ["CSIS_CONFIG_IDENTITY", "CSIS_PROOF_SSH_KEY"]   # the system's own, nothing of a cloud's
     quiet = Section(name="quiet", title="Quiet", questions=(), render=lambda a: Rendered())
@@ -244,15 +244,15 @@ def test_the_secrets_keep_the_order_a_committed_root_has():
     and the README must not reorder when the sections took over their own
     secrets: each Secret carries its place, and the installed sections'
     union is the order the list had when the core named them all."""
-    from cs_image_system.base.bootstrap.github import secrets_union
-    from cs_image_system.base.bootstrap.questions import Secret
+    from cs_image_system.engine.bootstrap.github import secrets_union
+    from cs_image_system.engine.bootstrap.questions import Secret
     assert [s.name for s in secrets_union(bs.discover())] == [
         "AWS_ROLE_ARN", "AWS_APPLY_ROLE_ARN", "GCP_WORKLOAD_IDENTITY_PROVIDER", "GCP_SERVICE_ACCOUNT",
         "GCP_APPLY_SERVICE_ACCOUNT", "OKTA_API_PRIVATE_KEY", "TF_VAR_KEY", "TF_VAR_SECRET", "CSIS_CONFIG_IDENTITY",
         "DOCKER_HOST_SSH_KEY", "DOCKER_HOST_KNOWN_HOSTS", "CSIS_PROOF_SSH_KEY"]
     assert Secret("X", "file").order == 100                     # a section that picks no place comes after them all
     # an output replacing a file keeps the file's place, whichever the script met first
-    from cs_image_system.base.bootstrap.hcl import render_root
+    from cs_image_system.engine.bootstrap.hcl import render_root
     early = Rendered(secrets=(Secret("LATE", "output", "late_out"),))
     core = Rendered(secrets=(Secret("FIRST", "file", order=1), Secret("LATE", "file", order=2), Secret("LAST", "file", order=3)))
     script = render_root({"a": early, "b": core}, module_source=_under("m"), repository=None, secrets_dir=None)["set-secrets.sh"]
@@ -266,9 +266,9 @@ def test_the_actions_variables_are_the_union_of_the_wanted_sections_variables():
     each valued by one of its own answers (``Section.variables``), and the
     GitHub module sets the union: a wanted section's non-empty answers only,
     the core's first, then each section's in section-name order."""
-    from cs_image_system.base.bootstrap.generate import render_files
-    from cs_image_system.base.bootstrap.github import VARIABLES, actions_variables, declared_variables, github_section
-    from cs_image_system.base.bootstrap.questions import Variable
+    from cs_image_system.engine.bootstrap.generate import render_files
+    from cs_image_system.engine.bootstrap.github import VARIABLES, actions_variables, declared_variables, github_section
+    from cs_image_system.engine.bootstrap.questions import Variable
     assert [v.name for v in VARIABLES] == ["PERFORM_RUNTIME", "GUARD_RUNTIME"]
     github = github_section()
     assert not any(q.id == "aws_region" for q in github.questions)         # the region question is a cloud's now
@@ -429,7 +429,7 @@ def test_a_module_sources_entry_reaches_the_bootstrap_root(tmp_path: Path):
 
 
 def test_config_drift_judges_the_bootstrap_root(tmp_path: Path):
-    from cs_image_system.base.commands.emission import config_drift
+    from cs_image_system.engine.commands.emission import config_drift
     root = tmp_path / "cfgtree"
     (root / "cfg").mkdir(parents=True)
     (root / "cfg" / "_config.yml").write_text("config:\n  module_source_base: tfmodules\n")
@@ -486,7 +486,7 @@ def test_the_ruleset_names_no_bypass_actor_and_blocks_only_deletion_and_force_pu
 
 
 def test_public_safe_passes_over_a_generated_root(tmp_path: Path):
-    from cs_image_system.base.public_safe import scan_tree
+    from cs_image_system.engine.public_safe import scan_tree
     root = _starter_copy(tmp_path)
     bs.write_answers(root / bs.ANSWERS_FILE, GITHUB_ANSWERS)
     bs.regenerate(root)
@@ -528,7 +528,7 @@ def test_set_secrets_refuses_a_secrets_directory_git_would_track(tmp_path):
     ignore."""
     import subprocess
 
-    from cs_image_system.base.bootstrap.hcl import _secrets_script
+    from cs_image_system.engine.bootstrap.hcl import _secrets_script
     repo = tmp_path / "repo"; repo.mkdir()
     subprocess.run(["git", "init", "-q", str(repo)], check=True)
     (repo / ".gitignore").write_text("_uncommitted/\n")

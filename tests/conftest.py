@@ -22,7 +22,7 @@ def pytest_sessionstart(session) -> None:
     shipped, when the loader discovers them -- before any test replaces a
     hook with a stub of its own (a stub's parameter names are the test's,
     not the plugin's, and are no verdict on the plugin)."""
-    from cs_image_system.base.loader import discover_plugins
+    from cs_image_system.engine.loader import discover_plugins
     discover_plugins()
 
 

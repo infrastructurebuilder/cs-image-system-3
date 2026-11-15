@@ -58,8 +58,8 @@ exit 0
 
 
 def test_a_pull_is_retried_and_dockers_own_words_survive(tmp_path, caplog):
-    from cs_image_system.base.mod_tests import ContainerStartError
     from cs_image_system.docker_runtime.local_target import DockerTarget
+    from cs_image_system.engine.mod_tests import ContainerStartError
     waits: list[int] = []
     docker = _fake_docker(tmp_path / "flaky", pull_fails=2)
     t = DockerTarget("almalinux:10", docker=str(docker), sleep=waits.append)
@@ -79,7 +79,7 @@ def test_a_pull_is_retried_and_dockers_own_words_survive(tmp_path, caplog):
 def test_a_container_that_cannot_start_is_unstarted_not_a_failed_modification(tmp_path, monkeypatch, caplog):
     from test_mod_tests import FakeTarget, _only_bash
 
-    from cs_image_system.base.mod_tests import MOD_TESTS_FILE, ContainerStartError, run_mod_tests
+    from cs_image_system.engine.mod_tests import MOD_TESTS_FILE, ContainerStartError, run_mod_tests
     run = V2Run(tmp_path, monkeypatch)
     try:
         _only_bash(run.ctx)
@@ -103,7 +103,7 @@ def test_a_container_that_cannot_start_is_unstarted_not_a_failed_modification(tm
 
 
 def test_the_command_says_cannot_start_and_exits_1(cli_root, monkeypatch):
-    from cs_image_system.base.mod_tests import ModTestResult
+    from cs_image_system.engine.mod_tests import ModTestResult
     from cs_image_system.system import cli as mod_tests  # patched where it is read
     unstarted = ModTestResult(image="img", mod="m", type="bash-remote", content_hash="h", target="almalinux:10",
                               status="unstarted", detail="cannot start a container from almalinux:10: docker pull "

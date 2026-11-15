@@ -11,8 +11,8 @@ from __future__ import annotations
 from typing import Any, cast
 
 from cs_image_system.base.basic.builder_base import BuilderBase
-from cs_image_system.base.orchestrator import PARENT_SETTER
 from cs_image_system.contract.constants import NO_MODEL_ID, VCT
+from cs_image_system.engine.orchestrator import PARENT_SETTER
 
 STRAY_PARENT = f"{VCT.OS_BUILDER_MODEL}::{NO_MODEL_ID}::another"
 

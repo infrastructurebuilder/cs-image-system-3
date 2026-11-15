@@ -25,8 +25,8 @@ from pathlib import Path
 import pytest
 from typer.testing import CliRunner
 
-from cs_image_system.base.commands.gate import gate_plan, sanctioned_addresses
 from cs_image_system.contract.names import super_safe_name
+from cs_image_system.engine.commands.gate import gate_plan, sanctioned_addresses
 from cs_image_system.okta_opa_plugin import okta_opa_tf_group_builder as gbmod
 from tests.harness import V2Run
 from tests.test_stale_attachments import _addr, _fake_tofu, _group_builder, _Opa, _root

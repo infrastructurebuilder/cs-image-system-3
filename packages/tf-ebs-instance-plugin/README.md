@@ -499,7 +499,7 @@ builder owns declared storages or recorded storages that left the YAML.
 
 **Storage state machine.** The YAML declares the *requested* state; the
 authoritative current state is in `meta-state`. The legality rules are in
-[storage_state.py](../base/src/cs_image_system/base/storage_state.py):
+[storage_state.py](../engine/src/cs_image_system/engine/storage_state.py):
 
 | From | To | Conditions |
 |---|---|---|
@@ -1055,11 +1055,11 @@ printed and recorded in `generated/run-summary.json` under
 - A builder `name` containing `/` or `\` is refused.
 
 **At `validate` (and at the start of every `run`).** Base validators, in
-[v2_validation.py](../base/src/cs_image_system/base/v2_validation.py),
+[v2_validation.py](../engine/src/cs_image_system/engine/v2_validation.py),
 [launch_params.py](../base/src/cs_image_system/base/launch_params.py),
 [lineage.py](../base/src/cs_image_system/base/lineage.py),
-[release.py](../base/src/cs_image_system/base/release.py),
-[validate.py](../base/src/cs_image_system/base/commands/validate.py) and
+[release.py](../engine/src/cs_image_system/engine/release.py),
+[validate.py](../engine/src/cs_image_system/engine/commands/validate.py) and
 [alias_pool.py](../base/src/cs_image_system/base/alias_pool.py), some of
 which call back into this plugin:
 
@@ -1145,7 +1145,7 @@ meta-state write; a `--commit` run commits them.
 
 **In the state query.** `query_state()` on each storage builder reports
 every owned storage as `present` or not with the provider record;
-[state_query.py](../base/src/cs_image_system/base/state_query.py) turns that
+[state_query.py](../engine/src/cs_image_system/engine/state_query.py) turns that
 into drift lines in `generated/state-report.json`: `missing [HARD]` for a
 recorded non-destroyed storage that is absent, `stale` for a destroyed
 record that still exists, for a provider state other than
@@ -1352,15 +1352,15 @@ Each with the message or symptom, what it means, where to look, what to do.
 - [tofu-roots roots.py](../tofu-roots/src/cs_image_system/tofu_roots/roots.py):
   `TerraformRootMixin`, the init arguments and the gated apply sequence.
 - [base launch_params.py](../base/src/cs_image_system/base/launch_params.py),
-  [base storage_state.py](../base/src/cs_image_system/base/storage_state.py),
+  [base storage_state.py](../engine/src/cs_image_system/engine/storage_state.py),
   [base lineage.py](../base/src/cs_image_system/base/lineage.py),
   [base alias_pool.py](../base/src/cs_image_system/base/alias_pool.py),
   [base generations.py](../base/src/cs_image_system/base/generations.py),
-  [base release.py](../base/src/cs_image_system/base/release.py): launch
+  [base release.py](../engine/src/cs_image_system/engine/release.py): launch
   parameters, the storage state machine, pins and image policies, the alias
   pool, instance generations, the release grace.
-- [base commands/gate.py](../base/src/cs_image_system/base/commands/gate.py),
-  [base commands/unmount.py](../base/src/cs_image_system/base/commands/unmount.py),
+- [base commands/gate.py](../engine/src/cs_image_system/engine/commands/gate.py),
+  [base commands/unmount.py](../engine/src/cs_image_system/engine/commands/unmount.py),
   [base commands/verify_instance.py](../base/src/cs_image_system/base/commands/verify_instance.py):
   the gate, the unmount receipt, the verification.
 - [tests/test_instance_module_calls.py](tests/test_instance_module_calls.py)

@@ -1874,7 +1874,7 @@ over the copy under docker (skipped loudly without docker).
 ### Public-safe and the hook
 
 Both repositories are public by design, so one scanner
-([public_safe.py](../packages/base/src/cs_image_system/base/public_safe.py))
+([public_safe.py](../packages/engine/src/cs_image_system/engine/public_safe.py))
 sits wherever a commit happens and reads bytes (a zipped `tfplan` is
 opened and its members scanned):
 
@@ -2295,7 +2295,7 @@ line per endpoint) reads the target's `[[tool.uv.index]]` entry and
 asks two things of it: the upload endpoint (`publish-url`) answers
 below 500 to a request that uploads nothing, and the simple index
 answers for EVERY project a release uploads -- the root project and each
-`packages/*` member, twenty-three today -- with 200, or 404 for a project
+`packages/*` member, twenty-four today -- with 200, or 404 for a project
 it has never seen. With `--version` it also says which projects already
 hold that version: none (a fresh release), all, or some (a partial
 upload, which `just publish` completes). Exit 0 is ready; **75 is "not
@@ -2360,12 +2360,12 @@ from the environment or, absent that, the index's own name --
 `.envrc` line serves the shell and CI alike -- and never in the Justfile:
 while versions are being deleted and re-cut, an account-scoped TestPyPI
 token; trusted publishing
-(a pending publisher per project name, twenty-one registrations: the
-umbrella and the twenty published packages) waits until
+(a pending publisher per project name, twenty-two registrations: the
+umbrella and the twenty-one published packages) waits until
 the names are stable, and is then the CI job's credential.
 
-The version lives in twenty-three `version =` lines -- the root's and the
-twenty-two workspace packages', the two private ones included -- and in
+The version lives in twenty-four `version =` lines -- the root's and the
+twenty-three workspace packages', the two private ones included -- and in
 every `== <version>` pin between the packages (the root's dependencies,
 its extras and its dev group alike), and `bump-my-version` is the
 one thing that changes them (`uv version` bumps the lines but never a
@@ -2377,10 +2377,10 @@ asserts nothing of the old version is left.
 
 ### Installing a release
 
-Twenty packages are on the index: `cs-image-system`, the umbrella (no
-sources of its own; its dependencies are the core at a `==` pin, and
-each provider is an extra), and `cs-image-system-<package>` for the
-nineteen others. The bare install carries no runtime:
+Twenty-two packages are on the index: `cs-image-system`, the umbrella
+(no sources of its own; its dependencies are the core at a `==` pin,
+and each provider is an extra), and `cs-image-system-<package>` for the
+twenty-one others. The bare install carries no runtime:
 
 ```sh
 uv tool install cs-image-system               # the CLI, the engine, the OS families, packer,
@@ -2453,7 +2453,7 @@ system drives (`tofu`, `packer`, `gcloud`, `ansible-playbook`, docker) are
 not Python packages and are not installed by this; the configuration's
 `cfg/executables.yml` pins where they are. The same install from the
 built files, without an index, is `uv pip install --find-links dist
-'cs-image-system[all]==<version>'` after `just build`; the twenty wheels
+'cs-image-system[all]==<version>'` after `just build`; the twenty-two wheels
 installed that way into a fresh virtualenv run `cs-image-system --help`
 and `decrypt`, which is the proof that every package declares what it
 imports (`just build` builds the two private wheels too; nothing installs
@@ -2523,8 +2523,13 @@ A plugin is written against one package, `cs-image-system-contract`:
 the protocols a model and a builder satisfy, the constants
 and field helpers a model is declared with, the lifecycle phases a hook
 keys on, and the data carriers a hook returns. It depends on nothing of
-the system, and `base` depends on it, never the reverse: the contract is
-upstream, and a new hook is a contract change first. The core's base
+the system, and the core depends on it, never the reverse: the contract
+is upstream, and a new hook is a contract change first. The core is two
+packages in one direction, contract <- kit <- engine: the kit
+(`cs-image-system-base`) holds the base classes, the models and what
+they import, the engine (`cs-image-system-engine`) runs a tree (the
+loader, the configuration reader, the lifecycle runner, the commands),
+and a plugin never depends on the engine. The core's base
 classes implement every protocol with a default for every hook, so the
 convenient plugin subclasses them; a plugin that satisfies the protocols
 structurally is a first-class plugin, and
@@ -2549,10 +2554,12 @@ the bootstrap vocabulary (`contract.bootstrap`). What a plugin may import
 from `base` is its base classes (`cs_image_system.base.basic`), its models
 (`cs_image_system.base.models`) and the two metadata abstractions, nothing
 else; `tests/test_plugin_imports.py` holds that rule over every installed
-plugin. A plugin written outside this repository needs the two packages
-from the index, `cs-image-system-contract` (pinned `>=0.1,<0.2`; the
-contract has its own version, 0.x until it is declared stable) and, if it
-subclasses the base classes, `cs-image-system-base`; it tests itself with
+plugin, and the same test refuses any import of the engine
+(`cs_image_system.engine`) from a plugin. A plugin written outside this
+repository needs the two packages from the index,
+`cs-image-system-contract` (pinned `>=0.1,<0.2`; the contract has its
+own version, 0.x until it is declared stable) and, if it subclasses the
+base classes, `cs-image-system-base`, the kit; it tests itself with
 `assert_conforms` against the protocol of its kind and is refused at load
 by name if it falls short.
 

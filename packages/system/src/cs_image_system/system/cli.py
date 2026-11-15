@@ -22,46 +22,7 @@ from typing import TYPE_CHECKING, Annotated, Any
 import typer
 from rich.logging import RichHandler
 
-from cs_image_system.base import tofu_lock
-from cs_image_system.base.bootstrap import (
-    ANSWERS_FILE,
-    Refused,
-    discover,
-    gather,
-    read_answers,
-    regenerate,
-    run_interview,
-    write_answers,
-)
-from cs_image_system.base.bootstrap.hcl import apply_env
-from cs_image_system.base.commands.dispose import dispose_images
-from cs_image_system.base.commands.emission import config_drift, runtime_unchanged
-from cs_image_system.base.commands.gate import (
-    gate_plan,
-    plan_json_from_planfile,
-    planfile_is_stale,
-    planned_destroys,
-    sanctioned_addresses,
-)
-from cs_image_system.base.commands.identity_gids import export_gids
-from cs_image_system.base.commands.load_failures import classify_load_failure
-from cs_image_system.base.commands.login_proof import verify_login_command
-from cs_image_system.base.commands.preflight import (
-    NOT_JUDGED,
-    NOT_JUDGED_WHY,
-    empty_environment_credentials,
-    session_lines,
-    session_readiness,
-)
-from cs_image_system.base.commands.relabel import relabel
-from cs_image_system.base.commands.restamp import restamp
-from cs_image_system.base.commands.run_lifecycles import load_hook_plugins, run_lifecycles, validate_only
-from cs_image_system.base.commands.runtime_facts import describe_runtime, emptiness, runtime_bake_selection
-from cs_image_system.base.commands.state_migration import backup, begin, finish
-from cs_image_system.base.commands.unmount import read_receipt, unmount_storage
-from cs_image_system.base.commands.upgrade import upgrade
 from cs_image_system.base.commands.verify_instance import VerificationFailed, assert_last_verification, verify_instance
-from cs_image_system.base.config_loader import read_config_and_transform
 from cs_image_system.base.encryption import (
     INLINE_MARKER_RE,
     decrypt_fields_in_text,
@@ -76,25 +37,68 @@ from cs_image_system.base.encryption import (
     reset_decrypted_plaintexts,
     rotate_text,
 )
-from cs_image_system.base.identity_attributes import (
+from cs_image_system.base.lifecycles import all_lifecycles, parse_lifecycles
+from cs_image_system.base.network_facts import NetworkFactsError
+from cs_image_system.base.utils import apply_flag_allows, in_directory, is_base
+from cs_image_system.contract.commands import COMMANDS_ENTRY_POINT_GROUP, VERIFY_LOGIN, CommandMount
+from cs_image_system.contract.constants import SYSTEM_CLI
+from cs_image_system.contract.lifecycles import Lifecycle
+from cs_image_system.engine import tofu_lock
+from cs_image_system.engine.bootstrap import (
+    ANSWERS_FILE,
+    Refused,
+    discover,
+    gather,
+    read_answers,
+    regenerate,
+    run_interview,
+    write_answers,
+)
+from cs_image_system.engine.bootstrap.hcl import apply_env
+from cs_image_system.engine.commands.dispose import dispose_images
+from cs_image_system.engine.commands.emission import config_drift, runtime_unchanged
+from cs_image_system.engine.commands.gate import (
+    gate_plan,
+    plan_json_from_planfile,
+    planfile_is_stale,
+    planned_destroys,
+    sanctioned_addresses,
+)
+from cs_image_system.engine.commands.identity_gids import export_gids
+from cs_image_system.engine.commands.load_failures import classify_load_failure
+from cs_image_system.engine.commands.login_proof import verify_login_command
+from cs_image_system.engine.commands.preflight import (
+    NOT_JUDGED,
+    NOT_JUDGED_WHY,
+    empty_environment_credentials,
+    session_lines,
+    session_readiness,
+)
+from cs_image_system.engine.commands.relabel import relabel
+from cs_image_system.engine.commands.restamp import restamp
+from cs_image_system.engine.commands.run_lifecycles import load_hook_plugins, run_lifecycles, validate_only
+from cs_image_system.engine.commands.runtime_facts import describe_runtime, emptiness, runtime_bake_selection
+from cs_image_system.engine.commands.state_migration import backup, begin, finish
+from cs_image_system.engine.commands.unmount import read_receipt, unmount_storage
+from cs_image_system.engine.commands.upgrade import upgrade
+from cs_image_system.engine.config_loader import read_config_and_transform
+from cs_image_system.engine.identity_attributes import (
     AttributeApplyDisabled,
     apply,
     attributes_plan,
     read_attributes_plan,
 )
-from cs_image_system.base.identity_attributes import (
+from cs_image_system.engine.identity_attributes import (
     probe as probe_fn,
 )
-from cs_image_system.base.in_process import names_subcommand, register_system_cli_runner
-from cs_image_system.base.lifecycles import all_lifecycles, parse_lifecycles
-from cs_image_system.base.loader import discover_plugins
-from cs_image_system.base.materialize import PRIVATE_DIRNAME, ensure_ignored, materialize, mirror_path, sync_back
-from cs_image_system.base.meta_state import commit_meta_state
-from cs_image_system.base.mod_tests import run_mod_tests
-from cs_image_system.base.modules import installed_modules, materialise_modules
-from cs_image_system.base.network_facts import NetworkFactsError
-from cs_image_system.base.pinned_release import ALLOW_ENVVAR, ALLOW_FLAG, RESTAMP, RUN, HeldCommand, hold_to_pin
-from cs_image_system.base.public_safe import (
+from cs_image_system.engine.in_process import names_subcommand, register_system_cli_runner
+from cs_image_system.engine.loader import discover_plugins
+from cs_image_system.engine.materialize import PRIVATE_DIRNAME, ensure_ignored, materialize, mirror_path, sync_back
+from cs_image_system.engine.meta_state import commit_meta_state
+from cs_image_system.engine.mod_tests import run_mod_tests
+from cs_image_system.engine.modules import installed_modules, materialise_modules
+from cs_image_system.engine.pinned_release import ALLOW_ENVVAR, ALLOW_FLAG, RESTAMP, RUN, HeldCommand, hold_to_pin
+from cs_image_system.engine.public_safe import (
     allow_from_config,
     candidate_files,
     config_for,
@@ -104,12 +108,8 @@ from cs_image_system.base.public_safe import (
     scan_tree,
     staged_paths,
 )
-from cs_image_system.base.release import ReleaseError, declared_release_targets, release
-from cs_image_system.base.state_query import DRIFT_STALE, import_foreign, query_state, write_state_report
-from cs_image_system.base.utils import apply_flag_allows, in_directory, is_base
-from cs_image_system.contract.commands import COMMANDS_ENTRY_POINT_GROUP, VERIFY_LOGIN, CommandMount
-from cs_image_system.contract.constants import SYSTEM_CLI
-from cs_image_system.contract.lifecycles import Lifecycle
+from cs_image_system.engine.release import ReleaseError, declared_release_targets, release
+from cs_image_system.engine.state_query import DRIFT_STALE, import_foreign, query_state, write_state_report
 from cs_image_system.system.starters import changes_since as _changes_since
 from cs_image_system.system.starters import init_config
 
@@ -1845,7 +1845,7 @@ def main(
 def run_in_process(ctx: "RunContext", args: list[str], working_directory: Path | None) -> int | None:
     """Run one deferred ``cs-image-system`` step of a run IN THIS PROCESS,
     over the context the run loaded: the base's executor (the finalizer)
-    calls this through the seam in :mod:`cs_image_system.base.in_process`
+    calls this through the seam in :mod:`cs_image_system.engine.in_process`
     instead of spawning the interpreter again, which would boot Python,
     load the plugins and read the whole configuration once more per step.
 

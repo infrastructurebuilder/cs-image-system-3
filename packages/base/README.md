@@ -1,29 +1,48 @@
 # cs-image-system-base
 
-The core library of cs-image-system. It implements the plugin contract
-([contract](../contract/README.md)) with its base models and
-builder bases, and defines the registry, the plugin loader, the lifecycle
-runner, the cross-run meta-state, value encryption, the public-safe gate,
-and the lineage, release, retention, launch-parameter and capability
-rules that every built-in plugin and the command-line host build on.
+The kit of cs-image-system: what a plugin is written against beyond the
+plugin contract ([contract](../contract/README.md)). It implements the
+contract with its base models (`models/`) and builder bases (`basic/`),
+and holds what those import: the registry, the run context, the
+lifecycles and phases, value encryption, lineage, generations, launch
+parameters, capabilities, the power states and the meta-state record
+types. A plugin imports the base classes, the models and the two
+metadata abstractions of this package and nothing else of the core
+(`tests/test_plugin_imports.py`).
+
+The engine is the other half of the core, a package of its own
+([engine](../engine/README.md)): the plugin loader, the configuration
+reader, the resolver, the lifecycle runner and its commands, meta-state
+on disk, the state query, releases, retention and the bootstrap. The
+direction is one way, contract <- kit <- engine: no module here imports
+the engine, by any edge (`tests/test_contract.py`,
+`tests/test_import_closure.py`, which also holds this package to
+exactly the modules the plugins reach). The sections below describe the
+core as one, the kit and the engine together, because a run is both; a
+source link names the package each module lives in.
 
 It contains no cloud code. Clouds, identity providers, packer and terraform
-live in plugins that register through the contract; the loader and the
-registry that read them are described here. The package is licensed under
-Apache-2.0 and requires Python 3.13 or later.
+live in plugins that register through the contract. The package is
+licensed under Apache-2.0 and requires Python 3.13 or later.
 
 Declared dependencies ([`pyproject.toml`](pyproject.toml)):
 `cs-image-system-contract` (the one sibling it depends on; the contract
-depends on no sibling), `Jinja2`, `PyYAML`, `age`, `packaging`, `pydantic`
-and `typer`. The models are pydantic dataclasses; `packaging` parses
-version specifiers; `age` is the library behind every `ENC[age:...]` value.
+depends on no sibling), `PyYAML`, `age`, `packaging`, `pydantic` and
+`typer`. The models are pydantic dataclasses; `packaging` parses
+version specifiers; `age` is the library behind every `ENC[age:...]`
+value.
 
-The package registers itself as a plugin too: the entry point
-`cs_image_system.plugins.base` (`cs_image_system.base.init:initialize`)
+The package declares two entry points. The plugin entry point
+`cs_image_system.plugins.base` (`cs_image_system.engine.init:initialize`)
 injects the `StorageMapping` item model as the default
 `STORAGE_MAPPING_ITEM_MODEL` and registers `GenericVersionChecker`, the
 version checker every executable of the default type `executable` falls
-back to.
+back to; its function is the engine's, since only the engine's loader
+calls it, and the declaration stays here so that the registrations carry
+the namespace `base`. The modules entry point `cs_image_system.modules`
+(`cs_image_system.base:tfmodules`) names the terraform modules this
+package ships as package data ([The terraform
+modules](#the-terraform-modules)).
 
 ## Contents
 
@@ -57,7 +76,7 @@ the protocols a model and a builder satisfy, the constants and field
 helpers, the lifecycle phases, the data carriers a hook returns. This
 package implements it -- the base models and builder bases below carry a
 default for every hook -- and reads it: the loader and the registry are
-here. Source: [`loader.py`](src/cs_image_system/base/loader.py),
+here. Source: [`loader.py`](../engine/src/cs_image_system/engine/loader.py),
 [`registry.py`](src/cs_image_system/base/registry.py),
 [`basic/abstract_plugin_metadata.py`](src/cs_image_system/base/basic/abstract_plugin_metadata.py),
 [`models/mixins.py`](src/cs_image_system/base/models/mixins.py) (the bodies
@@ -339,7 +358,7 @@ item declared in another one's qualified form), and leaves every other
 word, a bare name and an alias included, as written.
 A model is built from the words read bare where the instance is
 registered already (`NameTyped`'s before-validator,
-`orchestrator.written_references_bare`: an image entry named after its
+`models.references.written_references_bare`: an image entry named after its
 image builder takes the builder's name); an item kind's items are read
 bare again once the kind is read (an image's `source_image` naming
 another image), and a builder model before its builder is made (a
@@ -447,11 +466,11 @@ and applies `get_regex()`. The result is compared with the executable's
 
 | Seam | Where | What it adds |
 | ------ | ------- | -------------- |
-| Run hooks | entry point group `cs_image_system.plugins.hooks`; `HookSet` in [`commands/run_lifecycles.py`](src/cs_image_system/base/commands/run_lifecycles.py) | `validators` (return error strings; any error aborts the run), `after_generate`, `before_apply`, `after_apply` (real runs only), `on_summary`, `state_bindings` (answer `{lifecycle: {workspace: state file}}`, merged into the runner-script headers and the summary's `state_bindings`; the tofu-roots plugin answers for the terraform roots), and `lifecycles` (a list of `LifecycleSpec`). |
+| Run hooks | entry point group `cs_image_system.plugins.hooks`; `HookSet` in [`commands/run_lifecycles.py`](../engine/src/cs_image_system/engine/commands/run_lifecycles.py) | `validators` (return error strings; any error aborts the run), `after_generate`, `before_apply`, `after_apply` (real runs only), `on_summary`, `state_bindings` (answer `{lifecycle: {workspace: state file}}`, merged into the runner-script headers and the summary's `state_bindings`; the tofu-roots plugin answers for the terraform roots), and `lifecycles` (a list of `LifecycleSpec`). |
 | Lifecycles | `register_lifecycle(LifecycleSpec)` in [`lifecycles.py`](src/cs_image_system/base/lifecycles.py) | A lifecycle with its own phases, builder classifications, directory and runner script, positioned after an existing one. |
 | Field kinds | `register_field_kind(name, FieldKindHandler)` in the contract's [`field_kinds.py`](../contract/src/cs_image_system/contract/field_kinds.py) | A late-binding behaviour for fields carrying `field_kind` metadata: `contribute_context`, `resolve`, `upgrade`. |
-| Resolution passes | `register_resolution_pass(name, fn, order)` in [`helpers/resolution_stages.py`](src/cs_image_system/base/helpers/resolution_stages.py) | A string-stage pass over the raw YAML document. Built in: `interpolate` (order 10) and `scope-this` (order 20). |
-| Item kinds | `register_item_kind(ItemKind)` in [`config_loader.py`](src/cs_image_system/base/config_loader.py) | A new domain-item collection: directory, model class, owning builder classification, attach function, optional validation. |
+| Resolution passes | `register_resolution_pass(name, fn, order)` in [`helpers/resolution_stages.py`](../engine/src/cs_image_system/engine/helpers/resolution_stages.py) | A string-stage pass over the raw YAML document. Built in: `interpolate` (order 10) and `scope-this` (order 20). |
+| Item kinds | `register_item_kind(ItemKind)` in [`config_loader.py`](../engine/src/cs_image_system/engine/config_loader.py) | A new domain-item collection: directory, model class, owning builder classification, attach function, optional validation. |
 
 ## The configuration tree
 
@@ -518,10 +537,10 @@ translate. CONFIGURATION 5a is the reference.
 
 ## How YAML becomes models
 
-Source: [`template_utils.py`](src/cs_image_system/base/template_utils.py),
-[`orchestrator.py`](src/cs_image_system/base/orchestrator.py),
+Source: [`template_utils.py`](../engine/src/cs_image_system/engine/template_utils.py),
+[`orchestrator.py`](../engine/src/cs_image_system/engine/orchestrator.py),
 the contract's [`fields.py`](../contract/src/cs_image_system/contract/fields.py),
-[`config_loader.py`](src/cs_image_system/base/config_loader.py).
+[`config_loader.py`](../engine/src/cs_image_system/engine/config_loader.py).
 
 ### The string stage
 
@@ -531,7 +550,7 @@ the ordered resolution passes, each rendering the string leaves it is
 responsible for and handing the tree to the next. The document is never
 dumped back to YAML text and never parsed again: a pass is a function over
 the parsed tree (`fn(tree, *, addl, cycles) -> tree`, the registry in
-[`helpers/resolution_stages.py`](src/cs_image_system/base/helpers/resolution_stages.py)).
+[`helpers/resolution_stages.py`](../engine/src/cs_image_system/engine/helpers/resolution_stages.py)).
 A template renders to text, and that text stays a string: `port: "{{
 config.port }}"` over `port: 22` is the string `'22'` until the field it
 lands in is structured (a declared integer field coerces it; a free-form
@@ -558,7 +577,7 @@ every mapping's keys). The passes:
    merged over the enclosing one for its subtree, key by key, so
    `{{ config.x }}` in the entry's `description` resolves from the entry's
    own `config` first (`_render_scoped` in
-   [`template_utils.py`](src/cs_image_system/base/template_utils.py)).
+   [`template_utils.py`](../engine/src/cs_image_system/engine/template_utils.py)).
 
 Tags that cannot render are kept as written, so a later stage can render
 them.
@@ -674,7 +693,7 @@ keeps the original spelling for output. A name or alias may not contain
 case or spacing, because those words mean "not set" wherever a value is
 read: an item named after one would be unreachable, and a reference to
 it would mean something else. The rule is held twice:
-[`reserved_names.py`](src/cs_image_system/base/reserved_names.py)
+[`reserved_names.py`](../engine/src/cs_image_system/engine/reserved_names.py)
 refuses such a `name:` at any depth, and such an `aliases:` entry, where
 each configuration file is read -- every `cfg/` file, every item file
 after decryption, every overlay -- naming the file, the entry's place
@@ -1107,8 +1126,8 @@ to a phase after `pre-verify`.
 
 ## A run: generation, finalization, dry run, commit
 
-Source: [`commands/run_lifecycles.py`](src/cs_image_system/base/commands/run_lifecycles.py),
-[`commands/`](src/cs_image_system/base/commands/).
+Source: [`commands/run_lifecycles.py`](../engine/src/cs_image_system/engine/commands/run_lifecycles.py),
+[`commands/`](../engine/src/cs_image_system/engine/commands/).
 
 `run_lifecycles(requested, apply=True, commit=False, state_query=True,
 only=None, force_bake=None)` performs, in order:
@@ -1186,7 +1205,7 @@ way, with the overlays that declare items left out.
 
 **System CLI steps run in the running process.** The executor hands a
 step whose binary is the system's own CLI to the runner the system
-package registers in [`in_process.py`](src/cs_image_system/base/in_process.py)
+package registers in [`in_process.py`](../engine/src/cs_image_system/engine/in_process.py)
 (`register_system_cli_runner`; the base never imports the system, so the
 registration goes that way round), and the runner drives the command in
 this process over the loaded context: the configuration is loaded once
@@ -1213,8 +1232,8 @@ nothing changed or the root is not in a git repository.
 ## The run context
 
 Source: [`run_context.py`](src/cs_image_system/base/run_context.py) (the
-context), [`config_loader.py`](src/cs_image_system/base/config_loader.py)
-(the loader that makes one), [`finalizer.py`](src/cs_image_system/base/finalizer.py)
+context), [`config_loader.py`](../engine/src/cs_image_system/engine/config_loader.py)
+(the loader that makes one), [`finalizer.py`](../engine/src/cs_image_system/engine/finalizer.py)
 (the deferred-command queue and executor of one run).
 
 `RunContext` is what one run knows: the configuration, the collections,
@@ -1327,7 +1346,7 @@ of what is installed may be cached for the process.
 
 ## Meta-state
 
-Source: [`meta_state.py`](src/cs_image_system/base/meta_state.py).
+Source: [`meta_state.py`](../engine/src/cs_image_system/engine/meta_state.py).
 
 Meta-state is the set of committed, human-readable YAML files under
 `<root>/meta-state/` that carry memory between runs. It sits outside every
@@ -1403,7 +1422,7 @@ identities can open is a `ValueError`.
 
 The emission under `generated/` carries the ciphertext a `Decrypted`
 remembers (emission by reference), and
-[`materialize.py`](src/cs_image_system/base/materialize.py) replaces it
+[`materialize.py`](../engine/src/cs_image_system/engine/materialize.py) replaces it
 with the plaintext in the private mirror `_private/` before a deferred
 command runs. The rules a tree follows -- which values may be encrypted,
 where a marker may not stand, what a marker protects and what stays
@@ -1422,7 +1441,7 @@ open.
 
 ## The public-safe gate
 
-Source: [`public_safe.py`](src/cs_image_system/base/public_safe.py).
+Source: [`public_safe.py`](../engine/src/cs_image_system/engine/public_safe.py).
 
 One scanner sits behind the meta-state commit, every meta-state and
 state-report write, the `public-safe` command and a pre-commit hook. It
@@ -1519,7 +1538,7 @@ journaled in `pins.yaml`.
 
 ## Releases
 
-Source: [`release.py`](src/cs_image_system/base/release.py).
+Source: [`release.py`](../engine/src/cs_image_system/engine/release.py).
 
 A release is a recorded mark on a build for a named model (default
 `default`), kept in `meta-state/releases.yaml`. `release(ctx, image,
@@ -1545,7 +1564,7 @@ booted with that build); the refusal otherwise names what is missing
 
 ## Retention
 
-Source: [`retention.py`](src/cs_image_system/base/retention.py).
+Source: [`retention.py`](../engine/src/cs_image_system/engine/retention.py).
 
 The `retention` lifecycle is registered after `release`, so it runs last.
 When any image declares `retention`, any runtime declares
@@ -1653,7 +1672,7 @@ the value `<package>:<dirname>`:
 modules = "cs_image_system.aws_runtime:tfmodules"
 ```
 
-[`modules.py`](src/cs_image_system/base/modules.py) is the one API over
+[`modules.py`](../engine/src/cs_image_system/engine/modules.py) is the one API over
 that declaration. `installed_modules()` reads the entry points and returns
 every module by directory name (`ModuleSource`: the name, the namespace the
 distribution's name yields exactly as a plugin's registrations do,
@@ -1689,39 +1708,42 @@ elsewhere, or edit a copy and keep the edit by naming it.
 
 | Module | Purpose |
 | -------- | --------- |
-| [`modules.py`](src/cs_image_system/base/modules.py) | The installed terraform modules (`installed_modules`, from the `cs_image_system.modules` entry points, no plugin import), their materialisation into a tree with a stamp per copy (`materialise_modules`, `module_verdict`, `Stamp`, `content_hash`, `ModulesReport`) and the names `config: module_sources` declares (`declared_overrides`); see [The terraform modules](#the-terraform-modules). |
-| [`state_query.py`](src/cs_image_system/base/state_query.py) | Asks every plugin for reality (images by lineage tags, storages by name, groups by gid), diffs it against meta-state, and classifies drift as `missing`, `foreign`, `changed` or `stale`. Hard drift (a pinned build gone, a storage recorded live but absent, a managed group unknown to the provider, an instance pinned to an unrecorded build) makes the next run's validation refuse. `import_foreign` adopts foreign artifacts into meta-state; nothing here writes to a cloud or to terraform state. The report is `generated/state-report.json`. |
-| [`storage_state.py`](src/cs_image_system/base/storage_state.py) | The storage state machine: legal transitions (`active` to `archived` and back, either to `destroyed`, and regeneration of a destroyed name), the rule that a storage must be unattached to leave `active`, transitions for undeclared storages, and the recording of applied transitions. |
-| [`v2_validation.py`](src/cs_image_system/base/v2_validation.py) | Generation-time rules, all hard: managed groups may not disappear; allowed groups exist; the strict attach rule; single-attach cardinality; data lifecycles only where the builder realizes them; storage transitions are legal; an instance image's group exists and every instance image has one; declared types resolve to configured plugins; admin keys are public keys; every base image has a debug path (keys or a session mechanism); capability resolution on both axes; test specs use the known vocabulary; update policies are valid. |
+| [`modules.py`](../engine/src/cs_image_system/engine/modules.py) | The installed terraform modules (`installed_modules`, from the `cs_image_system.modules` entry points, no plugin import), their materialisation into a tree with a stamp per copy (`materialise_modules`, `module_verdict`, `Stamp`, `content_hash`, `ModulesReport`) and the names `config: module_sources` declares (`declared_overrides`); see [The terraform modules](#the-terraform-modules). |
+| [`state_query.py`](../engine/src/cs_image_system/engine/state_query.py) | Asks every plugin for reality (images by lineage tags, storages by name, groups by gid), diffs it against meta-state, and classifies drift as `missing`, `foreign`, `changed` or `stale`. Hard drift (a pinned build gone, a storage recorded live but absent, a managed group unknown to the provider, an instance pinned to an unrecorded build) makes the next run's validation refuse. `import_foreign` adopts foreign artifacts into meta-state; nothing here writes to a cloud or to terraform state. The report is `generated/state-report.json`. |
+| [`storage_state.py`](../engine/src/cs_image_system/engine/storage_state.py) | The storage state machine: legal transitions (`active` to `archived` and back, either to `destroyed`, and regeneration of a destroyed name), the rule that a storage must be unattached to leave `active`, transitions for undeclared storages, and the recording of applied transitions. |
+| [`v2_validation.py`](../engine/src/cs_image_system/engine/v2_validation.py) | Generation-time rules, all hard: managed groups may not disappear; allowed groups exist; the strict attach rule; single-attach cardinality; data lifecycles only where the builder realizes them; storage transitions are legal; an instance image's group exists and every instance image has one; declared types resolve to configured plugins; admin keys are public keys; every base image has a debug path (keys or a session mechanism); capability resolution on both axes; test specs use the known vocabulary; update policies are valid. |
 | [`image_tests.py`](src/cs_image_system/base/image_tests.py) | In-bake assertions emitted as the last packer provisioner: capability verification derived from plugin hooks, plus a declared `tests:` map with keys `files`, `packages`, `commands`, `services_enabled`, `users`. `tests.post_bake` adds `mounts` and runs on a launched instance. |
-| [`mod_tests.py`](src/cs_image_system/base/mod_tests.py) | Runs every modification of an instance image against a throwaway local target twice (apply, then idempotence), recording results in `meta-state/mod-tests.yaml` by content hash. The harness drives an abstract `LocalTarget` (`exec`, `copy_in`, `diff`, `volatile`, `close`, and the ansible connection plugin that reaches it) and names no runtime: the target's factory comes from the one registered runtime builder class whose `local_test_target()` is not None, is handed the tree's executables, and returns nothing when its daemon does not answer (the modifications are then `skipped`, not failed); a target that cannot start raises `ContainerStartError` (`unstarted`). |
-| [`identity_attributes.py`](src/cs_image_system/base/identity_attributes.py) | Declared provider attributes on users and groups: validation per plugin, a plan written to `generated/identity/attributes-plan.json`, a read-only probe, and an apply that is deliberately disabled. |
-| [`read_models.py`](src/cs_image_system/base/read_models.py) | Writes the identity and storage read-models and records applied storage transitions. |
-| [`commands/preflight.py`](src/cs_image_system/base/commands/preflight.py) | The session lines: asks every declared runtime's and state backend's class the contract's `session_status` hook over the loaded models (a state builder of the kit, a `StateBuilderBase`, is also handed the run's runtime builder classes, `ctx.reg.runtime_builder_classes()`, as a third argument, so a backend that borrows a runtime's session reading finds it there) and judges the answers against the expected run length; reads no credential cache itself and names no provider. |
-| [`commands/gate.py`](src/cs_image_system/base/commands/gate.py) | The apply gate over a `tofu show -json` plan: every planned destroy must match a whitelisted address or prefix; a plan file older than the newest `.tf` in its root is stale. |
-| [`commands/upgrade.py`](src/cs_image_system/base/commands/upgrade.py), [`commands/dispose.py`](src/cs_image_system/base/commands/dispose.py), [`commands/restamp.py`](src/cs_image_system/base/commands/restamp.py), [`commands/relabel.py`](src/cs_image_system/base/commands/relabel.py), [`commands/verify_instance.py`](src/cs_image_system/base/commands/verify_instance.py), [`commands/unmount.py`](src/cs_image_system/base/commands/unmount.py), [`commands/runtime_facts.py`](src/cs_image_system/base/commands/runtime_facts.py), [`commands/identity_gids.py`](src/cs_image_system/base/commands/identity_gids.py), [`commands/run_scope.py`](src/cs_image_system/base/commands/run_scope.py) | The operations behind the CLI's `upgrade`, `dispose image`, `lineage restamp`, `lineage relabel`, `verify instance`, `unmount storage`, `runtime describe` / `empty`, `identity export-gids`, and the bake scope check. |
-| [`in_process.py`](src/cs_image_system/base/in_process.py) | The seam through which a deferred step that is the system's own CLI runs in the running process: the system package registers its runner (`register_system_cli_runner`), `run_executable` asks for it before it spawns anything, and `names_subcommand` is how a runner tells a nested `run` (which needs a context of its own) from every other step. No runner registered, or a step declined: the step is spawned. |
+| [`mod_tests.py`](../engine/src/cs_image_system/engine/mod_tests.py) | Runs every modification of an instance image against a throwaway local target twice (apply, then idempotence), recording results in `meta-state/mod-tests.yaml` by content hash. The harness drives an abstract `LocalTarget` (`exec`, `copy_in`, `diff`, `volatile`, `close`, and the ansible connection plugin that reaches it) and names no runtime: the target's factory comes from the one registered runtime builder class whose `local_test_target()` is not None, is handed the tree's executables, and returns nothing when its daemon does not answer (the modifications are then `skipped`, not failed); a target that cannot start raises `ContainerStartError` (`unstarted`). |
+| [`identity_attributes.py`](../engine/src/cs_image_system/engine/identity_attributes.py) | Declared provider attributes on users and groups: validation per plugin, a plan written to `generated/identity/attributes-plan.json`, a read-only probe, and an apply that is deliberately disabled. |
+| [`read_models.py`](../engine/src/cs_image_system/engine/read_models.py) | Writes the identity and storage read-models and records applied storage transitions. |
+| [`commands/preflight.py`](../engine/src/cs_image_system/engine/commands/preflight.py) | The session lines: asks every declared runtime's and state backend's class the contract's `session_status` hook over the loaded models (a state builder of the kit, a `StateBuilderBase`, is also handed the run's runtime builder classes, `ctx.reg.runtime_builder_classes()`, as a third argument, so a backend that borrows a runtime's session reading finds it there) and judges the answers against the expected run length; reads no credential cache itself and names no provider. |
+| [`commands/gate.py`](../engine/src/cs_image_system/engine/commands/gate.py) | The apply gate over a `tofu show -json` plan: every planned destroy must match a whitelisted address or prefix; a plan file older than the newest `.tf` in its root is stale. |
+| [`commands/upgrade.py`](../engine/src/cs_image_system/engine/commands/upgrade.py), [`commands/dispose.py`](../engine/src/cs_image_system/engine/commands/dispose.py), [`commands/restamp.py`](../engine/src/cs_image_system/engine/commands/restamp.py), [`commands/relabel.py`](../engine/src/cs_image_system/engine/commands/relabel.py), [`commands/verify_instance.py`](src/cs_image_system/base/commands/verify_instance.py), [`commands/unmount.py`](../engine/src/cs_image_system/engine/commands/unmount.py), [`commands/runtime_facts.py`](../engine/src/cs_image_system/engine/commands/runtime_facts.py), [`commands/identity_gids.py`](../engine/src/cs_image_system/engine/commands/identity_gids.py), [`commands/run_scope.py`](../engine/src/cs_image_system/engine/commands/run_scope.py) | The operations behind the CLI's `upgrade`, `dispose image`, `lineage restamp`, `lineage relabel`, `verify instance`, `unmount storage`, `runtime describe` / `empty`, `identity export-gids`, and the bake scope check. |
+| [`in_process.py`](../engine/src/cs_image_system/engine/in_process.py) | The seam through which a deferred step that is the system's own CLI runs in the running process: the system package registers its runner (`register_system_cli_runner`), `run_executable` asks for it before it spawns anything, and `names_subcommand` is how a runner tells a nested `run` (which needs a context of its own) from every other step. No runner registered, or a step declined: the step is spawned. |
 | [`utils.py`](src/cs_image_system/base/utils.py) | `safe_name`, `super_safe_name`, `system_cli_executable` (a deferred call of the system's own CLI), `apply_enabled` / `apply_flag_allows` (the `apply_<lifecycle>` rule), `module_source` and `module_source_overrides` (a call's source from `module_source_base` and `module_sources`), `hcl_expr` and `render_module_call` (terraform module call rendering). |
-| [`ansible_launch.py`](src/cs_image_system/base/ansible_launch.py) | Renders the same launch parameters as an ansible inventory and playbook: the hostname task, each mount's tasks from its storage builder's `launch_tasks()`, the enrollment kind's tasks; `extra_vars(ctx)` is the playbook's variable list, the same names as the launch template's. |
+| [`ansible_launch.py`](../engine/src/cs_image_system/engine/ansible_launch.py) | Renders the same launch parameters as an ansible inventory and playbook: the hostname task, each mount's tasks from its storage builder's `launch_tasks()`, the enrollment kind's tasks; `extra_vars(ctx)` is the playbook's variable list, the same names as the launch template's. |
 | [`power_state.py`](src/cs_image_system/base/power_state.py) | The system's power-state vocabulary (`running`, `stopped`, `suspended`, `starting`, `stopping`, `absent`, `unknown`; `None` is "cannot answer"), `wait_until_reachable`, and `running_for_task`, the one bounded exception under which a stopped machine is started for work that needs it and stopped again afterwards. |
 | [`generations.py`](src/cs_image_system/base/generations.py) | Instance generations: one per machine, opened `inferred` by a launch and confirmed `observed` (or closed as `replaced-out-of-band`) by the provider's instance id after a real apply; a machine launched before the record existed is `adopted` as generation 1 of it. |
 | [`alias_pool.py`](src/cs_image_system/base/alias_pool.py) | The pool of pre-approved names in `meta-state/aliases.txt`: a new durable machine's alias is the first free line, burnt in place under an exclusive lock by the run that can launch it. |
-| [`provider_aliases.py`](src/cs_image_system/base/provider_aliases.py) | After a real instance-image apply, gives each launched, running instance that its group's registry lists the names it lost at boot back (the bare declared name, the pool alias, the provider's `ip-...` label), skipping every collision and every silent registry; a machine with no record of its own (none carries its provider id: it has not enrolled) is passed over with an INFO line carrying the module's `NOT_LISTED`, and one this run launched is waited for first, bounded: the core decides the names, the machine and the moment, and the group builder's `alias_registration_script` renders the script that tells its agent (the core reads only the contract's `ALIASES_CHANGED` / `ALIASES_UNCHANGED` from its output); and the `reality.instances` entries and notes of the state report. |
-| [`workload_access.py`](src/cs_image_system/base/workload_access.py) | After a real identity apply, reconciles each managed group's CI login policy through the group builder and records the outcome in the identity read-model. |
-| [`reserved_names.py`](src/cs_image_system/base/reserved_names.py) | The read-time refusals: `refuse_reserved_names` (a `name:` at any depth, or an `aliases:` entry, that is a word of `OOPS_DEFAULTS` in any case or spacing, every one listed with the file, the entry's place and the word, `ReservedNameError`) and `refuse_invalid_config_keys` (a key of a document's top-level `config:` that is in `INVALID_CONFIG_KEYS`, `InvalidConfigKeyError`). Called by `read_and_process` for each `cfg/` file, by the item-file reader after decryption, and by `load_overlay`; pure functions of the parsed document, no identity or network. |
-| [`materialize.py`](src/cs_image_system/base/materialize.py) | The private mirror `_private/` beside `generated/`, at the same depth: a root is copied there with every `ENC[age:...]` marker replaced by its plaintext before a deferred command runs, incrementally; only `.terraform.lock.hcl` is ever copied back. `ensure_ignored` appends `_private/` to the configuration root's `.gitignore`. |
-| [`commands/login_proof.py`](src/cs_image_system/base/commands/login_proof.py) | The login proof's driver: which declared instances are targets (launched, not ephemeral, on the runtime asked for), the skips (a group whose builder has no login to prove; a machine that is not running, never started for this), the group builder's own `login_checks` over each target, and every verdict recorded in `meta-state/login-proofs.yaml`. The command that drives it (`verify login`) is mounted by the identity plugin whose client logs in. |
-| [`commands/state_migration.py`](src/cs_image_system/base/commands/state_migration.py) | The runner steps of `--migrate-state` (`begin`, `finish`) and the same-day state `backup` a runner takes into `_private/state-backups/` before any `state rm` it decided on. |
-| [`pinned_release.py`](src/cs_image_system/base/pinned_release.py) | Holds a committing run, and a committing `lineage restamp`, to the release the tree pins in `.csis-version` (`hold_to_pin`, called by `run` before it generates and by the restamp before it computes; each speaks under its own name, `RUN` / `RESTAMP`; a disposal is not held): refused when the version running is not the pin, or when any distribution of the system was installed from somewhere other than an index (`installed_release` reads each dist-info's `direct_url.json`, which an index install never carries), unless `--allow-unpinned` / `CSIS_ALLOW_UNPINNED` says to go on. Pure functions over the tree's root and the install facts; no run context. |
+| [`provider_aliases.py`](../engine/src/cs_image_system/engine/provider_aliases.py) | After a real instance-image apply, gives each launched, running instance that its group's registry lists the names it lost at boot back (the bare declared name, the pool alias, the provider's `ip-...` label), skipping every collision and every silent registry; a machine with no record of its own (none carries its provider id: it has not enrolled) is passed over with an INFO line carrying the module's `NOT_LISTED`, and one this run launched is waited for first, bounded: the core decides the names, the machine and the moment, and the group builder's `alias_registration_script` renders the script that tells its agent (the core reads only the contract's `ALIASES_CHANGED` / `ALIASES_UNCHANGED` from its output); and the `reality.instances` entries and notes of the state report. |
+| [`workload_access.py`](../engine/src/cs_image_system/engine/workload_access.py) | After a real identity apply, reconciles each managed group's CI login policy through the group builder and records the outcome in the identity read-model. |
+| [`reserved_names.py`](../engine/src/cs_image_system/engine/reserved_names.py) | The read-time refusals: `refuse_reserved_names` (a `name:` at any depth, or an `aliases:` entry, that is a word of `OOPS_DEFAULTS` in any case or spacing, every one listed with the file, the entry's place and the word, `ReservedNameError`) and `refuse_invalid_config_keys` (a key of a document's top-level `config:` that is in `INVALID_CONFIG_KEYS`, `InvalidConfigKeyError`). Called by `read_and_process` for each `cfg/` file, by the item-file reader after decryption, and by `load_overlay`; pure functions of the parsed document, no identity or network. |
+| [`materialize.py`](../engine/src/cs_image_system/engine/materialize.py) | The private mirror `_private/` beside `generated/`, at the same depth: a root is copied there with every `ENC[age:...]` marker replaced by its plaintext before a deferred command runs, incrementally; only `.terraform.lock.hcl` is ever copied back. `ensure_ignored` appends `_private/` to the configuration root's `.gitignore`. |
+| [`commands/login_proof.py`](../engine/src/cs_image_system/engine/commands/login_proof.py) | The login proof's driver: which declared instances are targets (launched, not ephemeral, on the runtime asked for), the skips (a group whose builder has no login to prove; a machine that is not running, never started for this), the group builder's own `login_checks` over each target, and every verdict recorded in `meta-state/login-proofs.yaml`. The command that drives it (`verify login`) is mounted by the identity plugin whose client logs in. |
+| [`commands/state_migration.py`](../engine/src/cs_image_system/engine/commands/state_migration.py) | The runner steps of `--migrate-state` (`begin`, `finish`) and the same-day state `backup` a runner takes into `_private/state-backups/` before any `state rm` it decided on. |
+| [`pinned_release.py`](../engine/src/cs_image_system/engine/pinned_release.py) | Holds a committing run, and a committing `lineage restamp`, to the release the tree pins in `.csis-version` (`hold_to_pin`, called by `run` before it generates and by the restamp before it computes; each speaks under its own name, `RUN` / `RESTAMP`; a disposal is not held): refused when the version running is not the pin, or when any distribution of the system was installed from somewhere other than an index (`installed_release` reads each dist-info's `direct_url.json`, which an index install never carries), unless `--allow-unpinned` / `CSIS_ALLOW_UNPINNED` says to go on. Pure functions over the tree's root and the install facts; no run context. |
 
 ## Tests
 
 The package's tests live in [`tests/`](tests/) and cover the registry and
-plugin registration, field helpers and kinds, resolution stages, template
-utilities, item kinds, the display name and email-as-username rules, group
-gids, provider-specific images and the finalization executor. They run
-with the workspace suite; in the workspace, `just test` is the acceptance
-bar.
+plugin registration, field helpers and kinds, item kinds, the display
+name and email-as-username rules, group gids and provider-specific
+images; their shared fixture resolves through the engine's
+`TemplateResolver`, so they run with the engine installed. The tests of
+the resolution stages, the template utilities and the finalization
+executor are the engine's ([engine](../engine/README.md#tests)). They
+run with the workspace suite; in the workspace, `just test` is the
+acceptance bar.
 
 ## Prerequisites and integration
 
@@ -1737,16 +1759,17 @@ the core finds it.
 
 - **Python 3.13 or later and the workspace.** `requires-python = ">=3.13"`
   in [`pyproject.toml`](pyproject.toml); `just init` (`uv sync`) installs
-  this package and every plugin beside it. The dependencies are the six
-  named at the top of this file; nothing else is imported at runtime except
-  the standard library. The core imports no terraform library: what the
+  this package, the [engine](../engine/README.md) and every plugin
+  beside it. The kit's dependencies are the five named at the top of this
+  file (the engine's are in its README); nothing else is imported at
+  runtime except the standard library. The core imports no terraform library: what the
   roots need of [hashicorp-utils](../hashicorp-utils/README.md) and
   [tofu-roots](../tofu-roots/README.md) reaches the run through hook
   plugins and the context's plugin state (below).
 - **Plugins, through entry points.** The core registers no runtime, no
   image builder, no OS builder, no storage, group, user, instance or mod
   builder and no state backend. At every CLI start
-  [`loader.py`](src/cs_image_system/base/loader.py) walks the entry-point
+  [`loader.py`](../engine/src/cs_image_system/engine/loader.py) walks the entry-point
   groups `cs_image_system.plugins.<type>` in the order of `PLUGIN_TYPES`
   and registers what each returns; run hooks come from
   `cs_image_system.plugins.hooks`. A configuration whose `type:` names a
@@ -1788,7 +1811,7 @@ the core finds it.
   deferred command.
 - **git, on `PATH`, for four things and nothing else.** `--commit`
   (`commit_meta_state` in
-  [`meta_state.py`](src/cs_image_system/base/meta_state.py) runs
+  [`meta_state.py`](../engine/src/cs_image_system/engine/meta_state.py) runs
   `git rev-parse`, `check-ignore`, `add`, `diff --cached`, `commit`,
   `ls-files`); the public-safe tree and staged scans (`git ls-files`,
   `git show :<path>`); `ensure_ignored`, which appends `_private/` to the
@@ -1887,7 +1910,7 @@ that are refused where the file is read (`INVALID_CONFIG_KEYS`:
 `anything`, `none`, `null`, the empty string, `timestamp`, `date`,
 `datetime`, `config`, `configuration`, in any case;
 `refuse_invalid_config_keys` in
-[`reserved_names.py`](src/cs_image_system/base/reserved_names.py)).
+[`reserved_names.py`](../engine/src/cs_image_system/engine/reserved_names.py)).
 None of the seventeen collides with the template context. The collision
 that does exist is not guarded: a key named after a mapping method
 (`items`, `keys`, `values`, `get`, `update`, `copy`, `pop`) renders the
@@ -1924,7 +1947,7 @@ required, a FAILED one never; a declared `tests.post_bake` needs a
 PASSING record; a pin must be released or under the release grace); and
 `preflight.expected_run_minutes` (`expected_run_minutes` and
 `raw_expected_run_minutes` in
-[`commands/preflight.py`](src/cs_image_system/base/commands/preflight.py):
+[`commands/preflight.py`](../engine/src/cs_image_system/engine/commands/preflight.py):
 a session expiring within the window is `blocking` -- `preflight
 --strict` and `state query --strict` exit 1, a run warns; read raw before
 the load, so never encrypted; a non-integer falls back to 30). Any other
@@ -1934,7 +1957,7 @@ key's type, default, reader and effect is the table in
 [CONFIGURATION section 2.3](../../docs/CONFIGURATION.md#23-config-keys-the-code-reads).
 
 Which apply flags shape the run's SCOPE: `apply_scope_runtimes` in
-[`commands/run_scope.py`](src/cs_image_system/base/commands/run_scope.py)
+[`commands/run_scope.py`](../engine/src/cs_image_system/engine/commands/run_scope.py)
 reads `apply_storage` and `apply_instances` (never `apply_identity`) plus
 `--apply-runtime`; a `true` anywhere means no scope, a list names runtimes
 directly or through a root's runtime.
@@ -2394,7 +2417,7 @@ journaled under `bake_plan`) and applies the scope check.
   (every planned destroy whitelisted, the planfile fresh, every detach
   unmounted; exit 3) and `apply-check` (the flag still on now; exit 3);
   their code is in this package
-  ([`commands/gate.py`](src/cs_image_system/base/commands/gate.py),
+  ([`commands/gate.py`](../engine/src/cs_image_system/engine/commands/gate.py),
   `apply_flag_allows`), their behaviour in
   [system's README](../system/README.md), and the sequence they sit in
   (`rm -f tfplan`, `init`, `prune-attachments`, `plan`, `gate-plan`,

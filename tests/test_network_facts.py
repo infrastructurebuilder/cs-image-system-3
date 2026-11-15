@@ -55,7 +55,7 @@ def _forbid_discovery(monkeypatch) -> list[str]:
 
 
 def _errors(ctx) -> list[str]:
-    from cs_image_system.base.commands.run_lifecycles import validate_only
+    from cs_image_system.engine.commands.run_lifecycles import validate_only
     return validate_only(ctx)
 
 
@@ -150,7 +150,7 @@ def test_discover_writes_the_record_and_the_next_offline_load_adopts_it(tmp_path
 
 
 def test_validate_online_discovers_then_validates(tmp_path: Path, monkeypatch):
-    from cs_image_system.base.commands.run_lifecycles import validate_only
+    from cs_image_system.engine.commands.run_lifecycles import validate_only
     stub_environment(monkeypatch)
     root = copy_config(tmp_path)
     (root / FACTS).unlink()

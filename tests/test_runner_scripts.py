@@ -82,7 +82,7 @@ def test_the_starter_justfile_puts_a_csis_path_first_on_path(rendered_starters: 
 
 
 def test_config_drift_ignores_the_lines_only_an_applying_run_emits(tmp_path):
-    from cs_image_system.base.commands.emission import diff_trees, normalise_emission
+    from cs_image_system.engine.commands.emission import diff_trees, normalise_emission
     resting = tmp_path / "resting"; applying = tmp_path / "applying"; other = tmp_path / "other"
     common = ['( cd "open-tofu/instance-generation" && rm -f tfplan )',
               '( cd "open-tofu/instance-generation" && /usr/local/bin/tofu plan -input=false -out=tfplan )',

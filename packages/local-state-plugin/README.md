@@ -125,7 +125,7 @@ saying where each piece comes from.
   `cs-image-system-local-state-plugin` as a workspace member, so
   `just init` installs it beside the others. The core finds it by the
   entry point above: at every CLI start
-  [loader.py](../base/src/cs_image_system/base/loader.py) enumerates the
+  [loader.py](../engine/src/cs_image_system/engine/loader.py) enumerates the
   `cs_image_system.plugins.state` group and registers every service each
   plugin returns. In an environment without this package no model is
   registered under the type `local`, and a configuration whose entry says
@@ -167,7 +167,7 @@ saying where each piece comes from.
 - **The state stays on the machine.** A local state file never travels
   with the configuration repository: the live tree's `.gitignore` ignores
   `*.tfstate`, the run's `--commit` stages only `meta-state/` and
-  `generated/` ([meta_state.py](../base/src/cs_image_system/base/meta_state.py),
+  `generated/` ([meta_state.py](../engine/src/cs_image_system/engine/meta_state.py),
   `commit_meta_state`), and the public-safe rules refuse a `*.tfstate` at
   any depth under those trees. So a fresh clone, a second machine and CI
   hold NO state for a root bound to this type -- which is why the live
@@ -176,7 +176,7 @@ saying where each piece comes from.
 - **The private mirror.** A real run materialises a root
   into `_private/<lifecycle>/<workspace>/<phase>/` and runs tofu there.
   `mirror_path` in
-  [materialize.py](../base/src/cs_image_system/base/materialize.py) puts
+  [materialize.py](../engine/src/cs_image_system/engine/materialize.py) puts
   `_private/` exactly where `generated/` stands, at the same depth, so
   `../../../../<directory>/<workspace>.tfstate` counts up to the same
   configuration root from either tree and one state file serves both. No
@@ -328,7 +328,7 @@ for the chain and the collision rule in full.
   same settings again are a no-op.
 - **At `validate`, and at the head of every `run`
   (`check_state_locations` in
-  [validate.py](../base/src/cs_image_system/base/commands/validate.py)).**
+  [validate.py](../engine/src/cs_image_system/engine/commands/validate.py)).**
   From the declarations alone, with nothing generated: every terraform
   root's backend is resolved through the chain (by name or by alias)
   and must be declared;
@@ -392,7 +392,7 @@ failure's symptom, its meaning and what to do.
   deeper mirror it names a directory that does not exist (or, worse, a
   different `state/` under `_private/`) and a real run plans against an
   empty state. `mirror_path` in
-  [materialize.py](../base/src/cs_image_system/base/materialize.py)
+  [materialize.py](../engine/src/cs_image_system/engine/materialize.py)
   replaces the generation directory's name with `_private` instead of
   nesting under it, so both trees stand at the same depth, and its
   docstring names this type. Compare the depth of the two directories.

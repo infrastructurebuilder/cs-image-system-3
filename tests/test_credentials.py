@@ -13,9 +13,9 @@ from __future__ import annotations
 
 import pytest
 
-from cs_image_system.base.loader import installed_registry
 from cs_image_system.base.models.credentials import CredentialsBase
-from cs_image_system.base.orchestrator import PydanticConverter
+from cs_image_system.engine.loader import installed_registry
+from cs_image_system.engine.orchestrator import PydanticConverter
 
 
 def _aws_model():

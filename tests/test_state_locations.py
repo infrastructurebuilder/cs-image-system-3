@@ -200,7 +200,7 @@ def migration(tmp_path):
     last initialised against and answers `state pull` from a canned state per
     backend file, and a meta-state recording the workspace's previous
     location."""
-    from cs_image_system.base.meta_state import MetaState
+    from cs_image_system.engine.meta_state import MetaState
     root = tmp_path / "ws" / "storage-generation"
     root.mkdir(parents=True)
     tofu = tmp_path / "tofu"
@@ -230,7 +230,7 @@ def _old_state(migration, serial: int = 7, lineage: str = "L1") -> None:
 
 
 def test_begin_backs_the_old_state_up_and_finish_records_the_move(migration):
-    from cs_image_system.base.commands.state_migration import begin, finish
+    from cs_image_system.engine.commands.state_migration import begin, finish
     _old_state(migration)
     assert begin(migration.ctx, "ws", migration.tofu, Path("ws.tfbackend.hcl"), "r1", migration.root, new_location=NEW) == 0
     previous = (migration.root / "ws.tfbackend.previous.hcl").read_text()
@@ -253,7 +253,7 @@ def test_begin_backs_the_old_state_up_and_finish_records_the_move(migration):
 
 
 def test_begin_refuses_a_new_location_that_holds_someone_elses_state(migration, caplog):
-    from cs_image_system.base.commands.state_migration import begin
+    from cs_image_system.engine.commands.state_migration import begin
     _old_state(migration)
     (migration.root / "state-for-ws.tfbackend.hcl.json").write_text(json.dumps({"serial": 1, "lineage": "OTHER"}))
     with caplog.at_level(logging.ERROR):
@@ -263,7 +263,7 @@ def test_begin_refuses_a_new_location_that_holds_someone_elses_state(migration, 
 
 
 def test_begin_recognises_a_move_that_already_happened(migration):
-    from cs_image_system.base.commands.state_migration import begin, finish
+    from cs_image_system.engine.commands.state_migration import begin, finish
     _old_state(migration, serial=9, lineage="L1")
     (migration.root / "state-for-ws.tfbackend.hcl.json").write_text(json.dumps({"serial": 10, "lineage": "L1"}))
     assert begin(migration.ctx, "ws", migration.tofu, Path("ws.tfbackend.hcl"), "r2", migration.root, new_location=NEW) == 0
@@ -275,7 +275,7 @@ def test_begin_recognises_a_move_that_already_happened(migration):
 
 
 def test_begin_needs_a_record_and_the_backend_file(migration):
-    from cs_image_system.base.commands.state_migration import begin, finish
+    from cs_image_system.engine.commands.state_migration import begin, finish
     assert begin(migration.ctx, "ws", migration.tofu, None, "r1", migration.root) == 2
     assert begin(migration.ctx, "never-generated", migration.tofu, Path("ws.tfbackend.hcl"), "r1", migration.root, new_location=NEW) == 2
     assert finish(migration.ctx, "ws", "r1", migration.root) == 2                              # begin did not run

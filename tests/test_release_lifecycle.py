@@ -51,7 +51,7 @@ def _bake(v2, lifecycle, block_dir, amis):
 
 
 def test_release_requires_evidence_and_records(v2):
-    from cs_image_system.base.release import ReleaseError, release, released_builds
+    from cs_image_system.engine.release import ReleaseError, release, released_builds
     assert v2.run(["base-image", "instance-image"], apply=False).ok
     with pytest.raises(ReleaseError, match="not recorded in lineage"):
         release(v2.ctx, "imgfile-basic-dask", "ami-0nope")
@@ -80,8 +80,8 @@ def test_release_requires_evidence_and_records(v2):
 
 
 def test_release_lifecycle_is_registered_and_gated(v2):
-    from cs_image_system.base.commands.run_lifecycles import load_hook_plugins
     from cs_image_system.base.lifecycles import all_lifecycles
+    from cs_image_system.engine.commands.run_lifecycles import load_hook_plugins
     load_hook_plugins()          # as the CLI does before names resolve; alone, this test ran first
     names = [lc.value for lc in all_lifecycles()]
     assert names == ["identity", "storage", "base-image", "instance-image", "release", "retention"]
@@ -95,7 +95,7 @@ def test_release_lifecycle_is_registered_and_gated(v2):
 
 
 def test_release_lifecycle_defers_artifact_marking_only_when_enabled(v2):
-    from cs_image_system.base.release import release
+    from cs_image_system.engine.release import release
     assert v2.run(["instance-image"], apply=False).ok
     _bake(v2, "instance-image", INST_BUILD.parent, {"imgfile-basic-dask": "ami-0dask0001"})
     _passed_post_bake(v2.ctx.meta_state, "ami-0dask0001")   # dask declares post-bake tests
@@ -113,7 +113,7 @@ def test_release_lifecycle_defers_artifact_marking_only_when_enabled(v2):
 
 
 def test_require_released_builds_gates_instance_pins(v2):
-    from cs_image_system.base.release import release
+    from cs_image_system.engine.release import release
     assert v2.run(["instance-image"], apply=False).ok
     _bake(v2, "instance-image", INST_BUILD.parent, {"imgfile-basic-dask": "ami-0dask0001"})
     _passed_post_bake(v2.ctx.meta_state, "ami-0dask0001")   # dask declares post-bake tests

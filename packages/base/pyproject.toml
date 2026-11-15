@@ -5,7 +5,7 @@
 [project]
 name = "cs-image-system-base"
 version = "0.1.9"
-description = "The core library of cs-image-system: the configuration models, the plugin contract, the lifecycle runner, meta-state and the rules"
+description = "The kit of cs-image-system: the base classes, the models, the registry and the run context a plugin is written against"
 readme = "README.md"
 authors = [{ name = "Mykel Alvis", email = "mykelalvis@infrastructurebuilder.org" }]
 license = "Apache-2.0"
@@ -13,7 +13,6 @@ license-files = ["LICENSE"]
 requires-python = ">=3.13"
 dependencies = [
     "cs-image-system-contract>=0.4,<0.5",
-    "Jinja2>=3.1",
     "PyYAML>=6.0",
     "age>=0.5",
     "packaging>=26.2",
@@ -35,7 +34,7 @@ packages = ["src/cs_image_system"]
 exclude = ["*.code-workspace"]
 
 [project.entry-points."cs_image_system.plugins.base"]
-base_plugin = "cs_image_system.base.init:initialize"
+base_plugin = "cs_image_system.engine.init:initialize"
 
 # the terraform modules this package ships, as package data (the group is the
 # contract's MODULES_ENTRY_POINT_GROUP; the value is <package>:<dirname>)

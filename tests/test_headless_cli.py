@@ -131,8 +131,8 @@ def test_export_gids_stdout_is_pure_json(monkeypatch):
 def test_finalization_never_waits_on_a_terminal(monkeypatch):
     import time
 
-    from cs_image_system.base.commands.finalization import predefined_finalization
     from cs_image_system.contract.lifecycle import ExecutionLifecyclePhase
+    from cs_image_system.engine.commands.finalization import predefined_finalization
 
     def _no_sleep(*a, **k):
         raise AssertionError("finalization must not sleep")
@@ -174,7 +174,7 @@ def _edit(path: Path, fn) -> None:
 
 
 def test_a_session_with_exactly_no_time_left_is_expired():
-    from cs_image_system.base.commands.preflight import _expired
+    from cs_image_system.engine.commands.preflight import _expired
     assert _expired(0.0) and _expired(-3) and not _expired(None) and not _expired(0.5)
 
 

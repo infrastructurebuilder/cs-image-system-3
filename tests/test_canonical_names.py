@@ -19,10 +19,10 @@ from typing import Any
 import pytest
 
 from cs_image_system.base import launch_params as lp
-from cs_image_system.base import provider_aliases as pa
-from cs_image_system.base import state_query as sq
-from cs_image_system.base.commands.validate import check_canonical_hostnames
 from cs_image_system.contract.lifecycles import Lifecycle
+from cs_image_system.engine import provider_aliases as pa
+from cs_image_system.engine import state_query as sq
+from cs_image_system.engine.commands.validate import check_canonical_hostnames
 from tests.harness import V2Run
 
 
@@ -101,7 +101,7 @@ def test_the_pad_is_a_minimum_width(world):
     hit a full temp volume) for a fact one write states."""
     ctx = world.ctx
     ms = ctx.meta_state
-    from cs_image_system.base.meta_state import INSTANCE_STATE
+    from cs_image_system.engine.meta_state import INSTANCE_STATE
     data = ms.read(INSTANCE_STATE)
     data.setdefault("instances", {})["test"] = {"generation": {"durable": 1000, "ephemeral": 0},
                                                 "current": None, "history": []}

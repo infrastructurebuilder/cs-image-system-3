@@ -150,7 +150,7 @@ the deferred runner does, the sequence is:
    materialize .` in the workspace directory, which copies the root to
    `_private/<the same relative path>` under the configuration root with
    every marker replaced by its plaintext (`mirror_path` in
-   [`materialize.py`](../base/src/cs_image_system/base/materialize.py):
+   [`materialize.py`](../engine/src/cs_image_system/engine/materialize.py):
    `_private/` stands where `generated/` stands, at the same depth, so
    relative module sources and `local` state paths keep resolving);
 2. `_runner_init_args(phase)` **in the mirror** (providers are not
@@ -571,9 +571,9 @@ Integration points the rest of the system relies on:
 
 | Reader | What it takes | Where it lands |
 | --- | --- | --- |
-| the core's runner (`run_lifecycles` in [`run_lifecycles.py`](../base/src/cs_image_system/base/commands/run_lifecycles.py)), through the hook set | `lifecycle_state_bindings(ctx)` | the `# state: workspace <ws> -> <location>` header lines of each runner script and the run summary |
+| the core's runner (`run_lifecycles` in [`run_lifecycles.py`](../engine/src/cs_image_system/engine/commands/run_lifecycles.py)), through the hook set | `lifecycle_state_bindings(ctx)` | the `# state: workspace <ws> -> <location>` header lines of each runner script and the run summary |
 | the same, after a lifecycle generates | `record_state_locations(ctx, lifecycle)` | `meta-state/state-locations.yaml` |
-| `validate` in [`validate.py`](../base/src/cs_image_system/base/commands/validate.py), through the hook set | `state_location_problems(ctx)` | validation errors naming the workspace, the backend and the shared object or the unsafe move |
+| `validate` in [`validate.py`](../engine/src/cs_image_system/engine/commands/validate.py), through the hook set | `state_location_problems(ctx)` | validation errors naming the workspace, the backend and the shared object or the unsafe move |
 | the three root plugins and the identity roots | the two bases, the mixin and `TofuVersionChecker` | every terraform root the system emits |
 
 ## Configuration reference
@@ -696,8 +696,8 @@ runs as a validator). The verdicts are validation errors (`validate` exit
 1; `run` exit 1 before generation).
 
 **At execution (the commands this package emits; the checks live in
-[`gate.py`](../base/src/cs_image_system/base/commands/gate.py),
-[`state_migration.py`](../base/src/cs_image_system/base/commands/state_migration.py)
+[`gate.py`](../engine/src/cs_image_system/engine/commands/gate.py),
+[`state_migration.py`](../engine/src/cs_image_system/engine/commands/state_migration.py)
 and the [system CLI](../system/src/cs_image_system/system/cli.py)).**
 
 | Step | Checks | Verdict |

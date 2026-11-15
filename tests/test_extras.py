@@ -30,10 +30,10 @@ from harness import REPO, copy_config, stub_environment
 from typer.testing import CliRunner
 
 from cs_image_system import extras
-from cs_image_system.base import loader
-from cs_image_system.base.loader import installed_registry
 from cs_image_system.base.registry import UnknownTypeError
 from cs_image_system.contract.constants import VCT
+from cs_image_system.engine import loader
+from cs_image_system.engine.loader import installed_registry
 
 SKELETON_JUSTFILE = REPO / "docs/examples/_skeleton/Justfile"
 GCLOUD_DISTRIBUTIONS = {"cs-image-system-gcloud-runtime-plugin", "cs-image-system-tf-gcp-plugin",

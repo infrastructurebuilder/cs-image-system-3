@@ -99,12 +99,12 @@ does not exist either. The core and every built-in plugin import the
 contract directly ([the stage index](../../docs/CHANGES.md#s125) records the
 commitment; the `s30-*` tags bracket the move of the bodies, as history).
 The vocabulary modules are the exception by design: the
-core keeps the paths a reader of the engine knows (`base.lineage` for the
-tag words, `base.launch_params` for the enrollment variable,
-`base.power_state`, `base.encryption`, `base.bootstrap.questions`,
-`base.posix_ids`), each importing the words from here, so an engine module
-reaches its vocabulary without naming the contract; a plugin imports the
-contract module.
+core keeps the paths a reader of the core knows (in the kit,
+`base.lineage` for the tag words, `base.launch_params` for the
+enrollment variable, `base.power_state`, `base.encryption`; in the
+engine, `engine.bootstrap.questions`, `engine.posix_ids`), each
+importing the words from here, so a core module reaches its vocabulary
+without naming the contract; a plugin imports the contract module.
 
 The protocols carry no implementation. Where a default body existed
 (`global_id`, `get_classification`, `get_self_injected_name`, the parent
@@ -123,7 +123,7 @@ which can only shrink and is empty today.
 ### Version
 
 The contract carries a semantic version of its own, independent of the
-workspace's: `0.4.1` now, and 0.x until the operator decides otherwise
+workspace's: `0.4.2` now, and 0.x until the operator decides otherwise
 (the decision of 2026-11-05). What a bump means: a PATCH is a change no
 plugin can observe (a docstring, a test helper); a MINOR, while the
 version is 0.x, is a change a plugin can observe, so a protocol member
@@ -154,6 +154,7 @@ The versions so far:
 | `0.2.0` | `PluginMetadata` and `PluginMetadataProtocol` gain `namespace` (optional, `None` by default), the override of the namespace the loader derives from the plugin's distribution. A member added is something a plugin can observe, so while the contract is 0.x it is a MINOR step, and every dependent's range moved from `>=0.1,<0.2` ([the stage index](../../docs/CHANGES.md#s131)). |
 | `0.3.0` | A module added: `modules`, holding `MODULES_ENTRY_POINT_GROUP` (`cs_image_system.modules`), the entry-point group a plugin declares its terraform modules directory in, with the value `<package>:<dirname>`; the modules themselves are package data inside the plugin that owns them. A module added is something a plugin can observe, so while the contract is 0.x it is a MINOR step, and every dependent's range moved from `>=0.2,<0.3` ([the stage index](../../docs/CHANGES.md#s126)). |
 | `0.4.0` | Two members removed from `LaunchServiceProtocol`: `hostname_problems` and `register_enrollment_kind`, both pure contract functions a plugin reaches without a run (`launch_vocabulary.hostname_problems`, `enrollment.register_enrollment_kind`) and none reached through the service; the core's adapter loses them too. A member removed is something a plugin can observe, so while the contract is 0.x it is a MINOR step, and every dependent's range moved from `>=0.3,<0.4` ([the stage index](../../docs/CHANGES.md#s130)). |
+| `0.4.2` | Documents and the package's own import-direction test name the engine (`cs_image_system.engine`), the core's second package beside the kit; nothing a plugin can observe changed, so it is a PATCH ([the stage index](../../docs/CHANGES.md#s113)). |
 
 ## Writing a plugin
 
@@ -351,8 +352,9 @@ under a dry run and a real one, on every runtime.
   `just test`; a plugin's own tests should run it over theirs. The verdict
   is an `AssertionError` naming every shortfall.
 - The import direction, in the same test: the package's sources import
-  nothing from `cs_image_system.base`, `.system` or `.hashicorp_utils`,
-  and each kind module imports only `core` and the kinds it declares.
+  nothing from `cs_image_system.base`, `.engine`, `.system` or
+  `.hashicorp_utils`, and each kind module imports only `core` and the
+  kinds it declares.
   [tests/test_package_metadata.py](../../tests/test_package_metadata.py)
   holds the same line from the manifest: the package declares exactly the
   third-party distributions it imports and reaches no sibling.

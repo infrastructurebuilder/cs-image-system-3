@@ -1,0 +1,35 @@
+# SPDX-FileCopyrightText: 2026 Mykel Alvis <mykelalvis@infrastructurebuilder.org>
+#
+# SPDX-License-Identifier: Apache-2.0
+
+[project]
+name = "cs-image-system-engine"
+version = "0.1.9"
+description = "The engine of cs-image-system: the loader, the configuration reader, the resolver, the lifecycle runner, the commands, meta-state and the bootstrap"
+readme = "README.md"
+authors = [{ name = "Mykel Alvis", email = "mykelalvis@infrastructurebuilder.org" }]
+license = "Apache-2.0"
+license-files = ["LICENSE"]
+requires-python = ">=3.13"
+dependencies = [
+    "cs-image-system-contract>=0.4,<0.5",
+    "cs-image-system-base==0.1.9",
+    "Jinja2>=3.1",
+    "PyYAML>=6.0",
+    "packaging>=26.2",
+    "pydantic>=2.13",
+    "typer>=0.26",
+]
+
+[project.urls]
+Repository = "https://github.com/infrastructurebuilder/cs-image-system-3"
+Documentation = "https://github.com/infrastructurebuilder/cs-image-system-3/blob/develop/docs/OPERATIONS.md"
+"Package README" = "https://github.com/infrastructurebuilder/cs-image-system-3/blob/develop/packages/engine/README.md"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/cs_image_system"]
+exclude = ["*.code-workspace"]

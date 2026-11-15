@@ -178,7 +178,7 @@ def test_the_runner_carries_the_prune_step_between_init_and_plan_and_previews_wi
 def test_the_backup_keeps_the_pulled_state_under_the_private_root_and_refuses_everything_else(tmp_path: Path):
     from types import SimpleNamespace
 
-    from cs_image_system.base.commands.state_migration import backup
+    from cs_image_system.engine.commands.state_migration import backup
     root = tmp_path / "config"
     mirror = root / "_private" / "identity" / "oktagroups" / "group-generation"
     mirror.mkdir(parents=True)

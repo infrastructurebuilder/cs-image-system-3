@@ -26,7 +26,7 @@ from pathlib import Path
 import pytest
 from typer.testing import CliRunner
 
-from cs_image_system.base.modules import STAMP_FILE, Stamp, content_hash, installed_modules
+from cs_image_system.engine.modules import STAMP_FILE, Stamp, content_hash, installed_modules
 from cs_image_system.system import starters
 from cs_image_system.system.cli import app
 

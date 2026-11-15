@@ -36,7 +36,7 @@ from __future__ import annotations
 
 #: extra -> the namespaces of the plugins it installs (a namespace is the
 #: distribution's name with ``cs-image-system-`` and ``-plugin`` dropped,
-#: ``cs_image_system.base.loader.namespace_of_distribution``).
+#: ``cs_image_system.engine.loader.namespace_of_distribution``).
 EXTRAS: dict[str, tuple[str, ...]] = {
     "aws": ("aws-runtime", "tf-ebs-instance", "tf-s3-state"),
     "gcloud": ("gcloud-runtime", "tf-gcp", "gcs-state"),

@@ -23,8 +23,8 @@ class StubError(RuntimeError):
 
 
 def _stub_classes():
-    from cs_image_system.base.commands import preflight
     from cs_image_system.contract.session import LoadFailureReport, SessionStatus
+    from cs_image_system.engine.commands import preflight
     expiry = preflight.soon(12)                 # ONE instant: two entries on one ticket are one session
 
     class StubModel:
@@ -58,8 +58,8 @@ def _stub_classes():
 
 def test_preflight_prints_the_session_a_stub_runtime_class_answers(tmp_path):
     from cs_image_system.base import registry
-    from cs_image_system.base.commands import load_failures, preflight
     from cs_image_system.contract.constants import VCT
+    from cs_image_system.engine.commands import load_failures, preflight
     StubModel, StubRuntime = _stub_classes()
     reg = cast(Any, registry.Registry())                            # a registry of the test's own: no plugin behind the stub
     reg.models[registry.RegistrationKey(VCT.RUNTIME_BUILDER, "test", "stub")] = StubRuntime
@@ -101,7 +101,7 @@ def test_preflight_prints_the_session_a_stub_runtime_class_answers(tmp_path):
 
 
 def test_the_core_preflight_and_classifier_name_no_provider():
-    from cs_image_system.base.commands import load_failures, preflight
+    from cs_image_system.engine.commands import load_failures, preflight
     for module in (preflight, load_failures):
         text = Path(str(module.__file__)).read_text()
         hits = [ln for ln in text.splitlines() if PROVIDER_WORDS.search(ln)]

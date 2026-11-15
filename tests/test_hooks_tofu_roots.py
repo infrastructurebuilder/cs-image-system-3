@@ -28,7 +28,7 @@ def no_hook_plugins(monkeypatch):
     """The entry-point group empty: no hook plugin at all is installed."""
     import importlib.metadata as md
 
-    from cs_image_system.base.commands import run_lifecycles as rl
+    from cs_image_system.engine.commands import run_lifecycles as rl
     real = md.entry_points
     monkeypatch.setattr(md, "entry_points",
                         lambda **kw: [] if kw.get("group") == rl.HOOK_ENTRY_POINT_GROUP else real(**kw))
@@ -44,7 +44,7 @@ def no_hook_plugins(monkeypatch):
 
 
 def test_the_plugin_installs_the_three_hooks():
-    from cs_image_system.base.commands import run_lifecycles as rl
+    from cs_image_system.engine.commands import run_lifecycles as rl
     from cs_image_system.tofu_roots import hooks as tofu_hooks
     assert rl.load_hook_plugins(force=True) >= 2          # the dummy plugin and this one
     assert tofu_hooks.validate_state_locations in rl._VALIDATORS
@@ -60,7 +60,7 @@ def test_without_the_plugin_validate_skips_the_state_location_check(tmp_path, mo
     _rebind_storage(root, "nowhere")                      # an undeclared backend
     stub_environment(monkeypatch)
     ctx = load_context(root)
-    from cs_image_system.base.commands.run_lifecycles import validate_only
+    from cs_image_system.engine.commands.run_lifecycles import validate_only
     from cs_image_system.tofu_roots.hooks import state_location_problems
     assert any("not declared" in str(e) for e in state_location_problems(ctx))
     assert not any("not declared" in e for e in validate_only(ctx))
@@ -71,7 +71,7 @@ def test_with_the_plugin_validate_refuses_an_undeclared_backend(tmp_path, monkey
     _rebind_storage(root, "nowhere")
     stub_environment(monkeypatch)
     ctx = load_context(root)
-    from cs_image_system.base.commands.run_lifecycles import validate_only
+    from cs_image_system.engine.commands.run_lifecycles import validate_only
     errors = validate_only(ctx)
     assert any("'nowhere'" in e and "not declared" in e for e in errors), errors
 

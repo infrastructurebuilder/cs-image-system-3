@@ -5,7 +5,7 @@
 """The local target the modification tests run on: a throwaway container
 on the host's docker daemon.
 
-The core's harness (``cs_image_system.base.mod_tests``) drives an abstract
+The core's harness (``cs_image_system.engine.mod_tests``) drives an abstract
 ``LocalTarget``; this module is the docker runtime's implementation of it,
 handed to the core through ``DockerContainerBuilder.local_test_target()``.
 It owns everything that is docker's: the CLI binary (the tree's ``docker``

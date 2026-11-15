@@ -16,7 +16,7 @@ from __future__ import annotations
 from types import SimpleNamespace
 from typing import TYPE_CHECKING, cast
 
-from cs_image_system.base.commands.validate import check_availability_zones
+from cs_image_system.engine.commands.validate import check_availability_zones
 
 if TYPE_CHECKING:
     from cs_image_system.base.run_context import RunContext

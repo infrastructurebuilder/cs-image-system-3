@@ -20,13 +20,13 @@ from typing import Any
 import pytest
 import yaml
 
-from cs_image_system.base.reserved_names import (
+from cs_image_system.contract.constants import NONE, OOPS_DEFAULTS
+from cs_image_system.engine.reserved_names import (
     ReservedNameError,
     is_reserved,
     refuse_reserved_names,
     reserved_name_problems,
 )
-from cs_image_system.contract.constants import NONE, OOPS_DEFAULTS
 from tests.harness import FIXTURE_CONFIG, copy_config, load_context, stub_environment
 
 
@@ -154,7 +154,7 @@ def test_every_word_is_refused_as_a_name_and_as_an_alias_through_a_load(word, tm
 
 
 def test_an_overlay_naming_an_item_none_is_refused(tmp_path, monkeypatch):
-    from cs_image_system.base.config_loader import load_overlay
+    from cs_image_system.engine.config_loader import load_overlay
     overlay = tmp_path / "overlay.yaml"
     overlay.write_text(yaml.safe_dump({"instances": [{"name": "none", "image": "x"}]}))
     with pytest.raises(ReservedNameError, match=r"instances\[0\]\.name: a name may not be 'none'"):
@@ -214,7 +214,7 @@ def _validation_errors(root: Path, monkeypatch) -> list[str]:
     """Every validation error, the registered validators' included: the
     state-location check is a hook plugin's, so `validate_only` (which
     loads the hook plugins) is the whole of what `validate` says."""
-    from cs_image_system.base.commands.run_lifecycles import validate_only
+    from cs_image_system.engine.commands.run_lifecycles import validate_only
     stub_environment(monkeypatch)
     return [str(e) for e in validate_only(load_context(root))]
 
@@ -277,8 +277,8 @@ def test_only_none_is_an_explicitly_empty_bake_surface(tmp_path, monkeypatch):
 # ------------------- step 6: the `config:` key guard, switched on as written
 
 def test_every_word_of_the_guard_is_refused_as_a_document_config_key():
-    from cs_image_system.base.reserved_names import invalid_config_key_problems
     from cs_image_system.contract.constants import INVALID_CONFIG_KEYS
+    from cs_image_system.engine.reserved_names import invalid_config_key_problems
     for word in INVALID_CONFIG_KEYS:
         for key in {word, word.upper(), f" {word} "}:
             problems = invalid_config_key_problems({"config": {key: 1, "ordinary": 2}}, "cfg/_config.yml")
@@ -290,7 +290,7 @@ def test_every_word_of_the_guard_is_refused_as_a_document_config_key():
 
 
 def test_a_config_key_from_the_guard_is_refused_where_its_file_is_read(tmp_path, monkeypatch):
-    from cs_image_system.base.reserved_names import InvalidConfigKeyError
+    from cs_image_system.engine.reserved_names import InvalidConfigKeyError
     root = copy_config(tmp_path)
     _edit_yaml(root / "cfg" / "_config.yml", lambda d: d["config"].__setitem__("runtime", "x"))
     stub_environment(monkeypatch)
@@ -299,8 +299,8 @@ def test_a_config_key_from_the_guard_is_refused_where_its_file_is_read(tmp_path,
 
 
 def test_an_overlay_config_key_from_the_guard_is_refused(tmp_path):
-    from cs_image_system.base.config_loader import load_overlay
-    from cs_image_system.base.reserved_names import InvalidConfigKeyError
+    from cs_image_system.engine.config_loader import load_overlay
+    from cs_image_system.engine.reserved_names import InvalidConfigKeyError
     overlay = tmp_path / "overlay.yaml"
     overlay.write_text(yaml.safe_dump({"config": {"self": 1}}))
     with pytest.raises(InvalidConfigKeyError, match=r"config\.self"):
@@ -308,7 +308,7 @@ def test_an_overlay_config_key_from_the_guard_is_refused(tmp_path):
 
 
 def test_no_tree_the_system_ships_or_tests_uses_a_guarded_config_key():
-    from cs_image_system.base.reserved_names import invalid_config_key_problems
+    from cs_image_system.engine.reserved_names import invalid_config_key_problems
     roots = [FIXTURE_CONFIG, *sorted((FIXTURE_CONFIG.parents[2] / "docs" / "examples").iterdir())]
     for root in roots:
         for f in sorted((root / "cfg").glob("*.y*ml")):

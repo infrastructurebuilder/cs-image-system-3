@@ -22,8 +22,7 @@ from typing import TYPE_CHECKING
 from cs_image_system.contract.constants import DEFAULT, OOPS_DEFAULTS, SELF, VCT
 
 from ..image_names import default_output_image_name
-from ..orchestrator import ModelBinding
-from .builder_model import NameTyped
+from .builder_model import ModelBinding, NameTyped
 from .image_builder_model import ImageBuilderModel
 from .mixins import ParentPropertyHolding, SelfInjectedName
 from .references import REFERENCE_TARGET

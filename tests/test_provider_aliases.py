@@ -21,9 +21,9 @@ from typing import Any
 import pytest
 
 from cs_image_system.base import power_state as ps
-from cs_image_system.base import provider_aliases as pa
-from cs_image_system.base import state_query as sq
 from cs_image_system.contract.lifecycles import Lifecycle
+from cs_image_system.engine import provider_aliases as pa
+from cs_image_system.engine import state_query as sq
 from tests.harness import V2Run
 
 EC2 = {"instance_id": "i-0169f82844f4cc08d",

@@ -82,7 +82,7 @@ def prepared(tmp_path: Path, monkeypatch):
 
 
 def test_retention_keeps_the_newest_n_and_reports_debt(prepared):
-    from cs_image_system.base.commands.dispose import retention_plan
+    from cs_image_system.engine.commands.dispose import retention_plan
     root, make = prepared
     _seed_builds(root, BUILDS)
     _set_image(root, "imgfile-basic-dask", retention={"keep": 1})
@@ -100,7 +100,7 @@ def test_retention_keeps_the_newest_n_and_reports_debt(prepared):
 
 
 def test_an_ephemeral_runtime_keeps_nothing_and_the_other_runtime_is_untouched(prepared):
-    from cs_image_system.base.commands.dispose import retention_plan
+    from cs_image_system.engine.commands.dispose import retention_plan
     root, make = prepared
     _seed_builds(root, BUILDS)
     _set_runtime(root, GCE, ephemeral=True)
@@ -140,7 +140,7 @@ def test_no_retention_declared_means_no_closing_script(prepared):
 
 
 def test_retention_disposal_deletes_only_the_disposable_builds(prepared, monkeypatch):
-    from cs_image_system.base.commands.dispose import dispose_images
+    from cs_image_system.engine.commands.dispose import dispose_images
     from cs_image_system.gcloud_runtime.gcp_runtime_builders import GCPCloudBuilder
     deleted: list[str] = []
     monkeypatch.setattr(GCPCloudBuilder, "dispose_image", lambda self, b: deleted.append(b) or True)

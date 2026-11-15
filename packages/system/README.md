@@ -2,13 +2,15 @@
 
 The command-line host of cs-image-system. It installs one console script,
 `cs-image-system`, that loads the plugins, reads a configuration tree and
-drives the lifecycle runner, the state tools and the value tools of
-`cs-image-system-base`. The package holds no builder logic of its own:
-every command delegates to the base library or to a plugin.
+drives the lifecycle runner and the state tools of
+`cs-image-system-engine` and the value tools of `cs-image-system-base`
+(the kit). The package holds no builder logic of its own: every command
+delegates to the engine, the kit or a plugin.
 
 Licensed under Apache-2.0. Requires Python 3.13 or later. Declared
 dependencies ([`pyproject.toml`](pyproject.toml)): `cs-image-system-base`
-(pinned to the same version), `typer`, `rich`, `PyYAML` and `packaging`
+and `cs-image-system-engine` (both pinned to the same version), `typer`,
+`rich`, `PyYAML` and `packaging`
 (`init-config` compares release versions with it). The entry point is
 `cs_image_system.system.cli:app` (a Typer application); `python -m
 cs_image_system.system` runs the same application through a wrapper that

@@ -21,9 +21,9 @@ import pytest
 
 from cs_image_system.base import generations as g
 from cs_image_system.base import launch_params as lp
-from cs_image_system.base import state_query as sq
-from cs_image_system.base.meta_state import INSTANCE_STATE
 from cs_image_system.contract.lifecycles import Lifecycle
+from cs_image_system.engine import state_query as sq
+from cs_image_system.engine.meta_state import INSTANCE_STATE
 from tests.harness import V2Run
 
 A = {"instance_id": "i-aaaa0000aaaa0000a", "provider_hostname": "ip-10-0-0-1.us-east-2.compute.internal"}

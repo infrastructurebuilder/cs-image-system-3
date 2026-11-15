@@ -20,8 +20,8 @@ from pathlib import Path
 import pytest
 import yaml
 
-from cs_image_system.base import identity_attributes as ia
 from cs_image_system.contract.lifecycles import Lifecycle
+from cs_image_system.engine import identity_attributes as ia
 from tests.harness import V2Run, copy_config, plain
 
 
@@ -212,7 +212,7 @@ def test_unavailable_provider_is_reported(declared, monkeypatch):
 
 
 def test_hooks_are_registered():
-    from cs_image_system.base.commands import run_lifecycles as rl
+    from cs_image_system.engine.commands import run_lifecycles as rl
     assert ia.validate_identity_items in rl._VALIDATORS
 
 

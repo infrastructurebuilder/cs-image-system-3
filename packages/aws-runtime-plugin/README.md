@@ -40,7 +40,7 @@ other entries refer to it by any of them.
 The version checker is selected differently: `validate` and every run look
 up a checker for each entry of `cfg/executables.yml` under the entry's
 `name` first, then its `type` (see
-[validate.py](../base/src/cs_image_system/base/commands/validate.py)). An
+[validate.py](../engine/src/cs_image_system/engine/commands/validate.py)). An
 executable named `aws-cli` therefore gets this checker, which runs
 `<binary> --version` and reads the version from the regex
 `aws-cli\/([\d\.]+)\s` on the first output line (`aws-cli/2.32.0 Python/...`).
@@ -184,7 +184,7 @@ The keys it adds:
   resolution on this runtime: a root whose own `state_configuration` is
   `default` inherits this one; `default` here falls through to the
   default backend
-  ([orchestrator.py](../base/src/cs_image_system/base/orchestrator.py)).
+  ([orchestrator.py](../engine/src/cs_image_system/engine/orchestrator.py)).
 - `ena_support` and `sriov_support` (`bool | None`): when declared,
   written into the `amazon-ebs` packer source as `ena_support =
   true|false` (the baked AMI's Elastic Network Adapter flag, set
@@ -475,7 +475,7 @@ pins both shapes.
 `verify_instance`, `run_session_command`, `retag_image` and `dispose_image`
 all go through `aws_utils.ec2_client()` / `aws_utils.aws_client("ssm", ...)`,
 which build a client from the same session config. The state query in
-[state_query.py](../base/src/cs_image_system/base/state_query.py) reads
+[state_query.py](../engine/src/cs_image_system/engine/state_query.py) reads
 `query_images` to classify `missing`, `foreign` and `changed` images, and
 asks `query_instance_boot_image` only because `can_query_instance_boot_image()`
 is `True`. When that answers `None` it asks `query_instance_power_state`
@@ -486,12 +486,12 @@ lifecycle; `run_session_command` is how the system runs a script on an
 instance (the unmount before a detach, the post-bake tests, the AltNames
 write). `query_instance_identity` feeds the generation ledger
 and the alias pass in
-[provider_aliases.py](../base/src/cs_image_system/base/provider_aliases.py).
+[provider_aliases.py](../engine/src/cs_image_system/engine/provider_aliases.py).
 
 ### Retention and the cycle
 
 The closing `retention` lifecycle in
-[retention.py](../base/src/cs_image_system/base/retention.py) runs
+[retention.py](../engine/src/cs_image_system/engine/retention.py) runs
 `dispose image --retention` at execution time. For each series on this
 runtime the number of builds kept is, in order: `0` when the runtime is
 `ephemeral`, the image's `retention.keep`, the runtime's `retention_keep`,
@@ -573,7 +573,7 @@ The plugin's output is visible in the golden emission under
   carries the `aws ec2 create-tags` line from `release_commands()` when a
   release is declared. The golden declares none, so it is empty of them.
 - Runtime facts: `cs-image-system runtime describe aws-east2-runtime`
-  ([runtime_facts.py](../base/src/cs_image_system/base/commands/runtime_facts.py))
+  ([runtime_facts.py](../engine/src/cs_image_system/engine/commands/runtime_facts.py))
   reports `runtime`, `type`, `region`, `account_id`, `default_machine_type`,
   `ephemeral`, `retention_keep`, the `images`, `storages`, `instances` and
   `ephemeral_instances` declared on it, the `builders` bound to it and its
@@ -906,7 +906,7 @@ written into the source only when declared, as the declared boolean; there
 is no further check on them. Resolution's `query_provider_image`
 raises when the region is unset or the AMI record carries neither
 `ImageOwnerAlias` nor `OwnerId`, and returns `None` on no match, which
-[resolve.py](../base/src/cs_image_system/base/commands/resolve.py) turns
+[resolve.py](../engine/src/cs_image_system/engine/commands/resolve.py) turns
 into a failed run. For an entry that pins `image_id`,
 `query_provider_image_by_id` returns `None` when AWS does not know the id,
 and resolve.py stops the run naming the id and the runtime.
@@ -1130,6 +1130,6 @@ when the installed version is below it.
 - [tf-ebs-instance-plugin](../tf-ebs-instance-plugin/README.md): the instance and storage roots that read this model's networking, profile and session profile.
 - [dummy-plugin](../dummy-plugin/README.md): the extension template.
 - Base classes: [runtime.py](../base/src/cs_image_system/base/models/runtime.py), [cloud_builder.py](../base/src/cs_image_system/base/models/cloud_builder.py), [credentials.py](../base/src/cs_image_system/base/models/credentials.py), [provider_specific_image.py](../base/src/cs_image_system/base/models/provider_specific_image.py), [builder_base_runtime.py](../base/src/cs_image_system/base/basic/builder_base_runtime.py), [abstract_version_checker.py](../base/src/cs_image_system/base/basic/abstract_version_checker.py).
-- Consumers of the hooks: [state_query.py](../base/src/cs_image_system/base/state_query.py), [retention.py](../base/src/cs_image_system/base/retention.py), [dispose.py](../base/src/cs_image_system/base/commands/dispose.py), [verify_instance.py](../base/src/cs_image_system/base/commands/verify_instance.py), [unmount.py](../base/src/cs_image_system/base/commands/unmount.py), [relabel.py](../base/src/cs_image_system/base/commands/relabel.py), [release.py](../base/src/cs_image_system/base/release.py), [power_state.py](../base/src/cs_image_system/base/power_state.py), [provider_aliases.py](../base/src/cs_image_system/base/provider_aliases.py), [runtime_facts.py](../base/src/cs_image_system/base/commands/runtime_facts.py).
+- Consumers of the hooks: [state_query.py](../engine/src/cs_image_system/engine/state_query.py), [retention.py](../engine/src/cs_image_system/engine/retention.py), [dispose.py](../engine/src/cs_image_system/engine/commands/dispose.py), [verify_instance.py](../base/src/cs_image_system/base/commands/verify_instance.py), [unmount.py](../engine/src/cs_image_system/engine/commands/unmount.py), [relabel.py](../engine/src/cs_image_system/engine/commands/relabel.py), [release.py](../engine/src/cs_image_system/engine/release.py), [power_state.py](../base/src/cs_image_system/base/power_state.py), [provider_aliases.py](../engine/src/cs_image_system/engine/provider_aliases.py), [runtime_facts.py](../engine/src/cs_image_system/engine/commands/runtime_facts.py).
 - [docs/OPERATIONS.md](../../docs/OPERATIONS.md) for the credential contract and the operator's cycles; [docs/DESIGN.md](../../docs/DESIGN.md) for the design; [docs/PLUGINS.md](../../docs/PLUGINS.md) for the package index.
 - [The configuration reference](../../docs/CONFIGURATION.md) -- every field of the YAML this plugin reads, with an example.

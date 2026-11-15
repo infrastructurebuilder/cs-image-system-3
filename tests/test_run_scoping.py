@@ -57,7 +57,7 @@ def fresh(tmp_path: Path, monkeypatch):
 def _cli_scope(run: V2Run, runtime: str) -> list[str]:
     """What `run --apply-runtime <rt>` does before run_lifecycles (the CLI's
     implied filter), as the harness has no CLI."""
-    from cs_image_system.base.commands.runtime_facts import images_on_runtime
+    from cs_image_system.engine.commands.runtime_facts import images_on_runtime
     run.ctx.apply_runtime = runtime
     for key in ("apply_storage", "apply_instances"):
         run.ctx.config[key] = [runtime]
@@ -79,7 +79,7 @@ def test_apply_runtime_implies_the_bake_filter_and_the_plan_says_so(fresh):
 
 
 def test_a_scoped_run_refuses_bakes_outside_its_scope_before_any_bake(fresh):
-    from cs_image_system.base.commands.run_scope import apply_scope_runtimes, unscoped_bakes
+    from cs_image_system.engine.commands.run_scope import apply_scope_runtimes, unscoped_bakes
     run = fresh(dry_run=False)
     run.ctx.config["apply_instances"] = [GCE]                   # the gce-apply overlay's shape, no --only
     assert apply_scope_runtimes(run.ctx) == {GCE}
@@ -109,7 +109,7 @@ def test_the_operator_may_allow_or_select_explicitly_and_a_dry_run_only_warns(fr
 
 
 def test_a_run_with_no_apply_scope_bakes_wherever_the_tree_says(fresh):
-    from cs_image_system.base.commands.run_scope import apply_scope_runtimes
+    from cs_image_system.engine.commands.run_scope import apply_scope_runtimes
     run = fresh(dry_run=False)
     assert apply_scope_runtimes(run.ctx) is None                  # flags off, no --apply-runtime
     run.ctx.config["apply_instances"] = True
@@ -148,7 +148,7 @@ def test_sso_expiry_is_read_from_the_cache_without_touching_the_token(tmp_path):
 
 
 def test_preflight_lines_flag_a_session_shorter_than_the_expected_run(fresh, tmp_path, monkeypatch):
-    from cs_image_system.base.commands.preflight import session_lines
+    from cs_image_system.engine.commands.preflight import session_lines
     run = fresh()
     now = datetime.now(timezone.utc)
     monkeypatch.setenv("CSIS_AWS_DIR", str(_aws_dir(tmp_path, "noaa", "https://x.awsapps.com/start",
@@ -178,7 +178,7 @@ def test_an_expired_session_does_not_stop_the_load_and_the_loaded_tree_reports_i
     over the LOADED configuration -- an expired one included -- and an
     overlay's `preflight.expected_run_minutes` counts because the overlay
     was loaded with the tree."""
-    from cs_image_system.base.commands.preflight import session_readiness
+    from cs_image_system.engine.commands.preflight import session_readiness
     from tests.harness import load_context, stub_environment
     stub_environment(monkeypatch)
     root = copy_config(tmp_path)

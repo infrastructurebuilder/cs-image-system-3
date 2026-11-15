@@ -23,9 +23,9 @@ import pytest
 from harness import FIXTURE_CONFIG, V2Run, tree
 
 from cs_image_system.base.encryption import PUBLIC_BY_DECISION_KEYS, Decrypted, decrypt_marker, encrypt_value
-from cs_image_system.base.materialize import PRIVATE_DIRNAME
-from cs_image_system.base.meta_state import commit_meta_state, never_staged
 from cs_image_system.base.models.user import User
+from cs_image_system.engine.materialize import PRIVATE_DIRNAME
+from cs_image_system.engine.meta_state import commit_meta_state, never_staged
 from cs_image_system.hashicorp_utils.blocks import Raw
 from cs_image_system.hashicorp_utils.collector import TerraformCollector
 

@@ -150,7 +150,7 @@ key before anything runs; a query that names neither `name` nor
 ### The local test target
 
 The core's local modification tests (`cs-image-system test-mods`; the
-harness is [`mod_tests.py`](../base/src/cs_image_system/base/mod_tests.py)
+harness is [`mod_tests.py`](../engine/src/cs_image_system/engine/mod_tests.py)
 in the base package) run every modification of an instance image twice on
 a throwaway container and compare the filesystem diffs. The harness
 itself names no runtime: it asks the registered runtime builder classes

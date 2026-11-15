@@ -23,8 +23,8 @@ from pathlib import Path
 
 import pytest
 
-from cs_image_system.base import state_query as sq
-from cs_image_system.base.read_models import identity_read_model
+from cs_image_system.engine import state_query as sq
+from cs_image_system.engine.read_models import identity_read_model
 from cs_image_system.okta_opa_plugin import okta_opa_tf_group_builder as gbmod
 from cs_image_system.okta_opa_plugin.opa_gids import GID_ATTRIBUTE
 from tests.harness import V2Run

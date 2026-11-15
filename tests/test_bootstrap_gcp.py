@@ -23,8 +23,8 @@ from typing import Protocol, cast
 import pytest
 from harness import module_path, modules_inside
 
-from cs_image_system.base import bootstrap as bs
-from cs_image_system.base.bootstrap.questions import Refused
+from cs_image_system.engine import bootstrap as bs
+from cs_image_system.engine.bootstrap.questions import Refused
 from cs_image_system.gcloud_runtime import bootstrap as gcp
 from tests.starter_support import RENDERED
 from tests.test_bootstrap import EXAMPLES, _assigned, _starter_copy

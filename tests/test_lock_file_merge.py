@@ -40,7 +40,7 @@ provider "registry.opentofu.org/hashicorp/aws" {
 
 
 def test_merging_lock_files_keeps_every_hash_either_init_recorded():
-    from cs_image_system.base.materialize import merge_lock_files
+    from cs_image_system.engine.materialize import merge_lock_files
     merged = merge_lock_files(LOCK_A, LOCK_B)
     assert '"h1:aaa=",' in merged and '"h1:bbb=",' in merged and merged.count('"zh:111=",') == 1
     assert merge_lock_files(merged, LOCK_B) == merged == merge_lock_files(merged, LOCK_A), "a fixed point"
@@ -50,7 +50,7 @@ def test_merging_lock_files_keeps_every_hash_either_init_recorded():
 
 
 def test_sync_back_merges_the_lock_file_and_levels_the_mirror(tmp_path):
-    from cs_image_system.base.materialize import materialize, mirror_path, sync_back
+    from cs_image_system.engine.materialize import materialize, mirror_path, sync_back
     src = tmp_path / "generated" / "ws"
     src.mkdir(parents=True)
     (src / "main.tf").write_text('x = "1"\n')

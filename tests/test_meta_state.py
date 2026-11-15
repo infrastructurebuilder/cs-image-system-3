@@ -144,7 +144,8 @@ def test_meta_state_commit_is_skipped_outside_a_git_repo(tmp_path, monkeypatch):
 
 
 def test_meta_state_refuses_secrets():
-    from cs_image_system.base.meta_state import MetaStateSecretError, assert_public_safe
+    from cs_image_system.engine.meta_state import MetaStateSecretError
+    from cs_image_system.engine.public_safe import assert_public_safe
     with pytest.raises(MetaStateSecretError):
         assert_public_safe({"key": "-----BEGIN " + "OPENSSH PRIVATE KEY-----\nabc"})
     with pytest.raises(MetaStateSecretError):
@@ -153,7 +154,7 @@ def test_meta_state_refuses_secrets():
 
 
 def test_meta_state_write_is_scanned(tmp_path):
-    from cs_image_system.base.meta_state import MetaState, MetaStateSecretError
+    from cs_image_system.engine.meta_state import MetaState, MetaStateSecretError
     ms = MetaState(tmp_path / "meta-state")
     with pytest.raises(MetaStateSecretError):
         ms.write("pins.yaml", {"instances": {"x": "-----BEGIN " + "RSA PRIVATE KEY-----"}})
@@ -179,18 +180,20 @@ def test_all_files_names_every_meta_state_file():
     """``ALL_FILES`` is the complete list: every file name the module
     defines, and the names the other modules keep (releases, the mod tests,
     the alias pool, the runtime facts) are in it."""
-    from cs_image_system.base import alias_pool, meta_state, mod_tests, network_facts, release
-    defined = {value for name, value in vars(meta_state).items()
+    from cs_image_system.base import alias_pool, meta_ledgers, network_facts
+    from cs_image_system.engine import mod_tests, release
+    defined = {value for name, value in vars(meta_ledgers).items()
                if name.isupper() and isinstance(value, str) and value.endswith((".yaml", ".txt"))}
-    assert defined == set(meta_state.ALL_FILES)
-    assert len(meta_state.ALL_FILES) == len(set(meta_state.ALL_FILES))
+    assert defined == set(meta_ledgers.ALL_FILES)
+    assert len(meta_ledgers.ALL_FILES) == len(set(meta_ledgers.ALL_FILES))
     for name in (release.RELEASES_FILE, release.MOD_TESTS_FILE, mod_tests.MOD_TESTS_FILE,
                  alias_pool.POOL_FILE, network_facts.FACTS_FILE):
-        assert name in meta_state.ALL_FILES
+        assert name in meta_ledgers.ALL_FILES
 
 
 def test_every_writer_writes_a_file_all_files_names(tmp_path):
-    from cs_image_system.base.meta_state import ALL_FILES, MetaState
+    from cs_image_system.base.meta_ledgers import ALL_FILES
+    from cs_image_system.engine.meta_state import MetaState
     ms = MetaState(tmp_path / "meta-state")
     ms.write_identity_read_model({"groups": {}})
     ms.write_storage_read_model({"storages": {}})
@@ -216,7 +219,7 @@ def test_meta_state_write_is_atomic(tmp_path, monkeypatch):
     failure leaves the old record standing and no temporary behind."""
     import os
 
-    from cs_image_system.base import meta_state
+    from cs_image_system.engine import meta_state
     ms = meta_state.MetaState(tmp_path / "meta-state")
     target = tmp_path / "meta-state" / "pins.yaml"
     ms.write("pins.yaml", {"instances": {"x": "ami-1"}})

@@ -9,6 +9,11 @@ fall. A change that needs a larger number is a change that has grown the
 tangle (a new lazy import in the core, a new cycle, a new cross-plugin
 import), and it is refused here until the layering is repaired instead.
 Lowering a constant after a clean-up is the expected edit.
+
+Beside the ceilings, the split is held exactly: the kit package
+(``packages/base``) is the plugins' closure and the engine package
+(``packages/engine``) is the rest of the core, and no kit module imports
+the engine.
 """
 from __future__ import annotations
 
@@ -23,16 +28,16 @@ import import_closure  # noqa: E402
 
 REPO = Path(__file__).resolve().parents[1]
 
-# packages/base + packages/system: function-local imports of our own modules
+# packages/base + packages/engine + packages/system: function-local imports of our own modules
 # (the lazy-import web; 143 before the run context was passed, 13 after, 3
 # once the cycle-free ones were hoisted: the three left close a top-level
 # cycle through launch_params and lineage).
 LAZY_EDGES_CORE_MAX = 3
-# the largest strongly connected component of ``base`` over the top-level
+# the largest strongly connected component of the core (kit and engine) over the top-level
 # (runtime) import edges: 1 means no import cycle at all
 SCC_TOP_MAX = 1
 # ... and over every edge, lazy and typing-only ones included
-SCC_ALL_MAX = 27
+SCC_ALL_MAX = 25
 # one plugin importing another, by (importer -> imported) family; a pair
 # absent here may not appear, and a listed count may not grow
 CROSS_PLUGIN_MAX = {
@@ -50,12 +55,12 @@ def numbers() -> dict[str, Any]:
 def test_lazy_edges_in_the_core_only_fall(numbers: dict[str, Any]) -> None:
     assert int(numbers["lazy_edges_core"]) <= LAZY_EDGES_CORE_MAX, (
         f"lazy_edges_core {numbers['lazy_edges_core']} > {LAZY_EDGES_CORE_MAX}: a new function-local import "
-        "of our own module in base/system; make it top-level, a parameter or a hook")
+        "of our own module in base/engine/system; make it top-level, a parameter or a hook")
 
 
 def test_no_top_level_import_cycle(numbers: dict[str, Any]) -> None:
     assert int(numbers["scc_top"]) <= SCC_TOP_MAX, (
-        f"scc_top {numbers['scc_top']} > {SCC_TOP_MAX}: a top-level import cycle in base")
+        f"scc_top {numbers['scc_top']} > {SCC_TOP_MAX}: a top-level import cycle in the core")
 
 
 def test_all_edge_component_only_shrinks(numbers: dict[str, Any]) -> None:
@@ -70,7 +75,27 @@ def test_cross_plugin_edges_only_fall(numbers: dict[str, Any]) -> None:
         assert n <= CROSS_PLUGIN_MAX[pair], f"{pair}: {n} edges > {CROSS_PLUGIN_MAX[pair]}"
 
 
+def test_the_kit_imports_nothing_of_the_engine(numbers: dict[str, Any]) -> None:
+    """contract <- kit <- engine: no module of ``base`` imports a module of
+    ``engine``, by any edge, top-level, lazy or typing."""
+    assert numbers["kit_to_engine"] == [], numbers["kit_to_engine"]
+
+
+def test_the_two_packages_are_the_two_measured_sets(numbers: dict[str, Any]) -> None:
+    """The kit package is what the plugins reach, and nothing more: every
+    module of ``base`` but its ``__init__`` is in the plugins' closure, and
+    no module of ``engine`` is. A kit module no plugin reaches any more
+    belongs to the engine; an engine module a plugin reaches belongs to the
+    kit (or the plugin reaches too far)."""
+    assert numbers["engine_reached"] == [], f"engine modules the plugins reach: {numbers['engine_reached']}"
+    assert numbers["kit_unreached"] == [], f"kit modules no plugin reaches: {numbers['kit_unreached']}"
+    assert numbers["kit_all"] == numbers["kit_modules"] - 1
+    assert numbers["engine_all"] == numbers["engine_modules"] + 1       # the kit's own ``__init__``
+
+
 def test_report_is_fast_and_complete(numbers: dict[str, Any]) -> None:
-    for key in ("base_modules", "base_lines", "lazy_edges_core", "typing_edges_core", "scc_top", "scc_all",
-                "kit_top", "kit_all", "engine_all", "cross_plugin"):
+    for key in ("core_modules", "core_lines", "kit_modules", "kit_lines", "engine_modules", "engine_lines",
+                "lazy_edges_core", "typing_edges_core", "scc_top", "scc_all",
+                "kit_top", "kit_all", "engine_all", "cross_plugin", "kit_unreached", "engine_reached",
+                "kit_to_engine"):
         assert key in numbers

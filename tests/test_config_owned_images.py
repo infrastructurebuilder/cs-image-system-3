@@ -65,7 +65,7 @@ def test_every_generated_packer_source_carries_the_tag(run):
 
 
 def test_another_configurations_image_is_not_foreign_and_an_untagged_one_still_is(run, caplog):
-    from cs_image_system.base import state_query as sq
+    from cs_image_system.engine import state_query as sq
     images = {AWS: [_image("ami-0theirs001", "team-node", "cs-image-system-walk"),
                     _image("ami-0theirs002", "el10", "cs-image-system-walk"),
                     _image("ami-0legacy001", "imgfile-old", None),          # baked before the stage
@@ -79,7 +79,7 @@ def test_another_configurations_image_is_not_foreign_and_an_untagged_one_still_i
 
 
 def test_state_import_never_adopts_another_configurations_image(run):
-    from cs_image_system.base import state_query as sq
+    from cs_image_system.engine import state_query as sq
     report = sq.StateReport(run=run.ctx.run_id, reality={"images": {AWS: [
         _image("ami-0theirs001", "team-node", "cs-image-system-walk"),
         _image("ami-0legacy001", "imgfile-old", None)]}, "storages": {}})
@@ -90,7 +90,7 @@ def test_state_import_never_adopts_another_configurations_image(run):
 
 def test_relabel_adds_the_tag_to_a_recorded_image_that_lacks_it(run, monkeypatch):
     from cs_image_system.aws_runtime.aws_runtime_builders import AwsCloudBuilder
-    from cs_image_system.base.commands.relabel import relabel, relabel_plan
+    from cs_image_system.engine.commands.relabel import relabel, relabel_plan
     run.ctx.meta_state.add_build({"build_id": "ami-0mine00001", "series": "basic-rh-10", "runtime": AWS,
                                   "parent": "vendor", "run": "2026_10_05t00_00_00_000000",
                                   "input_fingerprint": "", "mods": [], "chain": []})
@@ -122,7 +122,7 @@ def _managed(run, seen: bool) -> None:
 def test_a_declared_group_never_seen_in_the_provider_is_a_note_not_drift(run):
     """The live case: a new tree's first dry run recorded its group as
     managed, and every later run refused on `missing group ... [HARD]`."""
-    from cs_image_system.base import state_query as sq
+    from cs_image_system.engine import state_query as sq
     _managed(run, seen=False)
     report = sq.StateReport(run="r")
     assert sq.group_drift(run.ctx, {"walk_team": {"present": False}}, report) == []
@@ -130,7 +130,7 @@ def test_a_declared_group_never_seen_in_the_provider_is_a_note_not_drift(run):
 
 
 def test_once_seen_an_absent_group_is_hard_drift_again(run):
-    from cs_image_system.base import state_query as sq
+    from cs_image_system.engine import state_query as sq
     _managed(run, seen=True)
     report = sq.StateReport(run="r")
     drift = sq.group_drift(run.ctx, {"walk_team": {"present": False}}, report)
@@ -139,8 +139,8 @@ def test_once_seen_an_absent_group_is_hard_drift_again(run):
 
 
 def test_the_read_model_marks_a_group_seen_from_the_state_query_and_keeps_it(run):
-    from cs_image_system.base import state_query as sq
-    from cs_image_system.base.read_models import identity_read_model
+    from cs_image_system.engine import state_query as sq
+    from cs_image_system.engine.read_models import identity_read_model
     names = sorted(identity_read_model(run.ctx)["groups"])
     assert names and not any(g.get("seen") for g in identity_read_model(run.ctx)["groups"].values())
     first = names[0]

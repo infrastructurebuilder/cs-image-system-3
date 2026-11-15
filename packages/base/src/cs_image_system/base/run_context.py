@@ -8,9 +8,9 @@
 live from the registry), the paths, the run id and start time, the scoping
 flags and the per-run state a library or plugin keeps beside it. Nothing
 here loads a configuration or executes a command: loading is
-:mod:`cs_image_system.base.config_loader`'s, which constructs this object
+:mod:`cs_image_system.engine.config_loader`'s, which constructs this object
 and hands it out; the deferred-command queue and its executor are
-:mod:`cs_image_system.base.finalizer`'s, reached through ``ctx.finalizer``.
+:mod:`cs_image_system.engine.finalizer`'s, reached through ``ctx.finalizer``.
 
 The context is passed, never fetched: a command takes it as ``ctx``, a
 builder holds the one it was bound to (``_get_context()``), a model holds
@@ -25,7 +25,7 @@ import logging
 from collections.abc import Callable, Sequence
 from datetime import datetime
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, Any, Protocol, cast
 
 from cs_image_system.contract.constants import DEFAULT_GITIGNORE_ENTRIES, VCT
 from cs_image_system.contract.context import RunContextProtocol, ServicesProtocol
@@ -39,7 +39,7 @@ from cs_image_system.contract.state import StateBuilderProtocol
 from . import registry
 from .image_sources import ImageSourceCatalog
 from .lifecycles import runner_script_name
-from .meta_state import META_STATE_DIRNAME, MetaState
+from .meta_ledgers import META_STATE_DIRNAME, MetaStateRecords
 from .models.provider_specific_image import ProviderSpecificImage
 
 if TYPE_CHECKING:
@@ -52,8 +52,8 @@ if TYPE_CHECKING:
     from .basic.builder_base_runtime import RuntimeBuilderBase
     from .basic.builder_base_storage import StorageBuilderBase
     from .basic.builder_base_user import UserBuilderBase
-    from .finalizer import Finalizer
     from .models.base_image import BaseImage
+    from .models.builder_model import ModelBinding
     from .models.executable import ExecutableModel
     from .models.group import Group
     from .models.ia_config import IAConfig
@@ -61,9 +61,69 @@ if TYPE_CHECKING:
     from .models.instance import Instance
     from .models.storage import Storage
     from .models.user import User
-    from .orchestrator import TemplateResolver
 
 log = logging.getLogger(__name__)
+
+
+class ConverterLike(Protocol):
+    """What the context's resolver hands out as its converter, as the kit
+    reads it: the binding it gives every model it structures, and the
+    structuring itself. The engine's converter implements it."""
+
+    @property
+    def binding(self) -> ModelBinding: ...
+
+    def structure(self, data: Any, cls: Any) -> Any: ...
+
+
+class TemplateResolverLike(Protocol):
+    """The run's object stage as the context hands it out
+    (``ctx.template_resolver``): the run's registry, the flat map of its
+    structured models, the converter that structures more of them, and
+    the two verbs a reader calls. The engine's resolver implements it;
+    the loader makes one per run and hands it in."""
+
+    @property
+    def reg(self) -> registry.Registry: ...
+
+    @property
+    def converter(self) -> ConverterLike: ...
+
+    @property
+    def flattened_map(self) -> dict[str, Any]: ...
+
+    def flatten_dataclass(self, obj: Any) -> Any: ...
+
+    def resolve_all(self) -> list[tuple[str, str, str, str, str]]: ...
+
+
+class FinalizerLike(Protocol):
+    """The run's deferred-command queue and executor as the context hands
+    it out (``ctx.finalizer``): the queue by phase and lifecycle, the
+    scripts written from it and the execution of a phase. The engine's
+    finalizer implements it; the loader makes one per run and binds it."""
+
+    def extend_finalization_phase(self, phase: ExecutionLifecyclePhase,
+                                  executables: list[ExecutableModel]) -> None: ...
+
+    def get_finalization_executables_for_phase(
+        self, phase: ExecutionLifecyclePhase, lifecycle: LifecycleLike | None | str = "current",
+    ) -> list[ExecutableModel]: ...
+
+    def finalization_phases_for(self, lifecycle: LifecycleLike | None) -> list[ExecutionLifecyclePhase]: ...
+
+    @property
+    def final_execution_path(self) -> Path: ...
+
+    def write_lifecycle_runner_script(self, lifecycle: LifecycleLike,
+                                      extra_header: list[str] | None = None) -> Path | None: ...
+
+    def write_gating_script(self) -> Path: ...
+
+    def final_execute(self) -> bool: ...
+
+    def execute_phase(self, phase: ExecutionLifecyclePhase, executables: list[ExecutableModel], *,
+                      label: str) -> bool: ...
 
 
 class RunContext(RunContextProtocol):
@@ -93,7 +153,7 @@ class RunContext(RunContextProtocol):
                  *,
                  reg: registry.Registry,
                  image_sources: ImageSourceCatalog,
-                 template_resolver: TemplateResolver,
+                 template_resolver: TemplateResolverLike,
                  dry_run: bool = True,
                  overlays: list[Path] | None = None,
                  overlay_data: list[dict[str, Any]] | None = None,
@@ -104,7 +164,7 @@ class RunContext(RunContextProtocol):
         # loader makes one of each per run and hands them in
         self.reg: registry.Registry = reg
         self._image_sources: ImageSourceCatalog = image_sources
-        self._template_resolver: TemplateResolver = template_resolver
+        self._template_resolver: TemplateResolverLike = template_resolver
         self._dry_run = dry_run
         self._verbose = verbose or False
         self._run_start_time = run_start_time or datetime.now()
@@ -162,9 +222,9 @@ class RunContext(RunContextProtocol):
         # nested in this one keeps its own on its own context.
         self.last_lifecycle_step: str | None = None
         self._generated_lifecycles: set[LifecycleLike] = set()
-        self._meta_state: MetaState | None = None
+        self._meta_state: MetaStateRecords | None = None    # bound by the loader
         self._root_group: Group | None = None       # set by the groups kind's validator (the loader)
-        self._finalizer: Finalizer | None = None    # bound by the loader
+        self._finalizer: FinalizerLike | None = None    # bound by the loader
         self._services: ServicesProtocol | None = None   # bound by the loader
         # what the adoption of meta-state/runtime-facts.yaml left
         # unanswered (a `default` network nothing recorded, a subnet the record
@@ -191,7 +251,7 @@ class RunContext(RunContextProtocol):
         return self._image_sources
 
     @property
-    def template_resolver(self) -> TemplateResolver:
+    def template_resolver(self) -> TemplateResolverLike:
         """This run's object stage: the flat map of its structured models,
         and the converter that structures more of them (a base image an OS
         builder synthesises, the item kinds the loader reads)."""
@@ -199,14 +259,14 @@ class RunContext(RunContextProtocol):
 
     # --- the finalizer handle
     @property
-    def finalizer(self) -> Finalizer:
+    def finalizer(self) -> FinalizerLike:
         """The deferred-command queue and executor of this run, made and
         bound by the loader (:mod:`~.finalizer`)."""
         if self._finalizer is None:
             raise RuntimeError("this run context has no finalizer bound; the loader binds one")
         return self._finalizer
 
-    def bind_finalizer(self, finalizer: Finalizer) -> None:
+    def bind_finalizer(self, finalizer: FinalizerLike) -> None:
         self._finalizer = finalizer
 
     # --- the services behind the context
@@ -327,10 +387,15 @@ class RunContext(RunContextProtocol):
         """``<config root>/meta-state`` -- outside every generated directory."""
         return self._working_path / META_STATE_DIRNAME
     @property
-    def meta_state(self) -> MetaState:
+    def meta_state(self) -> MetaStateRecords:
+        """This run's meta-state records (``meta_state_path``), made and
+        bound by the loader (:mod:`~.meta_state`)."""
         if self._meta_state is None:
-            self._meta_state = MetaState(self.meta_state_path)
+            raise RuntimeError("this run context has no meta-state records bound; the loader binds them")
         return self._meta_state
+
+    def bind_meta_state(self, records: MetaStateRecords) -> None:
+        self._meta_state = records
 
     # --- lifecycle state of the run
     @property

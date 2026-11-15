@@ -61,7 +61,7 @@ def _instance_bake(run: V2Run):
 
 
 def test_an_earlier_runs_manifests_are_removed_before_the_bake(run):
-    from cs_image_system.base.materialize import mirror_path
+    from cs_image_system.engine.materialize import mirror_path
     builder, phase = _instance_bake(run)
     try:
         block = _block_dir(run, "block-000")
@@ -124,9 +124,9 @@ class _Builder:
 
 @pytest.mark.parametrize("how", ["exit code", "exception"])
 def test_the_runner_calls_the_failure_hook_instead_of_post(run, tmp_path, how):
-    from cs_image_system.base.commands.run_lifecycles import _execute_in_process
     from cs_image_system.contract.lifecycle import ExecutionLifecyclePhase
     from cs_image_system.contract.lifecycles import Lifecycle
+    from cs_image_system.engine.commands.run_lifecycles import _execute_in_process
     calls: list[str] = []
 
     def execute(skips: bool = False):
@@ -145,7 +145,7 @@ def test_the_runner_calls_the_failure_hook_instead_of_post(run, tmp_path, how):
     # the finalizer's one executor (execute_phase). The runner asks the
     # finalizer for the phases and their executables, so the stand-ins for
     # the queue are the finalizer's
-    from cs_image_system.base.finalizer import Finalizer
+    from cs_image_system.engine.finalizer import Finalizer
     finalizer = cast(Any, Finalizer(cast(Any, ctx)))
     finalizer.finalization_phases_for = lambda lc: [ExecutionLifecyclePhase.IMAGE_GENERATION]
     finalizer.get_finalization_executables_for_phase = lambda phase, lc: [executable]
@@ -160,7 +160,7 @@ def test_the_runner_calls_the_failure_hook_instead_of_post(run, tmp_path, how):
 # ------------------------------------- after a failed apply, and after an interrupt
 
 def test_the_after_apply_hooks_run_after_a_failed_apply_so_what_applied_is_recorded(tmp_path, monkeypatch):
-    from cs_image_system.base.commands import run_lifecycles as rl
+    from cs_image_system.engine.commands import run_lifecycles as rl
     run = V2Run(tmp_path, monkeypatch, dry_run=False)
     try:
         seen: list[str] = []
@@ -174,7 +174,7 @@ def test_the_after_apply_hooks_run_after_a_failed_apply_so_what_applied_is_recor
 
 
 def test_an_interrupted_run_is_journalled_as_interrupted_and_not_ok(tmp_path, monkeypatch):
-    from cs_image_system.base.commands import run_lifecycles as rl
+    from cs_image_system.engine.commands import run_lifecycles as rl
     run = V2Run(tmp_path, monkeypatch)
     try:
         def ctrl_c(ctx, summary):

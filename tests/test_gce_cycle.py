@@ -19,6 +19,7 @@ from pathlib import Path
 import pytest
 import yaml
 
+from cs_image_system.base.meta_ledgers import PINS
 from cs_image_system.gcloud_runtime.gcp_runtime_builders import GCPCloudBuilder
 from tests.harness import V2Run, command_lines, copy_config
 
@@ -150,7 +151,7 @@ def test_undeclare_flag_decommissions_like_the_overlay_form(prepared, tmp_path, 
 
 
 def test_undeclare_is_validated_up_front():
-    from cs_image_system.base.config_loader import parse_undeclare
+    from cs_image_system.engine.config_loader import parse_undeclare
     assert parse_undeclare(["instance:gce-test", "storages:scratch"]) == [("instances", "gce-test"), ("storages", "scratch")]
     with pytest.raises(ValueError, match="expected <kind>:<name>"):
         parse_undeclare(["gce-test"])
@@ -185,7 +186,7 @@ def test_storage_teardown_overlay_tombstones_the_cycle_storages(prepared):
 
 
 def test_overlays_are_validated_up_front(tmp_path: Path):
-    from cs_image_system.base.config_loader import load_overlay
+    from cs_image_system.engine.config_loader import load_overlay
     bad = tmp_path / "bad.yaml"
     bad.write_text("instnaces: []\n")
     with pytest.raises(ValueError, match="unknown top-level key"):
@@ -273,7 +274,7 @@ def stub_gce_delete(monkeypatch):
 
 
 def test_dispose_dry_run_deletes_nothing_and_reports_the_plan(tmp_path, monkeypatch, stub_gce_delete):
-    from cs_image_system.base.commands.dispose import dispose_images
+    from cs_image_system.engine.commands.dispose import dispose_images
     root = copy_config(tmp_path)
     _seed_gce_chain(root)
     run = V2Run(tmp_path, monkeypatch, config_root=root)          # dry_run=True
@@ -290,7 +291,7 @@ def test_dispose_dry_run_deletes_nothing_and_reports_the_plan(tmp_path, monkeypa
 
 
 def test_dispose_deletes_drops_records_and_unpins(tmp_path, monkeypatch, stub_gce_delete):
-    from cs_image_system.base.commands.dispose import dispose_images
+    from cs_image_system.engine.commands.dispose import dispose_images
     root = copy_config(tmp_path)
     _seed_gce_chain(root)
     run = V2Run(tmp_path, monkeypatch, config_root=root, dry_run=False)
@@ -302,7 +303,7 @@ def test_dispose_deletes_drops_records_and_unpins(tmp_path, monkeypatch, stub_gc
         assert [b["build_id"] for b in ms.builds()] == ["ami-0829ccceee6db194e"]   # the AWS build stays
         assert ms.image_pin("imgfile-basic-dask", "gcloud-east1") is None
         assert ms.image_pin("imgfile-basic-dask", "aws-east2-runtime") == "ami-base"
-        ops = [(u["op"], u["name"], u["from"]) for u in ms._pins()["upgrades"]]
+        ops = [(u["op"], u["name"], u["from"]) for u in ms.read(PINS)["upgrades"]]
         assert ops == [("dispose", "imgfile-basic-dask@gcloud-east1", BASE_BUILD)]
         # the next dask bake first-binds again instead of baking from a deleted parent
         from cs_image_system.base.lineage import pinned_parent_build
@@ -312,7 +313,7 @@ def test_dispose_deletes_drops_records_and_unpins(tmp_path, monkeypatch, stub_gc
 
 
 def test_dispose_refuses_unrecorded_and_in_use_builds(tmp_path, monkeypatch, stub_gce_delete):
-    from cs_image_system.base.commands.dispose import dispose_images
+    from cs_image_system.engine.commands.dispose import dispose_images
     root = copy_config(tmp_path)
     _seed_gce_chain(root)
     ms_dir = root / "meta-state"
@@ -342,7 +343,7 @@ def test_dispose_refuses_a_runtime_that_cannot_dispose(tmp_path, monkeypatch, st
     behaviour is stubbed back for this proof)."""
     from cs_image_system.aws_runtime.aws_runtime_builders import AwsCloudBuilder
     from cs_image_system.base.basic.builder_base_runtime import RuntimeBuilderBase
-    from cs_image_system.base.commands.dispose import dispose_images
+    from cs_image_system.engine.commands.dispose import dispose_images
     monkeypatch.setattr(AwsCloudBuilder, "dispose_image", RuntimeBuilderBase.dispose_image)
     root = copy_config(tmp_path)
     _seed_gce_chain(root)

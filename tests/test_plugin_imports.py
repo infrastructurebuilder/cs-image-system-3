@@ -24,7 +24,9 @@ the image, the Okta gateway selector takes the run's ``config:`` map),
 and a state backend's class-level ``session_status`` is handed the run's
 runtime classes by the preflight. The list is empty, and stays so unless
 an entry is argued for here. A package that imports nothing from the kit
-(hashicorp-utils, contract-example-plugin) has no entry.
+(hashicorp-utils, contract-example-plugin) has no entry. Of the engine
+(``cs_image_system.engine``) a plugin imports nothing at all, and that
+rule has no exception list.
 """
 from __future__ import annotations
 
@@ -33,7 +35,8 @@ from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[1]
 KIT = "cs_image_system.base"
-NOT_PLUGINS = {"base", "contract", "system"}
+ENGINE = "cs_image_system.engine"
+NOT_PLUGINS = {"base", "engine", "contract", "system"}
 ALLOWED_PREFIXES = (f"{KIT}.basic.", f"{KIT}.models.")
 METADATA_ABSTRACTIONS = (f"{KIT}.basic.abstract_plugin_metadata", f"{KIT}.basic.abstract_version_checker")
 
@@ -69,6 +72,32 @@ def kit_imports() -> set[tuple[str, str, str]]:
                         out.update((package.name, alias.name, "<module>") for alias in node.names
                                    if alias.name.startswith(KIT) and not _allowed(alias.name))
     return out
+
+
+def engine_imports() -> set[tuple[str, str]]:
+    """Every (package, module) a plugin's sources import from the engine,
+    at any depth, lazily or not."""
+    out: set[tuple[str, str]] = set()
+    for package in sorted((REPO / "packages").iterdir()):
+        src = package / "src" / "cs_image_system"
+        if not src.exists():
+            continue
+        for sub in src.iterdir():
+            if sub.name in NOT_PLUGINS or not sub.is_dir():
+                continue
+            for source in sorted(sub.rglob("*.py")):
+                for node in ast.walk(ast.parse(source.read_text(), filename=str(source))):
+                    if isinstance(node, ast.ImportFrom) and node.level == 0 and node.module \
+                            and (node.module == ENGINE or node.module.startswith(ENGINE + ".")):
+                        out.add((package.name, node.module))
+                    elif isinstance(node, ast.Import):
+                        out.update((package.name, alias.name) for alias in node.names
+                                   if alias.name == ENGINE or alias.name.startswith(ENGINE + "."))
+    return out
+
+
+def test_a_plugin_imports_nothing_of_the_engine():
+    assert engine_imports() == set(), sorted(engine_imports())
 
 
 def test_a_plugin_imports_only_the_base_classes_the_models_and_the_listed_exceptions():
