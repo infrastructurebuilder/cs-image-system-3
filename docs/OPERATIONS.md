@@ -2557,9 +2557,11 @@ else; `tests/test_plugin_imports.py` holds that rule over every installed
 plugin, and the same test refuses any import of the engine
 (`cs_image_system.engine`) from a plugin. A plugin written outside this
 repository needs the two packages from the index,
-`cs-image-system-contract` (pinned `>=0.1,<0.2`; the contract has its
-own version, 0.x until it is declared stable) and, if it subclasses the
-base classes, `cs-image-system-base`, the kit; it tests itself with
+`cs-image-system-contract` (pinned `>=0.4,<0.5`, the range every
+package of this workspace declares; the contract has its own version,
+0.x until it is declared stable, and while it is 0.x a change a plugin
+can observe is a MINOR step that moves the range) and, if it subclasses
+the base classes, `cs-image-system-base`, the kit; it tests itself with
 `assert_conforms` against the protocol of its kind and is refused at load
 by name if it falls short.
 

@@ -49,8 +49,9 @@ ninety-one test files), [§116](STAGE-116.md), §117; and
 §135, which changes the registry and the resolver's
 keys, before §113 or after it but not beside it. The operator,
 2026-11-14: §135 first, then §113, then §116 and §117. §135 and §113
-landed 2026-11-14; a hygiene bundle (XXVIII) for what they found comes
-before the next release.
+landed 2026-11-14; §136, hygiene bundle XXVIII, held what they found
+and landed 2026-11-15, before the next release as the operator asked.
+[§137](STAGE-137.md), hygiene bundle XXIX, is the open bundle.
 
 
 **Open**
@@ -121,6 +122,14 @@ before the next release.
   `just release-watch <version>`; the first take after the release
   that carries it is still the old walk, since a tree runs the `take`
   of the release it is on.
+- §136, hygiene bundle XXVIII: landed 2026-11-15 (not pushed). The
+  findings of §135 and §113: an alias resolves wherever a name does,
+  and a refused alias leaves the index as it was; `tofu init` retries
+  once on a registry timeout; the kit's tests and prose name nothing
+  of the engine; the engine's prose moved to its own README; the V2
+  wording left the core's sources. The next release may follow.
+- [§137](STAGE-137.md), hygiene bundle XXIX: open 2026-11-15, the open
+  bundle (what §136 left). It waits for "do 137".
 - [§116](STAGE-116.md), the decomposition that remains (a runtime
   installed from outside): re-planned 2026-11-13 (docker first; where
   the moved runtime's fixture, golden and legs live is its main new
@@ -136,6 +145,7 @@ before the next release.
 **Stage files** (one per stage, in this directory; the plan is read
 and validated by the operator before its "do N")
 
+- [§137, Hygiene bundle XXIX](STAGE-137.md)
 - [§116, A runtime installed from outside](STAGE-116.md)
 
 **Release**
@@ -232,6 +242,29 @@ and validated by the operator before its "do N")
 
 **Landed since 2026-10-05** (newest first)
 
+- §136, hygiene bundle XXVIII: 2026-11-15, its squash commit
+  (feature/hygiene-xxviii kept, not pushed). The registry's alias
+  index keys by the bare word, and says why (a top-level name or alias
+  belongs to one instance per table across plugins); a test holds that
+  it agrees with the instance tables, and found two defects it fixes:
+  an alias never resolved through the registered-name lookup (a
+  builder naming its runtime by an alias failed the load), and a
+  refused alias left a word in the index with no instance behind it.
+  `tofu init` and `terraform init` retry once, with a WARNING, when
+  the error names a registry and a timeout. `git_toplevel` is written
+  once, in the public-safe scan, and `meta_state` keeps no aliases of
+  the scan's names. The kit's tests import nothing of the engine (a
+  rule test holds it): a test needing only a resolver uses a stand-in
+  satisfying the kit's protocol, and a test of a whole load lives in
+  the engine's tests (200 tests before and after). The kit's prose
+  names no engine module; the engine's prose moved from the kit's
+  README to its own; `v2_validation` is `validation_rules`, and the V2
+  wording left the kit's and the engine's sources. DESIGN names
+  `tofu-roots` for the root machinery, OPERATIONS the contract's range
+  `>=0.4,<0.5`; the contract's README names the kit and the engine
+  (still 0.4.2, not yet on the index). The editor's search paths list
+  every package pyright lists (a test holds it). The golden never
+  moved.
 - §113, the kit and the engine: 2026-11-14, its squash commit
   (feature/kit-and-engine kept, not pushed; tags `s113-before` and
   `s113-after`). The core's 136 modules split along the measured

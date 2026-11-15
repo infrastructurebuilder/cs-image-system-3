@@ -5,8 +5,9 @@
 """Launch enrollment kinds: the registry is the contract's
 (:mod:`cs_image_system.contract.enrollment`) -- a plugin registers
 its kind when its module loads, before any run exists -- and this path keeps
-the names the core's renderers (``launch_params.user_data_template``,
-``ansible_launch.launch_playbook``) and tests read them by. The table
+the names the core's renderers (the kit's
+``launch_params.user_data_template`` and the engine's Ansible launch) and
+tests read them by. The table
 ``_KINDS`` is the contract's own object, not a copy.
 """
 

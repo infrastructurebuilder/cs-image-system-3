@@ -194,7 +194,7 @@ class BaseImage(RootItem, SelfInjectedName):
     tags: dict[str, str] = field(default_factory=dict)
     runtimes: list[BaseImageImageBuilderSubconfig] = field(default_factory=list)
     description: str | None = None
-    # V2 capability declaration (DESIGN §3F) and the mandatory admin user (N9/N12),
+    # The capability declaration (DESIGN §3F) and the mandatory admin user (N9/N12),
     # carried over from the OS builder that synthesizes this base image; the
     # declared capabilities are stamped into each build's lineage (N11).
     identity_types: list[str] = field(default_factory=list)

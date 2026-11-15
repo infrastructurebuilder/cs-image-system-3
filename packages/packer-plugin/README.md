@@ -659,7 +659,7 @@ call:
 - every foreign key resolves, `runtime` included (`check_foreign_keys`),
   with the declared candidates listed.
 - the core base-image rules that shape this plugin's provisioners
-  ([v2_validation.py](../engine/src/cs_image_system/engine/v2_validation.py)):
+  ([validation_rules.py](../engine/src/cs_image_system/engine/validation_rules.py)):
   every declared identity and storage type has a plugin, the admin public
   keys parse as public keys, `admin_user` is not empty, every base image
   has a debug path (a key or a session mechanism), every `tests:` map uses

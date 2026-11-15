@@ -900,7 +900,7 @@ own; these are the base models' rules
 [builder_model.py](../base/src/cs_image_system/base/models/builder_model.py)).
 
 **At `validate` (the core, through this plugin's hooks).**
-[v2_validation.py](../engine/src/cs_image_system/engine/v2_validation.py),
+[validation_rules.py](../engine/src/cs_image_system/engine/validation_rules.py),
 [storage_state.py](../engine/src/cs_image_system/engine/storage_state.py) and
 [validate.py](../engine/src/cs_image_system/engine/commands/validate.py) ask
 the builders:

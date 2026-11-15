@@ -62,7 +62,7 @@ class UserBuilderBase(BuilderBase[TUSER], UserBuilderProtocol):
 
     # ------------------------------------------------------------ POSIX ids
     def posix_id_claims(self) -> list[Any]:
-        """What this builder knows about POSIX ids: ``posix_ids.Claim`` per
+        """What this builder knows about POSIX ids: the contract's ``Claim`` per
         group or user name (an id, the name only, or an id it will supply
         later). `validate` resolves every builder's claims together by the
         operator's rule. Default: no claims."""

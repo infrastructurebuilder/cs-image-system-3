@@ -1165,10 +1165,13 @@ The same direction holds among the plugins themselves: a terraform
 root's provider-neutral machinery (the workspace, its variables, the
 state binding and remote-state references, the module calls and outputs,
 the gated runner lines, the finalization hooks, the state query) lives
-in `hashicorp-utils` as two bases, and a provider's root plugin
-subclasses a base and answers its hooks -- the provider and its
-configuration, the module, the module arguments, the addresses a
-replacement or a detach names. No root plugin depends on another
+in [`tofu-roots`](../packages/tofu-roots/README.md): one root mixin and
+two bases over it, an instance root and a storage root. `tofu-roots`
+builds on `hashicorp-utils`, the library that collects each workspace's
+provider, backend and variable requirements and renders the HCL. A
+provider's root plugin subclasses a base and answers its hooks -- the
+provider and its configuration, the module, the module arguments, the
+addresses a replacement or a detach names. No root plugin depends on another
 provider's root plugin, so the GCE and container roots install without
 the AWS root, its runtime or its SDK
 ([the stage index](CHANGES.md#s120)).

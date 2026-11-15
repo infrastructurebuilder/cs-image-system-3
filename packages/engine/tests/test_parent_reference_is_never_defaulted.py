@@ -9,17 +9,17 @@ sets it. A plain foreign key on the same item still takes the default.
 
 * a context built over an item with an unset parent leaves it unset, puts
   it in the context as it is and records no unresolved foreign key;
-* a whole resolution leaves an unset parent unset and keeps a set one;
-* a parent refined from a model's global id to its builder's is the same
-  parent (no warning); a different parent is a warning.
+* a whole resolution leaves an unset parent unset and keeps a set one.
+
+That a parent refined from a model's global id to its builder's is the
+same parent is the kit's
+(``packages/base/tests/test_a_refined_parent_is_the_same_parent.py``).
 """
 from __future__ import annotations
 
-import logging
 from dataclasses import dataclass
 
-from cs_image_system.base.models import mixins
-from cs_image_system.base.models.mixins import ParentPropertyHolding, refines_parent
+from cs_image_system.base.models.mixins import ParentPropertyHolding
 from cs_image_system.contract.constants import DEFAULT, NO_MODEL_ID, VCT
 from cs_image_system.contract.fields import fk_field, parent_field
 from cs_image_system.engine.orchestrator import PARENT_REFERENCE_FIELD, SmartContext, UnresolvedForeignKey
@@ -108,29 +108,3 @@ def test_a_resolution_keeps_a_set_parent(clean_registry):
 
     assert entry._model_id == parent.global_id
     assert unresolved == []
-
-
-def test_a_models_id_refined_to_its_builders_is_one_parent():
-    model_id = f"{VCT.OS_BUILDER_MODEL}::{NO_MODEL_ID}::rh"
-    builder_id = f"{VCT.OS_BUILDER}::{NO_MODEL_ID}::rh"
-    other_id = f"{VCT.OS_BUILDER}::{NO_MODEL_ID}::deb"
-
-    assert refines_parent(model_id, builder_id)
-    assert refines_parent("rh", builder_id)
-    assert not refines_parent(model_id, other_id)
-    assert not refines_parent(builder_id, f"{VCT.OS_BUILDER}::{NO_MODEL_ID}::rh-9")
-
-
-def test_only_a_different_parent_is_a_warning(caplog):
-    entry = Entry("e1")
-    entry.model_id = f"{VCT.OS_BUILDER_MODEL}::{NO_MODEL_ID}::rh"
-
-    with caplog.at_level(logging.DEBUG, logger=mixins.__name__):
-        entry.model_id = f"{VCT.OS_BUILDER}::{NO_MODEL_ID}::rh"
-        refined = [r for r in caplog.records if r.levelno >= logging.WARNING]
-        entry.model_id = f"{VCT.OS_BUILDER}::{NO_MODEL_ID}::deb"
-        moved = [r for r in caplog.records if r.levelno >= logging.WARNING]
-
-    assert refined == []
-    assert len(moved) == 1
-    assert entry.model_id == f"{VCT.OS_BUILDER}::{NO_MODEL_ID}::deb"

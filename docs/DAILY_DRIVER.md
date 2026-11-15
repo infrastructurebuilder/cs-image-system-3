@@ -1261,7 +1261,7 @@ declares.
   that implement the contract, the plugin registry, lifecycles and
   phases, the run context, encryption, lineage, launch parameters,
   generations, aliases: what a plugin is written against. Its README
-  describes the core as one, the kit and the engine together.
+  describes the kit; what a run does with it is the engine's README.
   [prerequisites](../packages/base/README.md#prerequisites-and-integration) ·
   [configuration](../packages/base/README.md#configuration-reference) ·
   [tests](../packages/base/README.md#what-it-tests-and-verifies) ·

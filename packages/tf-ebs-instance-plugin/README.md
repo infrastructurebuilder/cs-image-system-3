@@ -1055,7 +1055,7 @@ printed and recorded in `generated/run-summary.json` under
 - A builder `name` containing `/` or `\` is refused.
 
 **At `validate` (and at the start of every `run`).** Base validators, in
-[v2_validation.py](../engine/src/cs_image_system/engine/v2_validation.py),
+[validation_rules.py](../engine/src/cs_image_system/engine/validation_rules.py),
 [launch_params.py](../base/src/cs_image_system/base/launch_params.py),
 [lineage.py](../base/src/cs_image_system/base/lineage.py),
 [release.py](../engine/src/cs_image_system/engine/release.py),

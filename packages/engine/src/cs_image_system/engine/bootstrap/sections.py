@@ -2,9 +2,10 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""Which sections this install offers: GitHub from base, and every section a
-plugin contributes through the ``cs_image_system.bootstrap`` entry-point
-group (an entry point is a callable returning a ``Section``). A section
+"""Which sections this install offers: the GitHub section, which the
+engine carries itself (``github.py``) and always offers first, and every
+section a plugin contributes through the ``cs_image_system.bootstrap``
+entry-point group (an entry point is a callable returning a ``Section``). A section
 absent from the installed plugins is absent from the interview; its
 earlier answers, if any, are kept untouched and contribute nothing."""
 

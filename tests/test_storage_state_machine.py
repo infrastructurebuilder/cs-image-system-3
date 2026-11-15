@@ -289,7 +289,7 @@ def test_retired_all_value_and_per_instance_groups_are_rejected_at_load(tmp_path
     with pytest.raises(ValueError, match="retired 'ALL'"):
         Storage(name="x", type_="aws-ebs", runtime="aws", groups=["ALL"])
     from cs_image_system.base.models.instance import Instance
-    with pytest.raises(ValueError, match="V2 removed per-instance groups"):
+    with pytest.raises(ValueError, match="an instance takes no per-instance groups"):
         Instance(name="i", image="img", **{"groups": ["coops"]})   # type: ignore[call-arg]   a V1-era key, no longer a field
     with pytest.raises(ValueError, match="share_mode"):
         Storage(name="x", type_="aws-ebs", runtime="aws", share_mode="0777")

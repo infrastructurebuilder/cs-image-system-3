@@ -56,7 +56,7 @@ class OsBuilderModel(BuilderModel, OsBuilderModelProtocol):
     # EXPLORE targeted updates: the declarative update policy (see
     # models/update_policy.py); takes precedence over auto_update.
     update: dict[str, Any] | None = None
-    # V2 (DESIGN §3F1, Q1/N4): a base image declares capability on two
+    # DESIGN §3F1 (Q1/N4): a base image declares capability on two
     # symmetric axes. For each declared type the owning plugin bakes its
     # prerequisites (installed but dormant); anything undeclared is unusable
     # downstream even where post-hoc attachment would be easy -- declared

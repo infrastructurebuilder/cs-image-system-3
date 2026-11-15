@@ -56,28 +56,3 @@ def test_email_shaped_name_cannot_corrupt_last_name():
     assert "@" not in u.last_name
     assert u.last_name == "alpha"
 
-
-def test_user_missing_names_fails_to_structure(converter_ready):
-    """YAML without first_name/last_name must fail structuring (the mapper
-    is pydantic, so the refusal arrives as its ValidationError)."""
-    import pytest as _pytest
-    from pydantic import ValidationError
-
-    with _pytest.raises(ValidationError):
-        converter_ready.structure({"name": "alice.smith"}, User)
-
-
-def test_user_structures_with_names(converter_ready):
-    u = converter_ready.structure(
-        {"name": "alice.smith", "first_name": "Alice", "last_name": "Smith"}, User
-    )
-    assert (u.first_name, u.last_name) == ("Alice", "Smith")
-
-
-@pytest.fixture
-def converter_ready(clean_registry):
-    """The converter of a registry of the test's own, plugins loaded (see test_group_gid)."""
-    from cs_image_system.engine.loader import load_plugins
-
-    load_plugins(clean_registry.reg)
-    return clean_registry.converter

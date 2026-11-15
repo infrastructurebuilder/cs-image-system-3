@@ -38,7 +38,7 @@ SHARE_MODES = (SHARE_MODE_PRIVATE, SHARE_MODE_READ_SHARED)
 class Storage(NameTyped, SelfInjectedName):
     """Represents a storage configuration with metadata and settings.
 
-    V2 access model (Q3, N2, N3, N13, N15):
+    The access model (Q3, N2, N3, N13, N15):
 
     groups : list[str]
         The specific GROUP instances (never users) allowed to use this storage.

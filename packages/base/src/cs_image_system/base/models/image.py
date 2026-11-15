@@ -248,7 +248,7 @@ class Image(RootItem, SelfInjectedName):
     modifications: list[dict[str,Any]] = deferred_list_field(builder_vct=VCT.MOD_BUILDER_MODEL,
                                                              item_vct=VCT.MOD_BUILDER_ITEM_MODEL)
     tags: dict[str, str] = field(default_factory=dict)
-    # V2 (Q4, DESIGN §3F): an instance image belongs to exactly ONE group. The
+    # DESIGN §3F (Q4): an instance image belongs to exactly ONE group. The
     # group name is system-unique, so it alone identifies the backing
     # identity-manager type; every instance of this image shares the group.
     group: str | None = field(default=None, metadata={REFERENCE_TARGET: VCT.GROUP_MODEL})

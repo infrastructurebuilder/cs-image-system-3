@@ -11,9 +11,8 @@ runs. This module names the directory and the file of each ledger, and
 declares :class:`MetaStateRecords`, what the run context hands out as
 ``ctx.meta_state``: the members its readers call, the contract's
 :class:`~cs_image_system.contract.context.MetaStateProtocol` and the rest.
-The records on disk are the engine's
-(:class:`~cs_image_system.engine.meta_state.MetaState` implements the
-protocol; the loader binds one per run). Nothing here reads or writes a
+The records on disk are the engine's: its meta-state implements the
+protocol, and the loader binds one per run. Nothing here reads or writes a
 file.
 """
 from __future__ import annotations

@@ -268,7 +268,7 @@ class RuntimeBuilderBase(BuilderBase[R], RuntimeBuilderProtocol):
         """Default: the runtime offers no local target for modification tests."""
         return None
 
-    # ---------------------------------------------------------- V2 contract
+    # ------------------------------------------------------ plugin contract
     def session_mechanism(self) -> str | None:
         """The cloud's session-based debug access (N9: "the first cloud's
         session manager or each cloud's equivalent"), if this runtime is

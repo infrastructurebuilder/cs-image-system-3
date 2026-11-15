@@ -114,7 +114,7 @@ def test_a_bad_module_sources_value_is_refused_by_key(tmp_path: Path):
 
 
 def test_validation_names_a_bad_module_sources_value(tmp_path: Path):
-    from cs_image_system.engine.v2_validation import validate_module_sources
+    from cs_image_system.engine.validation_rules import validate_module_sources
     problems = validate_module_sources(_ctx(tmp_path, module_sources=[1]), [])
     assert len(problems) == 1 and problems[0].startswith("config: module_sources") and problems[0].endswith("not list")
     assert validate_module_sources(_ctx(tmp_path, module_sources={"x": "../x"}), []) == []

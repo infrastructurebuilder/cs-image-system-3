@@ -953,7 +953,7 @@ through the base's `validate_identity_items`
 `validate_attributes` refuses unknown names, wrong types, ids below 1024
 and blank strings on groups and users. Around them the base checks that a
 group the read-model recorded as managed is still declared
-([v2_validation.py](../engine/src/cs_image_system/engine/v2_validation.py)),
+([validation_rules.py](../engine/src/cs_image_system/engine/validation_rules.py)),
 that every base image's `identity_types` names a registered plugin, that
 an instance image's group resolves to an identity type its base declares,
 and, when the instance-image lifecycle is requested with `apply_instances`

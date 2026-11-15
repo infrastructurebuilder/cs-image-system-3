@@ -54,7 +54,7 @@ class NetworkFactsError(RuntimeError):
     """A runtime's online check failed. The plugin's exception is the
     cause (``__cause__``); ``lines`` is its one-line form and ``code`` the
     exit code it carries by default (1). The CLI classifies the cause the
-    way a load-time failure is classified (``commands.load_failures``):
+    way the engine classifies a load-time failure:
     lapsed credentials become the one line that failure used to get, with
     its exit code; an unknown failure keeps the plugin's own words."""
 

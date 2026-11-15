@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""V2 lifecycle units (DESIGN §3A) -- built-in and plugin-registered.
+"""Lifecycle units (DESIGN §3A) -- built-in and plugin-registered.
 
 The meta-workflow runs lifecycles in a fixed order -- identity, storage,
 base-image, instance-image -- each optional, each owning a slice of the

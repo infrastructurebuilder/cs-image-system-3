@@ -241,7 +241,7 @@ class OsBuilderBase(BuilderBase[TOS], OsBuilderProtocol):
             # receive none by design, so mods_list is always empty; passing it
             # only made the resolver look as though it carried them.
 
-            # V2 capability axes + admin user travel with the base image.
+            # The capability axes + admin user travel with the base image.
             "identity_types": list(self.model.get_identity_types()),
             "storage_types": list(self.model.get_storage_types()),
             "admin_user": self.model.get_admin_user(),

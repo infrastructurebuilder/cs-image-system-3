@@ -25,7 +25,8 @@ from harness import FIXTURE_CONFIG, V2Run, tree
 from cs_image_system.base.encryption import PUBLIC_BY_DECISION_KEYS, Decrypted, decrypt_marker, encrypt_value
 from cs_image_system.base.models.user import User
 from cs_image_system.engine.materialize import PRIVATE_DIRNAME
-from cs_image_system.engine.meta_state import commit_meta_state, never_staged
+from cs_image_system.engine.meta_state import commit_meta_state
+from cs_image_system.engine.public_safe import refused_path
 from cs_image_system.hashicorp_utils.blocks import Raw
 from cs_image_system.hashicorp_utils.collector import TerraformCollector
 
@@ -207,7 +208,7 @@ def test_no_declared_encrypted_value_but_a_username_reaches_the_emission_or_meta
     ("generated/a/.terraform.lock.hcl", False), ("generated/a/x.tfbackend.hcl", False),
 ])
 def test_the_never_staged_list(path, refused):
-    assert never_staged(path) is refused
+    assert refused_path(path) is refused
 
 
 def test_a_run_commit_never_stages_a_plan_or_state_file(tmp_path, caplog):
@@ -227,7 +228,7 @@ def test_a_run_commit_never_stages_a_plan_or_state_file(tmp_path, caplog):
     committed = subprocess.run(["git", "-C", str(repo), "show", "--name-only", "--format=", "HEAD"],
                                check=True, capture_output=True, text=True).stdout.split()
     assert "generated/identity/ws/main.tf" in committed and "meta-state/identity.yaml" in committed
-    assert not any(never_staged(p) for p in committed)
+    assert not any(refused_path(p) for p in committed)
     assert (root_dir / "tfplan").exists() and (root_dir / "terraform.tfstate").exists()   # untouched on disk
     staged = subprocess.run(["git", "-C", str(repo), "diff", "--cached", "--name-only"],
                             check=True, capture_output=True, text=True).stdout.split()

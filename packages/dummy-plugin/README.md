@@ -468,7 +468,7 @@ What is checked around it, and where the verdict lands:
   that yields one error string per item that declares `attributes:`
   (`user '<name>': builder <builder> (dummy) supports no attributes
   (declared [...])`) and nothing otherwise. `validate_base_images` in
-  [v2_validation.py](../engine/src/cs_image_system/engine/v2_validation.py)
+  [validation_rules.py](../engine/src/cs_image_system/engine/validation_rules.py)
   accepts `identity_types: [dummy]` on a base image exactly when a dummy
   group builder is declared (its `identity_type()` is `dummy`), and
   `validate_capabilities` accepts an instance image whose group is

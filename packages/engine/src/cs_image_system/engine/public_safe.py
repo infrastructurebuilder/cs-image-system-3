@@ -260,6 +260,9 @@ def scan_file(root: Path, rel: str, allow: Sequence[str] = (), data: bytes | Non
 
 
 def git_toplevel(path: Path) -> Path | None:
+    """The top of the git checkout ``path`` is in; ``None`` outside one, or
+    when git cannot be run. The one helper: the meta-state commit and the
+    commit gate both read it."""
     try:
         res = subprocess.run(["git", "-C", str(path), "rev-parse", "--show-toplevel"],
                              capture_output=True, text=True, check=False)

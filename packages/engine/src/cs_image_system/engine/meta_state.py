@@ -62,6 +62,7 @@ from .public_safe import (
     allow_from_config,
     assert_public_safe,
     config_for,
+    git_toplevel,
     refused_path,
     scan_file,
     scan_for_plaintexts,
@@ -71,10 +72,7 @@ log = logging.getLogger(__name__)
 
 # Public-safe by construction: the scanner lives in public_safe.py
 # and is the same one behind the commit gate, `just public-safe` and the
-# pre-commit hook; these names are kept for the callers of the first gate.
-MetaStateSecretError = PublicSafeError
-NEVER_STAGED = REFUSED_PATHS
-never_staged = refused_path
+# pre-commit hook; this module reads it by its own names.
 
 
 def _never_staged_pathspecs() -> list[str]:
@@ -601,17 +599,6 @@ class MetaState:
 
 # ---------------------------------------------------------------- git commit
 
-def git_toplevel(path: Path) -> Path | None:
-    try:
-        res = subprocess.run(["git", "-C", str(path), "rev-parse", "--show-toplevel"],
-                             capture_output=True, text=True, check=False)
-    except OSError:
-        return None
-    if res.returncode != 0:
-        return None
-    return Path(res.stdout.strip())
-
-
 def commit_meta_state(config_root: Path, generated_root: Path, run_id: str,
                       lifecycles: list[str], dry_run: bool, failed: bool = False) -> str | None:
     """The single well-formed meta-state commit (DESIGN §3B).
@@ -662,7 +649,7 @@ def _commit_staged(top: Path, existing: list[str], run_id: str, lifecycles: list
                                 *existing, *_run_local_exclude_pathspecs()],
                                check=True, capture_output=True, text=True).stdout
     adds = sorted({m.group(1) for m in re.finditer(r"^add '(.+)'$", would_add, re.M)})
-    refused = [rel for rel in adds if never_staged(rel)]
+    refused = [rel for rel in adds if refused_path(rel)]
     if refused:
         log.warning(f"Meta-state commit: never staging {', '.join(refused)} "
                     "(plans, state and key material carry decrypted values)")
@@ -670,7 +657,7 @@ def _commit_staged(top: Path, existing: list[str], run_id: str, lifecycles: list
     # configuration's allowances, before the index is touched; a finding
     # refuses the whole commit and the run never records a secret
     allow = allow_from_config(config_for(config_root))
-    findings = [f for rel in adds if not never_staged(rel) for f in scan_file(top, rel, allow)]
+    findings = [f for rel in adds if not refused_path(rel) for f in scan_file(top, rel, allow)]
     # and the primary guard -- no value this run DECRYPTED may stand
     # in clear in what is about to be committed. The system opened those
     # markers, so this does not guess at shapes the way the rules must.
@@ -702,7 +689,7 @@ def _commit_staged(top: Path, existing: list[str], run_id: str, lifecycles: list
     # scanned it like any file (refused_path exempts it; scan_file read it).
     for rel in COMMITTED_TFVARS:
         file = Path(config_root) / rel
-        if not file.is_file() or never_staged(rel):
+        if not file.is_file() or refused_path(rel):
             continue
         inside = str(file.resolve().relative_to(Path(top).resolve()))
         tracked = subprocess.run(["git", "-C", str(top), "ls-files", "--error-unmatch", "--", inside],

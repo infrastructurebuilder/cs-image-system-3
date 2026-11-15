@@ -41,6 +41,31 @@ _ANSI = re.compile(r"\x1b\[[0-9;]*[A-Za-z]")
 VERDICT_LINE = re.compile(r"^\s*(?:Plan: |Apply complete!|Destroy complete!|No changes\.|Plan passes the apply gate|"
                           r"DESTROY NOT WHITELISTED|Error: |Build '.*' (?:finished|errored)|==> Builds finished|"
                           r"==> Wait completed|csis-(?:settle|step)\b|.*\bsettle(?:d)?\b.*waited\b)")
+#: the tools whose ``init`` fetches providers and modules from a registry:
+#: the one command the wrapper runs a second time, and only on a timeout
+REGISTRY_INIT_TOOLS = frozenset({"tofu", "terraform"})
+#: what a failed ``init`` says when the network to a registry gave out
+#: (read with the colour codes, the diagnostic box's rules and the line
+#: wrapping taken out, so a phrase tofu wrapped is still one phrase)
+REGISTRY_TIMEOUT = re.compile(r"failed to request discovery document|Client\.Timeout exceeded|i/o timeout|"
+                              r"TLS handshake timeout|connection reset by peer")
+#: and that it was a registry the network gave out to, not a state
+#: backend: only then is a second ``init`` the remedy
+REGISTRY_NAMED = re.compile(r"registry|discovery document", re.IGNORECASE)
+
+
+def _is_registry_timeout(tools: set[str], args: list[str], stderr: str | None) -> bool:
+    """Whether a failed command is a ``tofu init`` (or ``terraform init``:
+    ``tools`` holds the executable's name and its binary's) whose error
+    names a registry and a network timeout. Anything else -- another
+    tool, another subcommand, an ``init`` refused for its configuration,
+    a backend that timed out -- is not."""
+    if not tools & REGISTRY_INIT_TOOLS:
+        return False
+    if next((a for a in args if not a.startswith("-")), None) != "init":
+        return False
+    text = " ".join(_ANSI.sub("", stderr or "").replace("│", " ").split())
+    return bool(REGISTRY_TIMEOUT.search(text) and REGISTRY_NAMED.search(text))
 
 
 def _log_captured(command: list[str], result: subprocess.CompletedProcess[str]) -> None:
@@ -178,13 +203,7 @@ class ExecutableModel(NameTyped, PluginArtifactProtocol):
                 if self.environment:
                     env = dict(os.environ)
                     env.update(self.resolved_environment())
-                result = subprocess.run(
-                    command,
-                    check=True,
-                    capture_output=True,
-                    text=True,
-                    env=env,
-                )
+                result = self._run(command, env)
                 _log_captured(command, result)
                 return result
             except subprocess.CalledProcessError as cpe:
@@ -196,7 +215,22 @@ class ExecutableModel(NameTyped, PluginArtifactProtocol):
             except Exception as ex:
                 log.error(f"Error while executing {bin}: {ex}")
                 raise ex
-        
+
+    def _run(self, command: list[str], env: dict[str, str] | None) -> subprocess.CompletedProcess[str]:
+        """Run ``command`` once. A ``tofu init`` that failed because a
+        registry did not answer in time (:func:`_is_registry_timeout`) runs
+        once more, with a WARNING that names the retry; its second failure
+        is raised like any other failure, and no other failure is retried."""
+        try:
+            return subprocess.run(command, check=True, capture_output=True, text=True, env=env)
+        except subprocess.CalledProcessError as first:
+            tools = {self.name, Path(command[0]).name}
+            if not _is_registry_timeout(tools, command[1:], first.stderr):
+                raise
+            log.warning(f"Command '{' '.join(command)}' timed out reaching a registry "
+                        f"(exit code {first.returncode}); retrying it once. Standard error:\n{first.stderr}")
+        return subprocess.run(command, check=True, capture_output=True, text=True, env=env)
+
 class DefaultExecutableModelPluginMetadata(AbstractPluginMetadata):
     def __init__(self) -> None:
         super().__init__(

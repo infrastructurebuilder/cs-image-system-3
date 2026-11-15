@@ -2,7 +2,8 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""The V2 meta-workflow runner (DESIGN §3A, DESIGN §3C).
+"""The meta-workflow runner: a run's lifecycles, in order (DESIGN §3A,
+DESIGN §3C).
 
 ``run_lifecycles`` drives any subset of the four lifecycles in declared order:
 
@@ -59,7 +60,7 @@ from .. import (
     release,
     retention,
     state_query,
-    v2_validation,
+    validation_rules,
     workload_access,
 )
 from ..bootstrap.generate import regenerate_in_run
@@ -89,7 +90,7 @@ _DURING: dict[ExecutionLifecyclePhase, Callable[[RunContext, ExecutionLifecycleP
 }
 
 # Hooks other modules register to extend the runner without the runner
-# importing them (read-model writers, V2 validators, post-apply recorders).
+# importing them (read-model writers, validators, post-apply recorders).
 # Their shapes, the entry-point group and ``HookSet`` are the contract's
 # (`contract.hooks`), typed over the context protocol; this
 # module keeps the names its callers and the tests read them by.
@@ -246,8 +247,9 @@ def _wipe_in_scope(ctx: RunContext, lc_path: Path) -> list[str]:
 
 
 def validate(ctx: RunContext, requested: list[LifecycleLike]) -> list[str]:
-    """Shared validation: V1 checks (unique names, executables) + registered
-    V2 validators. Touches no generated output."""
+    """Shared validation: the ``validate`` command's checks (unique names,
+    executables), the policies, and every registered validator. Touches no
+    generated output."""
     errors: list[str] = [str(e) for e in collect_validation_errors(ctx)]
     errors.extend(validate_policies(ctx))   # parent_policy / image_policy
     for hook in _VALIDATORS:
@@ -739,11 +741,11 @@ def load_hook_plugins(force: bool = False) -> int:
     return count
 
 
-# Built-in hooks: V2 validators and the read-model writers/recorders.
+# Built-in hooks: the validators and the read-model writers/recorders.
 def _register_builtin_hooks() -> None:
     import sys
     this = sys.modules[__name__]
-    v2_validation.register(this)
+    validation_rules.register(this)
     read_models.register(this)
     launch_params.register(this)
     provider_aliases.register(this)   # after mark_launched: it reads `launched`

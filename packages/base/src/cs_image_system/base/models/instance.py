@@ -92,7 +92,7 @@ class Instance(RootItem, SubItemOverride, SelfInjectedName):
     Parameters
     ----------:
     image: str - The existing Image to base this Instance on. Group ownership
-        lives on the image (V2 Q4, DESIGN §3F): all instances of one image share its
+        lives on the image (Q4, DESIGN §3F): all instances of one image share its
         owning group by construction, so there is no per-instance ``groups``.
     storages: list[StorageMapping]
         The named storages this instance mounts (per-instance attachment,
@@ -156,16 +156,15 @@ class Instance(RootItem, SubItemOverride, SelfInjectedName):
     @model_validator(mode="before")
     @classmethod
     def _per_instance_groups_are_retired(cls, data: Any) -> Any:
-        """V1 declared `groups:` per instance (with an ALL magic value); V2
-        moved ownership to the instance image (DESIGN §3F2, rev 12). The
-        field was kept for a while only so a stale declaration got this
-        message rather than the generic unknown-key refusal; now the message
-        comes from here and the field is gone."""
+        """An instance takes no `groups:` (nor its ALL magic value): the
+        owning group lives on the instance image (DESIGN §3F2, rev 12). A
+        declaration that carries the key gets this message, which says where
+        the group goes, rather than the generic unknown-key refusal."""
         keys = data if isinstance(data, dict) else (getattr(data, "kwargs", None) or {})
         if "groups" in keys:
             raise ValueError(
-                f"Instance '{keys.get('name', '<unnamed>')}' declares 'groups'; V2 removed per-instance "
-                "groups (and the ALL magic value): the owning group lives on the instance image "
+                f"Instance '{keys.get('name', '<unnamed>')}' declares 'groups'; an instance takes no "
+                "per-instance groups (nor the ALL magic value): the owning group lives on the instance image "
                 "(DESIGN §3F2, rev 12). Set 'group:' on the image instead.")
         return data
 

@@ -50,7 +50,7 @@ class User(RootItem, SelfInjectedName, ParentPropertyHolding):
                                               default = DEFAULT)
     # Required (no default): a missing value fails structuring/construction.
     # Note the "required": True *metadata* used elsewhere is not enforcement --
-    # it only back-fills defaults (see orchestrator.field_is_required).
+    # it only back-fills defaults (the engine's resolver reads it).
     # a user's identifying fields may be declared encrypted (ENC[age:...]);
     # `name` re-declared from NameTyped so the username can be too
     name: EncryptedStr

@@ -2,7 +2,8 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""Commands package: the per-phase generation functions the V2 runner dispatches to."""
+"""Commands package: the per-phase generation functions the lifecycle runner
+(``run_lifecycles``) dispatches to."""
 
 from .finalization import predefined_finalization as predefined_finalization
 from .gen_groups import predefined_group_generation as predefined_group_generation

@@ -4,41 +4,15 @@
 
 """Tests for the open field-kind registry (Phase 2).
 
-Covers the metadata->kind classifier and, crucially, the *extensibility proof*:
-a plugin-style custom field kind registered from outside base is dispatched
-through all three hooks (contribute_context / upgrade / resolve).
+The *extensibility proof*: a plugin-style custom field kind registered from
+outside base is dispatched through all three hooks (contribute_context /
+upgrade / resolve) by the engine's resolver. The metadata->kind classifier
+is the kit's (``packages/base/tests/test_field_kind_classifier.py``).
 """
 from dataclasses import dataclass, field
 
 from cs_image_system.contract import field_kinds
-from cs_image_system.contract.constants import (
-    FIELD_KIND,
-    IS_DEFERRED_LIST_FK,
-    IS_DEFERRED_LIST_GENERATED,
-    IS_FK,
-    IS_REPLACE,
-    NO_MODEL_ID,
-    VCT,
-)
-from cs_image_system.contract.field_kinds import (
-    DEFERRED_LIST,
-    DEFERRED_LIST_FK,
-    FK,
-    TEMPLATED,
-    field_kind,
-)
-
-
-def test_field_kind_classifier_from_legacy_flags():
-    assert field_kind({IS_FK: True}) == FK
-    assert field_kind({IS_REPLACE: True}) == TEMPLATED
-    assert field_kind({IS_DEFERRED_LIST_GENERATED: True}) == DEFERRED_LIST
-    assert field_kind({IS_DEFERRED_LIST_FK: True}) == DEFERRED_LIST_FK
-    assert field_kind({}) is None
-
-
-def test_field_kind_explicit_overrides_flags():
-    assert field_kind({FIELD_KIND: "custom", IS_FK: True}) == "custom"
+from cs_image_system.contract.constants import FIELD_KIND, NO_MODEL_ID, VCT
 
 
 def test_custom_field_kind_dispatched_through_all_hooks(clean_registry):

@@ -106,6 +106,39 @@ def test_the_kit_imports_nothing_from_the_engine():
                 f"{source.relative_to(REPO)} imports {module}"
 
 
+def _names_the_engine(path: Path) -> list[str]:
+    """Every way a test file reaches the engine: an import of it at any
+    depth (``from cs_image_system import engine`` included), and a string
+    that names one of its modules (a patch target, an ``import_module``)."""
+    hits: list[str] = []
+    for node in ast.walk(ast.parse(path.read_text(), filename=str(path))):
+        if isinstance(node, ast.Import):
+            hits += [a.name for a in node.names if a.name.startswith("cs_image_system.engine")]
+        elif isinstance(node, ast.ImportFrom) and node.level == 0 and node.module:
+            if node.module.startswith("cs_image_system.engine"):
+                hits.append(node.module)
+            elif node.module == "cs_image_system":
+                hits += [f"cs_image_system.{a.name}" for a in node.names if a.name == "engine"]
+        elif isinstance(node, ast.Constant) and isinstance(node.value, str):
+            if node.value.startswith("cs_image_system.engine"):
+                hits.append(node.value)
+    return hits
+
+
+def test_the_kits_tests_import_nothing_of_the_engine():
+    """The kit's own tests hold the kit alone: a test that needs a resolver
+    reaches one through the kit's protocol (``TemplateResolverLike``), and
+    a test of a whole load lives with the engine's tests. No file under
+    ``packages/base/tests`` imports the engine, at any depth, or names one
+    of its modules in a string."""
+    sources = sorted((REPO / "packages/base/tests").rglob("*.py"))
+    assert sources
+    hits = {str(s.relative_to(REPO)): found for s in sources if (found := _names_the_engine(s))}
+    assert hits == {}
+    # the scan sees an import: the engine's own fixtures build the engine's resolver
+    assert _names_the_engine(REPO / "packages/engine/tests/conftest.py") == ["cs_image_system.engine.orchestrator"]
+
+
 def _packages_reached(src: Path) -> set[str]:
     """The ``cs_image_system.<package>`` names a source tree imports: every
     absolute import in every file, at any depth, lazy ones included."""

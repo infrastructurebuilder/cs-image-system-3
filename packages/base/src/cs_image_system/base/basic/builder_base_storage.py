@@ -34,7 +34,7 @@ TSTORAGE = TypeVar("TSTORAGE", bound=StorageBuilderModel)
 class StorageBuilderBase(BuilderBase[TSTORAGE], StorageBuilderProtocol):
     """Base of every storage plugin.
 
-    V2 contract (DESIGN §3E): a storage plugin owns
+    The plugin contract (DESIGN §3E): a storage plugin owns
 
     * a **capability type name** -- the token a base image declares in
       ``storage_types`` to say it carries this type's prerequisites;
@@ -62,7 +62,7 @@ class StorageBuilderBase(BuilderBase[TSTORAGE], StorageBuilderProtocol):
         """Add a storage to the builder's configuration."""
         self.model._storages.append(storage)
 
-    # ---------------------------------------------------------- V2 contract
+    # ------------------------------------------------------ plugin contract
     @classmethod
     def capability_type(cls) -> str:
         """The storage type token base images declare (a plugin's short

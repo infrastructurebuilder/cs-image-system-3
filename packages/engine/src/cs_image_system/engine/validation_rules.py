@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""V2 generation-time validation rules (registered with the lifecycle runner).
+"""Generation-time validation rules (registered with the lifecycle runner).
 
 Every rule here is a HARD failure of the run (DESIGN §3E, DESIGN §3F2 "abort the
 run, not a warning"). The rules are organized by lifecycle so the error

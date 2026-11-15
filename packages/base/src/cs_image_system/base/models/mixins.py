@@ -4,7 +4,7 @@
 
 """The bodies the contract's marker protocols used to carry.
 
-The contract declares what the orchestrator dispatches on
+The contract declares what the engine's resolver dispatches on
 (``SelfInjectedNameProtocol``, ``SubItemOverrideProtocol``,
 ``ParentPropertyHoldingProtocol``) and carries no implementation; these
 mixins are the core's convenient implementation, and the core's models

@@ -250,8 +250,8 @@ def test_report_file_is_public_safe_json(world):
 def test_report_refuses_secret_shaped_reality(world):
     run, reality = world
     reality["images"] = {_runtime(run.ctx): [{"image_id": "ami-x", "tags": {"note": "AK" + "IAABCDEFGHIJKLMNOP"}}]}
-    from cs_image_system.engine.meta_state import MetaStateSecretError
-    with pytest.raises(MetaStateSecretError):
+    from cs_image_system.engine.public_safe import PublicSafeError
+    with pytest.raises(PublicSafeError):
         sq.query_state(run.ctx)
 
 

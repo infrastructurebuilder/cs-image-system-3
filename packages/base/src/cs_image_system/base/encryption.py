@@ -92,8 +92,8 @@ def _represent_decrypted(dumper, value):
     A value that is public BY DECISION is the exception and is written in
     clear -- a username is the join key between a roster and an access grant,
     and a read-model whose rosters were ciphertext could not serve the purpose
-    it exists for. `assert_public_safe` and the plaintext-set scan on every
-    write remain the backstops."""
+    it exists for. The engine's public-safe check and the plaintext-set scan
+    on every write remain the backstops."""
     marker = getattr(value, "marker", "")
     text = str(value)
     if marker and not (_OPENED_KEYS.get(text, set()) <= PUBLIC_BY_DECISION_KEYS):
@@ -441,8 +441,8 @@ def like(original: Any, text: str) -> Any:
 # it carries one, else the value itself. The rule is the contract's
 # (``contract.hcl.emitted``) so a library rendering HCL needs nothing from
 # here to follow it; ``emit`` stays the name this package's callers use.
-# :func:`materialize` substitutes the plaintext into the private mirror the
-# tools actually run from.
+# The engine's materialization substitutes the plaintext into the private
+# mirror the tools actually run from.
 emit = emitted
 
 

@@ -25,6 +25,7 @@ the entry without naming the number in its text.
 
 | Stage | Landed | Released in | Squash subject |
 | --- | --- | --- | --- |
+| <a id="hxxviii"></a><a id="s136"></a>§136 | 2026-11-15 | not yet | Stage 136: hygiene bundle XXVIII, after the kit and the engine |
 | <a id="s113"></a>§113 | 2026-11-14 | not yet | Stage 113: the kit and the engine |
 | <a id="s135"></a>§135 | 2026-11-14 | not yet | Stage 135: registered instances carry a namespace |
 | <a id="r0-1-9"></a>release 0.1.9 | 2026-11-14 | 0.1.9 | release 0.1.9 |

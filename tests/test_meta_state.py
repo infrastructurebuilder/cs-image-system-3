@@ -144,19 +144,19 @@ def test_meta_state_commit_is_skipped_outside_a_git_repo(tmp_path, monkeypatch):
 
 
 def test_meta_state_refuses_secrets():
-    from cs_image_system.engine.meta_state import MetaStateSecretError
-    from cs_image_system.engine.public_safe import assert_public_safe
-    with pytest.raises(MetaStateSecretError):
+    from cs_image_system.engine.public_safe import PublicSafeError, assert_public_safe
+    with pytest.raises(PublicSafeError):
         assert_public_safe({"key": "-----BEGIN " + "OPENSSH PRIVATE KEY-----\nabc"})
-    with pytest.raises(MetaStateSecretError):
+    with pytest.raises(PublicSafeError):
         assert_public_safe(["AK" + "IAABCDEFGHIJKLMNOP"])
     assert_public_safe({"name": "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAI... user@host"})
 
 
 def test_meta_state_write_is_scanned(tmp_path):
-    from cs_image_system.engine.meta_state import MetaState, MetaStateSecretError
+    from cs_image_system.engine.meta_state import MetaState
+    from cs_image_system.engine.public_safe import PublicSafeError
     ms = MetaState(tmp_path / "meta-state")
-    with pytest.raises(MetaStateSecretError):
+    with pytest.raises(PublicSafeError):
         ms.write("pins.yaml", {"instances": {"x": "-----BEGIN " + "RSA PRIVATE KEY-----"}})
     assert not (tmp_path / "meta-state" / "pins.yaml").exists()
     ms.write("pins.yaml", {"instances": {"x": "ami-123"}})

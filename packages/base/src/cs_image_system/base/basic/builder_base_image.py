@@ -94,7 +94,7 @@ class ImageBuilderBase(BuilderBase[TIMAGE], ImageBuilderProtocol):
     def build_target_label(self, image: Image | BaseImage) -> str:
         """The provisioner target naming one image inside this builder's
         build (packer: ``<source type>.<image>``, used in ``only = [..]``).
-        Provider-neutral callers (OS update, mod builders, V2 provisioners)
+        Provider-neutral callers (OS update, mod builders, any provisioner)
         never spell a source type themselves."""
         raise NotImplementedError(f"{self.__class__.__name__} has no build target labels")
 

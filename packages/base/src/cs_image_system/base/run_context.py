@@ -7,10 +7,10 @@
 :class:`RunContext` holds the merged configuration, the collections (read
 live from the registry), the paths, the run id and start time, the scoping
 flags and the per-run state a library or plugin keeps beside it. Nothing
-here loads a configuration or executes a command: loading is
-:mod:`cs_image_system.engine.config_loader`'s, which constructs this object
-and hands it out; the deferred-command queue and its executor are
-:mod:`cs_image_system.engine.finalizer`'s, reached through ``ctx.finalizer``.
+here loads a configuration or executes a command: loading is the engine's,
+which constructs this object and hands it out; the deferred-command queue
+and its executor are the engine's too, reached through ``ctx.finalizer`` as
+the kit's :class:`FinalizerLike` protocol.
 
 The context is passed, never fetched: a command takes it as ``ctx``, a
 builder holds the one it was bound to (``_get_context()``), a model holds
@@ -134,7 +134,7 @@ class RunContext(RunContextProtocol):
     read; the class has more than the protocol (the registry, the
     finalizer, the scoping flags), which is the engine's.
 
-    Constructed by the loader (:func:`~.config_loader.read_config_and_transform`)
+    Constructed by the engine's loader
     with the full configuration and the three objects the loader made for
     this run before it (the registry, the image-source catalog and the
     template resolver); there is no partial construction and no
@@ -261,7 +261,8 @@ class RunContext(RunContextProtocol):
     @property
     def finalizer(self) -> FinalizerLike:
         """The deferred-command queue and executor of this run, made and
-        bound by the loader (:mod:`~.finalizer`)."""
+        bound by the loader; the engine's finalizer implements
+        :class:`FinalizerLike`."""
         if self._finalizer is None:
             raise RuntimeError("this run context has no finalizer bound; the loader binds one")
         return self._finalizer
@@ -360,7 +361,7 @@ class RunContext(RunContextProtocol):
     def generation_path(self) -> Path:
         """Where generated files land RIGHT NOW.
 
-        V2: while a lifecycle is current, its own directory
+        While a lifecycle is current, its own directory
         (``generated/<lifecycle>/``) so every builder's relative output paths
         (``<builder>/<phase>/...``) relocate under it unchanged (DESIGN §3A).
         Legacy: the base-only tree for base-only runs, else the root.
@@ -389,7 +390,8 @@ class RunContext(RunContextProtocol):
     @property
     def meta_state(self) -> MetaStateRecords:
         """This run's meta-state records (``meta_state_path``), made and
-        bound by the loader (:mod:`~.meta_state`)."""
+        bound by the loader; the engine's records implement
+        :class:`~.meta_ledgers.MetaStateRecords`."""
         if self._meta_state is None:
             raise RuntimeError("this run context has no meta-state records bound; the loader binds them")
         return self._meta_state

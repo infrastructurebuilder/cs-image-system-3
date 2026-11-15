@@ -4,11 +4,12 @@ The plugin contract: the one package a plugin is written against. It
 carries the protocols a model and a builder satisfy, the constants and
 field helpers a model is declared with, the lifecycle phases a hook keys
 on, and the data carriers a hook returns. It depends on no other package of
-the system -- `pydantic` and `packaging` only -- and the core
-([base](../base/README.md)) depends on it, never the reverse: the contract
-is upstream, the core conforms to it, and a new hook is a contract change
-first. The core's base classes are the convenient implementation of the
-contract, not the contract itself; a class that satisfies the protocols
+the system -- `pydantic` and `packaging` only -- and the core (the
+[kit](../base/README.md), `cs-image-system-base`, and the
+[engine](../engine/README.md), `cs-image-system-engine`) depends on it,
+never the reverse: the contract is upstream, the core conforms to it, and
+a new hook is a contract change first. The kit's base classes are the
+convenient implementation of the contract, not the contract itself; a class that satisfies the protocols
 structurally is a first-class plugin, and
 [`testing.assert_conforms`](src/cs_image_system/contract/testing.py) is the
 check that says so. Nothing in the package imports the registry, and a
@@ -175,7 +176,7 @@ fits; it may register more than its kind, and a plugin of no named kind
    names it; 0.1.3 and before do not): a floor, not a pin --
    the workspace's own packages pin each other at `==` because they
    release together, an external plugin does not. Add `cs-image-system-base` only
-   if the plugin subclasses the core's base classes (every built-in plugin
+   if the plugin subclasses the kit's base classes (every built-in plugin
    does; it is the convenient way, not the required one). Never depend on
    `cs-image-system-system`, the CLI host.
 2. **Write the model**: a pydantic dataclass, `@dataclass(kw_only=True,
@@ -264,7 +265,7 @@ bootstrap vocabulary and `FactsProtocol` are
 [`bootstrap`](src/cs_image_system/contract/bootstrap.py), and the
 enrollment-kind registry is
 [`enrollment`](src/cs_image_system/contract/enrollment.py); a plugin
-imports from the core only its base classes, its models and the two
+imports from the core only the kit's base classes, its models and the two
 metadata abstractions (`tests/test_plugin_imports.py` holds the rule).
 
 ## Prerequisites and integration
@@ -376,7 +377,7 @@ failure's symptom, its meaning and what to do.
   parameters differ from the protocol's. Add the member or match the
   signature; the protocol is the specification. If the shortfall is in a
   core base class, the contract changed and the core did not follow: that
-  is the test doing its job, and the fix is in `base`.
+  is the test doing its job, and the fix is in the kit (`base`).
 - `Plugin <name> is refused: <class> does not conform to <protocol>:
   <member>: ...` (`PluginConformanceError`) at load: the plugin registered
   a class that lacks a member of its kind's protocol or answers it with
@@ -427,4 +428,8 @@ No failure of this package has been seen in the field.
 ## Related
 
 - [docs/PLUGINS.md](../../docs/PLUGINS.md), the index of every package.
-- [base](../base/README.md), the core that implements the contract.
+- [base](../base/README.md), the kit: the half of the core a plugin
+  imports, whose base classes and models implement the contract.
+- [engine](../engine/README.md), the engine: the half of the core only
+  the system runs, which loads a tree and holds each plugin to the
+  contract.

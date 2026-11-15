@@ -1306,8 +1306,9 @@ warnings and goes on.
 
 ## Related
 
-- [The base library](../base/README.md): the runner, the commands every
-  subcommand delegates to, meta-state, encryption and the public-safe gate.
+- [The engine](../engine/README.md): the runner, the commands every
+  subcommand delegates to, meta-state and the public-safe gate; [the
+  kit](../base/README.md): the models, the run context and encryption.
 - [docs/OPERATIONS.md](../../docs/OPERATIONS.md): the operator's manual,
   every command in use, the exit-code table, the credentials contract and
   CI; [docs/CONFIGURATION.md](../../docs/CONFIGURATION.md): the tree, the

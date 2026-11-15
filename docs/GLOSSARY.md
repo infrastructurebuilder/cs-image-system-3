@@ -209,7 +209,7 @@ outside `generated/`, survives every wipe, and a reality-claiming record
 is written only when the lifecycle's apply flag was on, so a recorder
 never claims reality no apply produced. It is not terraform state, which
 lives in each root's backend. Read
-[packages/base/README.md, "Meta-state"](../packages/base/README.md#meta-state)
+[packages/engine/README.md, "Meta-state"](../packages/engine/README.md#meta-state)
 and [OPERATIONS.md, "Where state lives"](OPERATIONS.md#where-state-lives).
 
 ### mirror

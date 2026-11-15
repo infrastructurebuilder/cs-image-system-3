@@ -319,13 +319,13 @@ class Registry:
     classes (e.g., builders, executables) and allows for flexible deserialization of complex
     configurations.
 
-    One registry per run: the loader makes it, loads the
-    installed plugins into it (:func:`~.loader.load_plugins`) and carries it
-    as ``ctx.reg``. A builder reads it through its bound context; a model
-    holds the one of the run that structured it (the converter binds each
-    model it builds); a command that runs before, or without, a load makes
-    one of its own (:func:`~.loader.installed_registry`). The process holds
-    none: two registries share nothing, and neither do two runs.
+    One registry per run: the engine's loader makes it, loads the
+    installed plugins into it and carries it as ``ctx.reg``. A builder
+    reads it through its bound context; a model holds the one of the run
+    that structured it (the converter binds each model it builds); a
+    command that runs before, or without, a load has the engine make one
+    of its own from the installed plugins. The process holds none: two
+    registries share nothing, and neither do two runs.
     """
 
     # NOTE: state is instance-level (built in __init__), NOT class-level, so
@@ -339,7 +339,17 @@ class Registry:
     vct_type_registry: dict[VCT, list[type]]
     reverse_registry: dict[type, list[RegistrationKey]]
     builder_for_model: dict[type, type]
-    # aliases is VCT -> name -> list of aliases
+    # the builder alias index (register_aliases): aliases is VCT -> a
+    # builder's canonical name -> every word it answers to (its name first),
+    # classified_aliases is VCT -> every word taken under that
+    # classification. It is keyed by the bare word, not by an InstanceKey,
+    # and the bare word is enough: a builder is a top-level instance (no
+    # ancestry), and a top-level name or alias belongs to one instance per
+    # table whatever plugin serves it -- register_aliases refuses a word
+    # the classification already holds, and the instance tables refuse it
+    # too (_held_by_another) -- so a word here is one InstanceKey's name in
+    # the classification's instance table, and its builder is the one
+    # get_instance answers the word with
     aliases: dict[VCT, dict[str, list[str]]]
     classified_aliases: dict[VCT, list[str]]
     defaults_registry: dict[VCT, str | None]
@@ -447,10 +457,8 @@ class Registry:
             for artifact in artifacts:
                 classifier = artifact.csis_classifier()
                 
-                # =========================================================
-                # FIX: Align model registry with loader.py overrides!
-                # Treat Cloud and Container models as Runtime models.
-                # =========================================================
+                # a cloud's or a container's model is registered as a
+                # runtime's, as the engine's loader registers its service
                 classifier = sanitize_classifier(classifier)
                 
                 self._register_model(RegistrationKey(classifier, ns, artifact.csis_name()), artifact)
@@ -711,13 +719,20 @@ class Registry:
             keys.append(key)
         
     def register_aliases(self, classifier: VCT, name: str, aliases: list[str]) -> None:
-        """Register all aliases for a given builder under a specific classification."""
+        """Enter a builder's name and aliases in the alias index under
+        ``classifier``, keyed by the bare word: a word the classification
+        already holds, whatever plugin's builder holds it, is refused, the
+        rule the instance tables keep for every top-level name and alias
+        (see the note on :attr:`aliases`). Every word is checked before any
+        is written, so a refused registration leaves the index as it was."""
         m = self.classified_aliases.setdefault(classifier, [])
-        for alias in  [name] + list(aliases):  # Include the name itself as an alias for lookup purposes
-            if alias in m:
+        words = [name] + list(aliases)  # Include the name itself as an alias for lookup purposes
+        for i, alias in enumerate(words):
+            if alias in m or alias in words[:i]:
                 raise ValueError(f"Alias '{alias}' is already registered "
                                     f"under classification '{classifier}'. "
                                 f"Cannot register duplicate alias for builder '{name}'.")
+        for alias in words:
             m.append(alias)
             self.aliases.setdefault(classifier, {}).setdefault(name, []).append(alias)
 
@@ -779,20 +794,20 @@ class Registry:
 
 
     def get_registered_name_by_name_or_alias(self,classification:VCT, name_or_alias:str) -> str | None:
-        """Get the builder name registered for a given alias or name under a specific classification."""
+        """The canonical name of the builder a word names under
+        ``classification`` in the alias index: the builder whose name or
+        one of whose aliases it is; the default's for ``default``; ``None``
+        (logged) for a word no builder answers to."""
         if DEFAULT == name_or_alias:
             return self.get_default_for(classification) # type: ignore
         if name_or_alias is None:
             return None
-        alias_list = self.aliases.get(classification, {})
-        if name_or_alias in alias_list:
-            for name, aliases in alias_list.items():
-                if name_or_alias == name or name_or_alias in aliases:
-                    return name
+        for name, words in self.aliases.get(classification, {}).items():
+            if name_or_alias in words:    # a builder's words hold its name too
+                return name
         log.warning(f"Warning: Name or alias '{name_or_alias}' not found in registry under classification '{classification}'. Returning None.")
         return None
 
-    # FIXME: Unused?
     def get_builder_by_alias_or_name(self, classification:VCT, name_or_alias:str) -> type | None:
         """Get a registered builder class by its name or any of its aliases under a specific classification."""
         # First check if it's a direct name match

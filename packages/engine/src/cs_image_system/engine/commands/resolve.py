@@ -112,7 +112,7 @@ def predefined_resolve(ctx: RunContext,
                 # chaining metadata only (no vendor query, never attached to
                 # the image builder) and register a deferred PSI whose name
                 # pattern locates the base run's most recent built artifact.
-                # Under the V2 meta-workflow the base-image lifecycle may have
+                # Under the meta-workflow the base-image lifecycle may have
                 # synthesized (and built) this very BaseImage moments ago in
                 # the same process: reuse it rather than register a duplicate.
                 existing = ctx.reg.get_instance_by_name_or_alias(VCT.BASE_IMAGE_MODEL, osb_name)
