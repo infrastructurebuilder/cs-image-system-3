@@ -142,16 +142,14 @@ open.
   installed from outside): re-planned 2026-11-13 (docker first; where
   the moved runtime's fixture, golden and legs live is its main new
   decision); it waits for "do 116".
-- 0.1.9, the latest final release, is cut (2026-11-14): it carries
-  §134 and §112; the reference's `develop` and `main` run it
-  (Release, below). The next release is the first walked as §112
-  planned: `just release-take`, the login halfway, `just
-  release-watch`. It carries §135, §113 and §136 to §138 (all on
-  `develop`, not pushed): the engine is a new project on the index
-  (`cs-image-system-engine`), the contract goes to 0.4.2, and the
-  reference's take refreshes four modules whose comments changed
-  (`docker_volume`, `gcp_storage_pd`, `aws_storage_efs`,
-  `aws_storage_s3`; no plan moves).
+- 0.1.10, the latest final release, is cut (2026-11-16): it carries
+  §135, §113 and §136 to §138; the reference's `develop` runs it, its
+  `main` still runs 0.1.9 until the operator pushes it (Release,
+  below). The walk found three defects of its own, fixed by §139.
+- §139, hygiene bundle XXXI: landed 2026-11-16 (not pushed), the last
+  hygiene bundle before a full re-examination of the codebase (the
+  operator); it took every item found while it ran, twelve in all.
+  No hygiene bundle is open. The next release carries it.
 - Interval checks (the F44 review, the `STARTER_PUSH_TOKEN` renewal)
   live in [REMINDERS.md](../REMINDERS.md).
 
@@ -162,7 +160,24 @@ and validated by the operator before its "do N")
 
 **Release**
 
-- 0.1.9, the latest final release: PyPI and TestPyPI, tag `v0.1.9`
+- 0.1.10, the latest final release: PyPI and TestPyPI, tag `v0.1.10`
+  (10c3007c), 2026-11-16, the first two-box walk (`just release-take
+  0.1.10 pypi`, then `just release-watch 0.1.10`). Carries §135, §113
+  and §136 to §138: the first release with the kit and the engine
+  apart, so `cs-image-system-engine` is a new project on PyPI, and the
+  contract is 0.4.2. Three steps went other than planned, each a
+  §139 item: the take's install found no 0.1.10 (uv answered from an
+  index page cached before the upload; `UV_REFRESH=1 just take 0.1.10`
+  finished it); the release's `git push --follow-tags` carried four
+  annotated tags, so GitHub made no event for the tag and its run was
+  started by hand (`gh workflow run ci.yml --ref v0.1.10`, run
+  43865133064, green: TestPyPI and the five template repositories);
+  and a watch exited on one failed GitHub call. `just release-watch
+  0.1.10` judged every run of the walk good.
+- The reference configuration runs 0.1.10 on `develop` (tag
+  `v0.1.10-before`; take and record e9104ec, CI green); its `main` is
+  on 0.1.9 until the operator's `git push origin develop:main`.
+- 0.1.9, the previous final release: PyPI and TestPyPI, tag `v0.1.9`
   (f658aa0), 2026-11-14, the first cut by §112's recipe: started from
   `develop`, it fetched origin, moved to `main`, cut, pushed `main`
   with the tag, brought `develop` level, pushed it and resynced the
@@ -254,6 +269,21 @@ and validated by the operator before its "do N")
 
 **Landed since 2026-10-05** (newest first)
 
+- §139, hygiene bundle XXXI: 2026-11-16, its squash commit
+  (feature/hygiene-xxxi kept, not pushed). The fixes for 0.1.10's walk
+  and what they found. The release pushes its branch and its own tag by
+  name, never `--follow-tags`, and its dry form names the local tags
+  that stay behind. The starter skeleton's take installs with
+  `--refresh`, and `release-take` runs the take with `UV_REFRESH=1`,
+  so a tree still on an older take asks the index afresh too. The
+  watch counts a look `gh` does not answer as no news, asks no server
+  before its first look (`gh auth token --no-refresh`, the token never
+  said), refuses at once a `gh` that is absent or logged out, and
+  reads the perform log through the same handling. Every variadic
+  recipe, in the `Justfile` and in the skeleton every starter carries,
+  hands its words whole (`[positional-arguments]` and `"$@"`), held by
+  a test that reads the parsed Justfiles. OPERATIONS, DAILY_DRIVER and
+  three INCIDENTS entries name 0.1.10's failures and their remedies.
 - §138, hygiene bundle XXX: 2026-11-15, its squash commit
   (feature/hygiene-xxx kept, not pushed). The golden's directory is
   `tests/fixtures/golden` and the harness's run class `FixtureRun`

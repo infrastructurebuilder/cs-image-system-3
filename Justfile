@@ -85,11 +85,13 @@ full-test: test
 # INDEX is `test` (TestPyPI, the default) or `pypi`: a development release to TestPyPI is
 # gated on `test`, the bar; a PyPI release on `full-test`, the modification-test evidence
 # in the live configuration and a clean live checkout. A refusal before the bump returns
-# the checkout to the branch it started on. After the tag: `git push --follow-tags origin
-# main`, develop checked out, fast-forwarded to main and pushed, and `uv sync --all-extras`
-# again (a maintenance branch: that branch pushed with its tags, develop untouched); the
-# pushed tag makes CI publish (it uploads nothing the index already holds). A failed step
-# there names itself and the commands left. `yes` as the third argument is the dry form:
+# the checkout to the branch it started on. After the tag: `git push origin main
+# v<version>` (main and its own tag by name, so no other local tag travels: GitHub starts
+# no tag run when more than three tags are pushed at once), develop checked out,
+# fast-forwarded to main and pushed, and `uv sync --all-extras` again (a maintenance
+# branch: that branch and its tag pushed, develop untouched); the pushed tag makes CI
+# publish (it uploads nothing the index already holds). A failed step there names itself
+# and the commands left. `yes` as the third argument is the dry form:
 # the probes, the version, and every move and push it would make; nothing changed.
 # The family's logic is scripts/release.py (every step a function, tested with a stubbed
 # shell); the recipes here hand it the branch and the live configuration's root.
@@ -103,7 +105,7 @@ release target index="test" dry="no":
 # -- a first PyPI release of many projects takes days. On `release_branch`, with the bump
 # uncommitted and nothing else changed, and only when the index holds the version for every
 # project: the modification-test evidence (on PyPI), the docs/CHANGES.md row, the commit, the
-# tag; then the release's own ending: `git push --follow-tags origin main`, develop's
+# tag; then the release's own ending: `git push origin main v<version>`, develop's
 # fast-forward to main and its push, and `uv sync --all-extras`.
 [doc("After a release's upload was completed by `just publish`: check every project holds the version, then commit, tag and push it")]
 release-finish index="test":
@@ -276,31 +278,36 @@ pytest:
 # One file, or any pytest expression, for iterating on a single change.
 # NOT the acceptance bar -- `just test` is, and a change is not done until
 # that passes. This exists so proving one file does not cost a full suite.
+# Each word reaches pytest whole ("$@"), so `-k "a or b"` is one expression.
 [doc("One file, or any pytest expression, for iterating on one change; NOT the acceptance bar (`just test` is)")]
+[positional-arguments]
 test-one *ARGS:
-	@uv run pytest {{ARGS}}
+	@uv run pytest "$@"
 
 # Run every modification twice in a throwaway local container (apply +
 # idempotence); needs docker. Results: <config_root>/meta-state/mod-tests.yaml
 [doc("Run every modification twice in a throwaway container (apply + idempotence); needs docker; results in <config_root>/meta-state/mod-tests.yaml")]
+[positional-arguments]
 test-mods *ARGS: config-guard
-	@{{live_cli}} test-mods {{ARGS}}
+	@{{live_cli}} test-mods "$@"
 
 # The posix accounts script on AlmaLinux 10 and Debian 12, under
 # docker -- run twice, against an equal and a differing pre-existing group, a
 # member with no account yet, sudo through visudo. A leg of `full-test`; under
 # `just test` the same file is skipped.
 [doc("The posix accounts script on AlmaLinux 10 and Debian 12 under docker, run twice, with pre-existing groups and sudo; a leg of full-test")]
+[positional-arguments]
 test-posix-accounts *ARGS:
-	@CSIS_CONTAINER_TESTS=1 uv run pytest tests/test_posix_containers.py {{ARGS}}
+	@CSIS_CONTAINER_TESTS=1 uv run pytest tests/test_posix_containers.py "$@"
 
 # A bake's settle step and step runner on AlmaLinux 10 and Debian 12,
 # under docker, with the package database REALLY held by another process (rpm's
 # transaction lock, dpkg's frontend lock). A leg of `full-test`; under `just
 # test` the same file is skipped.
 [doc("A bake's settle step and step runner on AlmaLinux 10 and Debian 12 under docker, the package database held by another process; a leg of full-test")]
+[positional-arguments]
 test-bake-steps *ARGS:
-	@CSIS_CONTAINER_TESTS=1 uv run pytest tests/test_bake_steps_containers.py {{ARGS}}
+	@CSIS_CONTAINER_TESTS=1 uv run pytest tests/test_bake_steps_containers.py "$@"
 
 # The docker runtime's cycle on the local daemon -- a tree of nothing
 # but a docker runtime is written from the frozen fixture's pieces, its AlmaLinux
@@ -311,8 +318,9 @@ test-bake-steps *ARGS:
 # two package updates, the mods). A leg of `full-test`; under `just test` the
 # same file is skipped.
 [doc("The docker runtime bakes two base images and an instance image on the local daemon, from nothing to nothing; needs docker, packer and ansible; a leg of full-test")]
+[positional-arguments]
 test-docker-bake *ARGS:
-	@DOCKER_HOST="$(just docker-host)" CSIS_DOCKER_KEEP_HOST=1 CSIS_DOCKER_BAKE=1 uv run pytest tests/test_docker_bake_live.py {{ARGS}}
+	@DOCKER_HOST="$(just docker-host)" CSIS_DOCKER_KEEP_HOST=1 CSIS_DOCKER_BAKE=1 uv run pytest tests/test_docker_bake_live.py "$@"
 
 # The docker runtime's CHANGE CYCLE on the local daemon, from
 # nothing to nothing -- the bake above, then two containers launched on one
@@ -322,8 +330,9 @@ test-docker-bake *ARGS:
 # images disposed. Needs what test-docker-bake needs plus tofu; several minutes
 # more. A leg of `full-test`; under `just test` the same file is skipped.
 [doc("The docker runtime's change cycle on the local daemon: the bake, two containers launched through tofu, stopped, upgraded, decommissioned; a leg of full-test")]
+[positional-arguments]
 test-docker-cycle *ARGS:
-	@DOCKER_HOST="$(just docker-host)" CSIS_DOCKER_KEEP_HOST=1 CSIS_DOCKER_CYCLE=1 uv run pytest tests/test_docker_cycle_live.py tests/test_docker_starter_live.py {{ARGS}}
+	@DOCKER_HOST="$(just docker-host)" CSIS_DOCKER_KEEP_HOST=1 CSIS_DOCKER_CYCLE=1 uv run pytest tests/test_docker_cycle_live.py tests/test_docker_starter_live.py "$@"
 
 # The daemon the docker legs run against: DOCKER_HOST when the shell sets it, else the endpoint of
 # the docker command's ACTIVE CONTEXT (`docker context inspect`), so packer, the tofu provider and
@@ -342,6 +351,7 @@ docker-host:
 # pass on a daemon that does not say it is Podman. What differs from docker is what
 # it fails on, and is recorded in docs/OPERATIONS.md, "Container hosts".
 [doc("test-docker-cycle against Podman's API service at CSIS_PODMAN_HOST; unset, SKIPPED with exit 0; refuses a daemon that is not Podman")]
+[positional-arguments]
 test-podman-cycle *ARGS:
 	#!/usr/bin/env bash
 	set -euo pipefail
@@ -350,7 +360,7 @@ test-podman-cycle *ARGS:
 		exit 0
 	fi
 	DOCKER_HOST="$CSIS_PODMAN_HOST" CSIS_DOCKER_KEEP_HOST=1 CSIS_PODMAN_CYCLE=1 CSIS_DOCKER_CYCLE=1 \
-		uv run pytest tests/test_docker_cycle_live.py tests/test_docker_starter_live.py {{ARGS}}
+		uv run pytest tests/test_docker_cycle_live.py tests/test_docker_starter_live.py "$@"
 
 # test-podman-cycle against PODMAN DESKTOP's machine on macOS. The address is
 # not typed: scripts/podman-machine-host reads it from `podman machine` (the one machine,
@@ -361,6 +371,7 @@ test-podman-cycle *ARGS:
 # whatever else is running (OrbStack): only the leg's own calls are aimed at Podman.
 # Podman 6 dropped Intel Macs: this leg proves Podman 5.8 there until June 2027.
 [doc("test-podman-cycle against Podman Desktop's machine on macOS (its address read from `podman machine`); no machine, or a stopped one, is SKIPPED")]
+[positional-arguments]
 test-podman-desktop-cycle *ARGS:
 	#!/usr/bin/env bash
 	set -uo pipefail
@@ -368,7 +379,7 @@ test-podman-desktop-cycle *ARGS:
 	if host=$(uv run python scripts/podman-machine-host 2>"$why"); then
 		rm -f "$why"
 		echo "test-podman-desktop-cycle: Podman Desktop's machine at $host"
-		CSIS_PODMAN_HOST="$host" just test-podman-cycle {{ARGS}}
+		CSIS_PODMAN_HOST="$host" just test-podman-cycle "$@"
 	else
 		echo "test-podman-desktop-cycle: SKIPPED -- $(cat "$why")"
 		rm -f "$why"
@@ -400,8 +411,9 @@ golden-regen:
 # PEM bodies, an age identity, plans and state by name; addresses and long tokens outside prose
 # and tests). The allow list is the frozen fixture's cfg/_config.yml public_safe.allow. CI runs it.
 [doc("Scan what a commit could publish (tracked and unignored files) for material that must never be public, under the fixture's allow list; CI runs it")]
+[positional-arguments]
 public-safe *ARGS:
-	@uv run cs-image-system public-safe --tree . --config tests/fixtures/config/cfg/_config.yml {{ARGS}}
+	@uv run cs-image-system public-safe --tree . --config tests/fixtures/config/cfg/_config.yml "$@"
 
 # Build a publishable tree: the TRACKED files of ROOT at HEAD (nothing ignored can enter),
 # a USER exclusion list (PUBLISH_EXCLUDE="path/one path/two", default none), the public-safe gate over
@@ -570,8 +582,9 @@ fixture-live:
 # Run the CLI against the reference configuration, e.g. `just cli validate`, `just cli config-drift`,
 # `just cli state query --strict`: the system's own live proofs. Its cycles run from ITS Justfile.
 [doc("Run the CLI against the reference configuration (`just cli validate`, `just cli state query --strict`): the system's own live proofs")]
+[positional-arguments]
 cli *ARGS: config-guard
-	@{{live_cli}} {{ARGS}}
+	@{{live_cli}} "$@"
 
 # The reference configuration must be present for the recipes that read it -- never for `just test`
 [private]

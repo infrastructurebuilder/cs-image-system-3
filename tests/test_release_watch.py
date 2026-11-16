@@ -9,7 +9,12 @@ scripts -- and a fake clock that ``sleep`` moves: the runs are found by commit (
 repository, the take's in the configuration), each waited on until it completes, and one line said
 for each; a green tag run whose index does not list the version is not good, nor is a run that
 failed or never started; the configuration's ``main`` run is read for the guard and the bake plan;
-the exit is 0 only when every verdict is good.
+the exit is 0 only when every verdict is good. A look ``gh`` does not answer while waiting is no news
+and the next interval looks again; ``gh`` absent or holding no token before the first look refuses at
+once -- decided without the network, and the stored token it reads is never said -- and no look
+answered until the timeout ends the watch on the reason. A ``gh`` too old to read its token without
+the network is not asked for it: its first look decides, and a look refused for want of a login
+refuses at once.
 """
 from __future__ import annotations
 
@@ -272,12 +277,177 @@ def test_no_tag_or_no_take_or_no_gh_is_said_and_never_guessed():
     untaken = FakeShell([("log --first-parent", W.Done(0, "d first\n")), *_answers()])
     assert _watch(untaken, said).watch() == 1
     assert f"release-watch: {W.NOT_TAKEN.format(version=VERSION, root=CONFIG)}" in said
-    refused = FakeShell([("run list", W.Done(4, "", "gh: not logged in\n")), *_answers()])
+    refused = FakeShell([("auth token", W.Done(1, "", "no oauth token found for github.com\n")), *_answers()])
     with pytest.raises(W.Refused) as e:
         _watch(refused, said).watch()
-    assert e.value.message == f"release-watch: {W.NO_GH}" and "gh: not logged in" in said
+    assert e.value.code == 2 and e.value.message == f"release-watch: {W.NO_GH}"
+    assert "no oauth token found for github.com" in said
+    assert refused.count("run list") == 0                                        # refused before the first look
     with pytest.raises(W.Refused):
         W.Watch("banana", SYSTEM, CONFIG, run=FakeShell([])).watch()
+
+
+TLS = "failed to get runs: Get https://api.github.com/x: net/http: TLS handshake timeout"
+
+
+def test_a_look_gh_does_not_answer_while_waiting_is_no_news_and_the_next_one_is_read():
+    clock = Clock()
+    asked: list[int] = []
+
+    def system(cmd: list[str]):
+        asked.append(1)
+        if len(asked) == 1:
+            return W.Done(1, "", TLS + "\n")
+        return W.Done(0, json.dumps(_system_runs()))
+    answers = _answers()
+    answers.insert(0, (f"run list --commit {SYSTEM_SHA}", system))
+    said: list[str] = []
+    assert _watch(FakeShell(answers), said, clock).watch() == 0
+    assert clock.slept == [60] and len(asked) == 2
+    assert f"release-watch: {W.UNANSWERED.format(reason=TLS, interval=60)}" in said
+    assert len(_verdicts(said)) == 6 and said[-1] == f"release-watch: {W.ALL_GOOD}"
+
+
+def test_no_look_answered_until_the_timeout_ends_the_watch_on_the_reason():
+    clock = Clock()
+    shell = FakeShell([("run list", W.Done(1, "", TLS + "\n")), *_answers()])
+    said: list[str] = []
+    with pytest.raises(W.Refused) as e:
+        _watch(shell, said, clock).watch()
+    assert e.value.code == 2 and e.value.message == f"release-watch: {W.NEVER_ANSWERED.format(minutes=10, reason=TLS)}"
+    assert clock.now >= 10 * 60 and shell.count("run list") == len(clock.slept) + 1
+    assert _verdicts(said) == {}
+
+
+def test_a_last_look_unanswered_at_the_timeout_keeps_the_verdicts_of_the_look_before():
+    clock = Clock()
+    asked: list[int] = []
+    running = _run(13, "CI", "develop", status="in_progress")
+
+    def system(cmd: list[str]):
+        asked.append(1)
+        if len(asked) > 1:
+            return W.Done(1, "", TLS + "\n")
+        return W.Done(0, json.dumps(_system_runs(develop=running)))
+    answers = _answers()
+    answers.insert(0, (f"run list --commit {SYSTEM_SHA}", system))
+    said: list[str] = []
+    assert _watch(FakeShell(answers), said, clock).watch() == 1
+    assert f"release-watch: {W.LAST_UNANSWERED.format(reason=TLS)}" in said
+    assert _verdicts(said)["system develop (CI)"] == W.RUNNING.format(minutes=10, url="https://example.invalid/runs/13")
+    assert _verdicts(said)["system main (CI)"].startswith("passed")
+
+
+def test_the_main_runs_jobs_unread_after_the_wait_is_a_verdict_not_an_exit():
+    shell = FakeShell([("run view 22 --json jobs", W.Done(1, "", TLS + "\n")), *_answers()])
+    said: list[str] = []
+    assert _watch(shell, said).watch() == 1
+    main = _verdicts(said)["configuration main (CI)"].split("; ")
+    assert main[0].startswith("passed") and main[1] == W.NO_JOBS.format(reason=TLS)
+
+
+def test_gh_absent_at_the_start_refuses_at_once(tmp_path: Path):
+    absent = tmp_path / "gh"
+    said: list[str] = []
+    w = W.Watch(VERSION, tmp_path, tmp_path, gh=str(absent), sleep=Clock().sleep, say=said.append)
+    with pytest.raises(W.Refused) as e:
+        w.watch()                                                              # the real shell: nothing to run
+    assert e.value.code == 2 and e.value.message.startswith("release-watch: ")
+    assert str(absent) in e.value.message and W.GH_FALLBACK in e.value.message
+    calls: list[list[str]] = []
+
+    def shell(cmd: list[str], **kw):
+        calls.append(cmd)
+        return W.run(cmd, **kw)
+    with pytest.raises(W.Refused):
+        W.Watch(VERSION, tmp_path, tmp_path, run=shell, gh=str(absent), sleep=Clock().sleep, say=said.append).watch()
+    assert calls == [[str(absent), "auth", "token", "--no-refresh"]] and said == []
+
+
+STUB_TOKEN = "stub-token-0f3c-never-said"
+
+
+def test_the_check_before_the_first_look_asks_no_server_and_never_says_the_token():
+    # gh holds a token: it is read locally (`auth token --no-refresh`, never `auth status`), and a
+    # network failure is met by the looks as no news
+    clock = Clock()
+    asked: list[int] = []
+
+    def system(cmd: list[str]):
+        asked.append(1)
+        return W.Done(1, "", TLS + "\n") if len(asked) == 1 else W.Done(0, json.dumps(_system_runs()))
+    answers = [("auth token", W.Done(0, STUB_TOKEN + "\n")), (f"run list --commit {SYSTEM_SHA}", system), *_answers()]
+    shell = FakeShell(answers)
+    said: list[str] = []
+    assert _watch(shell, said, clock).watch() == 0
+    assert shell.calls[0] == ["/bin/gh", "auth", "token", "--no-refresh"] and shell.count("auth status") == 0
+    assert f"release-watch: {W.UNANSWERED.format(reason=TLS, interval=60)}" in said
+    assert not any(STUB_TOKEN in line for line in said)
+    # no token: the error is said, never the output (a gh that printed a token and failed keeps it to itself)
+    said = []
+    shell = FakeShell([("auth token", W.Done(1, STUB_TOKEN + "\n", "no oauth token found for github.com\n")),
+                       *_answers()])
+    with pytest.raises(W.Refused) as e:
+        _watch(shell, said).watch()
+    assert e.value.code == 2 and STUB_TOKEN not in e.value.message
+    assert not any(STUB_TOKEN in line for line in said) and shell.count("run list") == 0
+
+
+def _too_old(cmd: list[str]):
+    """A gh without ``auth token --no-refresh``; asked without the flag it would print the token."""
+    if "--no-refresh" in cmd:
+        return W.Done(1, "", f"{W.UNKNOWN_FLAG}\n\nUsage:  gh auth token [flags]\n")
+    return W.Done(0, STUB_TOKEN + "\n")
+
+
+def test_a_gh_too_old_for_no_refresh_is_not_asked_for_its_token_and_its_first_look_decides(capsys):
+    shell = FakeShell([("auth token", _too_old), *_answers()])
+    said: list[str] = []
+    assert _watch(shell, said).watch() == 0
+    assert shell.calls[0] == ["/bin/gh", "auth", "token", "--no-refresh"] and shell.count("auth token") == 1
+    asked = [c[1:] for c in shell.calls if c[0] == "/bin/gh"]
+    assert asked[1][:2] == ["run", "list"]                                       # gh's next call is the first look
+    assert not any(STUB_TOKEN in line for line in said) and STUB_TOKEN not in capsys.readouterr().out
+
+
+#: what gh says to a look it cannot make for want of a login: its exit code, its error
+LOGGED_OUT = [(4, "To get started with GitHub CLI, please run:  gh auth login\n"
+                  "Alternatively, populate the GH_TOKEN environment variable with a GitHub API authentication token.\n"),
+              (1, "You are not logged into any GitHub hosts. To log in, run: gh auth login\n")]
+
+
+@pytest.mark.parametrize(("rc", "err"), LOGGED_OUT)
+def test_a_look_gh_refuses_for_want_of_a_login_refuses_at_once_and_is_never_waited_on(rc: int, err: str):
+    clock = Clock()
+    shell = FakeShell([("auth token", _too_old), ("run list", W.Done(rc, "", err)), *_answers()])
+    said: list[str] = []
+    with pytest.raises(W.Refused) as e:
+        _watch(shell, said, clock).watch()
+    assert e.value.code == 2 and e.value.message == f"release-watch: {W.NO_GH}"
+    assert shell.count("run list") == 1 and clock.slept == []                    # no second look
+    assert err.splitlines()[0] in said and _verdicts(said) == {}
+    assert not any(STUB_TOKEN in line for line in said)
+
+
+@pytest.mark.parametrize(("rc", "err"), LOGGED_OUT)
+def test_a_perform_log_gh_refuses_for_want_of_a_login_is_the_refusal_not_an_unread_log(rc: int, err: str):
+    # every look answered, then gh logged out by the time the perform job's log is read
+    shell = FakeShell([("auth token", _too_old), ("run view 22 --job 99 --log", W.Done(rc, STUB_TOKEN + "\n", err)),
+                       *_answers()])
+    said: list[str] = []
+    with pytest.raises(W.Refused) as e:
+        _watch(shell, said).watch()
+    assert e.value.code == 2 and e.value.message == f"release-watch: {W.NO_GH}"
+    assert err.splitlines()[0] in said and not any(W.NO_LOG in line for line in said)
+    assert not any(STUB_TOKEN in line for line in said) and STUB_TOKEN not in e.value.message
+
+
+def test_a_perform_log_unread_for_any_other_reason_is_a_verdict():
+    shell = FakeShell([("run view 22 --job 99 --log", W.Done(1, "", TLS + "\n")), *_answers()])
+    said: list[str] = []
+    assert _watch(shell, said).watch() == 1
+    main = _verdicts(said)["configuration main (CI)"].split("; ")
+    assert main[0].startswith("passed") and main[1] == W.NO_LOG
 
 
 def test_the_gh_binary_is_found_on_path_or_at_its_fallback(monkeypatch, tmp_path: Path):

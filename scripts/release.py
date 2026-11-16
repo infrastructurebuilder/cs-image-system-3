@@ -26,7 +26,8 @@ upload and holds the version for no project; the token is set; no
 ``git fetch origin``, origin holds no commit that a branch the ending pushes
 lacks -- the release branch and ``develop``, or the maintenance branch -- since
 that push would be refused after the upload; a local branch ahead of origin
-passes); from
+passes; then one line names the local annotated tags origin lacks, which stay
+behind, or says none -- never a refusal); from
 ``develop``, the move: the release branch checked out and fast-forwarded to
 ``develop`` (refused, on ``develop``, when it cannot be); the resync of the
 venv (``uv sync --all-extras``: a branch switch and a moved lock leave the
@@ -42,9 +43,11 @@ and the tag (a failed upload leaves the uncommitted bump on the release
 branch and never a tagged, unpublished version), the evidence commit in the
 live configuration (PyPI), the release's row in ``docs/CHANGES.md``, the
 commit ``release <version>`` and the annotated tag; and last the ending:
-the release branch pushed with its tags, ``develop`` checked out,
-fast-forwarded to it and pushed (a maintenance branch: that branch pushed
-with its tags, ``develop`` untouched), and the venv synced again. A failed
+the release branch and the tag ``v<version>`` pushed by name (no other
+tag travels with them: GitHub starts no tag run when more than three tags
+are pushed at once), ``develop`` checked out, fast-forwarded to it and
+pushed (a maintenance branch: that branch and its tag pushed,
+``develop`` untouched), and the venv synced again. A failed
 step of the ending names itself and the commands that are left, and exits
 non-zero. The dry form (``yes``) asks the cheap probes and the venv's,
 prints every branch move, push and resync it would make, read from the
@@ -57,7 +60,10 @@ holds the version for every project, and after the same fetch probe; then
 the same ending.
 
 ``release-take`` is the release, as ``release`` runs it, and then ``just take
-<version>`` in the live configuration, ``main`` passed through when given. The
+<version>`` in the live configuration, ``main`` passed through when given, with
+``UV_REFRESH=1`` in that one command's environment: the take is the tree's own
+recipe, from the release it is on, and uv answers its install from the index
+page it cached before the upload unless told to ask afresh. The
 configuration is asked first (configured, a git checkout, with a ``take``
 recipe), before the release changes anything. The version is read back from
 the tree the release left (``bump-my-version show current_version``, its tag
@@ -135,6 +141,10 @@ BEHIND_ORIGIN = ("{remote}/{branch} holds {count} commit(s) the local {branch} l
                  "{remote}/{branch} (reconcile the two when that cannot fast-forward), then run the same command "
                  "again -- nothing was changed")
 LEVEL_WITH_ORIGIN = "{remote} holds no commit the local {branches} lacks (fetched)"
+#: the tags probe, after "<who>: ": informational, never a refusal -- the ending pushes v<version> alone
+TAGS_BEHIND = "local annotated tags {remote} lacks stay behind (the ending pushes v{version} alone): {tags}"
+TAGS_UNASKED = ("`git ls-remote --tags {remote}` failed ({reason}), so the local tags {remote} lacks are not named; "
+                "the ending pushes v{version} alone")
 SYNC_FAILED = "`uv sync --all-extras` failed (above) -- nothing was changed"
 #: what a refusal or a failure before the bump adds, after "release: ", once the release had moved the checkout
 BACK = "the checkout is back on {branch}, and {cut} is where it was"
@@ -152,6 +162,9 @@ FINISHED = ("release-finish: {version} is on {name} for every project, committed
             "{pushed}; the checkout is on {branch} with its venv synced (uv sync --all-extras)")
 #: release-take's lines, after "release-take: "
 TAKE_WORDS = ("main", "yes")
+#: the take's own environment: a tree's take is the recipe of the release it is on, and uv answers an install
+#: from the index page it cached before the upload unless told to ask afresh; every recipe's install honours it
+TAKE_ENV = {"UV_REFRESH": "1"}
 NOT_A_TAKE_WORD = ("'{word}' is not an argument of release-take: 'main' (the take pushes develop to main too), 'yes' "
                    "(the dry form), both, or neither")
 NO_TAKE_TREE = "no live configuration to take the release in at {root} ({why}) -- nothing was changed"
@@ -165,6 +178,11 @@ TAKEN = ("{version} is released here and taken in {root}{main}; `just release-wa
 TAKEN_MAIN = ", main pushed there too (main performs)"
 PUBLISHED = ("publish: cs-image-system {version} is on {name} (the system and its {packages} published packages, "
              "sdist and wheel each; files already there with the same content were skipped)")
+
+
+def take_line(version: str, main: bool) -> str:
+    """The take as a line to run by hand in the live configuration, its environment first."""
+    return " ".join([*(f"{k}={v}" for k, v in TAKE_ENV.items()), "just", "take", version, *(["main"] if main else [])])
 
 
 def published_members(root: Path) -> list[Path]:
@@ -390,6 +408,24 @@ class Family:
                 raise Refused(f"{who}: {BEHIND_ORIGIN.format(remote=REMOTE, branch=branch, count=count)}")
         self.say(f"{who}: {LEVEL_WITH_ORIGIN.format(remote=REMOTE, branches=' or '.join(branches))}")
 
+    def tags_behind(self, who: str, version: str) -> None:
+        """Informational, never a refusal: the local annotated tags origin lacks (``git ls-remote --tags``,
+        asked of the origin the fetch probe just reached), which stay behind since the ending pushes
+        ``v<version>`` alone -- or ``none``. Said so the operator sees them before the cut: pushed with
+        the release, more than three tags at once would start no tag run on GitHub."""
+        listed = self.git("for-each-ref", "--format=%(objecttype) %(refname:strip=2)", "refs/tags").out
+        annotated = [name for kind, _, name in (line.partition(" ") for line in listed.splitlines()) if kind == "tag"]
+        remote = self.git("ls-remote", "--tags", REMOTE)
+        if remote.rc != 0:
+            reason = "; ".join(ln.strip() for ln in (remote.err + remote.out).splitlines() if ln.strip())
+            reason = reason or f"exit {remote.rc}"
+            self.say(f"{who}: {TAGS_UNASKED.format(remote=REMOTE, reason=reason, version=version)}")
+            return
+        theirs = {ref.removeprefix("refs/tags/").removesuffix("^{}")
+                  for ref in (line.partition("\t")[2] for line in remote.out.splitlines()) if ref}
+        behind = [name for name in annotated if name not in theirs]
+        self.say(f"{who}: {TAGS_BEHIND.format(remote=REMOTE, version=version, tags=', '.join(behind) or 'none')}")
+
     def fast_forward_or_refuse(self, cut: str) -> str:
         """The release branch's commit, once it is known to fast-forward to develop; read from the refs alone."""
         old = self.git("rev-parse", "-q", "--verify", f"refs/heads/{cut}").out.strip()
@@ -403,11 +439,12 @@ class Family:
         """From develop: the release branch checked out and fast-forwarded to develop."""
         return [["git", "checkout", cut], ["git", "merge", "--ff-only", DEVELOP]]
 
-    def ending(self, cut: str) -> list[list[str]]:
-        """After the tag, in order: the branch the release was cut on pushed with its tags; for the release
-        branch, develop checked out, fast-forwarded to it and pushed; then the venv synced to what is checked
-        out (a maintenance branch's develop is never touched)."""
-        steps = [["git", "push", "--follow-tags", REMOTE, cut]]
+    def ending(self, cut: str, version: str) -> list[list[str]]:
+        """After the tag, in order: the branch the release was cut on and the tag ``v<version>`` pushed by name,
+        so no other local tag travels with them (GitHub starts no tag run when more than three tags are pushed
+        at once); for the release branch, develop checked out, fast-forwarded to it and pushed; then the venv
+        synced to what is checked out (a maintenance branch's develop is never touched)."""
+        steps = [["git", "push", REMOTE, cut, f"v{version}"]]
         if cut == self.release_branch:
             steps += [["git", "checkout", DEVELOP], ["git", "merge", "--ff-only", cut], ["git", "push", REMOTE, DEVELOP]]
         return [*steps, list(SYNC)]
@@ -434,14 +471,14 @@ class Family:
     def run_ending(self, who: str, version: str, name: str, cut: str) -> str:
         """The ending's steps, each shown as it runs; the first that fails is refused with the rest named.
         Returns what was pushed and moved, for the closing line."""
-        steps = self.ending(cut)
+        steps = self.ending(cut, version)
         for i, cmd in enumerate(steps):
             done = self.run(cmd, cwd=self.root, capture=False)
             if done.rc != 0:
                 rest = " && ".join(" ".join(c) for c in steps[i:])
                 raise Refused(f"{who}: " + ENDING_FAILED.format(version=version, name=name, failed=" ".join(cmd),
                                                                rest=rest), done.rc or 1)
-        return self.closing_line(cut)
+        return self.closing_line(cut, version)
 
     def version_plan(self, target: str, current: str) -> tuple[str, list[str]]:
         """(the new version, bump-my-version's arguments for it) from a part or an explicit version."""
@@ -653,13 +690,13 @@ class Family:
             if done.rc != 0:
                 raise Refused((done.err + done.out).strip() or f"release: git {cmd[0]} failed", done.rc)
 
-    def closing_line(self, cut: str) -> str:
+    def closing_line(self, cut: str, version: str) -> str:
         """What the ending pushed and moved, as the commands it ran (the resync is said apart)."""
-        return "; ".join(" ".join(cmd) for cmd in self.ending(cut)[:-1])
+        return "; ".join(" ".join(cmd) for cmd in self.ending(cut, version)[:-1])
 
     # --- the commands
 
-    def dry(self, start: str, cut: str, index: str, plan: str) -> int:
+    def dry(self, start: str, cut: str, index: str, plan: str, version: str) -> int:
         """The dry form's lines, in the real form's order: the move from develop (read from the refs, refused
         as the real form would refuse it), the resync, the probes, what the release would do, the ending."""
         before = [self.move(cut)] if start != cut else []
@@ -669,7 +706,7 @@ class Family:
             self.say(f"release: {WOULD.format(command=' '.join(cmd))}")
         self.probes(index, "release", will_sync=True)
         self.say(plan)
-        for cmd in self.ending(cut):
+        for cmd in self.ending(cut, version):
             self.say(f"release: {WOULD.format(command=' '.join(cmd))}")
         return 0
 
@@ -711,13 +748,14 @@ class Family:
                           "were deleted from the index")
         self.remote_or_refuse("release")
         self.fetched_or_refuse("release", cut)
+        self.tags_behind("release", new)
         gate = "full-test" if name == "pypi" else "test"
         if dry == "yes":
             return self.dry(start, cut, index,
                             f"release: dry -- on {cut}, {current} would become {new}: {name} ready and free of it, "
                             f"untagged, token present, the probes above passed. The real form: just {gate}, the index "
                             f"again, bump-my-version {' '.join(bump_args)}, uv lock, just publish {index}, commit "
-                            f"'release {new}' (with its {CHANGES} row), tag v{new}, then the pushes below")
+                            f"'release {new}' (with its {CHANGES} row), tag v{new}, then the pushes below", new)
         self.before_bump(start, cut, index, name, new)
         self.bump(bump_args)
         self.upload(index, name, new, cut)
@@ -745,6 +783,7 @@ class Family:
             raise Refused(f"release-finish: the tree must hold the bump to {new} and nothing else:\n" + "\n".join(others))
         self.remote_or_refuse("release-finish")
         self.fetched_or_refuse("release-finish", branch)
+        self.tags_behind("release-finish", new)
         rc = self.index_ready(index, new, "--all-held")
         if rc == 1:
             raise Refused(f"release-finish: not every project holds {new} on {name} (above) -- run `just publish "
@@ -778,7 +817,8 @@ class Family:
             raise Refused(f"release-take: {NO_TAKE_TREE.format(root=root, why=why)}")
 
     def release_take(self, target: str, index: str, *words: str) -> int:
-        """The release, then ``just take <version>`` in the live configuration (``main`` passed through)."""
+        """The release, then ``UV_REFRESH=1 just take <version>`` in the live configuration (``main`` passed
+        through); the variable reaches the take alone."""
         for word in words:
             if word not in TAKE_WORDS:
                 raise Refused(f"release-take: {NOT_A_TAKE_WORD.format(word=word)}", 2)
@@ -788,16 +828,16 @@ class Family:
         root = self.sibling.path
         self.release(target, index, dry)
         if dry == "yes":
-            take = " ".join(["just", "take", self.planned, *(["main"] if main else [])])
-            self.say(f"release-take: {WOULD.format(command=f'cd {root} && {take}')}")
+            self.say(f"release-take: {WOULD.format(command=f'cd {root} && {take_line(self.planned, main)}')}")
             return 0
         version = self.current_version("release-take")
-        take = ["just", "take", version, *(["main"] if main else [])]
+        line = take_line(version, main)
         if not self.tagged(version):
-            raise Refused(f"release-take: {NOT_READ_BACK.format(version=version, root=root, command=' '.join(take))}")
-        done = self.run(take, cwd=root, capture=False)
+            raise Refused(f"release-take: {NOT_READ_BACK.format(version=version, root=root, command=line)}")
+        done = self.run(["just", "take", version, *(["main"] if main else [])], cwd=root, capture=False,
+                        env={**self.env, **TAKE_ENV})
         if done.rc != 0:
-            raise Refused(f"release-take: {TAKE_STOPPED.format(version=version, root=root, rc=done.rc, command=' '.join(take))}",
+            raise Refused(f"release-take: {TAKE_STOPPED.format(version=version, root=root, rc=done.rc, command=line)}",
                           done.rc)
         self.say(f"release-take: {TAKEN.format(version=version, root=root, main=TAKEN_MAIN if main else '')}")
         return 0

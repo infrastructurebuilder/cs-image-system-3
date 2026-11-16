@@ -109,7 +109,7 @@ def _justfile_cli_invocations() -> list[tuple[str, list[str]]]:
     """Every `{{live_cli}} ...`/`{{cli}} ...` or `uv run cs-image-system ...` invocation in this
     repository's Justfile and in the starter Justfile the release ships (the cycle recipes
     live there) as argv, with just's templates reduced: `{{ if … }}` → its first quoted literal,
-    `{{name}}` → X."""
+    `{{name}}` and a recipe's positional words (`"$@"`, `"${@:N}"`) → X."""
     out = []
     for rel, var in JUSTFILES.items():
         for lineno, line in enumerate((Path(__file__).resolve().parents[1] / rel).read_text().splitlines(), 1):
@@ -132,6 +132,7 @@ def _argv(text: str) -> list[str] | None:
     if True:
         text = re.sub(r"\{\{\s*if.*?\{\s*\"([^\"]*)\"\s*\}.*?\}\}", r"\1", text)   # {{ if … { "--x" } … }}
         text = re.sub(r"\{\{[^}]*\}\}", "X", text)
+        text = re.sub(r'"\$(\{@(:[0-9]+)?\}|@)"', "X", text)            # "$@" / "${@:N}": the recipe's own words
         text = text.split("2>")[0].split("|")[0].split(";")[0].split(">")[0].rstrip(") ")
         argv = shlex.split(text)
         if argv[:1] == ["--root-dir"]:                            # the global option every call carries

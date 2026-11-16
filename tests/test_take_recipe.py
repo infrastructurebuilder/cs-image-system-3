@@ -140,7 +140,7 @@ def test_a_release_that_changed_nothing_the_tree_owns_is_taken_in_one_box(world:
     assert _git(world.tree, "log", "-2", "--format=%s").splitlines() == [RECORD, "Take 0.1.6"]
     assert _git(world.origin, "rev-parse", "develop") == _git(world.tree, "rev-parse", "HEAD")  # develop was pushed
     assert _git(world.origin, "log", "-1", "--format=%s", "main") == "first"                  # main was not touched
-    assert "tool install --force cs-image-system==0.1.6" in world.log.read_text()
+    assert "tool install --force --refresh cs-image-system==0.1.6" in world.log.read_text()
 
 
 def test_every_step_runs_by_the_installed_tool_whatever_csis_names(world: World):
@@ -159,6 +159,18 @@ def test_a_development_release_is_installed_from_testpypi_with_the_index_strateg
     assert "https://test.pypi.org/simple/" in installed and "--index-strategy unsafe-first-match" in installed
     assert "cs-image-system==0.1.7.dev1" in installed
 
+
+def test_the_install_asks_the_index_afresh_for_a_release_uploaded_minutes_ago(world: World):
+    """uv answers from index pages it cached, and a page cached before the release's upload does
+    not list it: the take's install refreshes, for a final release and a development one, and its
+    refusal does not blame a cache it did not use."""
+    for version in ("0.1.6", "0.1.7.dev1"):
+        done = world.take(version, STUB_VERSION=version)
+        assert done.returncode == 0, done.stdout + done.stderr
+    installs = [ln.split() for ln in world.log.read_text().splitlines() if ln.startswith("tool install")]
+    assert len(installs) == 2 and all("--refresh" in args for args in installs)
+    refused = world.take("0.1.8", STUB_INSTALL_RC="1")
+    assert refused.returncode == 1 and "afresh" in refused.stdout
 
 def _stopped_on(done: subprocess.CompletedProcess) -> list[str]:
     """The entries a stopped take names: its indented lines."""

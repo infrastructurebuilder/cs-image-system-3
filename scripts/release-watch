@@ -4,7 +4,8 @@
 # SPDX-License-Identifier: Apache-2.0
 """Wait on the runs a release walk started, and say one verdict line each.
 
-    uv run python scripts/release-watch <version> [--root DIR] [--config-root DIR] [--timeout MINUTES] [--interval SECONDS]
+    uv run python scripts/release-watch <version> [--root DIR] [--config-root DIR]
+        [--timeout MINUTES] [--interval SECONDS]
 
 The runs are found by commit, never by time. In this repository the commit
 is the tag ``v<version>``'s, which the release pushed as ``main`` and
@@ -17,7 +18,10 @@ commit (``just take <version> main``), on ``main``.
 
 Every run is waited on until it completes or ``--timeout`` minutes pass
 (sixty by default; the runs take twenty to thirty), asked every
-``--interval`` seconds. Then one line each: passed, failed (its conclusion),
+``--interval`` seconds. A look ``gh`` does not answer (a network timeout, a
+binary being replaced) is no news: one line says so, and the next interval
+looks again; only when no look is answered until the timeout does the watch
+end on the reason. Then one line each: passed, failed (its conclusion),
 never started (no run of that workflow on that branch for the commit), or
 still running. A green job is not proof that its steps ran, so two runs are
 read further when green: the tag's, for which the index the version belongs
@@ -33,10 +37,20 @@ passed, the closing line names the fast-forward of the configuration's
 ``develop`` to the records CI committed on ``main``.
 
 Exit 0 only when every verdict is good; 1 otherwise; 2 when the runs cannot
-be asked (no tag here, ``gh`` absent or refused). Every command -- git,
-``gh`` (with ``GH_PAGER=cat``), the probe scripts -- goes through one
-``run`` callable, which the tests replace; ``sleep`` and the clock are
-injectable too.
+be asked: no tag here, ``gh`` absent or unauthenticated before the first look,
+a look ``gh`` refuses for want of a login, or no look answered until the
+timeout. Absent and unauthenticated are decided without the network: ``gh``
+cannot be started, or ``gh auth token --no-refresh`` (which reads the stored
+token and asks no server; its answer is discarded, never said) exits
+non-zero. A ``gh`` too old for that flag is not asked for its token, since
+without the flag it may refresh over the network: its first look decides.
+A look whose error says ``gh`` is not logged in (``gh``'s exit 4, or its
+``gh auth login`` advice) refuses at once, as no token does; a network
+failure is left to the looks, where it is no news like any other. ``gh`` is
+looked for on PATH, then at the Homebrew prefix of an Intel Mac. Every
+command -- git, ``gh`` (with ``GH_PAGER=cat``), the probe scripts -- goes
+through one ``run`` callable, which the tests replace; ``sleep`` and the
+clock are injectable too.
 """
 from __future__ import annotations
 
@@ -51,6 +65,7 @@ import time
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import NoReturn
 
 HERE = Path(__file__).resolve().parent
 REPO = HERE.parent
@@ -67,7 +82,17 @@ PERFORM_STEP = "The runtime performs"
 GUARD_TOKEN = "runtime-unchanged:"
 GUARD_NONE = "no runtime is guarded"
 BAKE = re.compile(r"bake plan: (\S+): bake: ")
+#: the exit code ``run`` gives a command that could not be started (no such file), as a shell does
+NOT_RUN = 127
 JSON_FIELDS = "databaseId,workflowName,headBranch,event,status,conclusion,url"
+#: the local check that gh holds a token (it prints the token: never said), and the error of a gh too old
+#: for the flag
+TOKEN_ASK = ("auth", "token", "--no-refresh")
+UNKNOWN_FLAG = "unknown flag: --no-refresh"
+#: a look gh refused for want of a login: its exit code for "authentication required", or words of its
+#: error (a look never heals that by waiting)
+GH_AUTH_EXIT = 4
+NOT_LOGGED_IN = ("gh auth login", "not logged in", "no oauth token")
 
 #: each verdict, after "release-watch: <label>: "
 PASSED = "passed ({url})"
@@ -99,7 +124,16 @@ DEVELOP_LEVEL = "the configuration's main run committed its records on main, and
 #: the refusals, after "release-watch: "
 NOT_A_VERSION = "'{version}' is not a release version (for example 0.1.9 or 0.1.9.dev2)"
 NOT_TAGGED = "v{version} is not tagged in {root} -- the runs are found by the tag's commit"
-NO_GH = "gh could not be asked (above) -- `gh auth status` says why"
+NO_GH = ("gh holds no token (its reason above) -- log it in: gh auth login, "
+         "then run the watch again")
+NO_GH_BINARY = ("gh could not be run ({reason}) -- it is looked for on PATH, then at {fallback}; install it "
+                "(brew install gh) or put it on PATH")
+NEVER_ANSWERED = ("gh answered no look in {minutes} minutes (the last: {reason}) -- no run could be read; run the "
+                  "watch again")
+#: the wait's own lines, after "release-watch: "
+UNANSWERED = "gh did not answer ({reason}); looking again in {interval:g} seconds"
+LAST_UNANSWERED = "gh did not answer the last look ({reason}); the verdicts below are from the look before it"
+NO_JOBS = "BUT the run's jobs could not be read ({reason})"
 
 
 # ------------------------------------------------------------------ the shell
@@ -119,7 +153,7 @@ def run(cmd: list[str], *, cwd: Path | None = None, env: Mapping[str, str] | Non
         p = subprocess.run(cmd, cwd=cwd, capture_output=True, text=True, env=dict(env) if env else None,
                            stdin=subprocess.DEVNULL)
     except FileNotFoundError as e:
-        return Done(127, "", str(e))
+        return Done(NOT_RUN, "", str(e))
     return Done(p.returncode, p.stdout or "", p.stderr or "")
 
 
@@ -132,6 +166,19 @@ class Refused(Exception):
     def __init__(self, message: str, code: int = 2):
         super().__init__(message)
         self.message, self.code = message, code
+
+
+class Unanswered(Exception):
+    """A ``gh`` call that failed or answered with no JSON: no news, the reason kept for the line that says so."""
+    def __init__(self, reason: str):
+        super().__init__(reason)
+        self.reason = reason
+
+
+def reason_of(done: Done) -> str:
+    """What a failed command said, on one line: its non-empty lines joined, else its exit code."""
+    lines = [line.strip() for line in (done.err + done.out).splitlines() if line.strip()]
+    return "; ".join(lines) or f"exit {done.rc}"
 
 
 # ------------------------------------------------------------------ the runs
@@ -211,18 +258,48 @@ class Watch:
     def ask_gh(self, cwd: Path, *args: str) -> Done:
         return self.run([self.gh, *args], cwd=cwd, env={**os.environ, "GH_PAGER": "cat"})
 
-    def gh_json(self, cwd: Path, *args: str) -> object:
+    def gh_ready(self) -> None:
+        """Before the first look, without the network: ``gh`` starts and holds a token, else the refusal
+        with its reason. ``gh auth token --no-refresh`` reads the stored token and asks no server; what it
+        prints is the token, so its output is discarded and only its error is said. A ``gh`` too old for
+        the flag is not asked again without it, which may refresh over the network: its first look decides
+        (`not_logged_in`). A network failure is the looks' to meet, as no news."""
+        done = self.ask_gh(self.root, *TOKEN_ASK)
+        if done.rc == NOT_RUN:
+            reason = reason_of(Done(NOT_RUN, "", done.err))
+            raise Refused(f"release-watch: {NO_GH_BINARY.format(reason=reason, fallback=GH_FALLBACK)}")
+        if done.rc != 0 and UNKNOWN_FLAG not in done.err:
+            self.refuse_no_token(done.err)
+
+    def refuse_no_token(self, err: str) -> NoReturn:
+        """gh's error said, line by line (never its output, which may be a token), then the refusal."""
+        for line in err.splitlines():
+            if line.strip():
+                self.say(line)
+        raise Refused(f"release-watch: {NO_GH}")
+
+    def not_logged_in(self, done: Done) -> bool:
+        """A look gh refused for want of a login: waiting never answers it."""
+        return done.rc == GH_AUTH_EXIT or any(words in done.err.lower() for words in NOT_LOGGED_IN)
+
+    def gh_text(self, cwd: Path, *args: str) -> str:
+        """``gh``'s answer; a call refused for want of a login is the refusal, any other failed call is
+        ``Unanswered``. Every look and read after ``gh_ready`` goes through here, so a ``gh`` logged out at
+        any moment of the watch refuses the same way."""
         done = self.ask_gh(cwd, *args)
+        if done.rc != 0 and self.not_logged_in(done):
+            self.refuse_no_token(done.err)
         if done.rc != 0:
-            for line in (done.err + done.out).splitlines():
-                if line.strip():
-                    self.say(line)
-            raise Refused(f"release-watch: {NO_GH}")
+            raise Unanswered(reason_of(done))
+        return done.out
+
+    def gh_json(self, cwd: Path, *args: str) -> object:
+        """``gh``'s JSON answer (``gh_text``); an answer that is not JSON is ``Unanswered`` too."""
+        out = self.gh_text(cwd, *args)
         try:
-            return json.loads(done.out or "null")
+            return json.loads(out or "null")
         except ValueError:
-            self.say(done.out.strip())
-            raise Refused(f"release-watch: {NO_GH}") from None
+            raise Unanswered(f"no JSON in its answer: {reason_of(Done(0, out))}") from None
 
     # --- what to wait on
 
@@ -275,14 +352,30 @@ class Watch:
                 exp.found = max(pushed, key=lambda r: int(r.get("databaseId") or 0))
 
     def wait(self, runs: list[Expected]) -> None:
+        """Look every interval until every run completed or the timeout passed. A look ``gh`` does not
+        answer is no news; when none was answered by the timeout, the reason ends the watch."""
         deadline = self.clock() + self.timeout_minutes * 60
+        answered = False
         while True:
             pending = [e for e in runs if e.found.get("status") != "completed"]
             if not pending:
                 return
-            self.poll(pending)
-            if all(e.found.get("status") == "completed" for e in runs) or self.clock() >= deadline:
+            failed = ""
+            try:
+                self.poll(pending)
+                answered = True
+            except Unanswered as e:
+                failed = e.reason
+            if all(e.found.get("status") == "completed" for e in runs):
                 return
+            if self.clock() >= deadline:
+                if not answered:
+                    raise Refused(f"release-watch: {NEVER_ANSWERED.format(minutes=self.timeout_minutes, reason=failed)}")
+                if failed:
+                    self.say(f"release-watch: {LAST_UNANSWERED.format(reason=failed)}")
+                return
+            if failed:
+                self.say(f"release-watch: {UNANSWERED.format(reason=failed, interval=self.interval)}")
             self.sleep(self.interval)
 
     # --- beyond the colour
@@ -313,17 +406,21 @@ class Watch:
 
     def perform_read(self, exp: Expected) -> list[tuple[bool, str]]:
         run_id = str(exp.found.get("databaseId"))
-        view = self.gh_json(exp.cwd, "run", "view", run_id, "--json", "jobs")
+        try:
+            view = self.gh_json(exp.cwd, "run", "view", run_id, "--json", "jobs")
+        except Unanswered as e:
+            return [(False, NO_JOBS.format(reason=e.reason))]
         jobs = view.get("jobs", []) if isinstance(view, dict) else []
         job = next((j for j in jobs if isinstance(j, dict) and j.get("name") == PERFORM_JOB), None)
         if job is None:
             return [(False, GUARD_ABSENT)]
-        log = self.ask_gh(exp.cwd, "run", "view", run_id, "--job", str(job.get("databaseId")), "--log")
-        if log.rc != 0:
+        try:
+            log = self.gh_text(exp.cwd, "run", "view", run_id, "--job", str(job.get("databaseId")), "--log")
+        except Unanswered:
             return [(False, NO_LOG)]
-        keys = bake_keys(log.out)
+        keys = bake_keys(log)
         baked = BAKED.format(keys=", ".join(keys)) if keys else BAKED_NOTHING
-        return [guard_verdict(log.out), (True, baked)]
+        return [guard_verdict(log), (True, baked)]
 
     def verdict(self, exp: Expected) -> tuple[bool, str]:
         found, minutes = exp.found, self.timeout_minutes
@@ -349,6 +446,7 @@ class Watch:
     def watch(self) -> int:
         if not SHAPE.match(self.version):
             raise Refused(f"release-watch: {NOT_A_VERSION.format(version=self.version)}")
+        self.gh_ready()
         runs = self.system_runs()
         config = self.config_runs()
         bad = 0

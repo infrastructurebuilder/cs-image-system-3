@@ -25,6 +25,101 @@ can find the current one.
 was written; most of those sections have since become short tables that
 link here, so a title may no longer be found on the page it names.
 
+### The release watch ended on one look gh did not answer
+
+**Symptom.** Halfway through the wait of 0.1.10's walk, `just
+release-watch 0.1.10` printed a line from `gh` (`TLS handshake
+timeout`), then ``release-watch: gh could not be asked (above) -- `gh
+auth status` says why`` and exited 2 with no verdicts. On the same
+walk a `gh` upgrade replaced the binary while the watch waited, and a
+look made at that moment failed the same way. Nothing was wrong with
+the runs: the watch run again judged every one of them good.
+
+**Cause.** The watch waits up to sixty minutes, asking `gh` every
+interval, but ended on the first `gh` call that failed, whatever the
+reason; and its check before the first look, `gh auth status`, asks
+GitHub, so a network failure there refused the watch before it began.
+
+**Fix.** A look `gh` does not answer is no news: one line says so
+(`gh did not answer (<reason>); looking again in <n> seconds`) and the
+next interval looks again; only when no look is answered until the
+timeout does the watch end on the reason, exit 2, saying to run it
+again. The check before the first look asks no server: `gh` cannot be
+started, or `gh auth token --no-refresh`, which reads the stored token,
+answers nothing (a `gh` too old for the flag is not asked, and a look
+it refuses for want of a login refuses at once); a network failure is
+left to the looks. A checkout of
+this repository from 0.1.11 on carries both; on an older one, run the
+watch again, since it finds the runs by commit and takes up where it
+stopped.
+
+**Date.** 2026-11-16.
+
+**Where it was told.** [DAILY_DRIVER.md](DAILY_DRIVER.md) section 6 (the
+``release-watch: gh could not be asked`` row);
+[OPERATIONS.md](OPERATIONS.md) section 2, "When the walk goes wrong".
+
+### The take could not install a version the index listed
+
+**Symptom.** Minutes after 0.1.10's upload, the reference
+configuration's `just take 0.1.10` (run by `just release-take`) stopped
+on `take: cs-image-system[<extras>]==0.1.10 could not be installed
+from the index (a development release is on TestPyPI, a final one on
+PyPI) -- nothing was changed`, though PyPI listed the version.
+
+**Cause.** uv answers an install from the index pages it has cached,
+and the pages it held were fetched before the upload, so they did not
+list 0.1.10 yet. The take's install did not tell uv to ask afresh.
+
+**Fix.** `UV_REFRESH=1 just take 0.1.10` finished the take. The
+skeleton's `take` installs with `--refresh`, and when it still finds no
+version its line says the index was asked afresh, so the cache is not
+the cause; the starters carry the skeleton, so a tree has it once it
+has taken 0.1.11. A tree's take is the recipe of the release it is on,
+so the take of 0.1.11 itself still runs the old one: `just
+release-take` sets `UV_REFRESH=1` for the take it runs, whatever the
+tree's recipe, and a `just take` run by hand in a tree before 0.1.11
+needs it written out.
+
+**Date.** 2026-11-16.
+
+**Where it was told.** [DAILY_DRIVER.md](DAILY_DRIVER.md) section 6 (the
+`take: cs-image-system[<extras>]==<version> could not be installed from
+the index` row); [OPERATIONS.md](OPERATIONS.md) section 2, "When the
+walk goes wrong".
+
+### The tag's CI run never started
+
+**Symptom.** After 0.1.10's release, `just release-watch 0.1.10`
+waited on `system tag v0.1.10 (CI)` and found no run: `GH_PAGER=cat gh
+run list --commit <sha>` showed the runs of `main` and `develop` for the
+tag's commit and none for the tag. The tag's run is the one whose
+`publish` job uploads to TestPyPI and, for a final version, publishes
+the template repositories, so neither had happened.
+
+**Cause.** The release pushed with `git push --follow-tags origin
+main`, which carries every annotated tag reachable from `main` that
+origin lacks. That was four: `v0.1.10`, the before and after tags of a
+stage, and a local checkpoint tag. GitHub creates no push event for
+tags when more than three are pushed at once, so no workflow started
+for any of them.
+
+**Fix.** The run was started by hand: `GH_PAGER=cat gh workflow run
+ci.yml --ref v0.1.10` (CI takes a manual start, and its `publish` job
+runs on any ref that starts with `refs/tags/v`); it passed, and the
+watch run again found it by the tag's commit. The release pushes its
+branch and its own tag by name (`git push origin <branch> v<version>`),
+so no other tag travels with it, and its probes, the dry form's
+included, name the local annotated tags origin lacks as staying behind,
+so the operator sees them before the cut. A checkout of this repository
+from 0.1.11 on carries both.
+
+**Date.** 2026-11-16.
+
+**Where it was told.** [DAILY_DRIVER.md](DAILY_DRIVER.md) section 6 (the
+`release-watch: system tag v<version> (CI): NEVER STARTED` row);
+[OPERATIONS.md](OPERATIONS.md) section 2, "When the walk goes wrong".
+
 ### Podman spelled the tags with a registry the system did not expect
 
 **Symptom.** On the first run of the docker cycle against a Podman host,

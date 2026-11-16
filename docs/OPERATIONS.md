@@ -2049,7 +2049,16 @@ order:
    fetch moved. A local branch AHEAD of origin passes: the ending pushes
    it. The dry form fetches and says the same, one line either way
    (`release: origin holds no commit the local main or develop lacks
-   (fetched)`);
+   (fetched)`). Then one more line, in both forms and never a refusal,
+   names the local annotated tags origin lacks (`git ls-remote --tags
+   origin`): `release: local annotated tags origin lacks stay behind
+   (the ending pushes v<version> alone): s113-before, checkpoint`, or
+   `... alone): none`. They stay behind because the ending pushes the
+   release's own tag by name (step 7: pushed together with it, more
+   than three tags at once would start no tag run on GitHub); the line
+   is there so you see them before the cut, and push or delete the
+   ones that matter yourself. When `ls-remote` fails the line says so
+   and the release goes on;
 2. from `develop`, the move: `git checkout main` and `git merge
    --ff-only develop`. A `main` that cannot fast-forward (it holds
    commits `develop` does not) is refused before the checkout, on
@@ -2134,14 +2143,17 @@ order:
    none), and `pyproject.toml`, `packages/*/pyproject.toml`, `uv.lock`
    and `docs/CHANGES.md` committed here (`release <v>`) and the
    annotated tag `v<version>`;
-7. the ending, the recipe's own: `git push --follow-tags origin main`,
-   whose tag makes CI's `publish` job check the release against the
-   index (it uploads nothing the index already holds); then `git
+7. the ending, the recipe's own: `git push origin main v<version>`,
+   `main` and the release's own tag by name, so no other local tag
+   travels with them (GitHub starts no run for tags when more than
+   three are pushed at once); the tag makes CI's `publish` job check
+   the release against the index (it uploads nothing the index
+   already holds); then `git
    checkout develop`, `git merge --ff-only main` and `git push origin
    develop`, so `develop` takes `main` back; and last `uv sync
    --all-extras` again, since the switch and the moved lock left the venv
    behind once more. From a maintenance branch the ending is `git push
-   --follow-tags origin release/<major.minor>` and the resync; `develop`
+   origin release/<major.minor> v<version>` and the resync; `develop`
    is not touched. The irreversible act is the upload, which comes
    before; a version on the index whose commit and tag are unpushed is
    the wrong state, and the push is the only sane continuation.
@@ -2152,9 +2164,9 @@ synced. A failed step of the ending -- a push the remote refused, say --
 stops there and exits non-zero: the version is on the index and
 committed and tagged locally, and the line names the command that failed
 and every command left, joined with `&&`, to run by hand once its cause
-is fixed. For a refused push of `main` the rest is `git push
---follow-tags origin main && git checkout develop && git merge --ff-only
-main && git push origin develop && uv sync --all-extras`.
+is fixed. For a refused push of `main` the rest is `git push origin
+main v<version> && git checkout develop && git merge --ff-only main &&
+git push origin develop && uv sync --all-extras`.
 
 **The release branch.** `develop` is where work is done and
 `main` is where releases live. `main` is always `develop` plus release
@@ -2221,7 +2233,10 @@ configuration that takes a release at its own pace. Its logic is
    recomputed from the part;
 4. `just take <version>` in the live configuration, with `main` passed
    through when given (the take then pushes `develop` to `main`, and
-   `main` performs). The take's own order is the one
+   `main` performs), and `UV_REFRESH=1` in that one command's
+   environment, so its install asks the index afresh whatever recipe
+   the tree's own release carries; nothing else the release runs gets
+   it. The take's own order is the one
    [DAILY_DRIVER.md](DAILY_DRIVER.md), section 1.9, gives: the
    before-tag, the install, the sessions, the refresh of what is safe,
    the pin, init, validate, the commit, the record and one push.
@@ -2230,11 +2245,12 @@ A release that refuses or fails runs no take, and says what the release
 says. A take that stops (a file the release changed and you edited, a
 lapsed session) leaves the release done -- it is never run again -- and
 the closing line names the command that finishes the take there (`cd
-<config_root> && just take <version> [main]`, with `patched` after a
-refresh by hand, as the take's own lines say); the exit code is the
-take's. `yes` is the dry form: the release's dry form, every line of
-it, then `release-take: dry -- would run: cd <config_root> && just take
-<version> [main]`; nothing is changed in either repository.
+<config_root> && UV_REFRESH=1 just take <version> [main]`, with
+`patched` after a refresh by hand, as the take's own lines say); the
+exit code is the take's. `yes` is the dry form: the release's dry form,
+every line of it, then `release-take: dry -- would run: cd
+<config_root> && UV_REFRESH=1 just take <version> [main]`; nothing is
+changed in either repository.
 
 `just release-watch <version>` (`scripts/release-watch`) waits on the
 runs the walk started, found by commit and never by time, and prints
@@ -2251,6 +2267,20 @@ every thirty seconds (`gh run list --commit <sha>`, with
 until it completes, sixty minutes at most (`--timeout`), and the
 verdict is `passed`, `FAILED -- <conclusion>`, `NEVER STARTED` (no run
 of that workflow on that branch for the commit) or `STILL RUNNING`.
+`gh` is asked first, without the network: when it cannot be started,
+or `gh auth token --no-refresh` (which reads the token `gh` stored at
+its login and asks no server) exits non-zero, the watch refuses at
+once with the reason (exit 2) -- `gh auth login` is the remedy for the
+second. The token that command prints is discarded, never shown. A
+`gh` too old for `--no-refresh` is not asked for its token (without
+the flag it may refresh over the network); its first look decides. A
+look `gh` refuses for want of a login (its exit 4, or its `gh auth
+login` advice) refuses the watch at once in the same way, since
+waiting never answers it. Any other look `gh` does not answer while
+waiting (a network timeout, say) is no news: one line says so and the next interval looks again; only when no
+look is answered by the timeout does the watch end on the reason (exit
+2). So a network that is down when the watch starts is ridden out like
+one that fails halfway.
 A green job is not proof that its steps ran, so two runs are read
 further:
 
@@ -2274,6 +2304,64 @@ step, which only follows the run: `develop` fast-forwarded to the
 records CI committed on `main` (`git fetch origin`, then `git checkout
 develop && git merge --ff-only origin/main && git push origin develop`
 there).
+
+**When the walk goes wrong.** Three steps of a walk can fail in a way
+that says little about the cause. A tree or a checkout that does not
+carry the fixes yet meets them as described here; the fixed versions
+are said after each. Each has a row in
+[DAILY_DRIVER.md](DAILY_DRIVER.md), section 6, too, and an entry in
+[INCIDENTS.md](INCIDENTS.md) telling what 0.1.10's walk met:
+[the take](INCIDENTS.md#the-take-could-not-install-a-version-the-index-listed),
+[the tag's run](INCIDENTS.md#the-tags-ci-run-never-started) and
+[the watch](INCIDENTS.md#the-release-watch-ended-on-one-look-gh-did-not-answer).
+
+- **The take cannot install the version it was just given.** Minutes
+  after the release, `just take <version>` stops on `take:
+  cs-image-system[<extras>]==<version> could not be installed from the
+  index (a development release is on TestPyPI, a final one on PyPI) --
+  nothing was changed`, though the index lists the version. uv
+  answered from the index page it cached before the upload, which does
+  not list the new version yet. In the live configuration, run the take
+  again with uv told to ask the index afresh: `UV_REFRESH=1 just take
+  <version>` (with `main` or `patched` when the first take had them).
+  The take is the tree's own `Justfile` recipe, and the take of 0.1.11
+  is the one that brings the fixed recipe in, so that take still runs
+  the old one. `just release-take` run from a checkout of this
+  repository from stage 139 on (released in 0.1.11) sets
+  `UV_REFRESH=1` for the take itself, whatever the tree's recipe; a
+  `just take` run by hand in a tree that has not taken 0.1.11 still
+  needs it written out, as above. A tree that has taken
+  0.1.11 installs with `--refresh` itself, and its line then says
+  `asked afresh (no cached page)`: the cache is not the cause, and the
+  version is not on the index asked, or the index did not answer --
+  see that the release went to the index the tree takes from (TestPyPI
+  for a development version, PyPI for a final one), wait a few
+  minutes, and take again.
+- **The tag's CI run never starts.** `just release-watch <version>`
+  waits on `system tag v<version> (CI)` and, at its timeout, says
+  `NEVER STARTED -- no run of CI on v<version> for <sha> within 60
+  minutes`; `GH_PAGER=cat gh run list --commit <sha>` shows the runs of
+  `main` and `develop` and none for the tag. The release pushed more
+  than three tags at once (its own and other local annotated tags
+  origin lacked, which `--follow-tags` carried), and for such a push
+  GitHub creates no tag event, so the `publish` job -- TestPyPI, and
+  for a final version the template repositories -- never ran. Start
+  the tag's run by hand from your local machine: `GH_PAGER=cat gh
+  workflow run ci.yml --ref v<version>` (CI takes a manual start, and
+  its `publish` job runs on any ref that starts with `refs/tags/v`),
+  then run the watch again; it finds the new run by the tag's commit.
+  A checkout of this repository from stage 139 on (released in 0.1.11)
+  pushes the release's branch and its own tag by name, so no other tag
+  travels with it, and its probes name the local tags that stay behind.
+- **The watch ends halfway with `gh could not be asked`.** A line from
+  `gh` (`TLS handshake timeout`, say), then ``release-watch: gh could
+  not be asked (above) -- `gh auth status` says why``, exit 2: one look
+  `gh` could not make, a network blip, and nothing wrong with the runs.
+  Run `just release-watch <version>` again; it finds the runs by commit,
+  so it takes up where it stopped. A checkout from stage 139 on treats
+  a look `gh` does not answer as no news, says so in one line and looks
+  again at its next interval; only when no look is answered until the
+  timeout does it end on the reason, and it says to run it again.
 
 **A first release to PyPI takes days.** Production PyPI lets an account
 create only a few NEW projects a day. A first release of many projects
@@ -2578,7 +2666,7 @@ repository's, which the release ships.
 | `test` | lint → typecheck → pytest, all blocking (the bar) | nothing |
 | `full-test` | `test`, then `full-test-legs`: the dev-pin resolution check (`scripts/dev-pin-resolves`), the docker legs (`test-mods --strict`, `test-posix-accounts`, `test-bake-steps`, `runner-image`, `test-docker-bake`, `test-docker-cycle`, `test-podman-cycle`, `test-podman-desktop-cycle`) and, gated on `preflight`, a dry `run --all` and `state query --strict` over a copy of the reference configuration | docker, the network, reference configuration, runtime sessions; each leg skips loudly |
 | `release <part\|version> [test\|pypi] [yes]` | from `develop`: probe (the branch; a clean tree; the index ready and free of the version; token; tag; the remote, fetched, holding nothing `main` or `develop` lacks), the move to `main` and `uv sync`, the venv's probes, the bar or `full-test`, the index again, `bump-my-version`, `uv lock`, `publish`, the `CHANGES.md` row, commit, tag `v<version>`, then the pushes of `main` and `develop` and the resync; `yes` = dry (the logic is `scripts/release.py`) | `UV_PUBLISH_TOKEN`; for `pypi`: clean trees, mod-test evidence, `full-test`'s needs |
-| `release-take <part\|version> <test\|pypi> [main] [yes]` | the live configuration asked first, then `release`, then `just take <version>` there (the version read back), `main` passed through; `yes` = dry | `release`'s needs, and the live configuration's sessions for the take |
+| `release-take <part\|version> <test\|pypi> [main] [yes]` | the live configuration asked first, then `release`, then `UV_REFRESH=1 just take <version>` there (the version read back; the variable reaches the take alone), `main` passed through; `yes` = dry | `release`'s needs, and the live configuration's sessions for the take |
 | `release-watch <version>` | waits on the runs the walk started, found by commit, here and in the live configuration; one verdict each, the index and the template repositories read for the tag's run, the guard and the bake plan for the configuration's `main`; exit 0 only when all are good | `gh`, logged in; the network |
 | `publish [test\|pypi]` | the index asked first, clean `dist/`, `build`, then `scripts/publish-dist`: one project at a time (sdist with wheel, dependencies first, `cs-image-system` last), skip what is there, exit 75 on PyPI's limit on new projects, prove the token when nothing went up | `UV_PUBLISH_TOKEN` |
 | `release-finish [test\|pypi]` | after a release's upload stopped part-way and `publish` completed it: on `main` (or a maintenance branch), the bump uncommitted and nothing else, every project holding the version -- then the evidence commit (PyPI), the `CHANGES.md` row, the commit and the tag, then the release's pushes and resync | the index, `develop` |
@@ -2590,7 +2678,7 @@ repository's, which the release ships.
 | `reuse-live` | the REUSE lint over the reference configuration | reference configuration |
 | `typecheck` | pyright, standard mode | nothing |
 | `pytest` | the unit tests alone | nothing |
-| `test-one *ARGS` | one pytest expression | nothing |
+| `test-one *ARGS` | one pytest expression, each word passed to pytest whole (`-k "a or b"` is one expression) | nothing |
 | `test-mods *ARGS` | the modification tests in a container over the reference configuration | docker, reference configuration |
 | `test-posix-accounts *ARGS` | the posix accounts script on AlmaLinux 10 and Debian 12 under docker, run twice: against an equal and a differing pre-existing group, a member with no account yet, sudo through visudo; a leg of `full-test`, skipped under `just test` | docker |
 | `test-bake-steps *ARGS` | a bake's settle step and step runner on AlmaLinux 10 and Debian 12 under docker, with the package database REALLY held by another process (rpm's transaction lock, dpkg's frontend lock); a leg of `full-test`, skipped under `just test` | docker |

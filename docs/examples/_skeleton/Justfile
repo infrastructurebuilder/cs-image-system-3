@@ -172,8 +172,10 @@ take version *words:
 	# the umbrella with the extras this tree's `type:` words need (`just extras`): a bare install carries no runtime
 	extras=$(just extras)
 	# always the release from the index, as the uv tool: a committing run is held to exactly that, and
-	# every step of the take runs by this binary, whatever CSIS names for the tree's other recipes
-	uv tool install --force ${index[@]+"${index[@]}"} "cs-image-system${extras:+[$extras]}==$version" >/dev/null 2>&1 || { echo "take: cs-image-system${extras:+[$extras]}==$version could not be installed from the index (a development release is on TestPyPI, a final one on PyPI) -- $unchanged"; exit 1; }
+	# every step of the take runs by this binary, whatever CSIS names for the tree's other recipes;
+	# `--refresh` asks the index afresh: a page uv cached before the release's upload does not list it,
+	# and the release is the umbrella and every package it pins, each its own project on the index
+	uv tool install --force --refresh ${index[@]+"${index[@]}"} "cs-image-system${extras:+[$extras]}==$version" >/dev/null 2>&1 || { echo "take: cs-image-system${extras:+[$extras]}==$version could not be installed from the index, asked afresh (no cached page): the version is not on the index asked (a development release is on TestPyPI, a final one on PyPI), or the index did not answer -- $unchanged"; exit 1; }
 	tool="$(uv tool dir --bin)/cs-image-system"
 	have=$("$tool" --version 2>/dev/null | awk '{print $NF}' || true)
 	[ "$have" = "$version" ] || { echo "take: the installed tool $tool reports '${have:-nothing}', not $version -- $unchanged"; exit 1; }
@@ -309,12 +311,14 @@ validate:
 	@{{cli}} validate
 
 # A dry run of the lifecycles named (default: all): generated/ and the runner scripts, nothing executed
+[positional-arguments]
 dry *LIFECYCLES:
-	@{{cli}} run {{ if LIFECYCLES == "" { "--all" } else { LIFECYCLES } }}
+	@{{cli}} run {{ if LIFECYCLES == "" { "--all" } else { '"$@"' } }}
 
 # A REAL run of the lifecycles named, gated, its records committed here (you push)
+[positional-arguments]
 run +LIFECYCLES:
-	@{{cli}} --locked --no-dry-run run {{LIFECYCLES}} --commit
+	@{{cli}} --locked --no-dry-run run "$@" --commit
 
 # The record: a dry run of EVERY lifecycle, unscoped, its emission and meta-state committed here (you push);
 # what CI's perform job makes first and last, so a record exists whatever happens in between
@@ -327,8 +331,9 @@ preflight:
 	@{{cli}} preflight
 
 # Reality against the records, read-only; --strict (any drift class but stale) before a cycle step
+[positional-arguments]
 state-query *ARGS:
-	@{{cli}} state query {{ARGS}}
+	@{{cli}} state query "$@"
 
 # Reality must match the records exactly before a cycle step
 cloud-preflight:
@@ -411,6 +416,7 @@ cloud-relabel runtime dry="yes":
 # GitHub Actions job (`workload token` mints the OPA token from this run's OIDC token, the names from the
 # configuration), as YOU (the enrolled client, `sft login` first) anywhere else
 [doc("Log into every standing instance (or those named) through the managed CI policy, as the workload in CI or as you")]
+[positional-arguments]
 ci-login-proof *ARGS:
 	#!/usr/bin/env bash
 	set -euo pipefail
@@ -427,7 +433,7 @@ ci-login-proof *ARGS:
 	else
 		echo "ci-login-proof: not a GitHub Actions job -- logging in as the enrolled client, not the workload" >&2
 	fi
-	{{cli}} verify login {{ARGS}}
+	{{cli}} verify login "$@"
 
 # Present this Actions run's OIDC token to the team's workload connection and say two things: the
 # connection accepted it and issued one, and whether that token carries the ROLE (`role: granted` from
@@ -450,18 +456,21 @@ sft-install:
 	echo "sft-install: $(sft --version | head -1)"
 
 # Every modification twice in a throwaway container (apply, then idempotence); needs docker
+[positional-arguments]
 test-mods *ARGS:
-	@{{cli}} test-mods {{ARGS}}
+	@{{cli}} test-mods "$@"
 
 # Nothing here may be material that must never be public; the pre-commit hook runs the staged form
+[positional-arguments]
 public-safe *ARGS:
-	@{{cli}} public-safe --tree "{{root}}" {{ARGS}}
+	@{{cli}} public-safe --tree "{{root}}" "$@"
 
 # The one-time initialisation as terraform, from an interview: the answers go to bootstrap.yaml at the
 # root of the tree, generated/bootstrap/ is written from them (and rewritten by every run); applying it is yours
 [doc("The one-time initialisation as terraform, from an interview: answers to bootstrap.yaml, generated/bootstrap/ from them")]
+[positional-arguments]
 bootstrap *ARGS:
-	@{{cli}} bootstrap {{ARGS}}
+	@{{cli}} bootstrap "$@"
 
 # Is the committed emission current? A dry run over a private copy against generated/ at HEAD (0 / 1 behind / 2 failed)
 config-drift:
@@ -480,5 +489,6 @@ hooks:
 	@git config core.hooksPath .githooks && echo "hooks: core.hooksPath = .githooks"
 
 # Any command of the CLI against this tree, e.g. `just cli state query`
+[positional-arguments]
 cli *ARGS:
-	@{{cli}} {{ARGS}}
+	@{{cli}} "$@"

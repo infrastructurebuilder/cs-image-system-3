@@ -19,8 +19,8 @@ it; a failed push named with what is left; ``release-finish``'s guards and
 its ending; ``release-take``'s release, then the take in the live
 configuration, and what it says when either stops; ``publish``'s own
 order; the release's row in docs/CHANGES.md; the fetch probe, which refuses before anything changes when origin holds
-commits a branch the ending pushes lacks; and the one reader of the
-sibling repository's working tree.
+commits a branch the ending pushes lacks, and the line after it naming the local annotated tags origin lacks,
+which stay behind (never a refusal); and the one reader of the sibling repository's working tree.
 """
 from __future__ import annotations
 
@@ -80,10 +80,12 @@ class FakeShell:
         self.answers = list(answers or [])
         self.calls: list[list[str]] = []
         self.cwds: list[Path | None] = []
+        self.envs: list[dict[str, str] | None] = []
 
     def __call__(self, cmd: list[str], *, cwd: Path | None = None, capture: bool = True, env=None):
         self.calls.append(list(cmd))
         self.cwds.append(cwd)
+        self.envs.append(dict(env) if env is not None else None)
         text = " ".join(cmd)
         if cmd[0] == "git":
             return R.run(cmd, cwd=cwd, capture=True, env=env)
@@ -223,9 +225,9 @@ def _answers(root: Path, *, new: str = "0.1.1.dev1", ready: int = 0, held: int =
 
 SYNC = ["uv", "sync", "--all-extras"]
 MOVE = [["git", "checkout", "main"], ["git", "merge", "--ff-only", "develop"]]
-ENDING_MAIN = [["git", "push", "--follow-tags", "origin", "main"], ["git", "checkout", "develop"],
+ENDING_MAIN = [["git", "push", "origin", "main", "v0.1.1.dev1"], ["git", "checkout", "develop"],
                ["git", "merge", "--ff-only", "main"], ["git", "push", "origin", "develop"], SYNC]
-ENDING_MAINT = [["git", "push", "--follow-tags", "origin", "release/0.1"], SYNC]
+ENDING_MAINT = [["git", "push", "origin", "release/0.1", "v0.1.1.dev1"], SYNC]
 BACK = f"release: {R.BACK.format(branch='develop', cut='main')}"
 
 
@@ -529,7 +531,7 @@ def test_the_real_form_probes_gates_asks_again_bumps_uploads_then_commits_and_ta
         assert name in committed, name
     page = (root / "docs" / "CHANGES.md").read_text().splitlines()
     assert page[4] == R.changes_row("0.1.1.dev1", "2001-02-03") and "| not yet |" not in "\n".join(page)
-    pushed = fam.closing_line("main")
+    pushed = fam.closing_line("main", "0.1.1.dev1")
     assert pushed == "; ".join(" ".join(c) for c in ENDING_MAIN[:-1])
     assert said[-1] == R.RELEASED.format(version="0.1.1.dev1", name="testpypi", pushed=pushed, branch="develop")
 
@@ -614,8 +616,8 @@ def test_from_develop_the_release_moves_to_main_cuts_pushes_and_comes_back(tmp_p
     for repo in (root, _remote(root)):
         assert _git(repo, "rev-parse", "main") == head == _git(repo, "rev-parse", "develop"), repo
         assert _git(repo, "tag", "-l") == "v0.1.1.dev1", repo
-    assert said[-1] == R.RELEASED.format(version="0.1.1.dev1", name="testpypi", pushed=fam.closing_line("main"),
-                                         branch="develop")
+    assert said[-1] == R.RELEASED.format(version="0.1.1.dev1", name="testpypi",
+                                         pushed=fam.closing_line("main", "0.1.1.dev1"), branch="develop")
 
 
 def test_from_main_the_release_pushes_main_with_its_tag_and_brings_develop_up(tmp_path: Path):
@@ -642,9 +644,36 @@ def test_from_a_maintenance_branch_the_release_pushes_that_branch_and_leaves_dev
     assert [_git(repo, "rev-parse", "develop") for repo in (root, remote)] == develop
     assert _git(remote, "rev-parse", "release/0.1") == _git(root, "rev-parse", "HEAD")
     assert _git(remote, "tag", "-l") == "v0.1.1.dev1"
-    assert said[-1] == R.RELEASED.format(version="0.1.1.dev1", name="testpypi", pushed=fam.closing_line("release/0.1"),
-                                         branch="release/0.1")
-    assert fam.closing_line("release/0.1") == " ".join(ENDING_MAINT[0])
+    assert said[-1] == R.RELEASED.format(version="0.1.1.dev1", name="testpypi",
+                                         pushed=fam.closing_line("release/0.1", "0.1.1.dev1"), branch="release/0.1")
+    assert fam.closing_line("release/0.1", "0.1.1.dev1") == " ".join(ENDING_MAINT[0])
+
+
+@pytest.mark.parametrize(("command", "branch", "pushes"), [
+    ("release", "main", [ENDING_MAIN[0], ENDING_MAIN[3]]),
+    ("release", "release/0.1", [ENDING_MAINT[0]]),
+    ("finish", "main", [ENDING_MAIN[0], ENDING_MAIN[3]]),
+])
+def test_the_push_names_the_branch_and_the_releases_own_tag_and_no_other(tmp_path: Path, command: str, branch: str,
+                                                                        pushes: list[list[str]]):
+    """GitHub starts no run for tags when more than three are pushed at once, so the release's tag goes up
+    by name beside its branch: three annotated tags here that origin lacks stay here, and the release's
+    own tag is the one origin receives."""
+    root = _system_repo(tmp_path, branch=branch)
+    for stray in ("s1-before", "s1-after", "checkpoint"):
+        _git(root, "tag", "-a", stray, "-m", stray)
+    if command == "finish":
+        _bumped(root)
+        shell = FakeShell([("bump-my-version show current_version", R.Done(0, "0.1.1.dev1\n"))])
+        assert _family(root, shell).finish("test") == 0
+    else:
+        shell = FakeShell(_answers(root))
+        assert _family(root, shell).release("patch", "test") == 0
+    sent = [c for c in shell.calls if c[:2] == ["git", "push"]]
+    assert sent == pushes and sent[0] == ["git", "push", "origin", branch, "v0.1.1.dev1"]
+    assert not any("--follow-tags" in c or "--tags" in c for c in sent)
+    assert _git(_remote(root), "tag", "-l") == "v0.1.1.dev1"
+    assert _git(root, "tag", "-l").split() == ["checkpoint", "s1-after", "s1-before", "v0.1.1.dev1"]
 
 
 def _second_ask_fails() -> Callable[[list[str]], object]:
@@ -844,6 +873,54 @@ def test_the_dry_form_fetches_and_says_origin_holds_nothing_the_pushes_lack(tmp_
     assert e.value.message == f"release: {R.NO_FETCH.format(remote='origin')}"
 
 
+@pytest.mark.parametrize("form", ["dry", "real", "finish"])
+def test_the_local_annotated_tags_origin_lacks_are_named_as_staying_behind(tmp_path: Path, form: str):
+    """Informational: the ending pushes the release's own tag alone, so a local annotated tag origin lacks
+    stays here, and the probe names it before the cut; a tag origin holds and a lightweight one are not named."""
+    root = _system_repo(tmp_path, branch="main" if form == "finish" else "develop", develop_ahead=form != "finish")
+    for stray in ("s1-before", "checkpoint", "pushed"):
+        _git(root, "tag", "-a", stray, "-m", stray)
+    _git(root, "tag", "light")
+    _git(root, "push", "-q", "origin", "pushed")
+    said: list[str] = []
+    if form == "finish":
+        _bumped(root)
+        shell = FakeShell([("bump-my-version show current_version", R.Done(0, "0.1.1.dev1\n"))])
+        assert _family(root, shell, said=said).finish("test") == 0
+    else:
+        shell = FakeShell(_answers(root))
+        assert _family(root, shell, said=said).release("patch", "test", "yes" if form == "dry" else "no") == 0
+    who = "release-finish" if form == "finish" else "release"
+    behind = f"{who}: {R.TAGS_BEHIND.format(remote='origin', version='0.1.1.dev1', tags='checkpoint, s1-before')}"
+    level = next(line for line in said if line.startswith(f"{who}: ") and "(fetched)" in line)
+    assert said.index(level) < said.index(behind) and shell.count("git ls-remote --tags origin") == 1
+    if form == "dry":
+        assert said.index(behind) < said.index(_dry_plan(said))
+    assert sorted(_git(_remote(root), "tag", "-l").split()) == (["pushed"] if form == "dry" else ["pushed", "v0.1.1.dev1"])
+
+
+class _NoLsRemote(FakeShell):
+    """origin answers the fetch but not ``git ls-remote``."""
+
+    def __call__(self, cmd: list[str], **kw):
+        if cmd[:2] == ["git", "ls-remote"]:
+            self.calls.append(list(cmd))
+            return R.Done(128, "", "fatal: unable to access origin\n")
+        return super().__call__(cmd, **kw)
+
+
+def test_no_tag_origin_lacks_says_none_and_an_unasked_origin_is_no_refusal(tmp_path: Path):
+    root = _system_repo(tmp_path, branch="develop", develop_ahead=True)
+    said: list[str] = []
+    assert _family(root, FakeShell(_answers(root)), said=said).release("patch", "test", "yes") == 0
+    assert f"release: {R.TAGS_BEHIND.format(remote='origin', version='0.1.1.dev1', tags='none')}" in said
+    said = []
+    shell = _NoLsRemote(_answers(root))
+    assert _family(root, shell, said=said).release("patch", "test", "yes") == 0
+    unasked = R.TAGS_UNASKED.format(remote="origin", reason="fatal: unable to access origin", version="0.1.1.dev1")
+    assert f"release: {unasked}" in said and said.index(f"release: {unasked}") < said.index(_dry_plan(said))
+
+
 def test_release_finish_asks_origin_before_it_commits(tmp_path: Path):
     root = _system_repo(tmp_path)
     _origin_ahead(root, "develop")
@@ -892,8 +969,8 @@ def test_release_finish_commits_and_tags_only_a_completed_upload(tmp_path: Path)
     assert shell.first("uv sync --all-extras --check") < shell.first("publish-target-ready") < shell.first("git add")
     assert _git(root, "log", "-1", "--format=%s") == "release 0.1.1.dev1" and _git(root, "tag", "-l") == "v0.1.1.dev1"
     assert _git(root, "status", "--porcelain") == "" and R.changes_row("0.1.1.dev1", "2001-02-03") in (root / "docs" / "CHANGES.md").read_text()
-    assert said[-1] == R.FINISHED.format(version="0.1.1.dev1", name="testpypi", pushed=fam.closing_line("main"),
-                                         branch="develop")
+    assert said[-1] == R.FINISHED.format(version="0.1.1.dev1", name="testpypi",
+                                         pushed=fam.closing_line("main", "0.1.1.dev1"), branch="develop")
     _git(root, "checkout", "-q", "main")
     with pytest.raises(R.Refused, match="already committed"):
         _family(root, FakeShell(answers)).finish("test")
@@ -926,8 +1003,8 @@ def test_release_finish_ends_as_the_release_does(tmp_path: Path, branch: str, en
         _git(_remote(root), "tag", "-l") == "v0.1.1.dev1"
     ends = "develop" if branch == "main" else branch
     assert _head(root) == ends
-    assert said[-1] == R.FINISHED.format(version="0.1.1.dev1", name="testpypi", pushed=fam.closing_line(branch),
-                                         branch=ends)
+    assert said[-1] == R.FINISHED.format(version="0.1.1.dev1", name="testpypi",
+                                         pushed=fam.closing_line(branch, "0.1.1.dev1"), branch=ends)
     # a checkout with no remote is refused before the commit
     plain = _system_repo(tmp_path / "plain", remote=False)
     _bumped(plain)
@@ -958,6 +1035,9 @@ def test_release_take_releases_then_takes_the_version_it_read_back_in_the_live_c
     take = ["just", "take", "0.1.1.dev1", *words]
     at = shell.calls.index(take)
     assert shell.cwds[at] == sibling and at == len(shell.calls) - 1                 # the last act, in the configuration
+    assert shell.envs[at] == {**fam.env, "UV_REFRESH": "1"}                          # the index asked afresh
+    assert "UV_REFRESH" not in fam.env                                              # by the take alone
+    assert all(e is None or "UV_REFRESH" not in e for i, e in enumerate(shell.envs) if i != at)
     last_sync = max(i for i, t in enumerate(shell.texts()) if t == " ".join(SYNC))
     assert shell.first("git push origin develop") < last_sync < at                  # after the release's whole ending
     assert shell.first("just --summary") < shell.first("git fetch")                  # the configuration asked first
@@ -985,7 +1065,7 @@ def test_a_take_that_stops_says_the_release_is_done_and_how_to_finish(tmp_path: 
     with pytest.raises(R.Refused) as e:
         fam.release_take("patch", "test", "main")
     assert e.value.code == 1 and e.value.message == "release-take: " + R.TAKE_STOPPED.format(
-        version="0.1.1.dev1", root=sibling, rc=1, command="just take 0.1.1.dev1 main")
+        version="0.1.1.dev1", root=sibling, rc=1, command="UV_REFRESH=1 just take 0.1.1.dev1 main")
     assert _git(_remote(root), "tag", "-l") == "v0.1.1.dev1"                         # the release itself went through
 
 
@@ -994,7 +1074,7 @@ def test_the_dry_release_take_is_the_dry_release_then_the_take_it_would_run(tmp_
     refs, files = _refs(root), _files(root)
     assert fam.release_take("patch", "test", "yes", "main") == 0
     assert _dry_plan(said) in said and said[-1] == "release-take: " + R.WOULD.format(
-        command=f"cd {sibling} && just take 0.1.1.dev1 main")
+        command=f"cd {sibling} && UV_REFRESH=1 just take 0.1.1.dev1 main")
     assert shell.count("just take") == 0 and shell.count("bump-my-version bump") == 0 and _moves(shell) == []
     assert _refs(root) == refs and _files(root) == files
 

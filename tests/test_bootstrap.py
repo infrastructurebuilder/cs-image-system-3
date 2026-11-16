@@ -466,7 +466,7 @@ def test_config_drift_judges_the_bootstrap_root(tmp_path: Path):
 def test_the_starters_carry_the_recipe_and_the_ignore_exception():
     for name in TREES:
         tree = RENDERED() / name
-        assert re.search(r"^bootstrap \*ARGS:\n\t@\{\{cli\}\} bootstrap \{\{ARGS\}\}", (tree / "Justfile").read_text(), flags=re.M), name
+        assert re.search(r'^bootstrap \*ARGS:\n\t@\{\{cli\}\} bootstrap "\$@"', (tree / "Justfile").read_text(), flags=re.M), name
         ignore = (tree / ".gitignore").read_text().splitlines()
         assert "*.tfvars" in ignore and "!generated/bootstrap/bootstrap.auto.tfvars" in ignore, name
         assert ignore.index("*.tfvars") < ignore.index("!generated/bootstrap/bootstrap.auto.tfvars")

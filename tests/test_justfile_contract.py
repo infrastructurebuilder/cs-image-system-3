@@ -14,7 +14,12 @@ the configuration.
 Nothing here reads the Justfile's text. A recipe is named by
 `just --summary` and judged by its printed plan (`just -n`, the evaluated
 commands it would run), so a reworded comment never fails a test and a
-changed command always does."""
+changed command always does. A recipe that passes its words on as the
+shell's own (`"$@"`) prints no words in its plan, so it is judged by what a
+stand-in for the command it runs receives: `test-one` hands pytest each
+word whole, a `-k` expression with spaces included, and so does every
+variadic recipe of this Justfile and of the starters' (each one's
+attributes and body as just parsed them, `just --dump`, say how)."""
 from __future__ import annotations
 
 import json
@@ -305,6 +310,119 @@ def _arity(name: str, justfile: Path | None = None) -> int:
     line = next(ln for ln in header if re.match(rf"^{re.escape(name)}\b", ln))
     params = line.split(":", 1)[0].split()[1:]
     return sum(1 for p in params if "=" not in p and not p.startswith("*"))   # `+X` needs one word, `*X` none
+
+
+def test_test_one_hands_pytest_each_word_whole(tmp_path: Path):
+    stub = tmp_path / "uv"                              # a stand-in for uv: one line per argument it received
+    stub.write_text('#!/bin/sh\nfor a in "$@"; do printf \'<%s>\\n\' "$a"; done\n')
+    stub.chmod(0o755)
+    words = ["tests/test_x.py::test_y", "-k", "gh_ready or token", "-q", "-p", "no:cacheprovider"]
+    done = subprocess.run(["just", "test-one", *words], cwd=REPO, capture_output=True, text=True, check=True,
+                          env={**os.environ, "PATH": f"{tmp_path}{os.pathsep}{os.environ['PATH']}"})
+    assert done.stdout.splitlines() == [f"<{w}>" for w in ["run", "pytest", *words]], done.stdout
+
+
+# ------------------------------------------------------------- variadic recipes pass their words whole
+
+# A variadic recipe whose words are a fixed list, none of which can hold a space, may expand them
+# into its line; every other one takes `[positional-arguments]` and passes the shell's own words.
+FIXED_WORDS = {
+    ("root", "release-take"): "its words are `main` and `yes`; scripts/release.py refuses any other",
+}
+SPACED = ["--strict", "a b", "it's", "*"]                # a word with a space, a quote and a glob, each to arrive whole
+
+
+def _dump(justfile: Path | None = None) -> dict:
+    """The Justfile as just parsed it: each recipe's attributes, parameters and body fragments."""
+    return json.loads(_just("--dump", "--dump-format", "json", justfile=justfile).stdout)
+
+
+def _interpolates(fragment: object, name: str) -> bool:
+    """Does the fragment expand the variable `name` into the line? (An `if`'s condition only tests it.)"""
+    if not isinstance(fragment, list):
+        return False
+    if fragment[:1] == ["variable"]:
+        return fragment[1] == name
+    if fragment[:1] == ["if"]:
+        return any(_interpolates(f, name) for f in fragment[2:])
+    return any(_interpolates(f, name) for f in fragment)
+
+
+def _strings(fragment: object) -> list[str]:
+    """Every literal in the body, an `if`'s branches included (`dry` passes `"$@"` from one)."""
+    if isinstance(fragment, str):
+        return [fragment]
+    return [s for f in fragment for s in _strings(f)] if isinstance(fragment, list) else []
+
+
+@pytest.mark.parametrize("which", ["root", "starter"])
+def test_every_variadic_recipe_passes_its_words_whole(which: str):
+    """A variadic parameter expanded into a recipe's line is split by the shell again, so
+    `-k "a or b"` arrives as three words; `[positional-arguments]` and `"$@"` keep each one."""
+    recipes = _dump(None if which == "root" else STARTER)["recipes"]
+    variadic = {n: r for n, r in recipes.items() if any(p["kind"] != "singular" for p in r["parameters"])}
+    assert {n for w, n in FIXED_WORDS if w == which} <= set(variadic), "an allowed recipe that is gone leaves the list"
+    checked = 0
+    for name, recipe in variadic.items():
+        if (which, name) in FIXED_WORDS:
+            continue
+        words = next(p["name"] for p in recipe["parameters"] if p["kind"] != "singular")
+        fixed = sum(1 for p in recipe["parameters"] if p["kind"] == "singular")
+        text = " ".join(_strings(recipe["body"]))
+        assert "positional-arguments" in recipe["attributes"], name
+        assert not _interpolates(recipe["body"], words), f"{name}: {words} expanded into the line"
+        assert '"$@"' in text or f'"${{@:{fixed + 1}}}"' in text, name
+        assert fixed == 0 or "shift" in text or '"${@:' in text, f"{name}: $@ holds the fixed parameters too"
+        checked += 1
+    assert checked >= 8, checked
+
+
+def _stand_in(tmp_path: Path, name: str) -> Path:
+    """A stand-in command: one `<word>` line per argument; asked `run python` (podman-machine-host), it names a host."""
+    stub = tmp_path / name
+    stub.write_text('#!/bin/sh\n[ "$1 $2" = "run python" ] && { echo unix:///stub.sock; exit 0; }\n'
+                    'for a in "$@"; do printf \'<%s>\\n\' "$a"; done\n')
+    stub.chmod(0o755)
+    return stub
+
+
+def _received(done: subprocess.CompletedProcess[str]) -> list[str]:
+    return [ln[1:-1] for ln in done.stdout.splitlines() if ln.startswith("<") and ln.endswith(">")]
+
+
+@pytest.mark.parametrize("recipe", ["cli", "test-mods", "public-safe", "test-posix-accounts", "test-bake-steps",
+                                    "test-docker-bake", "test-docker-cycle", "test-podman-cycle",
+                                    "test-podman-desktop-cycle"])
+def test_the_root_recipes_hand_each_word_whole(tmp_path: Path, recipe: str):
+    _stand_in(tmp_path, "uv")
+    (tmp_path / "live" / "cfg").mkdir(parents=True)
+    (tmp_path / "live" / "cfg" / "_config.yml").write_text("{}\n")           # config-guard's one question
+    env = {**os.environ, "PATH": f"{tmp_path}{os.pathsep}{os.environ['PATH']}", "CSIS_CONFIG_ROOT": str(tmp_path / "live"),
+           "DOCKER_HOST": "unix:///stub.sock", "CSIS_PODMAN_HOST": "unix:///stub.sock"}
+    done = subprocess.run(["just", recipe, *SPACED], cwd=REPO, capture_output=True, text=True, env=env)
+    assert done.returncode == 0, done.stdout + done.stderr
+    got = _received(done)
+    assert got[-len(SPACED):] == SPACED, got
+    if recipe == "cli":
+        assert got == ["run", "cs-image-system", "--root-dir", str(tmp_path / "live"), *SPACED], got
+
+
+@pytest.mark.parametrize("recipe", ["cli", "state-query", "ci-login-proof", "test-mods", "public-safe", "bootstrap",
+                                    "dry", "run"])
+def test_the_starter_recipes_hand_each_word_whole(tmp_path: Path, recipe: str):
+    stub = _stand_in(tmp_path, "cs-image-system")
+    env = {k: v for k, v in os.environ.items() if k != "ACTIONS_ID_TOKEN_REQUEST_URL"}       # ci-login-proof as the client
+    done = subprocess.run(["just", "-f", str(STARTER), recipe, *SPACED], cwd=STARTER.parent, capture_output=True,
+                          text=True, env={**env, "CSIS": str(stub)})
+    assert done.returncode == 0, done.stdout + done.stderr
+    got = _received(done)
+    expected = {"cli": [], "state-query": ["state", "query"], "ci-login-proof": ["verify", "login"],
+                "test-mods": ["test-mods"], "bootstrap": ["bootstrap"], "dry": ["run"],
+                "public-safe": ["public-safe", "--tree", str(STARTER.parent)]}
+    if recipe == "run":
+        assert got == ["--root-dir", str(STARTER.parent), "--locked", "--no-dry-run", "run", *SPACED, "--commit"], got
+    else:
+        assert got == ["--root-dir", str(STARTER.parent), *expected[recipe], *SPACED], got
 
 
 def test_preflight_readiness_marks_presence():
