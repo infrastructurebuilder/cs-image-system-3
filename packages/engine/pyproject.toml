@@ -4,7 +4,7 @@
 
 [project]
 name = "cs-image-system-engine"
-version = "0.1.9"
+version = "0.1.10"
 description = "The engine of cs-image-system: the loader, the configuration reader, the resolver, the lifecycle runner, the commands, meta-state and the bootstrap"
 readme = "README.md"
 authors = [{ name = "Mykel Alvis", email = "mykelalvis@infrastructurebuilder.org" }]
@@ -13,7 +13,7 @@ license-files = ["LICENSE"]
 requires-python = ">=3.13"
 dependencies = [
     "cs-image-system-contract>=0.4,<0.5",
-    "cs-image-system-base==0.1.9",
+    "cs-image-system-base==0.1.10",
     "Jinja2>=3.1",
     "PyYAML>=6.0",
     "packaging>=26.2",
