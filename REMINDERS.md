@@ -3,7 +3,7 @@
 Things to check at intervals collect in this file: the standing reviews
 under "Monthly General Items", the questions to settle "Before 1.0" and
 the GCP account housekeeping. The
-system's work in flight stays in [INPROGRESS/TODO.md](INPROGRESS/TODO.md).
+system's work in flight stays in [specs/](specs/README.md).
 The assistant raises each item when it falls due and records the
 outcome here, so this is the one current page besides docs/CHANGES.md
 and docs/INCIDENTS.md that carries dates by design.

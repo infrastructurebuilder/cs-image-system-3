@@ -36,22 +36,22 @@ they last read it (a rewrite bumps the version). A box ends with the one
 command whose output must be checked; the next action starts a new box.
 A box is not a recipe: a recipe is what the box runs, and a walk is
 judged partly by how few boxes it needs. Read the frozen
-[walk](history/WALK-2026-10.md) for the form in use, and
+[walk](../ATTIC/history/WALK-2026-10.md) for the form in use, and
 [the walk](#the-walk) below.
 
 ### bundle (hygiene bundle)
 
-A hygiene bundle is the open stage that collects small, non-blocking
-findings as they are found: each item its own commit on the bundle's
-branch, the bundle landed as one squash when it closes, and the next one
-opened. A defect that is not worth a stage of its own goes into the
-existing open bundle, never into a new stage; "the open bundle" is the
-one the Open list in [INPROGRESS/TODO.md](../INPROGRESS/TODO.md) names.
-It is not a backlog in the loose sense: every item is a concrete
-finding with a fix, and the bundle's file is its plan. Read the open
-bundle's file from the TODO's Open list, and
+A hygiene bundle was a stage that collected small, non-blocking
+findings as they were found: each item its own commit on the bundle's
+branch, the bundle landed as one squash when it closed. The word appears
+in [the stage index](CHANGES.md) and in commit subjects. Bundles are
+retired: no bundle is open and none is opened. A defect that blocks a
+named user is fixed under a specification in
+[specs/](../specs/README.md); any other waits until its code is next
+changed (the [constitution](../.specify/memory/constitution.md),
+"Development Workflow"). Read
 [DAILY_DRIVER.md, "The daily habits"](DAILY_DRIVER.md#8-the-daily-habits)
-for when a failure goes there.
+for what happens to a new failure.
 
 ### contract
 
@@ -393,14 +393,14 @@ and [DAILY_DRIVER.md, "What you are driving"](DAILY_DRIVER.md#0-what-you-are-dri
 
 ### stage
 
-A stage is the unit of planned work: one file `INPROGRESS/STAGE-<n>.md`,
-numbered, holding what the stage does, its decisions marked for the
-operator, what is out of scope and what acceptance is. A stage is a plan
-until the operator says "do N"; it is executed on its own feature
-branch, landed as one squash-merge whose message is the record, and its
-file is then removed. A stage is not a release and not a bundle: a
-bundle is the one stage that stays open to take small findings. Read
-[INPROGRESS/TODO.md](../INPROGRESS/TODO.md) and
+A stage was the unit of planned work: a numbered plan, executed on its
+own feature branch and landed as one squash-merge whose message is the
+record. The word and its numbers appear in
+[the stage index](CHANGES.md) and in commit subjects. Stages are
+retired: the unit of planned work is a specification, one directory
+under [specs/](../specs/README.md) holding what changes and why, for a
+named user, and the acceptance it ends in. The branch and squash-merge
+rules are unchanged; read
 [OPERATIONS.md, "Branches"](OPERATIONS.md#branches).
 
 ### starter
@@ -468,11 +468,11 @@ to prove that the page says enough: the daily driver was walked from
 nothing to running and back to nothing, and a release is walked through
 its recipes. Where the page says too little the walker records a
 finding, and the findings become stages and bundle items; the walk's
-page is then frozen under `docs/history/` as evidence, not documentation.
+page is then frozen under `ATTIC/history/` as evidence, not documentation.
 A walk is not a test suite: it proves the words, the suite proves the
 code. Read
 [DAILY_DRIVER.md](DAILY_DRIVER.md) (the text that is walked) and the
-frozen [walk](history/WALK-2026-10.md).
+frozen [walk](../ATTIC/history/WALK-2026-10.md).
 
 ### workload
 

@@ -26,4 +26,4 @@ undeclare as a flag.
   uses for a storage the test itself declared.
 
 The overlays that drove the live proofs are frozen under
-`docs/history/overlays/` as evidence, not configuration.
+`ATTIC/history/overlays/` as evidence, not configuration.

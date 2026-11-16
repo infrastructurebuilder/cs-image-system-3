@@ -437,7 +437,7 @@ The live configuration carries **no overlays**: an overlay does nothing
 unless an invocation names it, a missing one is a refusal, and no recipe
 names one. The overlays the tests use live in the frozen fixture
 (`tests/fixtures/config/overlays/`); the overlays of past live proofs are
-kept as evidence under [history/overlays/](history/overlays/README.md).
+kept as evidence under [history/overlays/](../ATTIC/history/overlays/README.md).
 
 ### When an image bakes
 
@@ -4083,7 +4083,7 @@ real host should not rely on that.
 | [CHANGES.md](CHANGES.md) | the stage index: one row per landed stage and per release, newest first, with the anchor the other pages point at |
 | [INCIDENTS.md](INCIDENTS.md) | every incident, newest first: symptom, cause, what the system does now, date |
 | [GLOSSARY.md](GLOSSARY.md) | the house words, each defined once in a paragraph that links to the page owning the concept; it defines, it never rules |
-| [history/](history/) | frozen: the findings ledger, the GCP readiness study and the live-proof overlays; evidence, not documentation |
+| [history/](../ATTIC/history/) | frozen: the findings ledger, the GCP readiness study and the live-proof overlays; evidence, not documentation |
 | [tests/fixtures/config/README.md](../tests/fixtures/config/README.md) | the frozen fixture |
 | [Justfile](../Justfile) | every recipe, with its comment |
 | [.github/workflows/ci.yml](../.github/workflows/ci.yml) | the CI workflow |

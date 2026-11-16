@@ -26,7 +26,7 @@ code in a specific way, listed here with its check.
 | [DESCRIPTION.md](DESCRIPTION.md) "Known limits" | A limit is lifted and the list is not updated. | Each limit names its evidence (a file, a record, a command); re-check it when the area changes. | None. |
 | [REMINDERS.md](../REMINDERS.md) (the GCP housekeeping) | Console pages, thresholds or recipients changed in the GCP console. | The monthly reminder re-reads the budget page. | None; the console is not scriptable for budgets. |
 | The live configuration's README | It describes a tree this repository does not own. | Read it in the sibling repository when its shape changes. | None. |
-| The `docs/history/` tree | Frozen on purpose; it carries dates, stage numbers and commit hashes verbatim. | None: nothing current cites it for a fact. | None. |
+| The `ATTIC/history/` tree | Frozen on purpose; it carries dates, stage numbers and commit hashes verbatim. | None: nothing current cites it for a fact. | None. |
 
 ## What the code checks that the documents rely on
 
@@ -65,7 +65,7 @@ trust first:
   ids) are copied from records and can go stale when a resource is
   replaced; the records under the live configuration's `meta-state/` are
   authoritative.
-- **The frozen history** under `docs/history/` is inconsistent with the
+- **The frozen history** under `ATTIC/history/` is inconsistent with the
   present by design.
 - **The pre-publication history is not in these repositories at all.**
   Each was published as a single commit; everything before it lives in a
