@@ -27,14 +27,14 @@ from typing import Any, cast
 
 import pytest
 import yaml
-from harness import V2Run, command_lines, copy_config, load_context, stub_environment, tree
+from harness import FixtureRun, command_lines, copy_config, load_context, stub_environment, tree
 
 LITERAL_GID = re.compile(r"\b(?:owner_)?gid\s*=\s*\d+\b")
 
 
 @pytest.fixture
-def v2(tmp_path, monkeypatch):
-    run = V2Run(tmp_path, monkeypatch)
+def fixture_run(tmp_path, monkeypatch):
+    run = FixtureRun(tmp_path, monkeypatch)
     yield run
     run.restore_cwd()
 
@@ -47,7 +47,7 @@ def _prepared(tmp_path, monkeypatch, mutate):
     """A config copy mutated BEFORE the context loads."""
     root = copy_config(tmp_path)
     mutate(root)
-    return V2Run(tmp_path, monkeypatch, config_root=root)
+    return FixtureRun(tmp_path, monkeypatch, config_root=root)
 
 
 def _set_storage(root: Path, name: str, **fields) -> None:
@@ -67,9 +67,9 @@ def _seed_storage_state(root: Path, states: dict[str, str]) -> None:
                               for n, s in states.items()}})
 
 
-def test_storage_root_consumes_gids_by_reference_only(v2):
-    assert v2.run(["identity", "storage"], apply=False).ok
-    efs = tree(v2.generated / "storage" / "aws-efs" / "storage-generation")
+def test_storage_root_consumes_gids_by_reference_only(fixture_run):
+    assert fixture_run.run(["identity", "storage"], apply=False).ok
+    efs = tree(fixture_run.generated / "storage" / "aws-efs" / "storage-generation")
     root = efs["aws-efs-storage-generation.tf"]
     assert 'data "terraform_remote_state" "oktagroups"' in root
     assert "oktagroups.tfstate" in root
@@ -83,18 +83,18 @@ def test_storage_root_consumes_gids_by_reference_only(v2):
     backend = efs["aws-efs-storage-generation.tfbackend.hcl"]
     assert 'bucket = "my-east1-tfstate-bucket"' in backend and 'key = "statefiles/csia/aws_efs.tfstate"' in backend
     assert 'backend = "local"' in root and 'path = "../../../../state/oktagroups.tfstate"' in root
-    everything = "\n".join(tree(v2.generated / "storage").values())
+    everything = "\n".join(tree(fixture_run.generated / "storage").values())
     assert not LITERAL_GID.search(everything), "a literal gid leaked into storage IaC (N7)"
     # ebs carries no gid at the cloud level (ownership is applied at mount time)
-    ebs = tree(v2.generated / "storage" / "aws-ebs" / "storage-generation")
+    ebs = tree(fixture_run.generated / "storage" / "aws-ebs" / "storage-generation")
     assert "group_gids" not in ebs["aws-ebs-storage-generation-storage-mnt_data.tf"]
-    s3 = tree(v2.generated / "storage" / "aws-s3" / "storage-generation")
+    s3 = tree(fixture_run.generated / "storage" / "aws-s3" / "storage-generation")
     assert "public_read = true" in s3["aws-s3-storage-generation-storage-default_bucket.tf"]
 
 
-def test_storage_read_model_is_the_instance_inventory(v2):
-    assert v2.run(["storage"], apply=False).ok
-    model = yaml.safe_load((v2.meta_state / "storage.yaml").read_text())
+def test_storage_read_model_is_the_instance_inventory(fixture_run):
+    assert fixture_run.run(["storage"], apply=False).ok
+    model = yaml.safe_load((fixture_run.meta_state / "storage.yaml").read_text())
     st = model["storages"]
     assert st["mnt_data"]["type"] == "ebs"
     assert st["mnt_data"]["attachment_cardinality"] == "single"
@@ -106,10 +106,10 @@ def test_storage_read_model_is_the_instance_inventory(v2):
     assert st["default-bucket"]["public_read"] is True and st["default-bucket"]["posix"] is False
 
 
-def test_storage_runner_is_gated(v2):
-    assert v2.run(["storage"], apply=False).ok
-    cmds = command_lines((v2.generated / "storage" / "run-storage.sh").read_text())
-    roots = len(yaml.safe_load((v2.config_root / "cfg" / "storage-builders.yml").read_text())["storage_builders"])
+def test_storage_runner_is_gated(fixture_run):
+    assert fixture_run.run(["storage"], apply=False).ok
+    cmds = command_lines((fixture_run.generated / "storage" / "run-storage.sh").read_text())
+    roots = len(yaml.safe_load((fixture_run.config_root / "cfg" / "storage-builders.yml").read_text())["storage_builders"])
     assert roots >= 5
     assert sum("tofu plan -input=false -out=tfplan" in c for c in cmds) == roots   # one plan per declared storage root
     assert sum("gate-plan --planfile tfplan" in c for c in cmds) == roots          # and one gate per plan

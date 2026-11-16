@@ -20,7 +20,7 @@ from pathlib import Path
 
 import pytest
 
-from tests.harness import V2Run, cli_context, copy_config
+from tests.harness import FixtureRun, cli_context, copy_config
 
 GCE = "gcloud-east1"
 DASK = "imgfile-basic-dask"
@@ -28,7 +28,7 @@ BUILD = "imgfile-basic-dask-pckr-gce-ans-20260910-000000"
 BASE = "basic-rh-10-gcloud-east1-20260910-000000"
 
 
-def _seed_gce_chain(run: V2Run) -> None:
+def _seed_gce_chain(run: FixtureRun) -> None:
     ms = run.ctx.meta_state
     common = {"chain": [], "mods": [], "local_mods": False, "update": None,
               "tests": {"assertions": 3, "in_bake": True},
@@ -44,7 +44,7 @@ def _seed_gce_chain(run: V2Run) -> None:
 
 @pytest.fixture
 def run(tmp_path: Path, monkeypatch):
-    r = V2Run(tmp_path, monkeypatch, config_root=copy_config(tmp_path), dry_run=False)
+    r = FixtureRun(tmp_path, monkeypatch, config_root=copy_config(tmp_path), dry_run=False)
     try:
         yield r
     finally:
@@ -223,7 +223,7 @@ def test_release_declaration_is_validated(tmp_path, monkeypatch):
         if img["name"] == DASK:
             img["release"] = {"nope": 1}
     p.write_text(yaml.safe_dump(d, sort_keys=False))
-    run = V2Run(tmp_path, monkeypatch, config_root=root)
+    run = FixtureRun(tmp_path, monkeypatch, config_root=root)
     try:
         summary = run.run(["release"], apply=False, only=["none"])
         assert not summary.ok and any("release must be {model: <name>}" in e for e in summary.validation_errors)

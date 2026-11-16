@@ -32,7 +32,7 @@ from pathlib import Path
 
 import yaml
 from golden import GOLDEN, IGNORED_FILES
-from harness import V2Run, copy_config, load_context, stub_environment, tree
+from harness import FixtureRun, copy_config, load_context, stub_environment, tree
 
 from cs_image_system.base import alias_pool, image_sources, registry, run_context
 from cs_image_system.base.launch_params import compute_launch_params
@@ -179,7 +179,7 @@ def test_each_run_keeps_its_own_alias_draws_under_one_run_id(tmp_path, monkeypat
         os.chdir(cwd)
 
 
-def _emission(run: V2Run) -> dict[str, str]:
+def _emission(run: FixtureRun) -> dict[str, str]:
     out = {f"generated/{k}": v for k, v in tree(run.generated).items()}
     out.update({f"meta-state/{k}": v for k, v in tree(run.meta_state).items()})
     return {k: v for k, v in out.items() if Path(k).name not in IGNORED_FILES}
@@ -191,10 +191,10 @@ def test_a_run_emits_the_golden_tree_with_another_run_loaded_and_generated_besid
     first generate: its emission is the golden tree, so nothing the second
     load bound or the second run resolved reached it. The second's own
     emission lacks the instance its overlay undeclared."""
-    first = V2Run(tmp_path, monkeypatch, config_root=copy_config(tmp_path, "first"))
+    first = FixtureRun(tmp_path, monkeypatch, config_root=copy_config(tmp_path, "first"))
     try:
         second_root = _second_tree(tmp_path)
-        second = V2Run(tmp_path, monkeypatch, config_root=second_root,
+        second = FixtureRun(tmp_path, monkeypatch, config_root=second_root,
                        overlays=[second_root / "overlays" / OVERLAY])
         summary = second.run("all", apply=True)
         assert summary.ok, summary.error

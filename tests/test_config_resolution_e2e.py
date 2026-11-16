@@ -43,7 +43,7 @@ def no_cloud(monkeypatch):
     discovery). Stub it so these tests need no credentials -- they exercise
     the config pipeline, not AWS."""
     # The Okta workspace's finalization asserts its TF_VAR_* credentials exist
-    # (okta_tf_workspace._require_tfvar); the V2 harness stubs them, and so
+    # (okta_tf_workspace._require_tfvar); the harness (tests/harness.py) stubs them, and so
     # must these tests -- they had inherited them from the developer's shell,
     # which is why CI never passed.
     monkeypatch.setenv("OKTA_API_PRIVATE_KEY", "dummy")

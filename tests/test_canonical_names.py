@@ -23,12 +23,12 @@ from cs_image_system.contract.lifecycles import Lifecycle
 from cs_image_system.engine import provider_aliases as pa
 from cs_image_system.engine import state_query as sq
 from cs_image_system.engine.commands.validate import check_canonical_hostnames
-from tests.harness import V2Run
+from tests.harness import FixtureRun
 
 
 @pytest.fixture
 def world(tmp_path: Path, monkeypatch):
-    run = V2Run(tmp_path, monkeypatch)
+    run = FixtureRun(tmp_path, monkeypatch)
     try:
         yield run
     finally:

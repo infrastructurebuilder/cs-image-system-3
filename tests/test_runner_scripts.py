@@ -53,15 +53,15 @@ def test_the_system_cli_runs_as_the_running_interpreters_module(monkeypatch, tmp
 
 
 def test_the_emitted_scripts_still_name_the_bare_command(tmp_path, monkeypatch):
-    from harness import V2Run
-    v2 = V2Run(tmp_path, monkeypatch)
+    from harness import FixtureRun
+    fixture_run = FixtureRun(tmp_path, monkeypatch)
     try:
-        assert v2.run("identity", apply=False).ok
-        text = (v2.generated / "identity" / "run-identity.sh").read_text()
+        assert fixture_run.run("identity", apply=False).ok
+        text = (fixture_run.generated / "identity" / "run-identity.sh").read_text()
         assert "cs-image-system " in text
         assert sys.executable not in text and "-m cs_image_system.system" not in text
     finally:
-        v2.restore_cwd()
+        fixture_run.restore_cwd()
 
 
 @needs_just

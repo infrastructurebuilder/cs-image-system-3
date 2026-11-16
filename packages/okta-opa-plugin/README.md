@@ -464,7 +464,7 @@ emission and commands are the parent's.
 ## Emission
 
 Real file names from the golden emission under
-[tests/fixtures/v2_golden/generated/identity](../../tests/fixtures/v2_golden/generated/identity),
+[tests/fixtures/golden/generated/identity](../../tests/fixtures/golden/generated/identity),
 produced by the fixture's `oktagroups` (`okta-tf`), `okta-groups-ro`
 (`okta-tf-ro`, one group, `readers`) and
 `okta-tf-users` (`okta-tf-ro`) builders, all bound to the fixture's
@@ -475,18 +475,18 @@ produced by the fixture's `oktagroups` (`okta-tf`), `okta-groups-ro`
 
 | File | Content |
 |---|---|
-| [oktagroups/group-generation/oktagroups-group-generation.tf](../../tests/fixtures/v2_golden/generated/identity/oktagroups/group-generation/oktagroups-group-generation.tf) | `terraform {}` with `oktapam` and `external`, `backend "local" {}`, `provider "oktapam"` (key and secret as `var.` references) and `provider "external"`, both `alias = "oktagroups"`. |
-| [oktagroups-group-generation-oktagroups-vars.tf](../../tests/fixtures/v2_golden/generated/identity/oktagroups/group-generation/oktagroups-group-generation-oktagroups-vars.tf) | The two sensitive variables. |
-| [oktagroups-group-generation-group-basic.tf](../../tests/fixtures/v2_golden/generated/identity/oktagroups/group-generation/oktagroups-group-generation-group-basic.tf), `-coops.tf`, `-secofs.tf`, `-stofs.tf`, `-tcmet.tf` | One `module "group_<label>"` call each. |
-| [oktagroups-group-generation-outputs.tf](../../tests/fixtures/v2_golden/generated/identity/oktagroups/group-generation/oktagroups-group-generation-outputs.tf) | The gid shim data source and the three outputs. |
-| [oktagroups-group-generation.tfbackend.hcl](../../tests/fixtures/v2_golden/generated/identity/oktagroups/group-generation/oktagroups-group-generation.tfbackend.hcl) | Backend partial configuration (`path = ...` for the local backend). |
-| [okta-tf-users/user-generation/okta-tf-users-user-generation.tf](../../tests/fixtures/v2_golden/generated/identity/okta-tf-users/user-generation/okta-tf-users-user-generation.tf) | `terraform {}` with `okta` and `external`, `backend "local" {}`, `provider "okta"` with `org_name`/`base_url`, the `data "external" "sensitive"` block carrying the ciphertexts (a derived address as `<name>@ENC[age:...]`), and `locals`. |
-| [okta-tf-users-user-generation-users-data.tf](../../tests/fixtures/v2_golden/generated/identity/okta-tf-users/user-generation/okta-tf-users-user-generation-users-data.tf) | One `data "okta_user"` lookup per user. No `-users.tf` file: the builder is read-only, so no resources exist. |
-| [okta-tf-users-user-generation.tfbackend.hcl](../../tests/fixtures/v2_golden/generated/identity/okta-tf-users/user-generation/okta-tf-users-user-generation.tfbackend.hcl) | Backend partial configuration. |
-| [run-identity.sh](../../tests/fixtures/v2_golden/generated/identity/run-identity.sh) | The deferred commands: only the `oktagroups` root's `rm`, `init`, `prune-attachments`, `plan` and `gate-plan`, each entered through `cs-image-system materialize` (the fixture has `apply_identity: false`, so no `apply-check` or `apply`). |
+| [oktagroups/group-generation/oktagroups-group-generation.tf](../../tests/fixtures/golden/generated/identity/oktagroups/group-generation/oktagroups-group-generation.tf) | `terraform {}` with `oktapam` and `external`, `backend "local" {}`, `provider "oktapam"` (key and secret as `var.` references) and `provider "external"`, both `alias = "oktagroups"`. |
+| [oktagroups-group-generation-oktagroups-vars.tf](../../tests/fixtures/golden/generated/identity/oktagroups/group-generation/oktagroups-group-generation-oktagroups-vars.tf) | The two sensitive variables. |
+| [oktagroups-group-generation-group-basic.tf](../../tests/fixtures/golden/generated/identity/oktagroups/group-generation/oktagroups-group-generation-group-basic.tf), `-coops.tf`, `-secofs.tf`, `-stofs.tf`, `-tcmet.tf` | One `module "group_<label>"` call each. |
+| [oktagroups-group-generation-outputs.tf](../../tests/fixtures/golden/generated/identity/oktagroups/group-generation/oktagroups-group-generation-outputs.tf) | The gid shim data source and the three outputs. |
+| [oktagroups-group-generation.tfbackend.hcl](../../tests/fixtures/golden/generated/identity/oktagroups/group-generation/oktagroups-group-generation.tfbackend.hcl) | Backend partial configuration (`path = ...` for the local backend). |
+| [okta-tf-users/user-generation/okta-tf-users-user-generation.tf](../../tests/fixtures/golden/generated/identity/okta-tf-users/user-generation/okta-tf-users-user-generation.tf) | `terraform {}` with `okta` and `external`, `backend "local" {}`, `provider "okta"` with `org_name`/`base_url`, the `data "external" "sensitive"` block carrying the ciphertexts (a derived address as `<name>@ENC[age:...]`), and `locals`. |
+| [okta-tf-users-user-generation-users-data.tf](../../tests/fixtures/golden/generated/identity/okta-tf-users/user-generation/okta-tf-users-user-generation-users-data.tf) | One `data "okta_user"` lookup per user. No `-users.tf` file: the builder is read-only, so no resources exist. |
+| [okta-tf-users-user-generation.tfbackend.hcl](../../tests/fixtures/golden/generated/identity/okta-tf-users/user-generation/okta-tf-users-user-generation.tfbackend.hcl) | Backend partial configuration. |
+| [run-identity.sh](../../tests/fixtures/golden/generated/identity/run-identity.sh) | The deferred commands: only the `oktagroups` root's `rm`, `init`, `prune-attachments`, `plan` and `gate-plan`, each entered through `cs-image-system materialize` (the fixture has `apply_identity: false`, so no `apply-check` or `apply`). |
 
 The system's identity read-model
-([meta-state/identity.yaml](../../tests/fixtures/v2_golden/meta-state/identity.yaml))
+([meta-state/identity.yaml](../../tests/fixtures/golden/meta-state/identity.yaml))
 records, per group, the `builder`, `identity_type: okta`,
 `gid_policy: creation-only`, `managed`, `is_root`, members and admins as
 this plugin reports them, plus a `workload` record (the expected

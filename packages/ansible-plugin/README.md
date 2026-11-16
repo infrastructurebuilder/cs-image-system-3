@@ -181,7 +181,7 @@ packer-gce), else the legacy `amazon-ebs.<image>`.
 The provisioners run on the build VM when the image builder's deferred
 `packer build .` executes. Separately, the Packer plugin's local
 modification bundle
-([v2_local_mods.py](../packer-plugin/src/cs_image_system/packer_plugin/v2_local_mods.py))
+([local_mods.py](../packer-plugin/src/cs_image_system/packer_plugin/local_mods.py))
 records the item: its directory `csis-mods/<image>/NN-<name>/` receives a
 copy of each playbook, a `run.sh` that runs
 `ansible-playbook -i localhost, -c local '<playbook>'` per playbook (after
@@ -211,7 +211,7 @@ The fixture carries no such item.
 Nothing under `generated/` belongs to this plugin alone; its output is
 embedded in the Packer plugin's files. From the golden emission for
 `imgfile-basic-dask` in
-[pckr-ebs-ans-image-generation-block-000-build.pkr.hcl](../../tests/fixtures/v2_golden/generated/instance-image/pckr-ebs-ans/image-generation/block-000/pckr-ebs-ans-image-generation-block-000-build.pkr.hcl):
+[pckr-ebs-ans-image-generation-block-000-build.pkr.hcl](../../tests/fixtures/golden/generated/instance-image/pckr-ebs-ans/image-generation/block-000/pckr-ebs-ans-image-generation-block-000-build.pkr.hcl):
 
 ```hcl
 # Modifications for dask-setup-jeffy of type ansible-default
@@ -234,10 +234,10 @@ Files it causes to exist beside the Packer root
 | File | Origin |
 |---|---|
 | `setup_dask.yml`, `setup_data_science.yml` | Item playbooks, copied by `generate_items_during_modification`. |
-| [csis-mods/imgfile-basic-dask/01-dask-setup-jeffy/](../../tests/fixtures/v2_golden/generated/instance-image/pckr-ebs-ans/image-generation/block-000/csis-mods/imgfile-basic-dask/01-dask-setup-jeffy/MANIFEST.yaml) `MANIFEST.yaml`, `run.sh`, `setup_dask.yml` | The local bundle entry the Packer plugin writes for this item. |
+| [csis-mods/imgfile-basic-dask/01-dask-setup-jeffy/](../../tests/fixtures/golden/generated/instance-image/pckr-ebs-ans/image-generation/block-000/csis-mods/imgfile-basic-dask/01-dask-setup-jeffy/MANIFEST.yaml) `MANIFEST.yaml`, `run.sh`, `setup_dask.yml` | The local bundle entry the Packer plugin writes for this item. |
 
 The GCE builder's root
-([pckr-gce-ans/.../block-000](../../tests/fixtures/v2_golden/generated/instance-image/pckr-gce-ans/image-generation/block-000/pckr-gce-ans-image-generation-block-000-build.pkr.hcl))
+([pckr-gce-ans/.../block-000](../../tests/fixtures/golden/generated/instance-image/pckr-gce-ans/image-generation/block-000/pckr-gce-ans-image-generation-block-000-build.pkr.hcl))
 carries the same provisioners with `only = ["googlecompute.imgfile-basic-dask"]`
 and `user = "packer"`.
 
@@ -597,7 +597,7 @@ Failures the code raises:
 - The image builder that calls it and hosts its output:
   [packer-plugin](../packer-plugin)
   ([packer_image_builder.py](../packer-plugin/src/cs_image_system/packer_plugin/packer_image_builder.py),
-  [v2_local_mods.py](../packer-plugin/src/cs_image_system/packer_plugin/v2_local_mods.py)).
+  [local_mods.py](../packer-plugin/src/cs_image_system/packer_plugin/local_mods.py)).
 - Lineage records for modifications:
   [lineage.py](../base/src/cs_image_system/base/lineage.py) (`mod_records`).
 - The version check and the modification test harness:

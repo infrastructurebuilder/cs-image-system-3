@@ -16,7 +16,7 @@ import stat
 from pathlib import Path
 
 import pytest
-from harness import V2Run, copy_config, stub_environment
+from harness import FixtureRun, copy_config, stub_environment
 from typer.testing import CliRunner
 
 runner = CliRunner()
@@ -80,7 +80,7 @@ def test_a_container_that_cannot_start_is_unstarted_not_a_failed_modification(tm
     from test_mod_tests import FakeTarget, _only_bash
 
     from cs_image_system.engine.mod_tests import MOD_TESTS_FILE, ContainerStartError, run_mod_tests
-    run = V2Run(tmp_path, monkeypatch)
+    run = FixtureRun(tmp_path, monkeypatch)
     try:
         _only_bash(run.ctx)
 

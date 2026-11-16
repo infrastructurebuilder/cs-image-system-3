@@ -34,7 +34,7 @@ from types import SimpleNamespace
 from typing import Any, cast
 
 import pytest
-from harness import V2Run
+from harness import FixtureRun
 
 from cs_image_system.contract.constants import SYSTEM_CLI
 from cs_image_system.contract.lifecycle import ExecutionLifecyclePhase
@@ -295,7 +295,7 @@ def _execute_refusing_the_system_while_applying(monkeypatch, journal: list[str])
 
 
 def test_a_real_run_executes_its_deferred_system_steps_in_process(tmp_path, monkeypatch):
-    run = V2Run(tmp_path, monkeypatch, dry_run=False)
+    run = FixtureRun(tmp_path, monkeypatch, dry_run=False)
     try:
         _execute_refusing_the_system_while_applying(monkeypatch, run.journal)
         _refuse_spawning_the_system(monkeypatch)
@@ -334,7 +334,7 @@ def test_the_real_runner_releases_in_process_over_the_loaded_context(tmp_path, m
     deferred ``release --declared`` runs the command in this process and
     prints its verdict; the loader is not called again."""
     from cs_image_system.system import cli
-    run = V2Run(tmp_path, monkeypatch, dry_run=False)
+    run = FixtureRun(tmp_path, monkeypatch, dry_run=False)
     try:
         _execute_refusing_the_system_while_applying(monkeypatch, run.journal)
         _refuse_spawning_the_system(monkeypatch)

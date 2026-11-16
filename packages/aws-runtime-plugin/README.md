@@ -525,9 +525,9 @@ left off: the system never starts one except for a bounded task
 ## Emission
 
 The plugin's output is visible in the golden emission under
-[tests/fixtures/v2_golden/generated](../../tests/fixtures/v2_golden/generated).
+[tests/fixtures/golden/generated](../../tests/fixtures/golden/generated).
 
-- [pckr-ebs-ans-image-generation-source-basic-rh-10-block-000.pkr.hcl](../../tests/fixtures/v2_golden/generated/base-image/pckr-ebs-ans/image-generation/block-000/pckr-ebs-ans-image-generation-source-basic-rh-10-block-000.pkr.hcl):
+- [pckr-ebs-ans-image-generation-source-basic-rh-10-block-000.pkr.hcl](../../tests/fixtures/golden/generated/base-image/pckr-ebs-ans/image-generation/block-000/pckr-ebs-ans-image-generation-source-basic-rh-10-block-000.pkr.hcl):
   the `data "amazon-ami"` lookup (`filters`, `owners`, `profile`) and the
   `source "amazon-ebs"` block written by `amazon_ebs_source()` in
   [aws_packer_source.py](src/cs_image_system/aws_runtime/aws_packer_source.py):
@@ -553,15 +553,15 @@ The plugin's output is visible in the golden emission under
   builder's `default_primary_disk_size` (200); for an instance image its
   own `primary_disk_size`. The fixture's base images bake with
   `volume_size = 200`.
-- [pckr-ebs-ans-image-generation-block-000-build.pkr.hcl](../../tests/fixtures/v2_golden/generated/base-image/pckr-ebs-ans/image-generation/block-000/pckr-ebs-ans-image-generation-block-000-build.pkr.hcl):
+- [pckr-ebs-ans-image-generation-block-000-build.pkr.hcl](../../tests/fixtures/golden/generated/base-image/pckr-ebs-ans/image-generation/block-000/pckr-ebs-ans-image-generation-block-000-build.pkr.hcl):
   the `# debug session mechanism (ssm)` shell provisioner per base image
   (`session_agent_commands`) and the `# verify: SSM agent baked` lines inside
   the in-bake verification provisioner (`session_verify_commands`). The
   `amazon` entry in the neighbouring `-plugins.pkr.hcl` comes from the image
   builder's `required_plugins`, not from this package.
-- [open-tofu-instance-generation.tf](../../tests/fixtures/v2_golden/generated/instance-image/open-tofu/instance-generation/open-tofu-instance-generation.tf)
+- [open-tofu-instance-generation.tf](../../tests/fixtures/golden/generated/instance-image/open-tofu/instance-generation/open-tofu-instance-generation.tf)
   and
-  [open-tofu-instance-generation-instance-test.tf](../../tests/fixtures/v2_golden/generated/instance-image/open-tofu/instance-generation/open-tofu-instance-generation-instance-test.tf):
+  [open-tofu-instance-generation-instance-test.tf](../../tests/fixtures/golden/generated/instance-image/open-tofu/instance-generation/open-tofu-instance-generation-instance-test.tf):
   written by the instance plugin from this model. `provider "aws" { region,
   profile, alias }`; an `aws_security_group` whose port-22 ingress lists
   `ssh_ingress_security_group_ids` and no CIDR; the instance module's
@@ -569,7 +569,7 @@ The plugin's output is visible in the golden emission under
   group, then `addl_security_groups`), and `iam_instance_profile`
   (`session_instance_profile`). The `.tfbackend.hcl` beside them carries the
   same `profile`, written by the state-backend plugin.
-- [run-release.sh](../../tests/fixtures/v2_golden/generated/release/run-release.sh):
+- [run-release.sh](../../tests/fixtures/golden/generated/release/run-release.sh):
   carries the `aws ec2 create-tags` line from `release_commands()` when a
   release is declared. The golden declares none, so it is empty of them.
 - Runtime facts: `cs-image-system runtime describe aws-east2-runtime`

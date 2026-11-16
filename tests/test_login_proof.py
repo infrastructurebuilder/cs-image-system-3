@@ -20,7 +20,7 @@ import pytest
 from cs_image_system.base import power_state as ps
 from cs_image_system.engine.commands import login_proof as lp
 from cs_image_system.okta_opa_plugin import sft_login
-from tests.harness import V2Run
+from tests.harness import FixtureRun
 
 CONNECTION, ROLE = "github-cs-image-system", "cs-image-system-ci"
 
@@ -31,7 +31,7 @@ def world(tmp_path: Path, monkeypatch):
     from cs_image_system.okta_opa_plugin.okta_opa_tf_group_builder import OktaTfGroupBuilder
     from cs_image_system.okta_opa_plugin.okta_opa_tf_group_models import OktaTfGroupBuilderModel
 
-    run = V2Run(tmp_path, monkeypatch)
+    run = FixtureRun(tmp_path, monkeypatch)
     ctx = run.ctx
     for gb in ctx.group_builders.values():
         if isinstance(gb, OktaTfGroupBuilder) and isinstance(gb.model, OktaTfGroupBuilderModel):

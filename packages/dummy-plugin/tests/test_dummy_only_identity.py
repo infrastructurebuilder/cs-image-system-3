@@ -14,7 +14,7 @@ import shutil
 from pathlib import Path
 
 import yaml
-from harness import V2Run, copy_config
+from harness import FixtureRun, copy_config
 
 GROUPS = "dummy-groups"
 USERS = "dummy-users"
@@ -54,7 +54,7 @@ def test_the_template_builders_load_validate_and_run_the_identity_lifecycle_dry(
     from cs_image_system.engine.commands.validate import collect_validation_errors
     root = copy_config(tmp_path)
     dummy_only_identity(root)
-    run = V2Run(tmp_path, monkeypatch, config_root=root)
+    run = FixtureRun(tmp_path, monkeypatch, config_root=root)
     try:
         assert set(run.ctx.group_builders) == {GROUPS} and set(run.ctx.user_builders) == {USERS}
         assert isinstance(run.ctx.group_builders[GROUPS], DummyGroupBuilder)

@@ -32,7 +32,7 @@ from typing import Any
 
 import pytest
 import yaml
-from harness import V2Run, copy_config, load_context, module_path, stub_environment
+from harness import FixtureRun, copy_config, load_context, module_path, stub_environment
 
 RUNTIME = "docker-local"
 BUILDER = "pckr-docker-ans"
@@ -108,7 +108,7 @@ def _texts(generated: Path) -> dict[str, str]:
 
 # ------------------------------------------------------------------ the emission
 def test_a_dry_run_emits_the_docker_source_and_its_tags(prepared, monkeypatch):
-    run = V2Run(prepared, monkeypatch, config_root=prepared)
+    run = FixtureRun(prepared, monkeypatch, config_root=prepared)
     _stub_daemon(monkeypatch)
     summary = run.run("all")
     assert summary.ok, summary.error
@@ -159,7 +159,7 @@ def test_the_overlay_adds_what_the_fixture_does_not_declare():
 
 
 def test_the_packer_executables_carry_the_daemon_address(prepared, monkeypatch):
-    run = V2Run(prepared, monkeypatch, config_root=prepared)
+    run = FixtureRun(prepared, monkeypatch, config_root=prepared)
     _stub_daemon(monkeypatch)
     from cs_image_system.contract.lifecycle import ExecutionLifecyclePhase
     ib = run.ctx.image_builders[BUILDER]
@@ -171,7 +171,7 @@ def test_the_packer_executables_carry_the_daemon_address(prepared, monkeypatch):
 
 
 def test_the_deferred_image_is_the_floating_tag_and_the_build_id_the_image_id(prepared, monkeypatch):
-    run = V2Run(prepared, monkeypatch, config_root=prepared)
+    run = FixtureRun(prepared, monkeypatch, config_root=prepared)
     _stub_daemon(monkeypatch)
     rtb = run.ctx.runtime_builders[RUNTIME]
     image = run.ctx.images_map[IMAGE]
@@ -424,7 +424,7 @@ def _tf(generated: Path, part: str) -> str:
 
 
 def test_a_dry_run_emits_the_container_and_the_volume_roots(prepared_instances, monkeypatch):
-    run = V2Run(prepared_instances, monkeypatch, config_root=prepared_instances)
+    run = FixtureRun(prepared_instances, monkeypatch, config_root=prepared_instances)
     _stub_daemon(monkeypatch)
     summary = run.run("all")
     assert summary.ok, summary.error
@@ -458,7 +458,7 @@ def test_a_dry_run_emits_the_container_and_the_volume_roots(prepared_instances, 
 
 
 def test_every_tofu_line_of_the_docker_roots_carries_the_daemon_address(prepared_instances, monkeypatch):
-    run = V2Run(prepared_instances, monkeypatch, config_root=prepared_instances)
+    run = FixtureRun(prepared_instances, monkeypatch, config_root=prepared_instances)
     _stub_daemon(monkeypatch)
     assert run.run("all").ok
     for script, root in (("instance-image/run-instance-image.sh", INSTANCE_BUILDER), ("storage/run-storage.sh", VOLUME_BUILDER)):
@@ -480,7 +480,7 @@ def test_an_encrypted_host_stays_a_marker_in_the_script_and_opens_in_the_process
     marker = encrypt_value("tcp://docker-host.example:2376", [(root / ".age-recipient").read_text().strip()])
     instances_overlay(root, host=marker)
     monkeypatch.setenv("CSIS_CONFIG_IDENTITY", str(root / ".age-identity"))
-    run = V2Run(tmp_path, monkeypatch, config_root=root)
+    run = FixtureRun(tmp_path, monkeypatch, config_root=root)
     _stub_daemon(monkeypatch)
     assert run.run(["storage", "instance-image"]).ok
     text = (run.generated / "instance-image" / "run-instance-image.sh").read_text()
@@ -494,7 +494,7 @@ def test_an_encrypted_host_stays_a_marker_in_the_script_and_opens_in_the_process
 
 
 def test_the_launch_parameters_record_the_delivery_and_the_platform_mount(prepared_instances, monkeypatch):
-    run = V2Run(prepared_instances, monkeypatch, config_root=prepared_instances)
+    run = FixtureRun(prepared_instances, monkeypatch, config_root=prepared_instances)
     _stub_daemon(monkeypatch)
     assert run.run("all").ok
     rec = run.ctx.meta_state.launch_params()[INSTANCE]

@@ -55,7 +55,7 @@ from typing import Any, NamedTuple
 import pytest
 import typer
 import yaml
-from harness import FIXED_NOW, FIXED_RUN_ID, V2Run, copy_config, stub_environment, tree
+from harness import FIXED_NOW, FIXED_RUN_ID, FixtureRun, copy_config, stub_environment, tree
 from stubbed_cli_child import Clock
 from typer.testing import CliRunner
 
@@ -237,17 +237,17 @@ class Steps:
                     if seen is ctx and args[0] == "gate-plan" and str(wd) == directory)
 
 
-def _outer_run(tmp_path: Path, monkeypatch, name: str = "config") -> tuple[V2Run, Tree]:
+def _outer_run(tmp_path: Path, monkeypatch, name: str = "config") -> tuple[FixtureRun, Tree]:
     """A real (not dry) run over a tree of its own, loaded under both
     overlays at the harness's moment; any load after it happens at the
     nested moment."""
     where = _tree(tmp_path, name)
-    run = V2Run(tmp_path, monkeypatch, dry_run=False, config_root=where.root, overlays=[where.scratch, where.knobs])
+    run = FixtureRun(tmp_path, monkeypatch, dry_run=False, config_root=where.root, overlays=[where.scratch, where.knobs])
     monkeypatch.setattr(config_loader, "datetime", Clock(NESTED_AT))
     return run, where
 
 
-def _run_it(run: V2Run):
+def _run_it(run: FixtureRun):
     return run.run(["storage", "retention"], apply=True, only=["none"])
 
 
@@ -257,7 +257,7 @@ def _records(root: Path, name: str) -> Any:
 
 # ------------------------------------------- the same as the child process
 
-def _spawn_the_nested_run(run: V2Run, monkeypatch, tmp_path: Path) -> list[str]:
+def _spawn_the_nested_run(run: FixtureRun, monkeypatch, tmp_path: Path) -> list[str]:
     """Make ``run`` hand its nested run to a child process, as the executor
     does for a step the runner declines: the console entry in another
     interpreter, started from the step's directory with the step's

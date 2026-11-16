@@ -20,7 +20,7 @@ from typing import Any
 
 import yaml
 
-from tests.harness import V2Run, copy_config, load_context, stub_environment
+from tests.harness import FixtureRun, copy_config, load_context, stub_environment
 
 
 def _edit(path: Path, fn) -> None:
@@ -124,7 +124,7 @@ def test_the_gce_provisioner_connects_as_the_user_the_source_bakes_as(tmp_path: 
     root = copy_config(tmp_path)
     _edit(root / "cfg" / "os-builders.yml",
           lambda d: _entry(_osb(d, "basic-rh-10"), "pckr-gce-ans").update(ssh_username="builder"))
-    run = V2Run(tmp_path, monkeypatch, config_root=root)
+    run = FixtureRun(tmp_path, monkeypatch, config_root=root)
     try:
         assert run.run(["base-image", "instance-image"], apply=False).ok
         gce = "".join(p.read_text() for p in run.generated.rglob("*.pkr.hcl") if "pckr-gce-ans" in str(p))

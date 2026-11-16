@@ -27,7 +27,7 @@ from cs_image_system.engine import state_query as sq
 from cs_image_system.engine.read_models import identity_read_model
 from cs_image_system.okta_opa_plugin import okta_opa_tf_group_builder as gbmod
 from cs_image_system.okta_opa_plugin.opa_gids import GID_ATTRIBUTE
-from tests.harness import V2Run
+from tests.harness import FixtureRun
 
 # captured at import, before the harness's stub replaces it on the class
 _REAL_QUERY_STATE = gbmod.OktaTfGroupBuilder.query_state
@@ -35,7 +35,7 @@ _REAL_QUERY_STATE = gbmod.OktaTfGroupBuilder.query_state
 
 @pytest.fixture
 def run(tmp_path: Path, monkeypatch):
-    r = V2Run(tmp_path, monkeypatch)
+    r = FixtureRun(tmp_path, monkeypatch)
     try:
         yield r
     finally:

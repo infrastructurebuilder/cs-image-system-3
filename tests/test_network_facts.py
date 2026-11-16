@@ -26,7 +26,7 @@ import yaml
 from harness import (
     FIXED_CHECKED_AT,
     FIXTURE_CONFIG,
-    V2Run,
+    FixtureRun,
     copy_config,
     load_context,
     record_network_facts,
@@ -84,7 +84,7 @@ def test_loading_the_fixture_never_reaches_a_cloud(tmp_path: Path, monkeypatch):
     # the account's inventory was never fetched
     assert ctx.runtime_builders["aws-east2-runtime"].model.vpc_map is None
     # a dry run asks nothing either
-    run = V2Run(tmp_path / "dry", monkeypatch)
+    run = FixtureRun(tmp_path / "dry", monkeypatch)
     try:
         summary = run.run("all")
         assert summary.ok, summary.error
@@ -191,7 +191,7 @@ def test_a_failing_online_check_is_one_classified_line_with_its_exit_code(tmp_pa
 # ------------------------------------------- (d) a real run refreshes the record
 
 def test_a_real_run_discovers_and_refreshes_checked_at(tmp_path: Path, monkeypatch):
-    run = V2Run(tmp_path, monkeypatch, dry_run=False)
+    run = FixtureRun(tmp_path, monkeypatch, dry_run=False)
     try:
         before = yaml.safe_load((run.config_root / FACTS).read_text())
         assert before["runtimes"]["west1"]["checked_at"] == FIXED_CHECKED_AT

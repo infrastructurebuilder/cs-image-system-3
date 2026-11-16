@@ -24,7 +24,7 @@ from pathlib import Path
 
 import pytest
 
-from tests.harness import V2Run, copy_config
+from tests.harness import FixtureRun, copy_config
 
 GCE = "gcloud-east1"
 AWS = "aws-east2-runtime"
@@ -41,10 +41,10 @@ def _fresh_copy(tmp_path: Path) -> Path:
 @pytest.fixture
 def fresh(tmp_path: Path, monkeypatch):
     root = _fresh_copy(tmp_path)
-    runs: list[V2Run] = []
+    runs: list[FixtureRun] = []
 
-    def make(**kw) -> V2Run:
-        run = V2Run(tmp_path, monkeypatch, config_root=root, **kw)
+    def make(**kw) -> FixtureRun:
+        run = FixtureRun(tmp_path, monkeypatch, config_root=root, **kw)
         runs.append(run)
         return run
     try:
@@ -54,7 +54,7 @@ def fresh(tmp_path: Path, monkeypatch):
             r.restore_cwd()
 
 
-def _cli_scope(run: V2Run, runtime: str) -> list[str]:
+def _cli_scope(run: FixtureRun, runtime: str) -> list[str]:
     """What `run --apply-runtime <rt>` does before run_lifecycles (the CLI's
     implied filter), as the harness has no CLI."""
     from cs_image_system.engine.commands.runtime_facts import images_on_runtime
@@ -209,7 +209,7 @@ def test_only_runtime_scopes_the_terraform_roots_too(tmp_path, monkeypatch):
     per-root scoping decision keeps every root planning and gating under it."""
     from cs_image_system.base.utils import root_in_runtime_scope
     root = copy_config(tmp_path)
-    run = V2Run(tmp_path, monkeypatch, config_root=root)
+    run = FixtureRun(tmp_path, monkeypatch, config_root=root)
     try:
         run.ctx.only_runtime_scope = AWS
         assert root_in_runtime_scope(run.ctx, AWS) and not root_in_runtime_scope(run.ctx, GCE) and root_in_runtime_scope(run.ctx, None)

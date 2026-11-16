@@ -28,7 +28,7 @@ from typer.testing import CliRunner
 from cs_image_system.contract.names import super_safe_name
 from cs_image_system.engine.commands.gate import gate_plan, sanctioned_addresses
 from cs_image_system.okta_opa_plugin import okta_opa_tf_group_builder as gbmod
-from tests.harness import V2Run
+from tests.harness import FixtureRun
 from tests.test_stale_attachments import _addr, _fake_tofu, _group_builder, _Opa, _root
 
 FILE = gbmod.OktaTfGroupBuilder.SANCTIONED_REMOVALS
@@ -36,7 +36,7 @@ FILE = gbmod.OktaTfGroupBuilder.SANCTIONED_REMOVALS
 
 @pytest.fixture
 def run(tmp_path: Path, monkeypatch):
-    r = V2Run(tmp_path, monkeypatch)
+    r = FixtureRun(tmp_path, monkeypatch)
     try:
         yield r
     finally:

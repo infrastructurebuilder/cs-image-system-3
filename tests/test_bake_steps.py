@@ -32,7 +32,7 @@ import pytest
 import yaml
 
 from cs_image_system.base import bake_steps
-from tests.harness import V2Run, copy_config, load_context, stub_environment
+from tests.harness import FixtureRun, copy_config, load_context, stub_environment
 
 REPO = Path(__file__).resolve().parent.parent
 RPM_BUSY = "error: can't create transaction lock on /usr/lib/sysimage/rpm/.rpm.lock (Resource temporarily unavailable)"
@@ -223,7 +223,7 @@ def test_a_runtime_without_session_manager_adds_no_wait():
 
 @pytest.fixture
 def builds(tmp_path: Path, monkeypatch) -> dict[str, str]:
-    run = V2Run(tmp_path, monkeypatch)
+    run = FixtureRun(tmp_path, monkeypatch)
     try:
         assert run.run(["base-image", "instance-image"], apply=False).ok
         return {str(p.relative_to(run.generated)): p.read_text() for p in run.generated.rglob("*-build.pkr.hcl")}
@@ -301,7 +301,7 @@ def test_a_bash_builder_that_says_how_its_script_runs_keeps_its_own_command(tmp_
     data = yaml.safe_load(path.read_text())
     next(b for b in data["mod_builders"] if b["name"] == "bash-remote")["configuration_user"] = "modder"
     path.write_text(yaml.safe_dump(data, sort_keys=False))
-    run = V2Run(tmp_path, monkeypatch, config_root=root)
+    run = FixtureRun(tmp_path, monkeypatch, config_root=root)
     try:
         assert run.run(["base-image", "instance-image"], apply=False).ok
         text = "".join(p.read_text() for p in run.generated.rglob("*-build.pkr.hcl") if "instance-image" in str(p))
@@ -360,7 +360,7 @@ def test_a_starters_base_test_names_only_what_a_base_carries(starter: str):
 def test_the_base_bake_itself_installs_what_the_starters_base_test_asserts(starter: str, tmp_path: Path, monkeypatch):
     """Not a list in a test alone: the emitted base bake of the starter has a
     step that installs the package its verification then asks for."""
-    from tests.harness import run_v2
+    from tests.harness import drive_lifecycles
     from tests.test_docs_examples import copy_example, stub_networks_from, stub_opa_credentials_from
     stub_environment(monkeypatch)
     root = copy_example(tmp_path, starter)
@@ -369,7 +369,7 @@ def test_the_base_bake_itself_installs_what_the_starters_base_test_asserts(start
     cwd = os.getcwd()
     try:
         ctx = load_context(root, dry_run=True)
-        assert run_v2(ctx, ["base-image"], apply=False).ok
+        assert drive_lifecycles(ctx, ["base-image"], apply=False).ok
         text = "".join(p.read_text() for p in (root / "generated").rglob("*-build.pkr.hcl") if "base-image" in str(p))
     finally:
         os.chdir(cwd)

@@ -20,7 +20,7 @@ from pathlib import Path
 import pytest
 import yaml
 
-from tests.harness import V2Run, command_lines, copy_config
+from tests.harness import FixtureRun, command_lines, copy_config
 
 
 def _record(root: Path, name: str, state: str, facts: dict | None = None, generation: int = 1) -> None:
@@ -64,10 +64,10 @@ def _gates(script: str) -> dict[str, str]:
 @pytest.fixture
 def prepared(tmp_path: Path, monkeypatch):
     root = copy_config(tmp_path)
-    runs: list[V2Run] = []
+    runs: list[FixtureRun] = []
 
-    def make(**kw) -> V2Run:
-        run = V2Run(tmp_path, monkeypatch, config_root=root, **kw)
+    def make(**kw) -> FixtureRun:
+        run = FixtureRun(tmp_path, monkeypatch, config_root=root, **kw)
         runs.append(run)
         return run
     try:
@@ -403,8 +403,8 @@ def test_state_query_reports_a_declared_lifecycle_the_resource_lacks(prepared):
 def test_the_instance_root_reads_storage_state_from_the_second_backend(tmp_path, monkeypatch):
     """The instance root's own state is in the default backend; the
     storage state it binds to lives in the second, and the datasource says so."""
-    from harness import V2Run
-    run = V2Run(tmp_path, monkeypatch)
+    from harness import FixtureRun
+    run = FixtureRun(tmp_path, monkeypatch)
     assert run.run(["identity", "storage", "instance-image"], apply=False).ok
     inst = run.generated / "instance-image" / "open-tofu" / "instance-generation"
     root = (inst / "open-tofu-instance-generation.tf").read_text()

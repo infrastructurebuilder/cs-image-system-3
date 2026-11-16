@@ -389,9 +389,9 @@ runner-image tag="csis-ci:alma10-local":
 preflight: config-guard
 	@{{live_cli}} preflight
 
-# Regenerate tests/fixtures/v2_golden (the pinned emission) after an
+# Regenerate tests/fixtures/golden (the pinned emission) after an
 # INTENTIONAL emission change; review the resulting diff before committing.
-[doc("Regenerate tests/fixtures/v2_golden (the pinned emission) after an INTENTIONAL emission change; review the diff before committing")]
+[doc("Regenerate tests/fixtures/golden (the pinned emission) after an INTENTIONAL emission change; review the diff before committing")]
 golden-regen:
 	@uv run python tests/golden.py
 

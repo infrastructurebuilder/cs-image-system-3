@@ -81,7 +81,7 @@ places where the disk has one.
 The frozen fixture binds its identity roots (`oktagroups`, `okta-tf-users`)
 to `local-dev` (`cfg/state-backends-3.yml`, `path: state`), so the golden
 carries
-[oktagroups-group-generation.tfbackend.hcl](../../tests/fixtures/v2_golden/generated/identity/oktagroups/group-generation/oktagroups-group-generation.tfbackend.hcl):
+[oktagroups-group-generation.tfbackend.hcl](../../tests/fixtures/golden/generated/identity/oktagroups/group-generation/oktagroups-group-generation.tfbackend.hcl):
 
 ```hcl
 # Backend 'local-dev' (local) partial configuration for workspace oktagroups

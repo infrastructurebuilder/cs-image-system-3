@@ -15,7 +15,9 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
-from tests.harness import V2Run
+import pytest
+
+from tests.harness import FixtureRun
 
 
 def test_only_providers_is_gone_and_the_context_has_no_force(tmp_path: Path, monkeypatch):
@@ -26,7 +28,7 @@ def test_only_providers_is_gone_and_the_context_has_no_force(tmp_path: Path, mon
     result = CliRunner().invoke(climod.app, ["--root-dir", str(tmp_path), "--only-providers", "aws", "validate"])
     plain = re.sub(r"\x1b\[[0-9;]*m", "", result.output)    # typer colours the option under GitHub Actions
     assert result.exit_code != 0 and "No such option" in plain and "--only-providers" in plain, plain
-    run = V2Run(tmp_path / "run", monkeypatch)
+    run = FixtureRun(tmp_path / "run", monkeypatch)
     try:
         assert not hasattr(run.ctx, "force") and not hasattr(run.ctx, "only_providers")
     finally:
@@ -46,3 +48,21 @@ def test_rhels_unreachable_update_hooks_are_gone():
 def test_registry_get_builder_is_gone():
     from cs_image_system.base.registry import Registry
     assert not hasattr(Registry, "get_builder")
+
+
+@pytest.mark.parametrize(("name", "replacements"), [
+    ("test", ("test-mods", "verify instance", "just test")),
+    ("cleanup", ("run retention", "dispose image")),
+])
+def test_a_retired_command_names_its_replacements_and_exits_2(name: str, replacements: tuple[str, ...]):
+    from typer.testing import CliRunner
+
+    from cs_image_system.system.cli import app
+
+    result = CliRunner().invoke(app, [name])
+    text = re.sub(r"\x1b\[[0-9;]*m", "", result.output)
+    assert result.exit_code == 2, text
+    assert f"{name}: retired." in text
+    for replacement in replacements:
+        assert replacement in text
+    assert "V2" not in text

@@ -5,7 +5,7 @@
 """Golden output of the meta-workflow over the frozen fixture
 (``tests/fixtures/config``; see GOLDEN.md).
 
-``tests/fixtures/v2_golden/`` holds exactly what ``run --all`` (dry-run,
+``tests/fixtures/golden/`` holds exactly what ``run --all`` (dry-run,
 stubbed cloud/tools, pinned timestamp) generates plus the meta-state files
 it writes. ``test_golden.py`` fails on any drift; regenerate deliberately
 with ``just golden-regen`` after an intentional emission change and review
@@ -21,15 +21,15 @@ import sys
 from pathlib import Path
 
 import pytest
-from harness import REPO, V2Run, tree
+from harness import REPO, FixtureRun, tree
 
-GOLDEN = REPO / "tests" / "fixtures" / "v2_golden"
+GOLDEN = REPO / "tests" / "fixtures" / "golden"
 IGNORED_FILES = {"run-summary.json", "runs.yaml",   # carry run-local detail
                  "runtime-facts.yaml"}              # the harness's INPUT (copy_config writes it before the load; a dry run never rewrites it)
 
 
 def current_output(tmp_path: Path, monkeypatch) -> dict[str, str]:
-    run = V2Run(tmp_path, monkeypatch)
+    run = FixtureRun(tmp_path, monkeypatch)
     try:
         summary = run.run("all", apply=True)
         assert summary.ok, summary.error

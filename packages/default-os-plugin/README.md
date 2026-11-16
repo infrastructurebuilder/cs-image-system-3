@@ -340,9 +340,9 @@ family's full-update command list (for the apt families, that every
 This plugin writes no files of its own. Its provisioner lines land in the
 image builders' build files, and its resolved vendor images in their source
 files, under
-[tests/fixtures/v2_golden/generated](../../tests/fixtures/v2_golden/generated):
+[tests/fixtures/golden/generated](../../tests/fixtures/golden/generated):
 
-- [pckr-ebs-ans-image-generation-block-000-build.pkr.hcl](../../tests/fixtures/v2_golden/generated/base-image/pckr-ebs-ans/image-generation/block-000/pckr-ebs-ans-image-generation-block-000-build.pkr.hcl):
+- [pckr-ebs-ans-image-generation-block-000-build.pkr.hcl](../../tests/fixtures/golden/generated/base-image/pckr-ebs-ans/image-generation/block-000/pckr-ebs-ans-image-generation-block-000-build.pkr.hcl):
   one `# OS update for base image <name> (policy=..., packages=[...],
   exclude=[...], pin={...}, <type>)` shell provisioner per base image with
   a policy. `basic-rh-10` (`rhel`, `security` plus `openssl`, excluding
@@ -351,9 +351,9 @@ files, under
   `check-update` guarded targeted update of `openssl`, and the package
   manifest. `basic-rhel-9` shows the same without a targeted package.
   `my-deb-12` declares no policy and gets no update provisioner.
-- [pckr-gce-ans-image-generation-block-000-build.pkr.hcl](../../tests/fixtures/v2_golden/generated/base-image/pckr-gce-ans/image-generation/block-000/pckr-gce-ans-image-generation-block-000-build.pkr.hcl):
+- [pckr-gce-ans-image-generation-block-000-build.pkr.hcl](../../tests/fixtures/golden/generated/base-image/pckr-gce-ans/image-generation/block-000/pckr-gce-ans-image-generation-block-000-build.pkr.hcl):
   the same `basic-rh-10` provisioner scoped to `googlecompute.basic-rh-10`.
-- [pckr-ebs-ans-image-generation-source-basic-rh-10-block-000.pkr.hcl](../../tests/fixtures/v2_golden/generated/base-image/pckr-ebs-ans/image-generation/block-000/pckr-ebs-ans-image-generation-source-basic-rh-10-block-000.pkr.hcl):
+- [pckr-ebs-ans-image-generation-source-basic-rh-10-block-000.pkr.hcl](../../tests/fixtures/golden/generated/base-image/pckr-ebs-ans/image-generation/block-000/pckr-ebs-ans-image-generation-source-basic-rh-10-block-000.pkr.hcl):
   the resolved vendor image (`image-id` and `owners` in the `data
   "amazon-ami"` block), `instance_type = "t3.medium"` from the entry's
   `default_machine_type`, `ssh_username = "ec2-user"` from the AWS

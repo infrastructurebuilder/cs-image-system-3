@@ -165,7 +165,7 @@ def test_hcl_value_emits_the_ciphertext():
 
 
 def test_the_admin_key_provisioner_carries_the_ciphertext():
-    from cs_image_system.packer_plugin.v2_provisioners import admin_user_commands
+    from cs_image_system.packer_plugin.bake_provisioners import admin_user_commands
     marker = enc("ssh-ed25519 AAAAsecretbody operator@host")
     opened = decrypt_tree({"k": marker})["k"]
     lines = "\n".join(admin_user_commands("csisadmin", [opened]))

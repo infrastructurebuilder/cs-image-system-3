@@ -61,9 +61,9 @@ LIFECYCLE_ORDER: list[Lifecycle] = [
     Lifecycle.INSTANCE_IMAGE,
 ]
 
-# Generation phases each lifecycle owns, in execution order. The phase enum is
-# unchanged from V1 so every builder hook keys on exactly what it did before;
-# only the grouping (and the directory the output lands in) is new.
+# Generation phases each lifecycle owns, in execution order. A builder hook
+# keys on the phase, so a lifecycle groups phases and names the directory
+# its output lands in; it adds no phase of its own.
 LIFECYCLE_PHASES: dict[Lifecycle, list[ExecutionLifecyclePhase]] = {
     Lifecycle.IDENTITY: [
         ExecutionLifecyclePhase.USER_GENERATION,
@@ -78,8 +78,8 @@ LIFECYCLE_PHASES: dict[Lifecycle, list[ExecutionLifecyclePhase]] = {
 }
 
 # Builder classifications whose *during*-phase generation participates in a
-# lifecycle. Before/after hooks still fire for every builder (as in V1), so a
-# builder that reacts to another lifecycle's phase keeps doing so.
+# lifecycle. Before/after hooks fire for every builder, so a builder that
+# reacts to another lifecycle's phase does so whichever lifecycle runs.
 LIFECYCLE_BUILDER_VCTS: dict[Lifecycle, set[VCT]] = {
     Lifecycle.IDENTITY: {VCT.USER_BUILDER, VCT.GROUP_BUILDER},
     Lifecycle.STORAGE: {VCT.STORAGE_BUILDER},

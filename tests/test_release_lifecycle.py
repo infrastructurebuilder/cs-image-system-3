@@ -20,14 +20,14 @@ from pathlib import Path
 
 import pytest
 import yaml
-from harness import V2Run
+from harness import FixtureRun
 
 INST_BUILD = Path("instance-image/pckr-ebs-ans/image-generation/block-000/pckr-ebs-ans-image-generation-block-000-build.pkr.hcl")
 
 
 @pytest.fixture
-def v2(tmp_path, monkeypatch):
-    run = V2Run(tmp_path, monkeypatch)
+def fixture_run(tmp_path, monkeypatch):
+    run = FixtureRun(tmp_path, monkeypatch)
     yield run
     run.restore_cwd()
 
@@ -40,88 +40,88 @@ def _passed_post_bake(ms, build_id: str) -> None:
                                     "runtime": "gcloud-east1", "image": "imgfile-basic-dask", "time": "t", "checks": []})
 
 
-def _bake(v2, lifecycle, block_dir, amis):
+def _bake(fixture_run, lifecycle, block_dir, amis):
     from cs_image_system.contract.lifecycle import ExecutionLifecyclePhase
     from cs_image_system.contract.lifecycles import Lifecycle
-    (v2.generated / block_dir / "manifest.json").write_text(json.dumps({"last_run_uuid": "u", "builds": [
+    (fixture_run.generated / block_dir / "manifest.json").write_text(json.dumps({"last_run_uuid": "u", "builds": [
         {"name": n, "packer_run_uuid": "u", "artifact_id": f"us-east-2:{a}"} for n, a in amis.items()]}))
-    v2.ctx.current_lifecycle = Lifecycle(lifecycle)
-    v2.ctx.image_builders["pckr-ebs-ans"].post_finalize_phase(ExecutionLifecyclePhase.IMAGE_GENERATION)
-    v2.ctx.current_lifecycle = None
+    fixture_run.ctx.current_lifecycle = Lifecycle(lifecycle)
+    fixture_run.ctx.image_builders["pckr-ebs-ans"].post_finalize_phase(ExecutionLifecyclePhase.IMAGE_GENERATION)
+    fixture_run.ctx.current_lifecycle = None
 
 
-def test_release_requires_evidence_and_records(v2):
+def test_release_requires_evidence_and_records(fixture_run):
     from cs_image_system.engine.release import ReleaseError, release, released_builds
-    assert v2.run(["base-image", "instance-image"], apply=False).ok
+    assert fixture_run.run(["base-image", "instance-image"], apply=False).ok
     with pytest.raises(ReleaseError, match="not recorded in lineage"):
-        release(v2.ctx, "imgfile-basic-dask", "ami-0nope")
-    _bake(v2, "instance-image", INST_BUILD.parent, {"imgfile-basic-dask": "ami-0dask0001"})
-    _passed_post_bake(v2.ctx.meta_state, "ami-0dask0001")   # dask declares post-bake tests
+        release(fixture_run.ctx, "imgfile-basic-dask", "ami-0nope")
+    _bake(fixture_run, "instance-image", INST_BUILD.parent, {"imgfile-basic-dask": "ami-0dask0001"})
+    _passed_post_bake(fixture_run.ctx.meta_state, "ami-0dask0001")   # dask declares post-bake tests
     with pytest.raises(ReleaseError, match="belongs to series"):
-        release(v2.ctx, "imgfile-data-science", "ami-0dask0001")
+        release(fixture_run.ctx, "imgfile-data-science", "ami-0dask0001")
     # a failed mod test on one of the build's mods refuses the release
-    ms = v2.ctx.meta_state
+    ms = fixture_run.ctx.meta_state
     build = ms.build("ami-0dask0001")
     h = build["mods"][0]["content_hash"]
     ms.write("mod-tests.yaml", {"results": {h: {"status": "pass", "idempotent": False}}})
     with pytest.raises(ReleaseError, match="failed its local mod test"):
-        release(v2.ctx, "imgfile-basic-dask", "ami-0dask0001")
+        release(fixture_run.ctx, "imgfile-basic-dask", "ami-0dask0001")
     ms.write("mod-tests.yaml", {"results": {h: {"status": "pass", "idempotent": True}}})
-    entry = release(v2.ctx, "imgfile-basic-dask", "ami-0dask0001", model="secofs", note="first cut")
+    entry = release(fixture_run.ctx, "imgfile-basic-dask", "ami-0dask0001", model="secofs", note="first cut")
     assert entry["model"] == "secofs" and entry["capabilities"]["identity_types"] == ["okta"]
-    data = yaml.safe_load((v2.meta_state / "releases.yaml").read_text())
+    data = yaml.safe_load((fixture_run.meta_state / "releases.yaml").read_text())
     assert data["current"]["secofs"]["imgfile-basic-dask"] == "ami-0dask0001"
     assert released_builds(ms, "imgfile-basic-dask") == {"ami-0dask0001"}
     # require_mod_tests: a mod without any result is refused
-    v2.ctx.config["require_mod_tests"] = True
+    fixture_run.ctx.config["require_mod_tests"] = True
     ms.write("mod-tests.yaml", {"results": {}})
     with pytest.raises(ReleaseError, match="no local mod-test result"):
-        release(v2.ctx, "imgfile-basic-dask", "ami-0dask0001", model="other")
+        release(fixture_run.ctx, "imgfile-basic-dask", "ami-0dask0001", model="other")
 
 
-def test_release_lifecycle_is_registered_and_gated(v2):
+def test_release_lifecycle_is_registered_and_gated(fixture_run):
     from cs_image_system.base.lifecycles import all_lifecycles
     from cs_image_system.engine.commands.run_lifecycles import load_hook_plugins
     load_hook_plugins()          # as the CLI does before names resolve; alone, this test ran first
     names = [lc.value for lc in all_lifecycles()]
     assert names == ["identity", "storage", "base-image", "instance-image", "release", "retention"]
-    summary = v2.run(["release"], apply=True)
+    summary = fixture_run.run(["release"], apply=True)
     assert summary.ok, summary.error
     # the dask image declares `release:`, so the runner carries the
     # deferred `release --declared` step (dry-run here); nothing is released yet
     assert summary.apply["release"] == "dry-run"
-    rm = yaml.safe_load((v2.generated / "release" / "releases.yaml").read_text())
+    rm = yaml.safe_load((fixture_run.generated / "release" / "releases.yaml").read_text())
     assert rm["count"] == 0 and rm["current"] == {}
 
 
-def test_release_lifecycle_defers_artifact_marking_only_when_enabled(v2):
+def test_release_lifecycle_defers_artifact_marking_only_when_enabled(fixture_run):
     from cs_image_system.engine.release import release
-    assert v2.run(["instance-image"], apply=False).ok
-    _bake(v2, "instance-image", INST_BUILD.parent, {"imgfile-basic-dask": "ami-0dask0001"})
-    _passed_post_bake(v2.ctx.meta_state, "ami-0dask0001")   # dask declares post-bake tests
-    release(v2.ctx, "imgfile-basic-dask", "ami-0dask0001", model="secofs")
-    assert v2.run(["release"], apply=True).ok
+    assert fixture_run.run(["instance-image"], apply=False).ok
+    _bake(fixture_run, "instance-image", INST_BUILD.parent, {"imgfile-basic-dask": "ami-0dask0001"})
+    _passed_post_bake(fixture_run.ctx.meta_state, "ami-0dask0001")   # dask declares post-bake tests
+    release(fixture_run.ctx, "imgfile-basic-dask", "ami-0dask0001", model="secofs")
+    assert fixture_run.run(["release"], apply=True).ok
     # the dask image declares `release:`, so the runner exists for the
     # deferred `release --declared` step; artifact marking still needs apply_release
-    script0 = (v2.generated / "release" / "run-release.sh").read_text()
+    script0 = (fixture_run.generated / "release" / "run-release.sh").read_text()
     assert "release --declared" in script0 and "create-tags" not in script0   # apply_release off
-    v2.ctx.config["apply_release"] = True
-    summary = v2.run(["release"], apply=True)
+    fixture_run.ctx.config["apply_release"] = True
+    summary = fixture_run.run(["release"], apply=True)
     assert summary.ok and summary.apply["release"] == "dry-run"
-    script = (v2.generated / "release" / "run-release.sh").read_text()
+    script = (fixture_run.generated / "release" / "run-release.sh").read_text()
     assert "aws ec2 create-tags --region us-east-2 --resources ami-0dask0001 --tags Key=csis_release,Value=secofs Key=csis_series,Value=imgfile-basic-dask --profile noaa" in script
 
 
-def test_require_released_builds_gates_instance_pins(v2):
+def test_require_released_builds_gates_instance_pins(fixture_run):
     from cs_image_system.engine.release import release
-    assert v2.run(["instance-image"], apply=False).ok
-    _bake(v2, "instance-image", INST_BUILD.parent, {"imgfile-basic-dask": "ami-0dask0001"})
-    _passed_post_bake(v2.ctx.meta_state, "ami-0dask0001")   # dask declares post-bake tests
-    v2.ctx.meta_state.bind_instance("test2", "ami-0dask0001", v2.ctx.run_id)
-    v2.ctx.config["require_released_builds"] = True
-    summary = v2.run(["instance-image"], apply=False)
+    assert fixture_run.run(["instance-image"], apply=False).ok
+    _bake(fixture_run, "instance-image", INST_BUILD.parent, {"imgfile-basic-dask": "ami-0dask0001"})
+    _passed_post_bake(fixture_run.ctx.meta_state, "ami-0dask0001")   # dask declares post-bake tests
+    fixture_run.ctx.meta_state.bind_instance("test2", "ami-0dask0001", fixture_run.ctx.run_id)
+    fixture_run.ctx.config["require_released_builds"] = True
+    summary = fixture_run.run(["instance-image"], apply=False)
     assert not summary.ok
     assert any("not a released build" in e for e in summary.validation_errors)
-    release(v2.ctx, "imgfile-basic-dask", "ami-0dask0001")
-    assert v2.run(["instance-image"], apply=False).ok
+    release(fixture_run.ctx, "imgfile-basic-dask", "ami-0dask0001")
+    assert fixture_run.run(["instance-image"], apply=False).ok
 

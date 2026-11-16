@@ -24,12 +24,12 @@ from cs_image_system.base import alias_pool as ap
 from cs_image_system.base import launch_params as lp
 from cs_image_system.contract.lifecycles import Lifecycle
 from cs_image_system.engine import provider_aliases as pa
-from tests.harness import V2Run
+from tests.harness import FixtureRun
 
 POOL = "bright-otter\nquiet-heron\n\n# spent-eel  -- instance old as old-001 2026-09-21T10:00:00Z run r0\nred-cod\n"
 
 
-def _seed(run: V2Run, text: str = POOL) -> Path:
+def _seed(run: FixtureRun, text: str = POOL) -> Path:
     p = ap.pool_path(run.config_root)
     p.parent.mkdir(parents=True, exist_ok=True)
     p.write_text(text)
@@ -43,7 +43,7 @@ def _inst(ctx, name="test"):
 @pytest.fixture
 def real(tmp_path: Path, monkeypatch):
     """A real run whose instance roots may apply: the run that launches."""
-    run = V2Run(tmp_path, monkeypatch, dry_run=False)
+    run = FixtureRun(tmp_path, monkeypatch, dry_run=False)
     run.ctx.config["apply_instances"] = True
     try:
         yield run
@@ -53,7 +53,7 @@ def real(tmp_path: Path, monkeypatch):
 
 @pytest.fixture
 def dry(tmp_path: Path, monkeypatch):
-    run = V2Run(tmp_path, monkeypatch)
+    run = FixtureRun(tmp_path, monkeypatch)
     try:
         yield run
     finally:

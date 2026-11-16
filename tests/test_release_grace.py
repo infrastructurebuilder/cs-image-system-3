@@ -17,12 +17,12 @@ from pathlib import Path
 
 import pytest
 
-from tests.harness import V2Run
+from tests.harness import FixtureRun
 
 
 @pytest.fixture
 def run(tmp_path: Path, monkeypatch):
-    r = V2Run(tmp_path, monkeypatch)
+    r = FixtureRun(tmp_path, monkeypatch)
     try:
         yield r
     finally:

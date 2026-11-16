@@ -24,7 +24,7 @@ from typing import Any
 
 import pytest
 import yaml
-from harness import V2Run, copy_config, load_context, stub_environment, tree
+from harness import FixtureRun, copy_config, load_context, stub_environment, tree
 
 from cs_image_system.contract.constants import OOPS_DEFAULTS, VCT
 
@@ -103,7 +103,7 @@ def _qualify(root: Path, reg: Any) -> set[str]:
 
 
 def _emission(root: Path, monkeypatch) -> dict[str, str]:
-    run = V2Run(root.parent, monkeypatch, config_root=root)
+    run = FixtureRun(root.parent, monkeypatch, config_root=root)
     try:
         summary = run.run("all", apply=True)
         assert summary.ok, (summary.error, summary.validation_errors)

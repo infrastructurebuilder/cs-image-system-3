@@ -93,7 +93,7 @@ class OktaTfGroupBuilder(GroupBuilderBase[OktaTfGroupBuilderModel], TerraformRoo
     def model(self) -> OktaTfGroupBuilderModel:
         return self._model # type: ignore   # FIXME: This is dangerous
 
-    # ------------------------------------------------------ V2 contract
+    # ------------------------------------- the identity type's contract
     @classmethod
     def identity_type(cls) -> str:
         return OKTA_IDENTITY_TYPE

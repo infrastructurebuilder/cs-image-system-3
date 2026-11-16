@@ -24,16 +24,16 @@ import yaml
 from cs_image_system.base import launch_params
 from cs_image_system.contract.lifecycles import Lifecycle
 from cs_image_system.engine import ansible_launch
-from tests.harness import V2Run
+from tests.harness import FixtureRun
 
 
-def _params(run: V2Run) -> dict[str, dict]:
+def _params(run: FixtureRun) -> dict[str, dict]:
     ctx = run.ctx
     return {i.get_name(): launch_params.compute_launch_params(ctx, i) for i in ctx.instances}
 
 
 def test_playbook_mirrors_user_data(tmp_path, monkeypatch):
-    run = V2Run(tmp_path, monkeypatch)
+    run = FixtureRun(tmp_path, monkeypatch)
     try:
         summary = run.run(["identity", "storage", "base-image", "instance-image"], apply=False)
         assert summary.ok, summary.error
@@ -71,7 +71,7 @@ def test_playbook_mirrors_user_data(tmp_path, monkeypatch):
 
 
 def test_inventory_groups_by_owner_and_identity_type(tmp_path, monkeypatch):
-    run = V2Run(tmp_path, monkeypatch)
+    run = FixtureRun(tmp_path, monkeypatch)
     try:
         params = _params(run)
         inv = yaml.safe_load(ansible_launch.launch_inventory(params))
@@ -88,7 +88,7 @@ def test_inventory_groups_by_owner_and_identity_type(tmp_path, monkeypatch):
 def test_launch_params_are_unchanged_by_the_emitter(tmp_path, monkeypatch):
     """The emitter is a pure rendering: meta-state launch params are what
     the instance lifecycle recorded, byte for byte."""
-    run = V2Run(tmp_path, monkeypatch)
+    run = FixtureRun(tmp_path, monkeypatch)
     try:
         summary = run.run(["identity", "storage", "base-image", "instance-image"], apply=False)
         assert summary.ok, summary.error
@@ -159,7 +159,7 @@ def test_launch_variables_are_gathered_in_declaration_order():
 
 
 def test_the_fixture_tree_lists_its_storage_variables_in_declaration_order(tmp_path, monkeypatch):
-    run = V2Run(tmp_path, monkeypatch)
+    run = FixtureRun(tmp_path, monkeypatch)
     try:
         names = launch_params.launch_variables(run.ctx)
         assert names[0] == "group_gid" and names[-1] == launch_params.ENROLLMENT_TOKEN_VARIABLE

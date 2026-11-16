@@ -57,10 +57,10 @@ def test_the_vendors_image_moving_under_an_unbaked_base_is_named_and_not_behind(
 
 def test_config_drift_passes_on_a_vendor_image_move_alone(tmp_path, monkeypatch):
     from cs_image_system.engine.commands.emission import config_drift
-    v2 = _generated_tree(tmp_path, monkeypatch)
-    root = v2.config_root
+    fixture_run = _generated_tree(tmp_path, monkeypatch)
+    root = fixture_run.config_root
     def vendor_moved(copy: Path) -> None:
-        _copy_of_committed(v2)(copy)
+        _copy_of_committed(fixture_run)(copy)
         f = next(p for p in (copy / "generated" / "base-image").rglob("*.pkr.hcl") if "image-id" in p.read_text())
         f.write_text(re.sub(r'image-id = "ami-[0-9a-f]+"', 'image-id = "ami-0new000000000000"', f.read_text(), count=1))
     code, lines = config_drift(root, dry_run=vendor_moved)
@@ -72,27 +72,27 @@ def test_config_drift_passes_on_a_vendor_image_move_alone(tmp_path, monkeypatch)
 
 def test_the_guard_passes_the_vendors_image_moving_under_an_unbaked_base(tmp_path, monkeypatch):
     from cs_image_system.engine.commands.emission import runtime_unchanged
-    v2 = _generated_tree(tmp_path, monkeypatch)
-    os.chdir(v2.config_root)
-    _move_the_vendor_image(v2.config_root)
-    code, lines = runtime_unchanged(v2.ctx, "gcloud-east1", "HEAD")
+    fixture_run = _generated_tree(tmp_path, monkeypatch)
+    os.chdir(fixture_run.config_root)
+    _move_the_vendor_image(fixture_run.config_root)
+    code, lines = runtime_unchanged(fixture_run.ctx, "gcloud-east1", "HEAD")
     assert code == 0, lines
     assert "HEAD" in lines[0] and "vendor" in lines[0], lines
     assert any('source_image = "debian-11-v1" -> source_image = "debian-11-v2"' in ln for ln in lines[1:]), lines
-    v2.restore_cwd()
+    fixture_run.restore_cwd()
 
 
 def test_the_guard_still_fails_a_vendor_move_beside_a_change_of_the_runtimes(tmp_path, monkeypatch):
     from cs_image_system.engine.commands.emission import runtime_unchanged
-    v2 = _generated_tree(tmp_path, monkeypatch)
-    root = v2.config_root
+    fixture_run = _generated_tree(tmp_path, monkeypatch)
+    root = fixture_run.config_root
     os.chdir(root)
     _move_the_vendor_image(root)
     f = _gce_source(root)
     f.write_text(f.read_text() + "# a declaration changed\n")
-    code, lines = runtime_unchanged(v2.ctx, "gcloud-east1", "HEAD")
+    code, lines = runtime_unchanged(fixture_run.ctx, "gcloud-east1", "HEAD")
     assert code == 1 and "CHANGED" in lines[0], lines
-    v2.restore_cwd()
+    fixture_run.restore_cwd()
 
 
 # ----------------------------------- a diff cut short is never a move

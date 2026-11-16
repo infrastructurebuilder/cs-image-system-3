@@ -41,7 +41,7 @@ import yaml
 from cs_image_system.gcloud_runtime.gcp_packer_source import gce_label, gce_name
 from tests.harness import (
     FIXTURE_CONFIG,
-    V2Run,
+    FixtureRun,
     copy_config,
     load_context,
     modules_beside,
@@ -120,7 +120,7 @@ def gce_overlay(root: Path) -> None:
 def gce(tmp_path: Path, monkeypatch):
     root = copy_config(tmp_path)
     gce_overlay(root)
-    run = V2Run(tmp_path, monkeypatch, config_root=root)
+    run = FixtureRun(tmp_path, monkeypatch, config_root=root)
     try:
         yield run
     finally:
@@ -170,7 +170,7 @@ def test_base_image_bakes_with_googlecompute(gce):
     builds = _find(gce.generated / "base-image", 'source.googlecompute.basic-rh-10')
     assert len(builds) == 1
     build = builds[0].read_text()
-    assert 'only   = ["googlecompute.basic-rh-10"]' in build   # V2 provisioners follow the source type
+    assert 'only   = ["googlecompute.basic-rh-10"]' in build   # the bake provisioners follow the source type
     assert "amazon-ebs" not in build
     # the AWS bake of the same base image is untouched
     aws = _find(gce.generated / "base-image", 'source "amazon-ebs" "basic-rh-10"')
@@ -191,7 +191,7 @@ def test_instance_image_bakes_from_the_series_family(gce):
     builds = _find(gce.generated / "instance-image", 'source.googlecompute.imgfile-basic-dask')
     assert len(builds) == 1
     build = builds[0].read_text()
-    # the ansible modification and the V2 activation target the GCE source
+    # the ansible modification and the identity activation target the GCE source
     assert 'only = ["googlecompute.imgfile-basic-dask"]' in build
     assert 'only   = ["googlecompute.imgfile-basic-dask"]' in build
     assert "amazon-ebs" not in build
@@ -285,7 +285,7 @@ def test_runtimes_without_iap_do_not_ask_for_the_tunnel(tmp_path, monkeypatch):
             if r["name"] == GCE_RUNTIME:
                 r["session_mechanism"] = None
     _edit(root / "cfg" / "runtime-builders.yml", runtimes)
-    run = V2Run(tmp_path, monkeypatch, config_root=root)
+    run = FixtureRun(tmp_path, monkeypatch, config_root=root)
     try:
         assert run.run(["base-image"], apply=False).ok
         text = _find(run.generated / "base-image", 'source "googlecompute" "basic-rh-10"')[0].read_text()
@@ -357,7 +357,7 @@ def increment3_overlay(root: Path) -> None:
 def gce3(tmp_path: Path, monkeypatch):
     root = copy_config(tmp_path)
     increment3_overlay(root)
-    run = V2Run(tmp_path, monkeypatch, config_root=root)
+    run = FixtureRun(tmp_path, monkeypatch, config_root=root)
     try:
         yield run
     finally:
@@ -782,7 +782,7 @@ def test_a_disk_archive_script_without_a_project_is_refused_at_generation(tmp_pa
 
 def test_an_out_of_scope_instance_root_writes_no_tfvars(tmp_path: Path, monkeypatch):
     from cs_image_system.contract.lifecycle import ExecutionLifecyclePhase
-    run = V2Run(tmp_path, monkeypatch)
+    run = FixtureRun(tmp_path, monkeypatch)
     try:
         ctx = run.ctx
         ctx.only_runtime_scope = "gcloud-east1"
@@ -802,7 +802,7 @@ def test_the_gce_root_receives_the_build_its_run_baked_under_its_own_variable(tm
     from cs_image_system.contract.image import PSISourceKind
     from cs_image_system.contract.lifecycle import ExecutionLifecyclePhase
     from cs_image_system.contract.lifecycles import Lifecycle
-    run = V2Run(tmp_path, monkeypatch)
+    run = FixtureRun(tmp_path, monkeypatch)
     ctx = None
     try:
         assert run.run(["instance-image"], apply=False).ok

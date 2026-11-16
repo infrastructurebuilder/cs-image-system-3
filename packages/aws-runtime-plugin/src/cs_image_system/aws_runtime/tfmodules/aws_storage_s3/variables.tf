@@ -18,7 +18,7 @@ variable "tags" {
   default = {}
 }
 
-# V2 group access, plugin-owned mapping for a non-POSIX store (DESIGN N3/N13):
+# Group access, plugin-owned mapping for a non-POSIX store (DESIGN N3/N13):
 # each allowed group owns a top-level prefix ("<group>/"); public_read grants
 # read-only object access to every principal of the bucket's own account.
 variable "group_prefixes" {

@@ -788,7 +788,7 @@ outside a job or with a name it cannot find.
 contract: on by default and toggled by `--dry-run/--no-dry-run`. The CLI is
 exercised end to end by the workspace suite against the frozen fixture at
 [`tests/fixtures/config`](../../tests/fixtures/config), whose emission is
-pinned under [`tests/fixtures/v2_golden`](../../tests/fixtures/v2_golden):
+pinned under [`tests/fixtures/golden`](../../tests/fixtures/golden):
 [`test_headless_cli.py`](../../tests/test_headless_cli.py) (the
 whole workflow through `run --all`, the aliases, the exit codes of `run`,
 `validate` and `gate-plan`, the gid shim's pure-JSON standard output),
@@ -1165,7 +1165,7 @@ writes, grouped by exit code, follow it.
 | `run scope: bake(s) outside the apply scope ['<rt>']: <series>@<rt> -- pass --allow-unscoped-bakes, or select images with --only / --only-runtime` (exit 1, in the summary's `error`; a dry run warns) | `--apply-runtime` scopes the applies and implies `--only-runtime`; an explicit selection reached outside the scope | Select with `--only` / `--only-runtime`, or allow it ([the scoped apply that baked on the other cloud](../../docs/INCIDENTS.md#an-apply-scoped-to-gce-baked-two-amis-on-aws)). |
 | A scoped bake fails on another runtime's instance root plan | A run scoped to one runtime must not plan the others' roots | `--only-runtime`, explicit or implied, makes the other runtimes' storage and instance roots emit nothing ([the scoped bake that planned the other cloud](../../docs/INCIDENTS.md#a-run-scoped-to-aws-failed-on-the-gce-instance-roots-plan)). |
 | `verify assert` fails the run after an ephemeral teardown | Under the `teardown` policy the launch record must be forgotten before the run fails | The runner carries `verify instance --record-only` and the after-apply hook fails the run once the records match reality ([the assert that failed the run after the teardown](../../docs/INCIDENTS.md#a-verify-assert-as-the-runners-last-step-failed-the-run-after-the-teardown)). |
-| `<name>: retired in V2. ...` (exit 2) | `test` and `cleanup` are retired names; a warning that succeeds would read as success to an old script | Use the replacement the message names: `test-mods` and `verify instance`; the retention lifecycle and `dispose image` ([the placeholders that looked like successes](../../docs/INCIDENTS.md#the-retired-placeholder-commands-looked-like-successes)). |
+| `<name>: retired. ...` (exit 2) | `test` and `cleanup` are retired names; a warning that succeeds would read as success to an old script | Use the replacement the message names: `test-mods` and `verify instance`; the retention lifecycle and `dispose image` ([the placeholders that looked like successes](../../docs/INCIDENTS.md#the-retired-placeholder-commands-looked-like-successes)). |
 | `Unknown lifecycle 'release'; expected one of [...]` (exit 2) | The hook entry points that register `release` and `retention` are not installed in the environment running the command | Install the workspace (`just init`); a library caller calls `load_hook_plugins()` before `parse_lifecycles()` ([the hooks that once loaded too late](../../docs/INCIDENTS.md#hook-plugins-loaded-after-the-lifecycle-names-were-resolved)). |
 | `tofu init` in the mirror cannot read `../tfmodules` or its local state | The materialized root does not stand at the emission's depth | Compare the depth of `_private/<...>` with `generated/<...>`; the mirror replaces the `generated/` name at the same depth ([the mirror that stood one level too deep](../../docs/INCIDENTS.md#the-private-mirror-stood-one-level-too-deep)). |
 | `validate` refuses every run on the pin of an instance destroyed through the gate | A record outlived its instance, and `require_released_builds` is on | `forget instance <name>` drops the pin and launch parameters and records the correction; it refuses (exit 2) while the instance is still declared ([the pin that outlived its instance](../../docs/INCIDENTS.md#a-pin-outlived-its-instance)). |
@@ -1199,7 +1199,7 @@ public-safe: <path> is not inside a git repository
 state-migration: the action is begin, finish or backup, not '<x>'
 prune-attachments: no group builder named '<name>'
 workload describe: no group builder names a workload connection and role
-<name>: retired in V2. ...
+<name>: retired. ...
 ```
 
 The load (exit 1, `Error reading config file : <e>` then a traceback):

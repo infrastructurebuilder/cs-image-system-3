@@ -23,12 +23,12 @@ import pytest
 
 from cs_image_system.contract.names import super_safe_name
 from cs_image_system.okta_opa_plugin import okta_opa_tf_group_builder as gbmod
-from tests.harness import V2Run
+from tests.harness import FixtureRun
 
 
 @pytest.fixture
 def run(tmp_path: Path, monkeypatch):
-    r = V2Run(tmp_path, monkeypatch)
+    r = FixtureRun(tmp_path, monkeypatch)
     try:
         yield r
     finally:

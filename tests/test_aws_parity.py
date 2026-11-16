@@ -13,7 +13,7 @@ from pathlib import Path
 
 import pytest
 
-from tests.harness import V2Run, copy_config
+from tests.harness import FixtureRun, copy_config
 
 
 class FakeEC2:
@@ -44,7 +44,7 @@ def aws(tmp_path: Path, monkeypatch):
     from cs_image_system.aws_runtime import aws_utils
     ec2 = FakeEC2()
     monkeypatch.setattr(aws_utils, "ec2_client", lambda cfg: ec2)
-    run = V2Run(tmp_path, monkeypatch, config_root=copy_config(tmp_path), dry_run=False)
+    run = FixtureRun(tmp_path, monkeypatch, config_root=copy_config(tmp_path), dry_run=False)
     try:
         yield run, ec2
     finally:
@@ -135,7 +135,7 @@ def test_an_aws_instance_may_be_ephemeral(tmp_path, monkeypatch):
         if i["name"] == "test2":
             i["ephemeral"] = True
     p.write_text(yaml.safe_dump(d, sort_keys=False))
-    run = V2Run(tmp_path, monkeypatch, config_root=root)
+    run = FixtureRun(tmp_path, monkeypatch, config_root=root)
     try:
         run.ctx.config["apply_instances"] = ["aws-east2-runtime"]
         summary = run.run(["instance-image"], apply=True, only=["none"])
@@ -153,7 +153,7 @@ def test_restamp_records_the_current_fingerprint_on_heads_and_retags(tmp_path, m
     from cs_image_system.base.lineage import bake_reason, find_image
     from cs_image_system.engine.commands.restamp import restamp, restamp_plan
     root = copy_config(tmp_path)
-    run = V2Run(tmp_path, monkeypatch, config_root=root, dry_run=False)   # the harness journals retags
+    run = FixtureRun(tmp_path, monkeypatch, config_root=root, dry_run=False)   # the harness journals retags
     retags = run.retags
     try:
         ms = run.ctx.meta_state
@@ -187,7 +187,7 @@ def test_restamp_records_the_current_fingerprint_on_heads_and_retags(tmp_path, m
 def test_restamp_dry_run_changes_nothing(tmp_path, monkeypatch):
     from cs_image_system.engine.commands.restamp import restamp
     root = copy_config(tmp_path)
-    run = V2Run(tmp_path, monkeypatch, config_root=root)                    # dry run
+    run = FixtureRun(tmp_path, monkeypatch, config_root=root)                    # dry run
     try:
         ms = run.ctx.meta_state
         ms.add_build({"build_id": "ami-x", "series": "basic-rh-10", "runtime": "aws-east2-runtime", "name": "n",
@@ -232,7 +232,7 @@ def test_relabel_retags_only_the_images_whose_tags_disagree_with_their_record(tm
     from cs_image_system.engine.commands.relabel import relabel, relabel_plan
     from cs_image_system.gcloud_runtime.gcp_runtime_builders import GCPCloudBuilder
     root = copy_config(tmp_path)
-    run = V2Run(tmp_path, monkeypatch, config_root=root, dry_run=False)
+    run = FixtureRun(tmp_path, monkeypatch, config_root=root, dry_run=False)
     retags = run.retags
     try:
         _seed_follow_pair(run.ctx.meta_state)
@@ -260,7 +260,7 @@ def test_relabel_dry_run_retags_nothing(tmp_path, monkeypatch):
     from cs_image_system.engine.commands.relabel import relabel
     from cs_image_system.gcloud_runtime.gcp_runtime_builders import GCPCloudBuilder
     root = copy_config(tmp_path)
-    run = V2Run(tmp_path, monkeypatch, config_root=root)                    # dry run
+    run = FixtureRun(tmp_path, monkeypatch, config_root=root)                    # dry run
     try:
         _seed_follow_pair(run.ctx.meta_state)
         monkeypatch.setattr(GCPCloudBuilder, "query_images", lambda self, series: _real_images())

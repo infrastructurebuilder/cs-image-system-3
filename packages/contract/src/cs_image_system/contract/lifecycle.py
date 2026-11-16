@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""Execution lifecycle phases (see ``lifecycles`` for the V2 lifecycles that
+"""Execution lifecycle phases (see ``lifecycles`` for the lifecycles that
 group them). In the contract: every builder hook keys on a member of
 this enum."""
 from __future__ import annotations
@@ -18,11 +18,10 @@ class ExecutionLifecyclePhase(StrEnum):
     the runner also drives RESOLUTION before each lifecycle and orders every
     lifecycle's deferred commands by this enum's position when it writes the
     finalization script. Every other member -- the ``pre-``/``post-``
-    variants and the V1-era test/commit/execution/verify/cleanup phases -- is
-    an extension point: a plugin-registered lifecycle (``LifecycleSpec.phases``)
+    variants and the test/commit/execution/verify/cleanup phases -- is an
+    extension point: a plugin-registered lifecycle (``LifecycleSpec.phases``)
     may claim any of them and its builders' hooks fire for that phase; nothing
-    built in binds to them (the V1 step machinery that once iterated the
-    whole enum is gone, the members stay).
+    built in binds to them.
     """
 
     VALIDATION = "validation"

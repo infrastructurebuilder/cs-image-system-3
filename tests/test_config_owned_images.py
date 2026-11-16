@@ -21,7 +21,7 @@ from typing import Any, cast
 
 import pytest
 
-from tests.harness import V2Run, copy_config
+from tests.harness import FixtureRun, copy_config
 
 OURS = "cs-image-action-test"          # the fixture's top-level id
 AWS = "aws-east2-runtime"
@@ -29,7 +29,7 @@ AWS = "aws-east2-runtime"
 
 @pytest.fixture
 def run(tmp_path: Path, monkeypatch):
-    r = V2Run(tmp_path, monkeypatch, config_root=copy_config(tmp_path), dry_run=False)
+    r = FixtureRun(tmp_path, monkeypatch, config_root=copy_config(tmp_path), dry_run=False)
     try:
         yield r
     finally:

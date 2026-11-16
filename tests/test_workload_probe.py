@@ -15,7 +15,7 @@ history: bundle XII item 14 (walk finding F35).
 from __future__ import annotations
 
 import pytest
-from harness import V2Run, copy_config, stub_environment
+from harness import FixtureRun, copy_config, stub_environment
 from test_release_whole import _job_env, _stub_minting
 from typer.testing import CliRunner
 
@@ -43,7 +43,7 @@ def test_the_probe_target_is_a_standing_machine_of_a_managed_group(tmp_path, mon
     from cs_image_system.okta_opa_plugin.okta_opa_tf_group_builder import OktaTfGroupBuilder
     from cs_image_system.okta_opa_plugin.okta_opa_tf_group_models import OktaTfGroupBuilderModel
     from cs_image_system.okta_opa_plugin.workload_token import probe_target
-    run = V2Run(tmp_path, monkeypatch)
+    run = FixtureRun(tmp_path, monkeypatch)
     try:
         ctx = run.ctx
         assert probe_target(ctx) is None                                  # nothing stands, and no workload names

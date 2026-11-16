@@ -267,18 +267,18 @@ there is one partial configuration per root; the seven S3 ones all carry
 
 | Workspace | File |
 |---|---|
-| `open-tofu` (AWS instances) | [open-tofu-instance-generation.tfbackend.hcl](../../tests/fixtures/v2_golden/generated/instance-image/open-tofu/instance-generation/open-tofu-instance-generation.tfbackend.hcl) |
-| `tofu-gce` (GCE instances) | [tofu-gce-instance-generation.tfbackend.hcl](../../tests/fixtures/v2_golden/generated/instance-image/tofu-gce/instance-generation/tofu-gce-instance-generation.tfbackend.hcl) |
-| `aws-ebs` | [aws-ebs-storage-generation.tfbackend.hcl](../../tests/fixtures/v2_golden/generated/storage/aws-ebs/storage-generation/aws-ebs-storage-generation.tfbackend.hcl) |
-| `aws-efs` | [aws-efs-storage-generation.tfbackend.hcl](../../tests/fixtures/v2_golden/generated/storage/aws-efs/storage-generation/aws-efs-storage-generation.tfbackend.hcl) |
-| `aws-s3` | [aws-s3-storage-generation.tfbackend.hcl](../../tests/fixtures/v2_golden/generated/storage/aws-s3/storage-generation/aws-s3-storage-generation.tfbackend.hcl) |
-| `gcp-pd` | [gcp-pd-storage-generation.tfbackend.hcl](../../tests/fixtures/v2_golden/generated/storage/gcp-pd/storage-generation/gcp-pd-storage-generation.tfbackend.hcl) |
-| `gcp-gcs` | [gcp-gcs-storage-generation.tfbackend.hcl](../../tests/fixtures/v2_golden/generated/storage/gcp-gcs/storage-generation/gcp-gcs-storage-generation.tfbackend.hcl) |
+| `open-tofu` (AWS instances) | [open-tofu-instance-generation.tfbackend.hcl](../../tests/fixtures/golden/generated/instance-image/open-tofu/instance-generation/open-tofu-instance-generation.tfbackend.hcl) |
+| `tofu-gce` (GCE instances) | [tofu-gce-instance-generation.tfbackend.hcl](../../tests/fixtures/golden/generated/instance-image/tofu-gce/instance-generation/tofu-gce-instance-generation.tfbackend.hcl) |
+| `aws-ebs` | [aws-ebs-storage-generation.tfbackend.hcl](../../tests/fixtures/golden/generated/storage/aws-ebs/storage-generation/aws-ebs-storage-generation.tfbackend.hcl) |
+| `aws-efs` | [aws-efs-storage-generation.tfbackend.hcl](../../tests/fixtures/golden/generated/storage/aws-efs/storage-generation/aws-efs-storage-generation.tfbackend.hcl) |
+| `aws-s3` | [aws-s3-storage-generation.tfbackend.hcl](../../tests/fixtures/golden/generated/storage/aws-s3/storage-generation/aws-s3-storage-generation.tfbackend.hcl) |
+| `gcp-pd` | [gcp-pd-storage-generation.tfbackend.hcl](../../tests/fixtures/golden/generated/storage/gcp-pd/storage-generation/gcp-pd-storage-generation.tfbackend.hcl) |
+| `gcp-gcs` | [gcp-gcs-storage-generation.tfbackend.hcl](../../tests/fixtures/golden/generated/storage/gcp-gcs/storage-generation/gcp-gcs-storage-generation.tfbackend.hcl) |
 
 The two identity roots' files,
-[oktagroups-group-generation.tfbackend.hcl](../../tests/fixtures/v2_golden/generated/identity/oktagroups/group-generation/oktagroups-group-generation.tfbackend.hcl)
+[oktagroups-group-generation.tfbackend.hcl](../../tests/fixtures/golden/generated/identity/oktagroups/group-generation/oktagroups-group-generation.tfbackend.hcl)
 and
-[okta-tf-users-user-generation.tfbackend.hcl](../../tests/fixtures/v2_golden/generated/identity/okta-tf-users/user-generation/okta-tf-users-user-generation.tfbackend.hcl),
+[okta-tf-users-user-generation.tfbackend.hcl](../../tests/fixtures/golden/generated/identity/okta-tf-users/user-generation/okta-tf-users-user-generation.tfbackend.hcl),
 are `local` renderings (a `path` line alone) and are not this plugin's.
 
 The `open-tofu` file, in full:
@@ -294,7 +294,7 @@ profile = "noaa"
 ```
 
 The consumer side, in
-[open-tofu-instance-generation.tf](../../tests/fixtures/v2_golden/generated/instance-image/open-tofu/instance-generation/open-tofu-instance-generation.tf):
+[open-tofu-instance-generation.tf](../../tests/fixtures/golden/generated/instance-image/open-tofu/instance-generation/open-tofu-instance-generation.tf):
 the empty `backend "s3" {}` inside `terraform {}`, and six
 `data "terraform_remote_state"` blocks. Five (`aws_efs`, `aws_ebs`,
 `aws_s3`, `gcp_pd`, `gcp_gcs`) carry `backend = "s3"` and a `config`
@@ -304,13 +304,13 @@ carries `backend = "local"` and a `path`, because the identity root keeps
 its state on disk.
 
 The runner scripts,
-[run-storage.sh](../../tests/fixtures/v2_golden/generated/storage/run-storage.sh)
+[run-storage.sh](../../tests/fixtures/golden/generated/storage/run-storage.sh)
 and
-[run-instance-image.sh](../../tests/fixtures/v2_golden/generated/instance-image/run-instance-image.sh),
+[run-instance-image.sh](../../tests/fixtures/golden/generated/instance-image/run-instance-image.sh),
 carry the `# state: workspace ... -> s3://...` header lines and, per root,
 `tofu init -input=false -reconfigure -backend-config=<file>` before the
 plan. The golden's
-[meta-state/state-locations.yaml](../../tests/fixtures/v2_golden/meta-state/state-locations.yaml)
+[meta-state/state-locations.yaml](../../tests/fixtures/golden/meta-state/state-locations.yaml)
 is the location record the same run writes.
 
 This plugin calls no `tfmodules/` module.

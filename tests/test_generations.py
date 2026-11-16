@@ -24,7 +24,7 @@ from cs_image_system.base import launch_params as lp
 from cs_image_system.contract.lifecycles import Lifecycle
 from cs_image_system.engine import state_query as sq
 from cs_image_system.engine.meta_state import INSTANCE_STATE
-from tests.harness import V2Run
+from tests.harness import FixtureRun
 
 A = {"instance_id": "i-aaaa0000aaaa0000a", "provider_hostname": "ip-10-0-0-1.us-east-2.compute.internal"}
 B = {"instance_id": "i-bbbb0000bbbb0000b", "provider_hostname": "ip-10-0-0-2.us-east-2.compute.internal"}
@@ -32,7 +32,7 @@ B = {"instance_id": "i-bbbb0000bbbb0000b", "provider_hostname": "ip-10-0-0-2.us-
 
 @pytest.fixture
 def world(tmp_path: Path, monkeypatch):
-    run = V2Run(tmp_path, monkeypatch)
+    run = FixtureRun(tmp_path, monkeypatch)
     try:
         yield run
     finally:

@@ -468,7 +468,7 @@ class AwsCloudBuilder(CloudBuilderBase[AwsCloudBuilderModel], PluginArtifactProt
     def generate_items_during(self, phase: ExecutionLifecyclePhase) -> AssetSet:
         return super().generate_items_during(phase)
 
-    # ------------------------------------------------------------ V2 (N9)
+    # ------------------------------------------------ debug sessions (N9)
     SSM = "ssm"
 
     def session_mechanism(self) -> str | None:

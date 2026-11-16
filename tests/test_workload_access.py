@@ -20,7 +20,7 @@ import pytest
 from cs_image_system.contract.lifecycles import Lifecycle
 from cs_image_system.engine import state_query as sq
 from cs_image_system.engine.workload_access import reconcile_workload_access
-from tests.harness import V2Run
+from tests.harness import FixtureRun
 
 CONNECTION, ROLE = "github-cs-image-system", "cs-image-system-ci"
 
@@ -31,7 +31,7 @@ def world(tmp_path: Path, monkeypatch):
     from cs_image_system.okta_opa_plugin.okta_opa_tf_group_models import OktaTfGroupBuilderModel
 
     reality: dict = {"groups": {}}
-    run = V2Run(tmp_path, monkeypatch)
+    run = FixtureRun(tmp_path, monkeypatch)
     # the fixture's builder names no workload objects; here it does (on the
     # instances: a dataclass field shadows any class attribute)
     for gb in run.ctx.group_builders.values():
@@ -141,7 +141,7 @@ def test_drift_names_the_role_the_policy_and_the_connection(world):
 
 
 def test_without_workload_names_nothing_is_expected_or_reported(tmp_path: Path, monkeypatch):
-    run = V2Run(tmp_path, monkeypatch)
+    run = FixtureRun(tmp_path, monkeypatch)
     try:
         from cs_image_system.engine.read_models import identity_read_model
         model = identity_read_model(run.ctx)["groups"]

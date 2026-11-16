@@ -22,7 +22,7 @@ import pytest
 from cs_image_system.base.lineage import TAG_PREFIX
 from cs_image_system.contract.lifecycles import Lifecycle
 from cs_image_system.engine import state_query as sq
-from tests.harness import V2Run
+from tests.harness import FixtureRun
 
 
 def _tags(series: str, run: str = "run-1", parent: str = "external", fp: str = "abc") -> dict[str, str]:
@@ -51,7 +51,7 @@ def world(tmp_path: Path, monkeypatch):
     from cs_image_system.tofu_roots.tofu_storage_builder import TofuStorageBuilderBase
 
     reality: dict = {"images": {}, "storages": {}, "groups": {}}   # images keyed by runtime name
-    run = V2Run(tmp_path, monkeypatch)   # first: its stubs would override ours
+    run = FixtureRun(tmp_path, monkeypatch)   # first: its stubs would override ours
     monkeypatch.setattr(AwsCloudBuilder, "query_images",
                         lambda self, series: list(reality["images"].get(self.get_name(), [])))
     monkeypatch.setattr(TofuStorageBuilderBase, "query_state",

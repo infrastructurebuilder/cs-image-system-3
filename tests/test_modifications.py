@@ -38,14 +38,14 @@ from typing import Any, cast
 
 import pytest
 import yaml
-from harness import V2Run, copy_config, load_context, stub_environment
+from harness import FixtureRun, copy_config, load_context, stub_environment
 
 BUILD = Path("instance-image/pckr-ebs-ans/image-generation/block-000/pckr-ebs-ans-image-generation-block-000-build.pkr.hcl")
 
 
 @pytest.fixture
-def v2(tmp_path, monkeypatch):
-    run = V2Run(tmp_path, monkeypatch)
+def fixture_run(tmp_path, monkeypatch):
+    run = FixtureRun(tmp_path, monkeypatch)
     yield run
     run.restore_cwd()
 
@@ -57,9 +57,9 @@ def _dask_section(build: str) -> str:
     return build[start:end]
 
 
-def test_both_modification_kinds_are_emitted_as_provisioners(v2):
-    assert v2.run(["instance-image"], apply=False).ok
-    build = (v2.generated / BUILD).read_text()
+def test_both_modification_kinds_are_emitted_as_provisioners(fixture_run):
+    assert fixture_run.run(["instance-image"], apply=False).ok
+    build = (fixture_run.generated / BUILD).read_text()
     sect = _dask_section(build)
     # ansible
     assert 'provisioner "ansible" {' in sect and 'playbook_file = "setup_dask.yml"' in sect
@@ -80,7 +80,7 @@ def test_both_modification_kinds_are_emitted_as_provisioners(v2):
     assert "\nexit 0" not in build
     assert build.count("provisioner ") == build.count("provisioner \"")
     # the script file was copied beside the packer root
-    assert (v2.generated / BUILD.parent / "mod_image.sh").is_file()
+    assert (fixture_run.generated / BUILD.parent / "mod_image.sh").is_file()
     # ansible mods elsewhere are untouched
     assert build.count('provisioner "ansible" {') == 2
 
@@ -93,7 +93,7 @@ def test_unknown_modification_type_is_a_hard_failure(tmp_path, monkeypatch):
     dask["modifications"][1]["type"] = "powershell-remote"
     p.write_text(yaml.safe_dump(data, sort_keys=False))
     with pytest.raises(KeyError, match="powershell-remote"):
-        V2Run(tmp_path, monkeypatch, config_root=root)
+        FixtureRun(tmp_path, monkeypatch, config_root=root)
 
 
 def test_bash_item_requires_script_or_scripts():
@@ -106,18 +106,18 @@ def test_bash_item_requires_script_or_scripts():
     assert m.scripts == ["copied/a.sh"]
 
 
-def test_lineage_records_both_mods_with_content_hashes(v2):
-    assert v2.run(["instance-image"], apply=False).ok
-    ctx = v2.ctx
+def test_lineage_records_both_mods_with_content_hashes(fixture_run):
+    assert fixture_run.run(["instance-image"], apply=False).ok
+    ctx = fixture_run.ctx
     from cs_image_system.contract.lifecycle import ExecutionLifecyclePhase
     from cs_image_system.contract.lifecycles import Lifecycle
-    d = v2.generated / BUILD.parent
+    d = fixture_run.generated / BUILD.parent
     (d / "manifest.json").write_text(json.dumps({"last_run_uuid": "u", "builds": [
         {"name": "imgfile-basic-dask", "packer_run_uuid": "u", "artifact_id": "us-east-2:ami-0dask0001"}]}))
     ctx.current_lifecycle = Lifecycle.INSTANCE_IMAGE
     ctx.image_builders["pckr-ebs-ans"].post_finalize_phase(ExecutionLifecyclePhase.IMAGE_GENERATION)
     ctx.current_lifecycle = None
-    build = next(b for b in yaml.safe_load((v2.meta_state / "lineage.yaml").read_text())["builds"]
+    build = next(b for b in yaml.safe_load((fixture_run.meta_state / "lineage.yaml").read_text())["builds"]
                  if b["build_id"] == "ami-0dask0001")
     mods = {m["name"]: m for m in build["mods"]}
     assert mods["dask-setup-jeffy"]["operation"] == "ansible"
@@ -132,9 +132,9 @@ def test_lineage_records_both_mods_with_content_hashes(v2):
 BLOCK = Path("instance-image/pckr-ebs-ans/image-generation/block-000")
 
 
-def test_bundle_is_staged_and_installed(v2):
-    assert v2.run(["base-image", "instance-image"], apply=False).ok
-    bundle = v2.generated / BLOCK / "csis-mods" / "imgfile-basic-dask"
+def test_bundle_is_staged_and_installed(fixture_run):
+    assert fixture_run.run(["base-image", "instance-image"], apply=False).ok
+    bundle = fixture_run.generated / BLOCK / "csis-mods" / "imgfile-basic-dask"
     assert (bundle / "csis-mods").is_file()
     dirs = sorted(p.name for p in bundle.iterdir() if p.is_dir())
     assert dirs == ["01-dask-setup-jeffy", "02-derivative-setup"]
@@ -149,7 +149,7 @@ def test_bundle_is_staged_and_installed(v2):
     assert sorted(m["files"]) == ["inline.sh", "mod_image.sh"]
     index = yaml.safe_load((bundle / "MANIFEST.yaml").read_text())
     assert [x["dir"] for x in index["mods"]] == dirs
-    build = (v2.generated / BLOCK / "pckr-ebs-ans-image-generation-block-000-build.pkr.hcl").read_text()
+    build = (fixture_run.generated / BLOCK / "pckr-ebs-ans-image-generation-block-000-build.pkr.hcl").read_text()
     assert 'source      = "csis-mods/imgfile-basic-dask/"' in build
     assert "sudo mv /tmp/csis-mods /opt/csis/mods" in build
     assert "/usr/local/bin/csis-mods" in build
@@ -157,13 +157,13 @@ def test_bundle_is_staged_and_installed(v2):
     sect = build[build.index('only = ["amazon-ebs.imgfile-basic-dask"]'):]
     assert sect.index("tx.group: coops") < sect.index("local modification bundle for imgfile-basic-dask")
     # base images carry no bundle
-    assert "csis-mods" not in (v2.generated / "base-image" / "pckr-ebs-ans" / "image-generation" / "block-000"
+    assert "csis-mods" not in (fixture_run.generated / "base-image" / "pckr-ebs-ans" / "image-generation" / "block-000"
                                / "pckr-ebs-ans-image-generation-block-000-build.pkr.hcl").read_text()
 
 
-def test_runner_script_lists_and_reruns_in_order(v2, tmp_path):
-    assert v2.run(["instance-image"], apply=False).ok
-    bundle = v2.generated / BLOCK / "csis-mods" / "imgfile-basic-dask"
+def test_runner_script_lists_and_reruns_in_order(fixture_run, tmp_path):
+    assert fixture_run.run(["instance-image"], apply=False).ok
+    bundle = fixture_run.generated / BLOCK / "csis-mods" / "imgfile-basic-dask"
     # replace the real run.sh wrappers with journaling stubs and exercise the runner
     journal = tmp_path / "journal"
     for d in bundle.iterdir():
@@ -180,9 +180,9 @@ def test_runner_script_lists_and_reruns_in_order(v2, tmp_path):
     assert subprocess.run(["sh", str(bundle / "csis-mods"), "bogus"], env=env, capture_output=True).returncode == 2
 
 
-def test_ensure_generates_guarded_shell(v2):
-    assert v2.run(["instance-image"], apply=False).ok
-    build = (v2.generated / BLOCK / "pckr-ebs-ans-image-generation-block-000-build.pkr.hcl").read_text()
+def test_ensure_generates_guarded_shell(fixture_run):
+    assert fixture_run.run(["instance-image"], apply=False).ok
+    build = (fixture_run.generated / BLOCK / "pckr-ebs-ans-image-generation-block-000-build.pkr.hcl").read_text()
     assert "rpm -q" in build and "dnf -y install" in build          # packages guarded by a query
     assert "cmp -s /tmp/.csis-ensure '/etc/derivative.conf'" in build   # files replaced only when different
     assert "( test -d /opt/derivative/data ) >/dev/null 2>&1 || { sudo mkdir -p /opt/derivative/data; }" in build
@@ -204,17 +204,17 @@ def test_idempotence_is_declared_and_recorded():
     assert lines and lines[0].startswith("for p in git; do rpm -q")
 
 
-def test_lineage_records_idempotence_and_bundle(v2):
-    assert v2.run(["instance-image"], apply=False).ok
-    ctx = v2.ctx
+def test_lineage_records_idempotence_and_bundle(fixture_run):
+    assert fixture_run.run(["instance-image"], apply=False).ok
+    ctx = fixture_run.ctx
     from cs_image_system.contract.lifecycle import ExecutionLifecyclePhase
     from cs_image_system.contract.lifecycles import Lifecycle
-    (v2.generated / BLOCK / "manifest.json").write_text(json.dumps({"last_run_uuid": "u", "builds": [
+    (fixture_run.generated / BLOCK / "manifest.json").write_text(json.dumps({"last_run_uuid": "u", "builds": [
         {"name": "imgfile-basic-dask", "packer_run_uuid": "u", "artifact_id": "us-east-2:ami-0dask0001"}]}))
     ctx.current_lifecycle = Lifecycle.INSTANCE_IMAGE
     ctx.image_builders["pckr-ebs-ans"].post_finalize_phase(ExecutionLifecyclePhase.IMAGE_GENERATION)
     ctx.current_lifecycle = None
-    build = next(b for b in yaml.safe_load((v2.meta_state / "lineage.yaml").read_text())["builds"]
+    build = next(b for b in yaml.safe_load((fixture_run.meta_state / "lineage.yaml").read_text())["builds"]
                  if b["build_id"] == "ami-0dask0001")
     assert build["local_mods"] is True
     mods = {m["name"]: m for m in build["mods"]}
@@ -254,7 +254,7 @@ def test_an_alias_on_a_modification_type_is_rewritten_to_the_builders_name(tmp_p
 def test_an_aliased_modification_generates(tmp_path: Path, monkeypatch):
     root = copy_config(tmp_path)
     _alias_the_bash_item(root)
-    run = V2Run(tmp_path, monkeypatch, config_root=root)
+    run = FixtureRun(tmp_path, monkeypatch, config_root=root)
     try:
         summary = run.run(["base-image", "instance-image"], apply=False)
         assert summary.ok, summary.error
@@ -355,7 +355,7 @@ def test_ansible_strings_are_escaped_and_the_user_override_wins(tmp_path: Path, 
     root = copy_config(tmp_path)
     _edit(root / "cfg" / "mod-builders.yml", lambda d: _mod_builder(d, "ansible-default").update(
         extra_arguments=['--extra-vars', 'motd="hello"'], configuration_user="deployer"))
-    run = V2Run(tmp_path, monkeypatch, config_root=root)
+    run = FixtureRun(tmp_path, monkeypatch, config_root=root)
     try:
         assert run.run(["base-image", "instance-image"], apply=False).ok
         text = "".join(p.read_text() for p in run.generated.rglob("*build.pkr.hcl") if "instance-image" in str(p))
@@ -373,7 +373,7 @@ def test_a_missing_playbook_is_refused_at_generation(tmp_path: Path, monkeypatch
         mod = next(m for m in dask["modifications"] if m.get("playbooks"))
         mod["playbooks"] = ["no-such-playbook.yml"]
     _edit(root / "images" / "image1.yaml", edit)
-    run = V2Run(tmp_path, monkeypatch, config_root=root)
+    run = FixtureRun(tmp_path, monkeypatch, config_root=root)
     try:
         summary = run.run(["base-image", "instance-image"], apply=False)
         assert not summary.ok and "no-such-playbook.yml" in str(summary.error), summary.error
@@ -398,7 +398,7 @@ def test_bash_configuration_user_runs_the_lines_as_that_user(tmp_path: Path, mon
     root = copy_config(tmp_path)
     _edit(root / "cfg" / "mod-builders.yml",
           lambda d: _mod_builder(d, "bash-remote").update(configuration_user="modder"))
-    run = V2Run(tmp_path, monkeypatch, config_root=root)
+    run = FixtureRun(tmp_path, monkeypatch, config_root=root)
     try:
         assert run.run(["base-image", "instance-image"], apply=False).ok
         text = "".join(p.read_text() for p in run.generated.rglob("*build.pkr.hcl") if "instance-image" in str(p))
@@ -420,7 +420,7 @@ def test_bash_extra_arguments_is_refused():
 
 
 def test_the_on_image_bundle_replays_the_ensure_lines_first(tmp_path: Path, monkeypatch):
-    run = V2Run(tmp_path, monkeypatch)
+    run = FixtureRun(tmp_path, monkeypatch)
     try:
         assert run.run(["base-image", "instance-image"], apply=False).ok
         scripts = [p for p in run.generated.rglob("inline.sh") if "derivative-setup" in str(p)]

@@ -52,7 +52,8 @@ keys, before §113 or after it but not beside it. The operator,
 landed 2026-11-14; §136, hygiene bundle XXVIII, held what they found
 and landed 2026-11-15, before the next release as the operator asked.
 §137, hygiene bundle XXIX, landed the same day;
-[§138](STAGE-138.md), hygiene bundle XXX, is the open bundle.
+§138, hygiene bundle XXX, landed the same day; no hygiene bundle is
+open.
 
 
 **Open**
@@ -133,9 +134,10 @@ and landed 2026-11-15, before the next release as the operator asked.
   migration's rollback `tofu init` retries on a registry timeout by
   the same rule as every other; the golden's gating header and test
   names lost the V2 wording (one deliberate regeneration, one line).
-- [§138](STAGE-138.md), hygiene bundle XXX: open 2026-11-15, the open
-  bundle (what §137 left). It waits for "do 138"; it blocks no
-  release.
+- §138, hygiene bundle XXX: landed 2026-11-15 (not pushed). The
+  golden lives in `tests/fixtures/golden`, driven by the harness's
+  `FixtureRun`; the V2 wording left the plugins, the contract's
+  comments and the CLI. No hygiene bundle is open.
 - [§116](STAGE-116.md), the decomposition that remains (a runtime
   installed from outside): re-planned 2026-11-13 (docker first; where
   the moved runtime's fixture, golden and legs live is its main new
@@ -144,14 +146,18 @@ and landed 2026-11-15, before the next release as the operator asked.
   §134 and §112; the reference's `develop` and `main` run it
   (Release, below). The next release is the first walked as §112
   planned: `just release-take`, the login halfway, `just
-  release-watch`.
+  release-watch`. It carries §135, §113 and §136 to §138 (all on
+  `develop`, not pushed): the engine is a new project on the index
+  (`cs-image-system-engine`), the contract goes to 0.4.2, and the
+  reference's take refreshes four modules whose comments changed
+  (`docker_volume`, `gcp_storage_pd`, `aws_storage_efs`,
+  `aws_storage_s3`; no plan moves).
 - Interval checks (the F44 review, the `STARTER_PUSH_TOKEN` renewal)
   live in [REMINDERS.md](../REMINDERS.md).
 
 **Stage files** (one per stage, in this directory; the plan is read
 and validated by the operator before its "do N")
 
-- [§138, Hygiene bundle XXX](STAGE-138.md)
 - [§116, A runtime installed from outside](STAGE-116.md)
 
 **Release**
@@ -248,6 +254,17 @@ and validated by the operator before its "do N")
 
 **Landed since 2026-10-05** (newest first)
 
+- §138, hygiene bundle XXX: 2026-11-15, its squash commit
+  (feature/hygiene-xxx kept, not pushed). The golden's directory is
+  `tests/fixtures/golden` and the harness's run class `FixtureRun`
+  (its driver `drive_lifecycles`, the tests' fixture `fixture_run`),
+  by the operator's choice: all 148 files moved byte-identical, and
+  the naming rule refuses any `tests/fixtures/v2_*`. The packer
+  plugin's modules are `bake_provisioners` and `local_mods`; the V2
+  wording left the plugins' comments, four terraform modules'
+  comments, the contract's lifecycle comments (0.4.2, unreleased) and
+  the CLI's help and retired-command messages, which a test now pins
+  (exit 2, the replacements named).
 - §137, hygiene bundle XXIX: 2026-11-15, its squash commit
   (feature/hygiene-xxix kept, not pushed). The registry-timeout rule
   is one kit function (`is_registry_timeout`) that the executable

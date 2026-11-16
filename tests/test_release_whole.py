@@ -432,34 +432,34 @@ def _git(root: Path, *args: str) -> str:
 
 def _generated_tree(tmp_path, monkeypatch):
     """A fixture copy with a recorded dry run committed under generated/."""
-    from harness import V2Run
-    v2 = V2Run(tmp_path, monkeypatch)
-    assert v2.run("all", apply=False).ok
-    v2.restore_cwd()
-    root = v2.config_root
+    from harness import FixtureRun
+    fixture_run = FixtureRun(tmp_path, monkeypatch)
+    assert fixture_run.run("all", apply=False).ok
+    fixture_run.restore_cwd()
+    root = fixture_run.config_root
     _git(root, "init", "-q", "-b", "develop")
     _git(root, "config", "user.email", "t@example.invalid")
     _git(root, "config", "user.name", "t")
     _git(root, "add", "-A")
     _git(root, "commit", "-q", "-m", "recorded")
-    return v2
+    return fixture_run
 
 
-def _copy_of_committed(v2):
+def _copy_of_committed(fixture_run):
     """A stand-in dry run for the test: the copy gets the committed emission
     (the real command runs `run --all` in a process of its own)."""
     import shutil
     def dry_run(copy: Path, progress=None) -> None:
-        shutil.copytree(v2.generated, copy / "generated")
+        shutil.copytree(fixture_run.generated, copy / "generated")
     return dry_run
 
 
 def test_config_drift_reads_current_then_behind_then_nothing_committed(tmp_path, monkeypatch):
     from cs_image_system.engine.commands.emission import config_drift
-    v2 = _generated_tree(tmp_path, monkeypatch)
-    root = v2.config_root
+    fixture_run = _generated_tree(tmp_path, monkeypatch)
+    root = fixture_run.config_root
     said: list[str] = []
-    code, lines = config_drift(root, dry_run=_copy_of_committed(v2), progress=said.append)
+    code, lines = config_drift(root, dry_run=_copy_of_committed(fixture_run), progress=said.append)
     assert code == 0 and "current with the configuration" in lines[0], lines
     # it says what it is doing as it goes, each part with its time
     assert said[0].startswith(f"config-drift: copying {root.resolve()}"), said
@@ -467,14 +467,14 @@ def test_config_drift_reads_current_then_behind_then_nothing_committed(tmp_path,
     assert "takes minutes" in said[2] and "comparing" in said[3] and said[-1].endswith(" in all"), said
     # a declaration moved the emission: the committed tree is behind
     def moved(copy: Path) -> None:
-        _copy_of_committed(v2)(copy)
+        _copy_of_committed(fixture_run)(copy)
         tf = next((copy / "generated").rglob("*.tf"))
         tf.write_text(tf.read_text() + "\n# a change\n")
     code, lines = config_drift(root, dry_run=moved)
     assert code == 1 and "BEHIND the configuration (1 files)" in lines[0] and any(ln.startswith("+# a change") for ln in lines), lines
     # run ids never count as drift: the copy's differ from the record's
     def restamped(copy: Path) -> None:
-        _copy_of_committed(v2)(copy)
+        _copy_of_committed(fixture_run)(copy)
         for p in (copy / "generated").rglob("*.sh"):
             p.write_text(re.sub(r"[0-9]{4}_[0-9]{2}_[0-9]{2}t[0-9]{2}_[0-9]{2}_[0-9]{2}_[0-9]{6}",
                                 "2030_01_01t00_00_00_000000", p.read_text()))
@@ -583,10 +583,10 @@ def test_config_drift_is_a_command_that_loads_nothing(tmp_path, monkeypatch):
     """The dry run happens in a process of its own; this process needs no
     identity and no session, only the tree and its git history."""
     from cs_image_system.engine.commands import emission
-    v2 = _generated_tree(tmp_path, monkeypatch)
-    monkeypatch.setattr(emission, "subprocess_dry_run", _copy_of_committed(v2))
+    fixture_run = _generated_tree(tmp_path, monkeypatch)
+    monkeypatch.setattr(emission, "subprocess_dry_run", _copy_of_committed(fixture_run))
     monkeypatch.delenv("CSIS_CONFIG_IDENTITY", raising=False)
-    result = CliRunner().invoke(app, ["--root-dir", str(v2.config_root), "config-drift"])
+    result = CliRunner().invoke(app, ["--root-dir", str(fixture_run.config_root), "config-drift"])
     assert result.exit_code == 0, result.output
     assert "current with the configuration" in result.output
     # the progress is on stderr; the verdict alone is on stdout
@@ -597,23 +597,23 @@ def test_config_drift_is_a_command_that_loads_nothing(tmp_path, monkeypatch):
 
 def test_runtime_unchanged_compares_one_runtimes_directories_across_records(tmp_path, monkeypatch):
     from cs_image_system.engine.commands.emission import runtime_unchanged
-    v2 = _generated_tree(tmp_path, monkeypatch)
-    root = v2.config_root
+    fixture_run = _generated_tree(tmp_path, monkeypatch)
+    root = fixture_run.config_root
     os.chdir(root)
-    code, lines = runtime_unchanged(v2.ctx, "gcloud-east1", "HEAD")
+    code, lines = runtime_unchanged(fixture_run.ctx, "gcloud-east1", "HEAD")
     assert code == 0 and "unchanged since HEAD" in lines[0] and "instance-image/" in lines[0], lines
     # a change under the OTHER runtime's directories is not this runtime's
     aws_dir = next(p for p in (root / "generated" / "instance-image").iterdir() if p.is_dir() and "gce" not in p.name)
     (aws_dir / "extra.tf").write_text("# aws only\n")
-    code, lines = runtime_unchanged(v2.ctx, "gcloud-east1", "HEAD")
+    code, lines = runtime_unchanged(fixture_run.ctx, "gcloud-east1", "HEAD")
     assert code == 0, lines
     gce_dir = next(p for p in (root / "generated" / "instance-image").iterdir() if p.is_dir() and "gce" in p.name)
     (gce_dir / "extra.tf").write_text("# gce\n")
-    code, lines = runtime_unchanged(v2.ctx, "gcloud-east1", "HEAD")
+    code, lines = runtime_unchanged(fixture_run.ctx, "gcloud-east1", "HEAD")
     assert code == 1 and "CHANGED since HEAD (1 files)" in lines[0] and any("extra.tf" in ln for ln in lines), lines
-    code, lines = runtime_unchanged(v2.ctx, "no-such-runtime", "HEAD")
+    code, lines = runtime_unchanged(fixture_run.ctx, "no-such-runtime", "HEAD")
     assert code == 2 and "no runtime named" in lines[0]
-    v2.restore_cwd()
+    fixture_run.restore_cwd()
 
 
 # -------------------------------------------------------- workload token

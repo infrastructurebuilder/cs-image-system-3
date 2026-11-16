@@ -266,8 +266,8 @@ def test_the_update_policy_none_means_no_updates_by_name(family):
 def test_only_none_is_an_explicitly_empty_bake_surface(tmp_path, monkeypatch):
     """`--only none` means "bake nothing", read by name -- not "no filter",
     which would bake everything that is due."""
-    from tests.harness import V2Run
-    run = V2Run(tmp_path, monkeypatch)
+    from tests.harness import FixtureRun
+    run = FixtureRun(tmp_path, monkeypatch)
     try:
         assert run.run(["instance-image"], apply=False, only=["none"]).ok
         assert run.ctx.only_images == set()

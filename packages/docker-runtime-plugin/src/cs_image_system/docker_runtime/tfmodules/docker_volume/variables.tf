@@ -25,5 +25,5 @@ variable "labels" {
   default     = {}
 }
 
-# V2 group access (N13/N15) happens at first launch: the launch script
+# Group access (N13/N15) happens at first launch: the launch script
 # creates the per-group subtree under the mount point and chgrps it.

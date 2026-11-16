@@ -21,7 +21,7 @@ from pathlib import Path
 
 import pytest
 import yaml
-from harness import V2Run
+from harness import FixtureRun
 
 
 class FakeTarget:
@@ -68,8 +68,8 @@ class FakeTarget:
 
 
 @pytest.fixture
-def v2(tmp_path, monkeypatch):
-    run = V2Run(tmp_path, monkeypatch)
+def fixture_run(tmp_path, monkeypatch):
+    run = FixtureRun(tmp_path, monkeypatch)
     FakeTarget.instances.clear()
     yield run
     run.restore_cwd()
@@ -82,20 +82,20 @@ def _only_bash(ctx):
                              and getattr(m, "get_type", lambda: "")() == "bash-remote"]
 
 
-def test_container_image_is_derived_from_the_root_os(v2):
+def test_container_image_is_derived_from_the_root_os(fixture_run):
     from cs_image_system.engine.mod_tests import test_image_for
-    dask = v2.ctx.images_map["imgfile-basic-dask"]           # <- basic-rh-10
-    assert test_image_for(v2.ctx, dask) == "almalinux:10"     # family_version 10; AlmaLinux from 10
-    ds = v2.ctx.images_map["imgfile-data-science"]           # <- my-deb-12
-    assert test_image_for(v2.ctx, ds) == "debian:12"
-    v2.ctx.os_builders["basic-rh-10"].model.local_test_image = "registry.example/ubi8"
-    assert test_image_for(v2.ctx, dask) == "registry.example/ubi8"
+    dask = fixture_run.ctx.images_map["imgfile-basic-dask"]           # <- basic-rh-10
+    assert test_image_for(fixture_run.ctx, dask) == "almalinux:10"     # family_version 10; AlmaLinux from 10
+    ds = fixture_run.ctx.images_map["imgfile-data-science"]           # <- my-deb-12
+    assert test_image_for(fixture_run.ctx, ds) == "debian:12"
+    fixture_run.ctx.os_builders["basic-rh-10"].model.local_test_image = "registry.example/ubi8"
+    assert test_image_for(fixture_run.ctx, dask) == "registry.example/ubi8"
 
 
-def test_bash_mod_passes_and_is_idempotent(v2):
+def test_bash_mod_passes_and_is_idempotent(fixture_run):
     from cs_image_system.engine.mod_tests import run_mod_tests
-    _only_bash(v2.ctx)
-    results = run_mod_tests(v2.ctx, images=["imgfile-basic-dask"], make_target=lambda img: FakeTarget(img))
+    _only_bash(fixture_run.ctx)
+    results = run_mod_tests(fixture_run.ctx, images=["imgfile-basic-dask"], make_target=lambda img: FakeTarget(img))
     assert [r.status for r in results] == ["pass"]
     r = results[0]
     assert r.mod == "derivative-setup" and r.idempotent is True and r.changes_on_rerun == []
@@ -106,55 +106,55 @@ def test_bash_mod_passes_and_is_idempotent(v2):
     assert t.commands.count("sh /tmp/csis-test/mod_image.sh") == 2
     assert t.commands.count("sh /tmp/csis-test/inline.sh") == 2
     assert t.commands[0].startswith("command -v sudo")     # the sudo shim comes first
-    recorded = yaml.safe_load((v2.meta_state / "mod-tests.yaml").read_text())["results"]
+    recorded = yaml.safe_load((fixture_run.meta_state / "mod-tests.yaml").read_text())["results"]
     assert recorded[r.content_hash]["status"] == "pass"
 
 
-def test_non_idempotent_mod_is_reported(v2):
+def test_non_idempotent_mod_is_reported(fixture_run):
     from cs_image_system.engine.mod_tests import run_mod_tests
-    _only_bash(v2.ctx)
-    results = run_mod_tests(v2.ctx, images=["imgfile-basic-dask"],
+    _only_bash(fixture_run.ctx)
+    results = run_mod_tests(fixture_run.ctx, images=["imgfile-basic-dask"],
                             make_target=lambda img: FakeTarget(img, idempotent=False))
     r = results[0]
     assert r.status == "pass" and r.idempotent is False
     assert r.changes_on_rerun == ["A /opt/derivative/run2"]
 
 
-def test_failing_mod_is_reported_and_cached_results_are_reused(v2):
+def test_failing_mod_is_reported_and_cached_results_are_reused(fixture_run):
     from cs_image_system.engine.mod_tests import run_mod_tests
-    _only_bash(v2.ctx)
-    results = run_mod_tests(v2.ctx, images=["imgfile-basic-dask"],
+    _only_bash(fixture_run.ctx)
+    results = run_mod_tests(fixture_run.ctx, images=["imgfile-basic-dask"],
                             make_target=lambda img: FakeTarget(img, fail_first=True))
     assert results[0].status == "fail" and results[0].first_run_rc == 1 and "boom" in results[0].detail
     # a pass is cached by content hash; the next run does not touch a target
-    ok = run_mod_tests(v2.ctx, images=["imgfile-basic-dask"], make_target=lambda img: FakeTarget(img))
+    ok = run_mod_tests(fixture_run.ctx, images=["imgfile-basic-dask"], make_target=lambda img: FakeTarget(img))
     assert ok[0].status == "pass"
     n = len(FakeTarget.instances)
-    again = run_mod_tests(v2.ctx, images=["imgfile-basic-dask"], make_target=lambda img: FakeTarget(img))
+    again = run_mod_tests(fixture_run.ctx, images=["imgfile-basic-dask"], make_target=lambda img: FakeTarget(img))
     assert again[0].status == "pass" and again[0].detail.startswith("cached")
     assert len(FakeTarget.instances) == n
-    forced = run_mod_tests(v2.ctx, images=["imgfile-basic-dask"], make_target=lambda img: FakeTarget(img), force=True)
+    forced = run_mod_tests(fixture_run.ctx, images=["imgfile-basic-dask"], make_target=lambda img: FakeTarget(img), force=True)
     assert forced[0].status == "pass" and len(FakeTarget.instances) == n + 1
 
 
-def test_without_a_daemon_results_are_skipped_not_failed(v2, monkeypatch):
+def test_without_a_daemon_results_are_skipped_not_failed(fixture_run, monkeypatch):
     from cs_image_system.docker_runtime import local_target
     from cs_image_system.engine import mod_tests
     monkeypatch.setattr(local_target, "docker_available", lambda docker="docker": False)
-    _only_bash(v2.ctx)
-    results = mod_tests.run_mod_tests(v2.ctx, images=["imgfile-basic-dask"])
+    _only_bash(fixture_run.ctx)
+    results = mod_tests.run_mod_tests(fixture_run.ctx, images=["imgfile-basic-dask"])
     assert [r.status for r in results] == ["skipped"]
     assert results[0].detail.startswith("docker:")      # the runtime's type, from the registry
 
 
-def test_the_target_comes_from_the_runtime_that_offers_one(v2, monkeypatch):
+def test_the_target_comes_from_the_runtime_that_offers_one(fixture_run, monkeypatch):
     """The harness asks the registry, never a name of its own: with no
     runtime offering a local target every modification is skipped, and the
     factory it does find is handed the tree's executables."""
     from cs_image_system.docker_runtime.local_target import docker_binary
     from cs_image_system.engine import mod_tests
-    _only_bash(v2.ctx)
-    assert docker_binary(v2.ctx.executables) == "/usr/local/bin/docker"           # the fixture's declared CLI
+    _only_bash(fixture_run.ctx)
+    assert docker_binary(fixture_run.ctx.executables) == "/usr/local/bin/docker"           # the fixture's declared CLI
     assert docker_binary({}) == "docker" and docker_binary(None) == "docker"
     assert docker_binary({"docker": {"name": "docker"}}) == "docker"
     seen: list[tuple[str, object]] = []
@@ -163,23 +163,23 @@ def test_the_target_comes_from_the_runtime_that_offers_one(v2, monkeypatch):
         seen.append((image, executables))
         return FakeTarget(image)
     monkeypatch.setattr(mod_tests, "stand_in_target_factory", lambda classes: ("fake", factory))
-    results = mod_tests.run_mod_tests(v2.ctx, images=["imgfile-basic-dask"])
+    results = mod_tests.run_mod_tests(fixture_run.ctx, images=["imgfile-basic-dask"])
     assert [r.status for r in results] == ["pass"]
-    assert seen == [("almalinux:10", v2.ctx.executables)]
+    assert seen == [("almalinux:10", fixture_run.ctx.executables)]
     monkeypatch.setattr(mod_tests, "stand_in_target_factory", lambda classes: None)
-    results = mod_tests.run_mod_tests(v2.ctx, images=["imgfile-basic-dask"], force=True)
+    results = mod_tests.run_mod_tests(fixture_run.ctx, images=["imgfile-basic-dask"], force=True)
     assert [r.status for r in results] == ["skipped"]
     assert "local test target" in results[0].detail
 
 
 @pytest.mark.skipif(not os.environ.get("CSIS_DOCKER_TESTS"), reason="set CSIS_DOCKER_TESTS=1 to run against docker")
-def test_live_docker_bash_mod(v2):
+def test_live_docker_bash_mod(fixture_run):
     from cs_image_system.docker_runtime.local_target import docker_available
     from cs_image_system.engine.mod_tests import run_mod_tests
     if not docker_available():
         pytest.skip("docker not available")
-    _only_bash(v2.ctx)
-    results = run_mod_tests(v2.ctx, images=["imgfile-basic-dask"], force=True)
+    _only_bash(fixture_run.ctx)
+    results = run_mod_tests(fixture_run.ctx, images=["imgfile-basic-dask"], force=True)
     r = results[0]
     assert r.status == "pass", r.detail
     assert r.idempotent is True, r.changes_on_rerun

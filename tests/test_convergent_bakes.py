@@ -19,7 +19,7 @@ from pathlib import Path
 import pytest
 import yaml
 
-from tests.harness import V2Run, cli_context, copy_config, load_context, stub_environment
+from tests.harness import FixtureRun, cli_context, copy_config, load_context, stub_environment
 
 GCE_RT = "gcloud-east1"
 AWS_RT = "aws-east2-runtime"
@@ -27,7 +27,7 @@ BASE = "basic-rh-10"
 DASK = "imgfile-basic-dask"
 
 
-def _pkr_sources(run: V2Run) -> set[str]:
+def _pkr_sources(run: FixtureRun) -> set[str]:
     """`<series>@<runtime>` for every emitted googlecompute/amazon source."""
     out: set[str] = set()
     for p in run.generated.rglob("*source-*.pkr.hcl"):
@@ -94,10 +94,10 @@ def _seed_converged(root: Path, tmp_path: Path, monkeypatch, *, run_id: str = "2
 @pytest.fixture
 def converged(tmp_path: Path, monkeypatch):
     root = copy_config(tmp_path)
-    runs: list[V2Run] = []
+    runs: list[FixtureRun] = []
 
-    def make(**kw) -> V2Run:
-        run = V2Run(tmp_path, monkeypatch, config_root=root, **kw)
+    def make(**kw) -> FixtureRun:
+        run = FixtureRun(tmp_path, monkeypatch, config_root=root, **kw)
         runs.append(run)
         return run
     try:

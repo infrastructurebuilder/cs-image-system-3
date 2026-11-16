@@ -483,9 +483,9 @@ retention or an explicit `dispose image` removes them.
 ## Emission
 
 The plugin's output is visible in the golden emission under
-[tests/fixtures/v2_golden/generated](../../tests/fixtures/v2_golden/generated).
+[tests/fixtures/golden/generated](../../tests/fixtures/golden/generated).
 
-- [pckr-gce-ans-image-generation-source-basic-rh-10-block-000.pkr.hcl](../../tests/fixtures/v2_golden/generated/base-image/pckr-gce-ans/image-generation/block-000/pckr-gce-ans-image-generation-source-basic-rh-10-block-000.pkr.hcl):
+- [pckr-gce-ans-image-generation-source-basic-rh-10-block-000.pkr.hcl](../../tests/fixtures/golden/generated/base-image/pckr-gce-ans/image-generation/block-000/pckr-gce-ans-image-generation-source-basic-rh-10-block-000.pkr.hcl):
   the `source "googlecompute"` block written by `googlecompute_source()`:
   `project_id`, `zone`, `source_image` and `source_image_project_id` (a
   resolved vendor image and its project), `image_name` (`gce_name` of the
@@ -499,16 +499,16 @@ The plugin's output is visible in the golden emission under
   `subnetwork` (the default subnet). `network` is emitted only when it
   resolves to a non-default name, and `tags` only when `network_tags` are
   declared.
-- [pckr-gce-ans-image-generation-block-000-build.pkr.hcl](../../tests/fixtures/v2_golden/generated/base-image/pckr-gce-ans/image-generation/block-000/pckr-gce-ans-image-generation-block-000-build.pkr.hcl):
+- [pckr-gce-ans-image-generation-block-000-build.pkr.hcl](../../tests/fixtures/golden/generated/base-image/pckr-gce-ans/image-generation/block-000/pckr-gce-ans-image-generation-block-000-build.pkr.hcl):
   the `# debug session mechanism (iap)` shell provisioner
   (`session_agent_commands`), the `# verify: guest agent baked for IAP
   sessions` lines inside the in-bake verification (`session_verify_commands`),
   and the closing `# runtime bake finalization (gcloud-east1)` provisioner
   (`bake_finalize_commands`). The `googlecompute` entry in the neighbouring
   `-plugins.pkr.hcl` comes from the image builder's `required_plugins`.
-- [tofu-gce-instance-generation.tf](../../tests/fixtures/v2_golden/generated/instance-image/tofu-gce/instance-generation/tofu-gce-instance-generation.tf)
+- [tofu-gce-instance-generation.tf](../../tests/fixtures/golden/generated/instance-image/tofu-gce/instance-generation/tofu-gce-instance-generation.tf)
   and
-  [tofu-gce-instance-generation-instance-gce_test.tf](../../tests/fixtures/v2_golden/generated/instance-image/tofu-gce/instance-generation/tofu-gce-instance-generation-instance-gce_test.tf):
+  [tofu-gce-instance-generation-instance-gce_test.tf](../../tests/fixtures/golden/generated/instance-image/tofu-gce/instance-generation/tofu-gce-instance-generation-instance-gce_test.tf):
   written by the GCE instance plugin from this model. `provider "google" {
   project, region, zone, alias }`; the instance module's `machine_type`
   (the runtime default), `zone`, `subnetwork` (the default subnet),
@@ -920,7 +920,7 @@ object, and `validate` exits 1.
 **At generation.** `session_mechanism()` again (the packer provisioners,
 the instance builder, the launch record). The packer source is emitted
 with the sanitised names; the golden emission under
-`tests/fixtures/v2_golden` pins its exact shape, and `just test` fails on
+`tests/fixtures/golden` pins its exact shape, and `just test` fails on
 any drift of it. `test_gcp_runtime.py` asserts the emitted commands: the
 finalize provisioner is the last one of every GCE bake, IAP runtimes emit
 `use_iap` and the tunnel wait and non-IAP ones do not, the disk size comes

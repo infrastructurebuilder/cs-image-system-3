@@ -26,12 +26,12 @@ from typing import Any, cast
 import pytest
 import yaml
 
-from tests.harness import V2Run, copy_config
+from tests.harness import FixtureRun, copy_config
 
 
 @pytest.fixture
 def run(tmp_path: Path, monkeypatch):
-    r = V2Run(tmp_path, monkeypatch, config_root=copy_config(tmp_path))
+    r = FixtureRun(tmp_path, monkeypatch, config_root=copy_config(tmp_path))
     try:
         yield r
     finally:
@@ -40,7 +40,7 @@ def run(tmp_path: Path, monkeypatch):
 
 # ------------------------------------- what completed is recorded
 
-def _block_dir(run: V2Run, block: str) -> Path:
+def _block_dir(run: FixtureRun, block: str) -> Path:
     return run.generated / "instance-image" / "pckr-ebs-ans" / "image-generation" / block
 
 
@@ -52,7 +52,7 @@ def _manifest(path: Path, amis: dict[str, str], uuid: str = "u1") -> None:
     }))
 
 
-def _instance_bake(run: V2Run):
+def _instance_bake(run: FixtureRun):
     from cs_image_system.contract.lifecycle import ExecutionLifecyclePhase
     from cs_image_system.contract.lifecycles import Lifecycle
     assert run.run(["base-image", "instance-image"], apply=False).ok
@@ -161,7 +161,7 @@ def test_the_runner_calls_the_failure_hook_instead_of_post(run, tmp_path, how):
 
 def test_the_after_apply_hooks_run_after_a_failed_apply_so_what_applied_is_recorded(tmp_path, monkeypatch):
     from cs_image_system.engine.commands import run_lifecycles as rl
-    run = V2Run(tmp_path, monkeypatch, dry_run=False)
+    run = FixtureRun(tmp_path, monkeypatch, dry_run=False)
     try:
         seen: list[str] = []
         monkeypatch.setattr(rl, "_execute_in_process", lambda ctx, lc: False)
@@ -175,7 +175,7 @@ def test_the_after_apply_hooks_run_after_a_failed_apply_so_what_applied_is_recor
 
 def test_an_interrupted_run_is_journalled_as_interrupted_and_not_ok(tmp_path, monkeypatch):
     from cs_image_system.engine.commands import run_lifecycles as rl
-    run = V2Run(tmp_path, monkeypatch)
+    run = FixtureRun(tmp_path, monkeypatch)
     try:
         def ctrl_c(ctx, summary):
             raise KeyboardInterrupt

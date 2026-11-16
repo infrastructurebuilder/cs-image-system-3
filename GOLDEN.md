@@ -1,6 +1,6 @@
 # The golden fixture
 
-*What `tests/fixtures/v2_golden/` is, how it is produced, and why most 
+*What `tests/fixtures/golden/` is, how it is produced, and why most 
 changes in this repository are judged against it.*
 
 ## In one sentence
@@ -11,7 +11,7 @@ question: **did this change what the system produces?**
 
 ## What is in it
 
-148 files under [tests/fixtures/v2_golden/](tests/fixtures/v2_golden/), in two
+148 files under [tests/fixtures/golden/](tests/fixtures/golden/), in two
 subtrees.
 
 `generated/` — the emitted infrastructure-as-code (144 files): one directory
@@ -43,7 +43,7 @@ just golden-regen        # -> uv run python tests/golden.py
 
 [tests/golden.py](tests/golden.py) does a real run, not a simulation:
 
-1. It builds a `V2Run`, which copies the test fixture into a throwaway
+1. It builds a `FixtureRun`, which copies the test fixture into a throwaway
    directory. The copy excludes `generated/` and
    `meta-state/`, so every run starts from nothing and emits from scratch.
 2. It runs **every** lifecycle (`run("all", apply=True)`) and asserts the run

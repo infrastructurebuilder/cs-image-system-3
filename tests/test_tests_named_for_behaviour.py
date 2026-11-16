@@ -16,8 +16,8 @@ frozen. The rule, held here over ``tests/`` and every ``packages/*/tests``:
   a roman-numeral bundle suffix (``_xii``, ``_vii``);
 - no file name carries the retired ``v2_`` prefix (V1 is gone, so the
   prefix distinguishes nothing), the golden's test (``test_golden.py``)
-  included; the golden's fixture directory ``tests/fixtures/v2_golden``
-  is data, not a test file, and keeps its name;
+  included, and so is the golden's fixture directory
+  (``tests/fixtures/golden``): no fixture directory carries the prefix;
 - a test module may still RECORD its history in its docstring (a closing
   ``history:`` line naming the bundle items it came from), which is how a
   reader follows a frozen ledger entry to the test that holds it today.
@@ -57,6 +57,8 @@ def test_the_v2_prefix_is_gone_from_every_test_file():
     assert not prefixed, "V1 is retired; the prefix names nothing:\n  " + "\n  ".join(prefixed)
     assert (REPO / "tests" / GOLDEN).is_file(), "the golden's test is tests/test_golden.py"
     assert not list((REPO / "tests").glob("v2_*.py")), "the support module lost its prefix too (tests/harness.py)"
+    assert (REPO / "tests" / "fixtures" / "golden").is_dir(), "the golden's fixture directory is tests/fixtures/golden"
+    assert not list((REPO / "tests" / "fixtures").glob("v2_*")), "no fixture directory carries the prefix"
 
 
 def test_the_rule_reads_the_names_it_claims():

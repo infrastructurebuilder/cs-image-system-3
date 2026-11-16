@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""V2 bake-time provisioners for packer builds (DESIGN §3F1 to 3F3, N9, N23).
+"""Bake-time provisioners for packer builds (DESIGN §3F1 to 3F3, N9, N23).
 
 Base images bake, in this order after the OS update: the mandatory local
 admin user with the operator-supplied public keys; every declared identity

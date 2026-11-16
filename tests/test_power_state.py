@@ -20,7 +20,7 @@ import pytest
 
 from cs_image_system.base import power_state as ps
 from cs_image_system.engine import state_query as sq
-from tests.harness import V2Run
+from tests.harness import FixtureRun
 
 # --------------------------------------------------------- the vocabulary
 
@@ -179,7 +179,7 @@ def test_provider_running_is_not_reachable():
 
 @pytest.fixture
 def world(tmp_path: Path, monkeypatch):
-    run = V2Run(tmp_path, monkeypatch)
+    run = FixtureRun(tmp_path, monkeypatch)
     try:
         yield run
     finally:

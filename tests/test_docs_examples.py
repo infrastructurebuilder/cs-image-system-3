@@ -18,7 +18,7 @@ Three trees, each in the shape of a real configuration root:
 Each is RENDERED first (``docs/examples/<name>`` is an overlay over
 ``docs/examples/_skeleton``, and the terraform modules are the installed
 plugins': ``rendered_starters`` writes every starter once per session with
-``write_starter``), copied to a private directory, loaded over the V2
+``write_starter``), copied to a private directory, loaded over the
 harness (every cloud and tool stubbed, the frozen fixture's TEST identity
 exported) and run through the ``validate`` command's checks; the standard
 trees are pinned minimal, the complete tree is pinned to name every plugin

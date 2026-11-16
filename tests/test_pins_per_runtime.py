@@ -12,7 +12,7 @@ import yaml
 
 from cs_image_system.base import lineage
 from cs_image_system.engine.commands.upgrade import upgrade
-from tests.harness import V2Run
+from tests.harness import FixtureRun
 
 AWS = "aws-east2-runtime"
 GCE = "gcloud-east1"
@@ -25,7 +25,7 @@ def _build(build_id: str, series: str, runtime: str) -> dict:
 
 
 def test_pins_and_series_heads_are_per_runtime(tmp_path, monkeypatch):
-    run = V2Run(tmp_path, monkeypatch)
+    run = FixtureRun(tmp_path, monkeypatch)
     try:
         ms = run.ctx.meta_state
         ms.add_build(_build("ami-1", "basic-rh-10", AWS))
@@ -46,7 +46,7 @@ def test_pins_and_series_heads_are_per_runtime(tmp_path, monkeypatch):
 
 
 def test_legacy_pin_never_crosses_runtimes(tmp_path, monkeypatch):
-    run = V2Run(tmp_path, monkeypatch)
+    run = FixtureRun(tmp_path, monkeypatch)
     try:
         ms = run.ctx.meta_state
         ms.add_build(_build("ami-1", "basic-rh-10", AWS))
@@ -66,7 +66,7 @@ def test_legacy_pin_never_crosses_runtimes(tmp_path, monkeypatch):
 
 
 def test_pinned_parent_build_follows_the_bake_runtime(tmp_path, monkeypatch):
-    run = V2Run(tmp_path, monkeypatch)
+    run = FixtureRun(tmp_path, monkeypatch)
     try:
         ctx = run.ctx
         ms = ctx.meta_state
@@ -86,7 +86,7 @@ def test_pinned_parent_build_follows_the_bake_runtime(tmp_path, monkeypatch):
 
 
 def test_upgrade_image_moves_one_runtime_pin(tmp_path, monkeypatch):
-    run = V2Run(tmp_path, monkeypatch)
+    run = FixtureRun(tmp_path, monkeypatch)
     try:
         ms = run.ctx.meta_state
         ms.add_build(_build("ami-1", "basic-rh-10", AWS))

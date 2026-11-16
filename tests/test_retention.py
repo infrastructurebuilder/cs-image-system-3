@@ -16,7 +16,7 @@ from pathlib import Path
 import pytest
 import yaml
 
-from tests.harness import V2Run, command_lines, copy_config
+from tests.harness import FixtureRun, command_lines, copy_config
 
 GCE = "gcloud-east1"
 AWS = "aws-east2-runtime"
@@ -68,10 +68,10 @@ BUILDS = [
 @pytest.fixture
 def prepared(tmp_path: Path, monkeypatch):
     root = copy_config(tmp_path)
-    runs: list[V2Run] = []
+    runs: list[FixtureRun] = []
 
-    def make(**kw) -> V2Run:
-        run = V2Run(tmp_path, monkeypatch, config_root=root, **kw)
+    def make(**kw) -> FixtureRun:
+        run = FixtureRun(tmp_path, monkeypatch, config_root=root, **kw)
         runs.append(run)
         return run
     try:
@@ -177,7 +177,7 @@ def test_transient_storages_on_an_ephemeral_runtime_are_torn_down_by_the_closing
                        "config:\n  apply_storage: [gcloud-east1]\n")
     knobs = root / "overlays" / "knobs.yaml"
     knobs.write_text("config:\n  apply_instances: [gcloud-east1]\n")
-    run = V2Run(tmp_path, monkeypatch, config_root=root, overlays=[overlay, knobs])
+    run = FixtureRun(tmp_path, monkeypatch, config_root=root, overlays=[overlay, knobs])
     try:
         assert ("storages", "scratch") in run.ctx.overlay_declared
         summary = run.run("all", apply=True, only=["none"])

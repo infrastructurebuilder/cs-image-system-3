@@ -18,7 +18,7 @@ from pathlib import Path
 import pytest
 import yaml
 
-from tests.harness import V2Run, copy_config, module_path, modules_inside
+from tests.harness import FixtureRun, copy_config, module_path, modules_inside
 from tests.starter_support import RENDERED
 
 
@@ -313,10 +313,10 @@ def test_the_generated_root_validates_with_tofu(tmp_path: Path):
 @pytest.fixture
 def world(tmp_path: Path, monkeypatch):
     root = copy_config(tmp_path)
-    runs: list[V2Run] = []
+    runs: list[FixtureRun] = []
 
-    def make(**kw) -> V2Run:
-        run = V2Run(tmp_path, monkeypatch, config_root=root, **kw)
+    def make(**kw) -> FixtureRun:
+        run = FixtureRun(tmp_path, monkeypatch, config_root=root, **kw)
         runs.append(run)
         return run
     try:

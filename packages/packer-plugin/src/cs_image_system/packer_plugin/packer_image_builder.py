@@ -27,6 +27,8 @@ from cs_image_system.contract.lineage_vocabulary import FINGERPRINT_TAG_LENGTH, 
 from cs_image_system.hashicorp_utils.collector import packer_collector
 from cs_image_system.hashicorp_utils.hashicorp import FO  # noqa: F401
 
+from .bake_provisioners import base_image_provisioners, instance_image_provisioners, settle_provisioner
+from .local_mods import stage_local_mods
 from .packer_builder import PackerImageBuilderBase
 from .packer_models import (
     PACKER,
@@ -38,8 +40,6 @@ from .packer_models import (
     PackerGceImageBuilderModel,
     PackerImageBuilderModel,
 )
-from .v2_local_mods import stage_local_mods
-from .v2_provisioners import base_image_provisioners, instance_image_provisioners, settle_provisioner
 
 log = logging.getLogger(__name__)
 

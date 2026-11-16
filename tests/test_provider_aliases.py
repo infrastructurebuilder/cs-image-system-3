@@ -24,7 +24,7 @@ from cs_image_system.base import power_state as ps
 from cs_image_system.contract.lifecycles import Lifecycle
 from cs_image_system.engine import provider_aliases as pa
 from cs_image_system.engine import state_query as sq
-from tests.harness import V2Run
+from tests.harness import FixtureRun
 
 EC2 = {"instance_id": "i-0169f82844f4cc08d",
        "provider_hostname": "ip-10-26-34-156.us-east-2.compute.internal"}
@@ -92,7 +92,7 @@ def test_the_script_rewrites_the_last_block_and_restarts_only_on_change():
 
 @pytest.fixture
 def world(tmp_path: Path, monkeypatch):
-    run = V2Run(tmp_path, monkeypatch)
+    run = FixtureRun(tmp_path, monkeypatch)
     try:
         yield run
     finally:

@@ -26,7 +26,7 @@ from pathlib import Path
 
 import pytest
 import yaml
-from harness import V2Run, copy_config, load_context, stub_environment
+from harness import FixtureRun, copy_config, load_context, stub_environment
 
 
 def _edit(path: Path, fn) -> None:
@@ -43,7 +43,7 @@ def test_ena_and_sriov_reach_the_amazon_ebs_source_when_declared(tmp_path: Path,
     root = copy_config(tmp_path)
     _edit(root / "cfg" / "runtime-builders.yml",
           lambda d: _runtime(d, "aws-east2-runtime").update(ena_support=True, sriov_support=False))
-    run = V2Run(tmp_path, monkeypatch, config_root=root)
+    run = FixtureRun(tmp_path, monkeypatch, config_root=root)
     try:
         assert run.run(["base-image"], apply=False).ok
         src = "".join(p.read_text() for p in run.generated.rglob("*source*.pkr.hcl") if "pckr-ebs-ans" in str(p))
@@ -96,7 +96,7 @@ def test_an_entry_image_id_pins_the_vendor_image_and_skips_the_query(tmp_path: P
     def by_id(self, entry, image_id):
         asked.append(image_id)
         return (image_id, "amazon", {"ImageId": image_id, "RootDeviceName": "/dev/sda1"})
-    run = V2Run(tmp_path, monkeypatch, config_root=root)
+    run = FixtureRun(tmp_path, monkeypatch, config_root=root)
     monkeypatch.setattr(AwsCloudBuilder, "query_provider_image_by_id", by_id)
     try:
         assert run.run(["base-image"], apply=False).ok
@@ -122,7 +122,7 @@ def test_the_entry_disk_size_is_the_bake_disk_and_the_fingerprints(tmp_path: Pat
     root = copy_config(tmp_path)
     _edit(root / "cfg" / "os-builders.yml",
           lambda d: _osb_entry(d, "basic-rhel-9", "pckr-ebs-ans").update(default_primary_disk_size=150))
-    run = V2Run(tmp_path, monkeypatch, config_root=root)
+    run = FixtureRun(tmp_path, monkeypatch, config_root=root)
     try:
         ctx = run.ctx
         rhel9 = ctx.os_builders["basic-rhel-9"]
@@ -174,7 +174,7 @@ def _image_vars(root: Path, image: str, variables: dict) -> None:
 def test_image_variables_become_packer_variables(tmp_path: Path, monkeypatch):
     root = copy_config(tmp_path)
     _image_vars(root, "imgfile-basic-dask", {"dask_flavor": "standard", "workers": 4, "gpu": False})
-    run = V2Run(tmp_path, monkeypatch, config_root=root)
+    run = FixtureRun(tmp_path, monkeypatch, config_root=root)
     try:
         assert run.run(["base-image", "instance-image"], apply=False).ok
         text = "".join(p.read_text() for p in run.generated.rglob("*-vars.pkr.hcl") if "instance-image" in str(p))
@@ -200,7 +200,7 @@ def test_two_images_giving_one_variable_the_same_value_declare_it_once(tmp_path:
     root = copy_config(tmp_path)
     _image_vars(root, "imgfile-basic-dask", {"flavour": "same"})
     _image_vars(root, "imgfile-data-science", {"flavour": "same"})
-    run = V2Run(tmp_path, monkeypatch, config_root=root)
+    run = FixtureRun(tmp_path, monkeypatch, config_root=root)
     try:
         assert run.run(["base-image", "instance-image"], apply=False).ok
     finally:
@@ -211,7 +211,7 @@ def test_two_images_giving_one_variable_different_values_are_refused(tmp_path: P
     root = copy_config(tmp_path)
     _image_vars(root, "imgfile-basic-dask", {"flavour": "a"})
     _image_vars(root, "imgfile-data-science", {"flavour": "b"})
-    run = V2Run(tmp_path, monkeypatch, config_root=root)
+    run = FixtureRun(tmp_path, monkeypatch, config_root=root)
     try:
         summary = run.run(["base-image", "instance-image"], apply=False)
         assert not summary.ok and "flavour" in str(summary.error), summary.error
@@ -231,7 +231,7 @@ def test_an_image_builders_machine_type_sits_between_the_entry_and_the_runtime(t
             r.pop("machine_type", None)
             r.pop("default_machine_type", None)
     _edit(root / "images" / "image1.yaml", drop_entry_machine)
-    run = V2Run(tmp_path, monkeypatch, config_root=root)
+    run = FixtureRun(tmp_path, monkeypatch, config_root=root)
     try:
         assert run.run(["base-image", "instance-image"], apply=False).ok
         src = "".join(p.read_text() for p in run.generated.rglob("*source-imgfile-basic-dask*.pkr.hcl")

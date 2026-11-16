@@ -20,7 +20,7 @@ import tomllib
 from pathlib import Path
 
 import yaml
-from harness import FIXTURE_CONFIG, REPO, V2Run, copy_config
+from harness import FIXTURE_CONFIG, REPO, FixtureRun, copy_config
 
 from cs_image_system.contract import core, state
 from cs_image_system.contract.constants import VCT
@@ -108,11 +108,11 @@ def test_the_entry_structures_from_yaml_and_reaches_the_collector(tmp_path, monk
     from cs_image_system.hashicorp_utils.collector import terraform_collector
     root = copy_config(tmp_path)
     _bind_the_storage_roots_to_inmem(root)
-    v2 = V2Run(tmp_path, monkeypatch, config_root=root)
-    backends = v2.ctx.state_backends
+    fixture_run = FixtureRun(tmp_path, monkeypatch, config_root=root)
+    backends = fixture_run.ctx.state_backends
     assert isinstance(backends["scratch"], InmemStateBuilder)
     assert isinstance(backends["scratch"].model, InmemStateBackendModel)
-    registration = terraform_collector(v2.ctx).resolve_backend("mem")
+    registration = terraform_collector(fixture_run.ctx).resolve_backend("mem")
     assert registration is not None and registration.name == "scratch" and registration.type == INMEM
 
 
@@ -120,22 +120,22 @@ def test_a_dry_run_emits_the_backend_for_every_root_that_names_it(tmp_path, monk
     from cs_image_system.hashicorp_utils.collector import terraform_collector
     root = copy_config(tmp_path)
     _bind_the_storage_roots_to_inmem(root)
-    v2 = V2Run(tmp_path, monkeypatch, config_root=root)
-    v2.run("all")
-    storage = v2.generated / "storage"
+    fixture_run = FixtureRun(tmp_path, monkeypatch, config_root=root)
+    fixture_run.run("all")
+    storage = fixture_run.generated / "storage"
     backend_files = sorted(storage.rglob("*.tfbackend.hcl"))
-    assert len(backend_files) >= 2, [str(p.relative_to(v2.generated)) for p in storage.rglob("*")]
+    assert len(backend_files) >= 2, [str(p.relative_to(fixture_run.generated)) for p in storage.rglob("*")]
     for backend_file in backend_files:
         assert "Backend 'scratch' (inmem)" in backend_file.read_text()
         roots = [p for p in backend_file.parent.glob("*.tf") if 'backend "inmem" {' in p.read_text()]
         assert roots, f"no root beside {backend_file.name} carries backend \"inmem\""
-    consumers = [p for p in (v2.generated / "instance-image").rglob("*.tf") if 'backend = "inmem"' in p.read_text()]
+    consumers = [p for p in (fixture_run.generated / "instance-image").rglob("*.tf") if 'backend = "inmem"' in p.read_text()]
     assert consumers, "no instance root reads the storage state through an inmem remote-state data source"
-    locations = terraform_collector(v2.ctx).state_locations()
+    locations = terraform_collector(fixture_run.ctx).state_locations()
     inmem = {ws: str(loc) for ws, loc in locations.items() if loc.type == INMEM}
     # every root bound to the backend (the storage roots, and the instance
     # root that inherits it from the docker runtime) names it in its file
-    inmem_files = sorted(p for p in v2.generated.rglob("*.tfbackend.hcl") if "(inmem)" in p.read_text())
+    inmem_files = sorted(p for p in fixture_run.generated.rglob("*.tfbackend.hcl") if "(inmem)" in p.read_text())
     assert len(inmem) == len(inmem_files), (inmem, inmem_files)
     assert all(loc == f"inmem://memory/{super_safe_name(ws)}.tfstate" for ws, loc in inmem.items()), inmem
     assert (FIXTURE_CONFIG / "cfg" / "state-backends-4.yml").exists() is False, "the frozen fixture itself must not change"
@@ -153,14 +153,14 @@ def test_the_builder_reads_the_run_and_a_service_through_the_protocols_alone(tmp
     from cs_image_system.contract.testing import assert_conforms
     root = copy_config(tmp_path)
     _bind_the_storage_roots_to_inmem(root)
-    v2 = V2Run(tmp_path, monkeypatch, config_root=root)
-    builder = v2.ctx.state_backends["scratch"]
+    fixture_run = FixtureRun(tmp_path, monkeypatch, config_root=root)
+    builder = fixture_run.ctx.state_backends["scratch"]
     assert isinstance(builder, InmemStateBuilder)
-    assert_conforms(type(v2.ctx), RunContextProtocol)       # the protocol is typing-only; conformance is the check
-    assert builder.observed["run_id"] == v2.ctx.run_id and builder.observed["dry_run"] is True
+    assert_conforms(type(fixture_run.ctx), RunContextProtocol)       # the protocol is typing-only; conformance is the check
+    assert builder.observed["run_id"] == fixture_run.ctx.run_id and builder.observed["dry_run"] is True
     assert "scratch" in builder.observed["state_backends"]
-    v2.run("all")
-    assert builder.observed["run_id"] == v2.ctx.run_id
+    fixture_run.run("all")
+    assert builder.observed["run_id"] == fixture_run.ctx.run_id
     assert builder.observed["generation_path"].is_relative_to(root / "generated")
     assert CONFIG_TAG in builder.observed["config_tags"], builder.observed["config_tags"]
-    assert builder.observed["config_tags"] == dict(v2.ctx.services.lineage.config_tags())
+    assert builder.observed["config_tags"] == dict(fixture_run.ctx.services.lineage.config_tags())

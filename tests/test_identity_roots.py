@@ -28,14 +28,14 @@ from typing import Any, cast
 
 import pytest
 import yaml
-from harness import V2Run, command_lines, copy_config, load_context, stub_environment, tree
+from harness import FixtureRun, command_lines, copy_config, load_context, stub_environment, tree
 
 LITERAL_GID = re.compile(r"\b(?:owner_)?gid\s*=\s*\d+\b")
 
 
 @pytest.fixture
-def v2(tmp_path, monkeypatch):
-    run = V2Run(tmp_path, monkeypatch)
+def fixture_run(tmp_path, monkeypatch):
+    run = FixtureRun(tmp_path, monkeypatch)
     yield run
     run.restore_cwd()
 
@@ -48,12 +48,12 @@ def _prepared(tmp_path, monkeypatch, mutate):
     """A config copy mutated BEFORE the context loads."""
     root = copy_config(tmp_path)
     mutate(root)
-    return V2Run(tmp_path, monkeypatch, config_root=root)
+    return FixtureRun(tmp_path, monkeypatch, config_root=root)
 
 
-def test_identity_root_emits_gid_outputs_via_the_shim(v2):
-    assert v2.run(["identity"], apply=False).ok
-    gen = tree(v2.generated / "identity" / "oktagroups" / "group-generation")
+def test_identity_root_emits_gid_outputs_via_the_shim(fixture_run):
+    assert fixture_run.run(["identity"], apply=False).ok
+    gen = tree(fixture_run.generated / "identity" / "oktagroups" / "group-generation")
     outputs = gen["oktagroups-group-generation-outputs.tf"]
     assert 'data "external" "group_gids"' in outputs
     assert '"cs-image-system"' in outputs and '"export-gids"' in outputs
@@ -69,9 +69,9 @@ def test_identity_root_emits_gid_outputs_via_the_shim(v2):
     assert not LITERAL_GID.search("\n".join(gen.values()))
 
 
-def test_identity_read_model_is_structural(v2):
-    assert v2.run(["identity"], apply=False).ok
-    model = yaml.safe_load((v2.meta_state / "identity.yaml").read_text())
+def test_identity_read_model_is_structural(fixture_run):
+    assert fixture_run.run(["identity"], apply=False).ok
+    model = yaml.safe_load((fixture_run.meta_state / "identity.yaml").read_text())
     coops = model["groups"]["coops"]
     assert coops["identity_type"] == "okta"
     assert coops["gid_policy"] == "creation-only"
@@ -84,9 +84,9 @@ def test_identity_read_model_is_structural(v2):
     assert not re.search(r"\bgid: \d+", yaml.safe_dump(model))
 
 
-def test_identity_runner_script_is_gated_and_never_applies_unless_configured(v2):
-    assert v2.run(["identity"], apply=False).ok
-    script = (v2.generated / "identity" / "run-identity.sh").read_text()
+def test_identity_runner_script_is_gated_and_never_applies_unless_configured(fixture_run):
+    assert fixture_run.run(["identity"], apply=False).ok
+    script = (fixture_run.generated / "identity" / "run-identity.sh").read_text()
     cmds = command_lines(script)
     assert any("tofu plan -input=false -out=tfplan" in c for c in cmds)
     assert any("cs-image-system gate-plan --planfile tfplan" in c for c in cmds)
@@ -172,7 +172,7 @@ def test_the_read_only_group_builder_answers_the_read_only_truth(monkeypatch):
 def test_a_read_only_group_is_looked_up_and_never_drifts(tmp_path: Path, monkeypatch):
     from cs_image_system.engine import state_query
     from cs_image_system.engine.state_query import StateReport
-    run = V2Run(tmp_path, monkeypatch)
+    run = FixtureRun(tmp_path, monkeypatch)
     try:
         summary = run.run(["identity"], apply=False)
         assert summary.ok, summary.error
@@ -267,7 +267,7 @@ def test_the_dummy_builders_return_an_asset_set_and_a_declared_dummy_builder_run
     groups = root / "groups" / "group-dummy.yaml"
     groups.write_text(yaml.safe_dump({"groups": [{"name": "dummygroup", "type": "dummy-groups",
                                                   "description": "a group on the template builder"}]}))
-    run = V2Run(tmp_path, monkeypatch, config_root=root)
+    run = FixtureRun(tmp_path, monkeypatch, config_root=root)
     try:
         summary = run.run(["identity"], apply=False)
         assert summary.ok, summary.error
@@ -295,7 +295,7 @@ def test_the_dummy_user_builder_writes_under_its_own_root(tmp_path: Path, monkey
     root = copy_config(tmp_path)
     _edit(root / "cfg" / "group-builders.yml", lambda d: d["user_builders"].append(
         {"name": "dummy-users", "type": "dummy", "org": "example", "team": "example"}))
-    run = V2Run(tmp_path, monkeypatch, config_root=root)
+    run = FixtureRun(tmp_path, monkeypatch, config_root=root)
     try:
         assert run.run(["identity"], apply=False).ok
         rel = [p.relative_to(run.generated) for p in run.generated.rglob("*.tf")]

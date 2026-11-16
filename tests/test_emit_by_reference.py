@@ -20,7 +20,7 @@ import subprocess
 from typing import Any
 
 import pytest
-from harness import FIXTURE_CONFIG, V2Run, tree
+from harness import FIXTURE_CONFIG, FixtureRun, tree
 
 from cs_image_system.base.encryption import PUBLIC_BY_DECISION_KEYS, Decrypted, decrypt_marker, encrypt_value
 from cs_image_system.base.models.user import User
@@ -125,7 +125,7 @@ def test_decrypt_json_speaks_the_external_data_source_protocol():
 
 
 def test_the_fixture_emission_carries_only_ciphertexts_the_configuration_carries(tmp_path, monkeypatch):
-    run = V2Run(tmp_path, monkeypatch)
+    run = FixtureRun(tmp_path, monkeypatch)
     try:
         assert run.run("identity", apply=True).ok
         emitted = tree(run.generated)
@@ -159,7 +159,7 @@ def test_no_declared_encrypted_value_but_a_username_reaches_the_emission_or_meta
     rosters is decrypted and its text looked for in generated/ and
     meta-state/; usernames are public by ruling and exempt."""
     import yaml
-    run = V2Run(tmp_path, monkeypatch)
+    run = FixtureRun(tmp_path, monkeypatch)
     try:
         assert run.run("all", apply=True).ok
         emitted = "\n".join(tree(run.generated).values()) + "\n" + "\n".join(tree(run.meta_state).values())

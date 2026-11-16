@@ -1474,7 +1474,7 @@ the `verify` placeholder, which could never run.
 registered.
 
 **Fix.** `verify` the placeholder is deleted; `test` and `cleanup` print
-`<name>: retired in V2. ...` naming the replacement and exit 2.
+`<name>: retired. ...` naming the replacement and exit 2.
 
 **Date.** 2026-09-11.
 

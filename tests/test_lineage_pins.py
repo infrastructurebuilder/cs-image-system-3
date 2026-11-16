@@ -25,12 +25,12 @@ from pathlib import Path
 
 import pytest
 import yaml
-from harness import FIXED_TIMESTAMP, V2Run, copy_config, tree
+from harness import FIXED_TIMESTAMP, FixtureRun, copy_config, tree
 
 
 @pytest.fixture
-def v2(tmp_path, monkeypatch):
-    run = V2Run(tmp_path, monkeypatch)
+def fixture_run(tmp_path, monkeypatch):
+    run = FixtureRun(tmp_path, monkeypatch)
     yield run
     run.restore_cwd()
 
@@ -42,7 +42,7 @@ def _write_yaml(path: Path, data) -> None:
 def _prepared(tmp_path, monkeypatch, mutate):
     root = copy_config(tmp_path)
     mutate(root)
-    return V2Run(tmp_path, monkeypatch, config_root=root)
+    return FixtureRun(tmp_path, monkeypatch, config_root=root)
 
 
 def _seed(root: Path, builds: list[dict], pins: dict | None = None) -> None:
@@ -73,13 +73,13 @@ def _tag(text: str, key: str, value: str) -> bool:
     return re.search(rf'^\s*{re.escape(key)}\s+= "{re.escape(value)}"', text, re.M) is not None
 
 
-def _source(v2, lifecycle: str, block: str, image: str) -> str:
-    return (v2.generated / lifecycle / "pckr-ebs-ans" / "image-generation" / block
+def _source(fixture_run, lifecycle: str, block: str, image: str) -> str:
+    return (fixture_run.generated / lifecycle / "pckr-ebs-ans" / "image-generation" / block
             / f"pckr-ebs-ans-image-generation-source-{image}-{block}.pkr.hcl").read_text()
 
 
-def _fake_manifest(v2, lifecycle: str, block: str, amis: dict[str, str]) -> None:
-    d = v2.generated / lifecycle / "pckr-ebs-ans" / "image-generation" / block
+def _fake_manifest(fixture_run, lifecycle: str, block: str, amis: dict[str, str]) -> None:
+    d = fixture_run.generated / lifecycle / "pckr-ebs-ans" / "image-generation" / block
     (d / "manifest.json").write_text(json.dumps({
         "last_run_uuid": "u1",
         "builds": [{"name": n, "packer_run_uuid": "u1", "artifact_id": f"us-east-2:{a}"}
@@ -89,9 +89,9 @@ def _fake_manifest(v2, lifecycle: str, block: str, amis: dict[str, str]) -> None
 
 # ------------------------------------------------------------- naming/tags
 
-def test_every_build_is_uniquely_named_and_lineage_tagged(v2):
-    assert v2.run(["base-image", "instance-image"], apply=False).ok
-    base = _source(v2, "base-image", "block-000", "basic-rh-10")
+def test_every_build_is_uniquely_named_and_lineage_tagged(fixture_run):
+    assert fixture_run.run(["base-image", "instance-image"], apply=False).ok
+    base = _source(fixture_run, "base-image", "block-000", "basic-rh-10")
     assert f'ami_name = "NOSCSB-AWS-RH10-basic-rh-10-aws-my-rhel8-{FIXED_TIMESTAMP}"' in base   # the fixture declares the prefix
     assert "{{" not in base, "unique naming must resolve the run timestamp"
     assert _tag(base, "csis_series", "basic-rh-10")
@@ -101,7 +101,7 @@ def test_every_build_is_uniquely_named_and_lineage_tagged(v2):
     # the stamp is the bake's runtime's storage types (pd and gcs are GCE's)
     assert _tag(base, "csis_storage_types", "ebs,efs,s3")
     assert re.search(r'csis_fingerprint\s+= "[0-9a-f]{16}"', base)
-    dask = _source(v2, "instance-image", "block-000", "imgfile-basic-dask")
+    dask = _source(fixture_run, "instance-image", "block-000", "imgfile-basic-dask")
     assert f'ami_name = "imgfile-basic-dask-pckr-ebs-ans-{FIXED_TIMESTAMP}"' in dask
     assert _tag(dask, "csis_parent", "series:basic-rh-10")   # base built this run: bound after the bake
     assert _tag(dask, "csis_storage_types", "ebs,efs,s3")  # root stamp inherited (N24), on this runtime
@@ -109,22 +109,22 @@ def test_every_build_is_uniquely_named_and_lineage_tagged(v2):
 
 # ------------------------------------------------------ lineage + first bind
 
-def test_bake_records_lineage_and_first_binds_the_base_edge(v2):
-    assert v2.run(["base-image", "instance-image"], apply=False).ok
-    ctx = v2.ctx
+def test_bake_records_lineage_and_first_binds_the_base_edge(fixture_run):
+    assert fixture_run.run(["base-image", "instance-image"], apply=False).ok
+    ctx = fixture_run.ctx
     from cs_image_system.contract.lifecycle import ExecutionLifecyclePhase
     from cs_image_system.contract.lifecycles import Lifecycle
     ib = ctx.image_builders["pckr-ebs-ans"]
     # base bake
-    _fake_manifest(v2, "base-image", "block-000", {"basic-rh-10": "ami-0base0001", "basic-rhel-9": "ami-0base0009"})
+    _fake_manifest(fixture_run, "base-image", "block-000", {"basic-rh-10": "ami-0base0001", "basic-rhel-9": "ami-0base0009"})
     ctx.current_lifecycle = Lifecycle.BASE_IMAGE
     ib.post_finalize_phase(ExecutionLifecyclePhase.IMAGE_GENERATION)
     # instance-image bake (block-000 holds the images chained directly off the bases)
-    _fake_manifest(v2, "instance-image", "block-000", {"imgfile-basic-dask": "ami-0dask0001"})
+    _fake_manifest(fixture_run, "instance-image", "block-000", {"imgfile-basic-dask": "ami-0dask0001"})
     ctx.current_lifecycle = Lifecycle.INSTANCE_IMAGE
     ib.post_finalize_phase(ExecutionLifecyclePhase.IMAGE_GENERATION)
     ctx.current_lifecycle = None
-    lineage = yaml.safe_load((v2.meta_state / "lineage.yaml").read_text())["builds"]
+    lineage = yaml.safe_load((fixture_run.meta_state / "lineage.yaml").read_text())["builds"]
     by_id = {b["build_id"]: b for b in lineage}
     base = by_id["ami-0base0001"]
     assert base["series"] == "basic-rh-10" and base["parent"] == "vendor"
@@ -139,19 +139,19 @@ def test_bake_records_lineage_and_first_binds_the_base_edge(v2):
     assert re.fullmatch(r"[0-9a-f]{64}", mods["dask-setup-jeffy"]["content_hash"])
     assert re.fullmatch(r"[0-9a-f]{64}", mods["derivative-setup"]["content_hash"])
     assert {m["run"] for m in dask["mods"]} == {ctx.run_id}
-    pins = yaml.safe_load((v2.meta_state / "pins.yaml").read_text())
+    pins = yaml.safe_load((fixture_run.meta_state / "pins.yaml").read_text())
     assert pins["images"]["imgfile-basic-dask@aws-east2-runtime"] == "ami-0base0001"
     assert pins["upgrades"][-1]["op"] == "bind"
     # builds are never deleted: recording again is a no-op, never a replacement
     ctx.current_lifecycle = Lifecycle.INSTANCE_IMAGE
     ib.post_finalize_phase(ExecutionLifecyclePhase.IMAGE_GENERATION)
     ctx.current_lifecycle = None
-    assert len(yaml.safe_load((v2.meta_state / "lineage.yaml").read_text())["builds"]) == len(lineage)
+    assert len(yaml.safe_load((fixture_run.meta_state / "lineage.yaml").read_text())["builds"]) == len(lineage)
     # zero-drift-report: every recorded build is re-tagged with lineage's
     # RESOLVED parent and fingerprint -- generation-time tags on a
     # same-run-chained image carried `series:<name>` (the step-3 follow-up
     # finding's one standing `changed` drift line)
-    retagged = {ami: tags for ami, tags in v2.retags}
+    retagged = {ami: tags for ami, tags in fixture_run.retags}
     assert retagged["ami-0dask0001"]["csis_parent"] == "ami-0base0001"
     assert retagged["ami-0dask0001"]["csis_fingerprint"] == dask["input_fingerprint"][:16]
     assert retagged["ami-0base0001"]["csis_parent"] == "vendor"

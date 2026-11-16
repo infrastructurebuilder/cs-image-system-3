@@ -28,12 +28,12 @@ from pathlib import Path
 
 import pytest
 import yaml
-from harness import V2Run, copy_config, module_path, tree
+from harness import FixtureRun, copy_config, module_path, tree
 
 
 @pytest.fixture
-def v2(tmp_path, monkeypatch):
-    run = V2Run(tmp_path, monkeypatch)
+def fixture_run(tmp_path, monkeypatch):
+    run = FixtureRun(tmp_path, monkeypatch)
     yield run
     run.restore_cwd()
 
@@ -45,7 +45,7 @@ def _write_yaml(path: Path, data) -> None:
 def _prepared(tmp_path, monkeypatch, mutate):
     root = copy_config(tmp_path)
     mutate(root)
-    return V2Run(tmp_path, monkeypatch, config_root=root)
+    return FixtureRun(tmp_path, monkeypatch, config_root=root)
 
 
 def _set_os_builder(root: Path, name: str, **fields) -> None:
@@ -73,21 +73,21 @@ def _set_runtime(root: Path, name: str, **fields) -> None:
     _write_yaml(p, data)
 
 
-def _base_build(v2) -> str:
-    return (v2.generated / "base-image" / "pckr-ebs-ans" / "image-generation" / "block-000"
+def _base_build(fixture_run) -> str:
+    return (fixture_run.generated / "base-image" / "pckr-ebs-ans" / "image-generation" / "block-000"
             / "pckr-ebs-ans-image-generation-block-000-build.pkr.hcl").read_text()
 
 
-def _instance_build(v2) -> str:
-    return (v2.generated / "instance-image" / "pckr-ebs-ans" / "image-generation" / "block-000"
+def _instance_build(fixture_run) -> str:
+    return (fixture_run.generated / "instance-image" / "pckr-ebs-ans" / "image-generation" / "block-000"
             / "pckr-ebs-ans-image-generation-block-000-build.pkr.hcl").read_text()
 
 
 # ----------------------------------------------------------- base images
 
-def test_base_image_bakes_admin_user_and_declared_prerequisites_dormant(v2):
-    assert v2.run(["base-image"], apply=False).ok
-    build = _base_build(v2)
+def test_base_image_bakes_admin_user_and_declared_prerequisites_dormant(fixture_run):
+    assert fixture_run.run(["base-image"], apply=False).ok
+    build = _base_build(fixture_run)
     # admin user with the public key, sudo, no password
     assert "useradd -m -s /bin/bash csisadmin" in build
     # the key is declared encrypted, so the EMISSION carries its
@@ -199,9 +199,9 @@ def test_per_base_image_key_override(tmp_path, monkeypatch):
 
 # ------------------------------------------------------ instance images
 
-def test_instance_image_bakes_activation_for_its_own_group(v2):
-    assert v2.run(["instance-image"], apply=False).ok
-    build = _instance_build(v2)
+def test_instance_image_bakes_activation_for_its_own_group(fixture_run):
+    assert fixture_run.run(["instance-image"], apply=False).ok
+    build = _instance_build(fixture_run)
     # imgfile-basic-dask belongs to coops; imgfile-data-science to stofs
     assert "tx.group: coops" in build
     assert "tx.group: stofs" in build
@@ -256,7 +256,7 @@ def test_capabilities_resolve_through_pins_to_the_stamped_build(tmp_path, monkey
 def test_chain_inherits_the_root_stamp(tmp_path, monkeypatch):
     """imgfile-basic-cloudflow chains off imgfile-basic-dask (which chains off
     basic-rh-10); its capabilities are the root's (N24)."""
-    run = V2Run(tmp_path, monkeypatch)
+    run = FixtureRun(tmp_path, monkeypatch)
     try:
         from cs_image_system.base.capabilities import effective_capabilities, image_chain
         img = run.ctx.images_map["imgfile-basic-cloudflow"]
@@ -272,9 +272,9 @@ def test_chain_inherits_the_root_stamp(tmp_path, monkeypatch):
 
 # ----------------------------------------------------- launch parameters
 
-def test_launch_parameters_are_generated_by_reference_and_recorded(v2):
-    assert v2.run(["instance-image"], apply=False).ok
-    inst = tree(v2.generated / "instance-image" / "open-tofu" / "instance-generation")
+def test_launch_parameters_are_generated_by_reference_and_recorded(fixture_run):
+    assert fixture_run.run(["instance-image"], apply=False).ok
+    inst = tree(fixture_run.generated / "instance-image" / "open-tofu" / "instance-generation")
     module = inst["open-tofu-instance-generation-instance-test2.tf"]
     assert 'templatefile("${path.module}/user-data-test2.sh.tftpl"' in module
     assert 'data.terraform_remote_state.oktagroups.outputs.group_gids["coops"]' in module
@@ -293,7 +293,7 @@ def test_launch_parameters_are_generated_by_reference_and_recorded(v2):
     root = inst["open-tofu-instance-generation.tf"]
     assert 'variable "enrollment_token"' in root and "sensitive = true" in root
     assert 'data "terraform_remote_state" "oktagroups"' in root
-    lp = yaml.safe_load((v2.meta_state / "launch-params.yaml").read_text())
+    lp = yaml.safe_load((fixture_run.meta_state / "launch-params.yaml").read_text())
     rec = lp["instances"]["test2"]
     assert rec["group"] == "coops" and rec["identity_type"] == "okta"
     assert rec["mounts"][0] == {"storage": "mnt_data", "type": "ebs", "builder": "aws-ebs",
@@ -305,7 +305,7 @@ def test_launch_parameters_are_generated_by_reference_and_recorded(v2):
 
 
 def test_launch_parameters_are_immutable_after_launch(tmp_path, monkeypatch):
-    run = V2Run(tmp_path, monkeypatch)
+    run = FixtureRun(tmp_path, monkeypatch)
     try:
         assert run.run(["instance-image"], apply=False).ok
         # simulate the apply that launched test2
@@ -322,7 +322,7 @@ def test_launch_parameters_are_immutable_after_launch(tmp_path, monkeypatch):
         data["instances"][1]["storages"][0]["mount_point"] = "/data"
         _write_yaml(p, data)
         run.restore_cwd()
-        run2 = V2Run(tmp_path, monkeypatch, config_root=run.config_root)
+        run2 = FixtureRun(tmp_path, monkeypatch, config_root=run.config_root)
         summary = run2.run(["instance-image"], apply=False)
         assert not summary.ok
         assert any("immutable" in e and "'test2'" in e for e in summary.validation_errors)
@@ -362,7 +362,7 @@ def test_decommissioned_instance_is_whitelisted_and_forgotten(tmp_path, monkeypa
         # the REAL apply (flag on) destroys through the gate, then forgets
         _set_config(run.config_root, apply_instances=True)
         run.restore_cwd()
-        run = V2Run(tmp_path, monkeypatch, config_root=run.config_root)   # reload the flag
+        run = FixtureRun(tmp_path, monkeypatch, config_root=run.config_root)   # reload the flag
         assert run.run(["instance-image"], apply=False).ok
         # simulate the apply that destroyed old_node (the harness's stubbed
         # apply step fires no hooks): the after-apply forget, flag on
@@ -378,7 +378,7 @@ def test_decommissioned_instance_is_whitelisted_and_forgotten(tmp_path, monkeypa
         run.restore_cwd()
 
 
-def test_instance_module_keeps_original_image(v2):
+def test_instance_module_keeps_original_image(fixture_run):
     """Belt and braces (DESIGN §3F5): the module ignores AMI drift."""
     module = (module_path("aws_instance") / "main.tf").read_text()
     assert "ignore_changes = [ami, user_data]" in module
@@ -395,7 +395,7 @@ def test_the_ssm_profile_wins_the_bake_when_both_profiles_are_set(tmp_path: Path
     assert aws.get("session_instance_profile"), "the fixture's AWS runtime declares an SSM profile"
     aws["iam_instance_profile"] = "the-other-profile"
     p.write_text(yaml.safe_dump(data, sort_keys=False))
-    run = V2Run(tmp_path, monkeypatch, config_root=root)
+    run = FixtureRun(tmp_path, monkeypatch, config_root=root)
     try:
         assert run.run(["base-image"], apply=False).ok
         sources = list((run.generated / "base-image").rglob("*.pkr.hcl"))
@@ -413,10 +413,10 @@ def test_a_dry_run_never_asks_the_registry_for_a_hostname_claim(tmp_path: Path, 
     calls: list[str] = []
 
     def listen():
-        # after the harness installed its own stubs (V2Run's stub_environment)
+        # after the harness installed its own stubs (FixtureRun's stub_environment)
         monkeypatch.setattr(OktaTfGroupBuilder, "can_query_servers", lambda self: True)
         monkeypatch.setattr(OktaTfGroupBuilder, "registered_servers", lambda self, g: calls.append(g) or [])
-    run = V2Run(tmp_path, monkeypatch)                     # dry
+    run = FixtureRun(tmp_path, monkeypatch)                     # dry
     try:
         listen()
         run.ctx.config["apply_instances"] = True
@@ -425,7 +425,7 @@ def test_a_dry_run_never_asks_the_registry_for_a_hostname_claim(tmp_path: Path, 
         assert calls == [], "a dry run with the apply flag on made no network call"
     finally:
         run.restore_cwd()
-    real = V2Run(tmp_path / "real", monkeypatch, dry_run=False)
+    real = FixtureRun(tmp_path / "real", monkeypatch, dry_run=False)
     try:
         listen()
         real.ctx.config["apply_instances"] = True

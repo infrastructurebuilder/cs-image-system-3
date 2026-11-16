@@ -15,7 +15,7 @@ import re
 import yaml
 from harness import FIXTURE_CONFIG, REPO
 
-GOLDEN = REPO / "tests" / "fixtures" / "v2_golden" / "generated"
+GOLDEN = REPO / "tests" / "fixtures" / "golden" / "generated"
 
 
 def test_every_declared_s3_backend_encrypts():

@@ -15,7 +15,7 @@ from pathlib import Path
 
 import pytest
 import yaml
-from harness import V2Run, copy_config, load_context, stub_environment
+from harness import FixtureRun, copy_config, load_context, stub_environment
 
 
 def _rebind_storage(root: Path, backend: str) -> None:
@@ -77,20 +77,20 @@ def test_with_the_plugin_validate_refuses_an_undeclared_backend(tmp_path, monkey
 
 
 def test_without_the_plugin_the_summary_evidence_is_empty(tmp_path, monkeypatch, no_hook_plugins):
-    v2 = V2Run(tmp_path, monkeypatch)
-    summary = v2.run("all", apply=False)
+    fixture_run = FixtureRun(tmp_path, monkeypatch)
+    summary = fixture_run.run("all", apply=False)
     assert summary.ok, summary.error
     assert set(summary.state_bindings) >= {"identity", "storage", "base-image", "instance-image"}
     assert all(bindings == {} for bindings in summary.state_bindings.values())
-    assert not (v2.meta_state / "state-locations.yaml").exists()
+    assert not (fixture_run.meta_state / "state-locations.yaml").exists()
 
 
 def test_with_the_plugin_the_summary_carries_the_evidence_and_the_records_exist(tmp_path, monkeypatch):
-    v2 = V2Run(tmp_path, monkeypatch)
-    summary = v2.run("all", apply=False)
+    fixture_run = FixtureRun(tmp_path, monkeypatch)
+    summary = fixture_run.run("all", apply=False)
     assert summary.ok, summary.error
-    declared = {s["name"] for s in next(iter(yaml.safe_load((v2.config_root / "cfg" / "storage-builders.yml").read_text()).values()))}
+    declared = {s["name"] for s in next(iter(yaml.safe_load((fixture_run.config_root / "cfg" / "storage-builders.yml").read_text()).values()))}
     assert set(summary.state_bindings["storage"]) == declared                 # every storage root the fixture declares, no other
     assert {"aws-ebs", "aws-efs", "aws-s3", "gcp-pd", "gcp-gcs"} <= declared
     assert summary.state_bindings["base-image"] == {}
-    assert (v2.meta_state / "state-locations.yaml").is_file()
+    assert (fixture_run.meta_state / "state-locations.yaml").is_file()

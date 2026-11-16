@@ -16,7 +16,7 @@ a cloud changed, and no run ever commits into it.
   (the `pckr-docker` bake, the `tofu-docker` and `docker-volume` roots)
   without a daemon. Its files are `images/image5.yaml` and
   `storages/container.yaml`.
-- `tests/fixtures/v2_golden/` is exactly what `run --all` emits over it
+- `tests/fixtures/golden/` is exactly what `run --all` emits over it
   (see [GOLDEN.md](../../../GOLDEN.md)); a change here moves the golden.
 - Its `module_source_base: ../tfmodules` resolves relative to the copied
   tree, so a copy needs `tfmodules/` beside it (`copy_config` callers that

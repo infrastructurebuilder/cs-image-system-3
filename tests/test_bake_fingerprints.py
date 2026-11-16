@@ -22,7 +22,7 @@ from pathlib import Path
 import pytest
 import yaml
 
-from tests.harness import V2Run, copy_config, load_context
+from tests.harness import FixtureRun, copy_config, load_context
 from tests.test_convergent_bakes import BASE, DASK, GCE_RT, _pkr_sources
 from tests.test_convergent_bakes import _seed_converged as _seed_convergent
 
@@ -53,10 +53,10 @@ def _seed_converged(root: Path, tmp_path: Path, monkeypatch, **kw) -> None:
 @pytest.fixture
 def converged(tmp_path: Path, monkeypatch):
     root = copy_config(tmp_path)
-    runs: list[V2Run] = []
+    runs: list[FixtureRun] = []
 
-    def make(**kw) -> V2Run:
-        run = V2Run(tmp_path, monkeypatch, config_root=root, **kw)
+    def make(**kw) -> FixtureRun:
+        run = FixtureRun(tmp_path, monkeypatch, config_root=root, **kw)
         runs.append(run)
         return run
     try:
@@ -173,7 +173,7 @@ def test_an_adopted_head_with_the_current_inputs_is_not_baked_again(tmp_path, mo
     """The live case: builds adopted with `state import` still planned
     `inputs changed (531831f5d092 -> 531831f5d092)`."""
     from cs_image_system.base.lineage import FINGERPRINT_TAG_LENGTH, bake_reason, find_image, input_fingerprint
-    run = V2Run(tmp_path, monkeypatch, config_root=copy_config(tmp_path))
+    run = FixtureRun(tmp_path, monkeypatch, config_root=copy_config(tmp_path))
     try:
         assert run.run(["base-image"], apply=False).ok
         image = find_image(run.ctx, "basic-rh-10", GCE)
@@ -199,7 +199,7 @@ def test_an_adopted_head_with_the_current_inputs_is_not_baked_again(tmp_path, mo
 def test_a_bake_stamps_and_fingerprints_the_storage_types_of_its_runtime_alone(tmp_path, monkeypatch):
     from cs_image_system.base.capabilities import declared_capabilities, effective_capabilities
     from cs_image_system.base.lineage import BaseImageRef, capability_stamp, input_fingerprint
-    run = V2Run(tmp_path, monkeypatch)
+    run = FixtureRun(tmp_path, monkeypatch)
     try:
         ctx = run.ctx
         osb = ctx.os_builders["basic-rh-10"]

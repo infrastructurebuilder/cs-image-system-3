@@ -14,7 +14,7 @@ history: bundle XII item 22 (walk finding F50).
 from __future__ import annotations
 
 import pytest
-from harness import V2Run
+from harness import FixtureRun
 from test_ephemeral import prepared  # noqa: F401 - the fixture
 
 KERNEL_ONLY = """
@@ -31,7 +31,7 @@ WITH_MARK = KERNEL_ONLY.replace("Finished running", "startup-script: csis-mount:
 
 def test_the_startup_script_reports_each_mount_point(tmp_path, monkeypatch):
     from cs_image_system.base.launch_params import compute_launch_params, mounted_points, user_data_template
-    run = V2Run(tmp_path, monkeypatch)
+    run = FixtureRun(tmp_path, monkeypatch)
     try:
         inst = next(i for i in run.ctx.instances if i.get_name() == "gce-test")
         params = compute_launch_params(run.ctx, inst)

@@ -89,7 +89,7 @@ class AwsCloudBuilderModel(CloudBuilderModel):
     ena_support: bool | None = None
     sriov_support: bool | None = None
     iam_instance_profile: str | None = None
-    # V2 debug access (N9): "ssm" bakes the SSM agent into base images and
+    # Debug access (N9): "ssm" bakes the SSM agent into base images and
     # (when session_instance_profile is set) attaches that profile to
     # launched instances so system-level operators can start a session.
     session_mechanism: str | None = None

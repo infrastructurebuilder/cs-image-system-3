@@ -22,7 +22,7 @@ import subprocess
 from pathlib import Path
 
 import pytest
-from harness import V2Run, copy_config, tree
+from harness import FixtureRun, copy_config, tree
 
 AWS = "aws-east2-runtime"
 GCE = "gcloud-east1"
@@ -42,10 +42,10 @@ def repo(tmp_path, monkeypatch):
     _git(config, "config", "user.name", "stage45")
     _git(config, "add", "-A")
     _git(config, "commit", "-q", "-m", "config")
-    runs: list[V2Run] = []
+    runs: list[FixtureRun] = []
 
-    def make() -> V2Run:
-        run = V2Run(tmp_path, monkeypatch, config_root=config)
+    def make() -> FixtureRun:
+        run = FixtureRun(tmp_path, monkeypatch, config_root=config)
         runs.append(run)
         return run
     try:

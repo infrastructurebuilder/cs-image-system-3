@@ -19,28 +19,28 @@ from __future__ import annotations
 import json
 
 import pytest
-from harness import V2Run
+from harness import FixtureRun
 
 
 @pytest.fixture
-def v2(tmp_path, monkeypatch):
-    run = V2Run(tmp_path, monkeypatch)
+def fixture_run(tmp_path, monkeypatch):
+    run = FixtureRun(tmp_path, monkeypatch)
     yield run
     run.restore_cwd()
 
 
-def test_hook_plugins_are_discovered_and_notifier_fires(v2, tmp_path, monkeypatch):
+def test_hook_plugins_are_discovered_and_notifier_fires(fixture_run, tmp_path, monkeypatch):
     notify = tmp_path / "notify.jsonl"
     monkeypatch.setenv("CSIS_NOTIFY_FILE", str(notify))
     from cs_image_system.engine.commands import run_lifecycles as rl
     assert rl.load_hook_plugins(force=True) >= 1
-    summary = v2.run(["identity"], apply=False)
+    summary = fixture_run.run(["identity"], apply=False)
     assert summary.ok, summary.error
     lines = [json.loads(l) for l in notify.read_text().splitlines()]
     assert lines[-1]["run"] == summary.run_id and lines[-1]["requested"] == ["identity"]
 
 
-def test_plugin_registered_lifecycle_participates_like_a_builtin(v2, monkeypatch):
+def test_plugin_registered_lifecycle_participates_like_a_builtin(fixture_run, monkeypatch):
     from cs_image_system.base.lifecycles import all_lifecycles, parse_lifecycles, unregister_lifecycle
     from cs_image_system.engine.commands import run_lifecycles as rl
     monkeypatch.setenv("CSIS_DUMMY_LIFECYCLE", "1")
@@ -49,12 +49,12 @@ def test_plugin_registered_lifecycle_participates_like_a_builtin(v2, monkeypatch
     assert names[:4] == ["identity", "storage", "base-image", "instance-image"]
     assert "notify" in names
     assert [lc.value for lc in parse_lifecycles(["notify", "identity"])] == ["identity", "notify"]
-    summary = v2.run(["notify"], apply=True)
+    summary = fixture_run.run(["notify"], apply=True)
     assert summary.ok, summary.error
     assert [r.lifecycle for r in summary.lifecycles] == ["notify"]
-    assert (v2.generated / "notify" / ".gitignore").is_file()
+    assert (fixture_run.generated / "notify" / ".gitignore").is_file()
     assert summary.apply["notify"] == "no-script"        # no phases -> nothing deferred -> no-op
-    assert "notify" in (v2.generated / "final_execution.sh").read_text()
+    assert "notify" in (fixture_run.generated / "final_execution.sh").read_text()
     unregister_lifecycle("notify")
     assert "notify" not in [lc.value for lc in all_lifecycles()]
 

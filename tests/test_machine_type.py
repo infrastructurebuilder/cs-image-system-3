@@ -23,7 +23,7 @@ import yaml
 
 from cs_image_system.base import launch_params as lp
 from cs_image_system.contract.lifecycles import Lifecycle
-from tests.harness import V2Run, copy_config
+from tests.harness import FixtureRun, copy_config
 
 A = {"instance_id": "i-aaaa0000aaaa0000a", "provider_hostname": "ip-10-0-0-1.us-east-2.compute.internal"}
 AWS = "aws-east2-runtime"
@@ -32,10 +32,10 @@ AWS = "aws-east2-runtime"
 @pytest.fixture
 def prepared(tmp_path: Path, monkeypatch):
     root = copy_config(tmp_path)
-    runs: list[V2Run] = []
+    runs: list[FixtureRun] = []
 
-    def make(**kw) -> V2Run:
-        run = V2Run(tmp_path, monkeypatch, config_root=root, **kw)
+    def make(**kw) -> FixtureRun:
+        run = FixtureRun(tmp_path, monkeypatch, config_root=root, **kw)
         runs.append(run)
         return run
     try:
@@ -54,7 +54,7 @@ def _declare(root: Path, instance: str, **fields) -> None:
     p.write_text(yaml.safe_dump(d, sort_keys=False))
 
 
-def _launched_now(run: V2Run, name: str, build: str, *, drop: tuple[str, ...] = ()) -> dict:
+def _launched_now(run: FixtureRun, name: str, build: str, *, drop: tuple[str, ...] = ()) -> dict:
     """Seed the launch record (and pin) from what the tree computes NOW, so
     only the later declaration change differs; ``drop`` removes keys, as a
     record written before they existed would lack them."""
@@ -68,7 +68,7 @@ def _launched_now(run: V2Run, name: str, build: str, *, drop: tuple[str, ...] = 
     return params
 
 
-def _aws_tf(run: V2Run) -> str:
+def _aws_tf(run: FixtureRun) -> str:
     return "\n".join(p.read_text() for p in (run.generated / "instance-image" / "open-tofu").rglob("*.tf"))
 
 

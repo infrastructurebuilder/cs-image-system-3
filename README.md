@@ -130,7 +130,7 @@ declared through the `cs_image_system.modules` entry point);
 <dir>` writes them into a tree.
 `tests/` is the suite, with the frozen fixture configuration under
 `tests/fixtures/config/` and the golden emission under
-`tests/fixtures/v2_golden/`. `docs/examples/` holds the five starter
+`tests/fixtures/golden/`. `docs/examples/` holds the five starter
 configuration repositories the release ships and `init-config` writes
 out: `complete`, `standard-aws`, `standard-aws-posix`, `standard-docker`
 and `standard-gce`. The reference configuration is its own

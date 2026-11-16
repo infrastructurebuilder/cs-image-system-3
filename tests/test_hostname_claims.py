@@ -26,7 +26,7 @@ from cs_image_system.base import launch_params as lp
 from cs_image_system.contract.lifecycles import Lifecycle
 from cs_image_system.engine.commands import validate as validate_module
 from cs_image_system.engine.commands.validate import check_canonical_hostnames
-from tests.harness import V2Run
+from tests.harness import FixtureRun
 
 # ------------------------------------------------------------ step 3
 
@@ -54,7 +54,7 @@ def test_names_a_hostname_may_not_be_are_refused(name, fragment):
 
 @pytest.fixture
 def world(tmp_path: Path, monkeypatch):
-    run = V2Run(tmp_path, monkeypatch, dry_run=False)   # the check reads the dry-run flag
+    run = FixtureRun(tmp_path, monkeypatch, dry_run=False)   # the check reads the dry-run flag
     try:
         yield run
     finally:

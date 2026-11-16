@@ -118,10 +118,10 @@ def test_a_literal_gid_reaches_the_roots_and_no_identity_state_is_read(tmp_path,
     with the number and no workspace -- the storage and instance roots then
     carry the number and declare no remote state of an identity root."""
     from cs_image_system.okta_opa_plugin.okta_opa_tf_group_builder import OktaTfGroupBuilder
-    from tests.harness import V2Run
+    from tests.harness import FixtureRun
     monkeypatch.setattr(OktaTfGroupBuilder, "gid_workspace", lambda self: None)
     monkeypatch.setattr(OktaTfGroupBuilder, "gid_expression", lambda self, group: "4242")
-    run = V2Run(tmp_path, monkeypatch)
+    run = FixtureRun(tmp_path, monkeypatch)
     try:
         assert run.run(["storage", "instance-image"], apply=False).ok
         texts = {p: p.read_text() for sub in ("storage", "instance-image")
@@ -312,7 +312,7 @@ def _posix_instance_run(tmp_path, monkeypatch, prepare=None):
     """A fixture copy whose `test` instance is a machine of imgfile-posix
     (no storages: pxgroup is allowed on none), launched; ``prepare(root)``
     adjusts the copy first."""
-    from tests.harness import V2Run, copy_config
+    from tests.harness import FixtureRun, copy_config
     root = copy_config(tmp_path)
     if prepare is not None:
         prepare(root)
@@ -322,7 +322,7 @@ def _posix_instance_run(tmp_path, monkeypatch, prepare=None):
     inst["image"] = "imgfile-posix"
     inst.pop("storages", None)
     path.write_text(yaml.safe_dump(data, sort_keys=False))
-    run = V2Run(tmp_path, monkeypatch, config_root=root)
+    run = FixtureRun(tmp_path, monkeypatch, config_root=root)
     ms = run.ctx.meta_state
     ms.record_launch_params("test", dict(ms.launch_params().get("test") or {"hostname": "test", "group": "pxgroup"})
                             | {"launched": True})
@@ -577,10 +577,10 @@ def test_a_machine_is_left_as_it_stands_when_an_account_name_cannot_be_read(tmp_
 
     from cs_image_system.contract.lifecycles import Lifecycle
     from cs_image_system.engine import accounts_reconcile
-    from tests.harness import V2Run
+    from tests.harness import FixtureRun
     _Opa(monkeypatch, attribute_error=RuntimeError("HTTP 503 from OPA"))
     session = _Session(monkeypatch)
-    run = V2Run(tmp_path, monkeypatch)
+    run = FixtureRun(tmp_path, monkeypatch)
     try:
         ms = run.ctx.meta_state
         ms.record_launch_params("test", dict(ms.launch_params().get("test") or {"hostname": "test"}) | {"launched": True})
@@ -596,10 +596,10 @@ def test_a_machine_is_left_as_it_stands_when_an_account_name_cannot_be_read(tmp_
 def test_an_okta_machine_gets_its_group_after_apply(tmp_path, monkeypatch):
     from cs_image_system.contract.lifecycles import Lifecycle
     from cs_image_system.engine import accounts_reconcile
-    from tests.harness import V2Run
+    from tests.harness import FixtureRun
     _Opa(monkeypatch)
     session = _Session(monkeypatch)
-    run = V2Run(tmp_path, monkeypatch)
+    run = FixtureRun(tmp_path, monkeypatch)
     try:
         ms = run.ctx.meta_state
         ms.record_launch_params("test", dict(ms.launch_params().get("test") or {"hostname": "test"}) | {"launched": True})
@@ -613,11 +613,11 @@ def test_an_okta_machine_gets_its_group_after_apply(tmp_path, monkeypatch):
 def test_posix_none_sends_an_okta_machine_nothing(tmp_path, monkeypatch):
     from cs_image_system.contract.lifecycles import Lifecycle
     from cs_image_system.engine import accounts_reconcile
-    from tests.harness import V2Run, copy_config
+    from tests.harness import FixtureRun, copy_config
     root = copy_config(tmp_path)
     _okta_posix(root, "none")
     session = _Session(monkeypatch)
-    run = V2Run(tmp_path, monkeypatch, config_root=root)
+    run = FixtureRun(tmp_path, monkeypatch, config_root=root)
     try:
         ms = run.ctx.meta_state
         ms.record_launch_params("test", dict(ms.launch_params().get("test") or {"hostname": "test"}) | {"launched": True})
@@ -633,10 +633,10 @@ def test_an_opa_that_cannot_be_asked_is_an_error_not_a_crash(tmp_path, monkeypat
 
     from cs_image_system.contract.lifecycles import Lifecycle
     from cs_image_system.engine import accounts_reconcile
-    from tests.harness import V2Run
+    from tests.harness import FixtureRun
     _Opa(monkeypatch, error=RuntimeError("HTTP 401 from OPA"))
     session = _Session(monkeypatch)
-    run = V2Run(tmp_path, monkeypatch)
+    run = FixtureRun(tmp_path, monkeypatch)
     try:
         ms = run.ctx.meta_state
         ms.record_launch_params("test", dict(ms.launch_params().get("test") or {"hostname": "test"}) | {"launched": True})

@@ -14,14 +14,14 @@ from pathlib import Path
 
 import pytest
 
-from tests.harness import V2Run, command_lines, copy_config
+from tests.harness import FixtureRun, command_lines, copy_config
 
 GCE = "gcloud-east1"
 
 
 @pytest.fixture
 def run(tmp_path: Path, monkeypatch):
-    r = V2Run(tmp_path, monkeypatch, config_root=copy_config(tmp_path))
+    r = FixtureRun(tmp_path, monkeypatch, config_root=copy_config(tmp_path))
     try:
         yield r
     finally:

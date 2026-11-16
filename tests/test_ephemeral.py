@@ -15,7 +15,7 @@ from pathlib import Path
 import pytest
 import yaml
 
-from tests.harness import V2Run, command_lines, copy_config
+from tests.harness import FixtureRun, command_lines, copy_config
 
 GCE_ROOT = "tofu-gce/instance-generation"
 
@@ -33,10 +33,10 @@ def _declare_ephemeral(root: Path, name: str) -> None:
 def prepared(tmp_path: Path, monkeypatch):
     root = copy_config(tmp_path)
     _declare_ephemeral(root, "gce-test")
-    runs: list[V2Run] = []
+    runs: list[FixtureRun] = []
 
-    def make(**kw) -> V2Run:
-        run = V2Run(tmp_path, monkeypatch, config_root=root, **kw)
+    def make(**kw) -> FixtureRun:
+        run = FixtureRun(tmp_path, monkeypatch, config_root=root, **kw)
         runs.append(run)
         return run
     try:
@@ -211,7 +211,7 @@ def _set_runtime(root: Path, name: str, **fields) -> None:
     p.write_text(yaml.safe_dump(d, sort_keys=False))
 
 
-def _record_failed_verification(run: V2Run, name: str, when: str) -> None:
+def _record_failed_verification(run: FixtureRun, name: str, when: str) -> None:
     run.ctx.meta_state.record_verification({"instance": name, "run": "r0", "ok": False, "time": when,
                                             "checks": [{"name": "booted image", "ok": False, "detail": "x"}]})
 

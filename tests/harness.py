@@ -2,9 +2,9 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""Shared harness for the V2 gate tests.
+"""Shared harness for the tests that run the meta-workflow.
 
-Every V2 test runs the real pipeline over a private COPY of the frozen
+Every such test runs the real pipeline over a private COPY of the frozen
 fixture (``tests/fixtures/config``: owned by the tests, never a
 live configuration) with all external touchpoints stubbed:
 
@@ -265,7 +265,7 @@ def stub_environment(monkeypatch) -> list[str]:
                         lambda self, osb: ("debian-11-v1", "debian-cloud", {}))
     # The read-only state-query hooks would reach AWS/OPA: answer "nothing
     # of ours exists" by default. Tests of the query itself re-patch these
-    # AFTER constructing their V2Run.
+    # AFTER constructing their FixtureRun.
     from cs_image_system.okta_opa_plugin.okta_opa_tf_group_builder import OktaTfGroupBuilder
     from cs_image_system.tofu_roots.tofu_storage_builder import TofuStorageBuilderBase
     monkeypatch.setattr(AwsCloudBuilder, "query_images", lambda self, series: [])
@@ -339,7 +339,7 @@ def stub_environment(monkeypatch) -> list[str]:
     # system's CLI registers at import. The harness journals them the same
     # way (the same line a spawned step would have produced), so a test
     # reads one journal; a test of the in-process path itself registers
-    # its own runner after constructing its V2Run.
+    # its own runner after constructing its FixtureRun.
     import cs_image_system.system.cli  # noqa: F401 - registers the real runner BEFORE the patch window, so the
     from cs_image_system.contract.constants import SYSTEM_CLI
     from cs_image_system.engine import in_process as _in_process
@@ -377,7 +377,7 @@ def cli_context(ctx) -> Any:
     return cast(Any, types.SimpleNamespace(obj={"ctx": ctx}))
 
 
-def run_v2(ctx, lifecycles: list[str] | str = "all", *, apply: bool = True, commit: bool = False,
+def drive_lifecycles(ctx, lifecycles: list[str] | str = "all", *, apply: bool = True, commit: bool = False,
            state_query: bool = False, only: list[str] | None = None,
            force_bake: list[str] | None = None):
     """``ctx`` is the context ``load_context`` returned (passed, never
@@ -390,7 +390,7 @@ def run_v2(ctx, lifecycles: list[str] | str = "all", *, apply: bool = True, comm
                           state_query=state_query, only=only, force_bake=force_bake)
 
 
-class V2Run:
+class FixtureRun:
     """One prepared config copy + context; ``run()`` drives lifecycles."""
 
     def __init__(self, tmp_path: Path, monkeypatch, dry_run: bool = True, config_root: Path | None = None,
@@ -406,7 +406,7 @@ class V2Run:
     def run(self, lifecycles: list[str] | str = "all", *, apply: bool = True, commit: bool = False,
             state_query: bool = False, only: list[str] | None = None,
             force_bake: list[str] | None = None):
-        summary = run_v2(self.ctx, lifecycles, apply=apply, commit=commit, state_query=state_query, only=only,
+        summary = drive_lifecycles(self.ctx, lifecycles, apply=apply, commit=commit, state_query=state_query, only=only,
                          force_bake=force_bake)
         return summary
 

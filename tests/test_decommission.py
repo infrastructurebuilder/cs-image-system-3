@@ -25,7 +25,7 @@ from pathlib import Path
 import pytest
 import yaml
 
-from tests.harness import V2Run, cli_context, copy_config
+from tests.harness import FixtureRun, cli_context, copy_config
 
 GCE_ROOT = Path("instance-image") / "tofu-gce" / "instance-generation"
 AWS_ROOT = Path("instance-image") / "open-tofu" / "instance-generation"
@@ -76,14 +76,14 @@ def _seed_launched(root: Path, name: str, build: str, runtime: str) -> None:
 @pytest.fixture
 def prepared(tmp_path: Path, monkeypatch):
     """A config copy recording gce-test as launched, plus a factory that
-    builds the run AFTER the test mutated the copy (V2Run loads the context
+    builds the run AFTER the test mutated the copy (FixtureRun loads the context
     at construction)."""
     root = copy_config(tmp_path)
     _seed_launched(root, "gce-test", GCE_BUILD, "gcloud-east1")
-    runs: list[V2Run] = []
+    runs: list[FixtureRun] = []
 
-    def make_run(dry_run: bool = True) -> V2Run:
-        run = V2Run(tmp_path, monkeypatch, config_root=root, dry_run=dry_run)
+    def make_run(dry_run: bool = True) -> FixtureRun:
+        run = FixtureRun(tmp_path, monkeypatch, config_root=root, dry_run=dry_run)
         runs.append(run)
         return run
     try:
@@ -175,7 +175,7 @@ def test_deferred_parent_binds_from_the_booted_image_after_apply(tmp_path, monke
     cfg = root / "cfg" / "_config.yml"
     cfg.write_text(cfg.read_text().replace("  apply_instances: false", "  apply_instances: true"))
     monkeypatch.setattr(GCPCloudBuilder, "query_instance_boot_image", lambda self, name: GCE_BUILD)
-    run = V2Run(tmp_path, monkeypatch, config_root=root)
+    run = FixtureRun(tmp_path, monkeypatch, config_root=root)
     try:
         assert run.run(["instance-image"], apply=False).ok
         builder = run.ctx.instance_builders["tofu-gce"]

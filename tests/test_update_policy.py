@@ -17,14 +17,14 @@ from pathlib import Path
 
 import pytest
 import yaml
-from harness import V2Run, copy_config
+from harness import FixtureRun, copy_config
 
 BASE_BUILD = Path("base-image/pckr-ebs-ans/image-generation/block-000/pckr-ebs-ans-image-generation-block-000-build.pkr.hcl")
 
 
 @pytest.fixture
-def v2(tmp_path, monkeypatch):
-    run = V2Run(tmp_path, monkeypatch)
+def fixture_run(tmp_path, monkeypatch):
+    run = FixtureRun(tmp_path, monkeypatch)
     yield run
     run.restore_cwd()
 
@@ -35,9 +35,9 @@ def _update_block(build: str, image: str) -> str:
     return build[start:end]
 
 
-def test_security_policy_with_packages_and_exclude_on_rhel(v2):
-    assert v2.run(["base-image"], apply=False).ok
-    build = (v2.generated / BASE_BUILD).read_text()
+def test_security_policy_with_packages_and_exclude_on_rhel(fixture_run):
+    assert fixture_run.run(["base-image"], apply=False).ok
+    build = (fixture_run.generated / BASE_BUILD).read_text()
     blk = _update_block(build, "basic-rh-10")
     assert "policy=security" in blk and "packages=['openssl']" in blk and "exclude=['kernel*']" in blk
     assert "subscription-manager repos --enable='rhel-10-for-x86_64-baseos-rpms'" in blk   # EL10
@@ -60,13 +60,13 @@ def test_auto_update_is_an_alias_for_full(tmp_path, monkeypatch):
         if osb["name"] == "basic-rhel-9":
             osb.pop("update", None); osb["auto_update"] = True
     p.write_text(yaml.safe_dump(d, sort_keys=False))
-    v2 = V2Run(tmp_path, monkeypatch, config_root=root)
+    fixture_run = FixtureRun(tmp_path, monkeypatch, config_root=root)
     try:
-        assert v2.run(["base-image"], apply=False).ok
-        build = (v2.generated / BASE_BUILD).read_text()
+        assert fixture_run.run(["base-image"], apply=False).ok
+        build = (fixture_run.generated / BASE_BUILD).read_text()
         _assert_alias_full(build)
     finally:
-        v2.restore_cwd()
+        fixture_run.restore_cwd()
 
 
 def _assert_alias_full(build: str) -> None:
@@ -116,7 +116,7 @@ def test_policy_validation_is_a_hard_failure(tmp_path, monkeypatch):
         if ob["name"] == "basic-rhel-9":
             ob["update"] = {"policy": "packages"}
     p.write_text(yaml.safe_dump(data, sort_keys=False))
-    run = V2Run(tmp_path, monkeypatch, config_root=root)
+    run = FixtureRun(tmp_path, monkeypatch, config_root=root)
     try:
         summary = run.run(["base-image"], apply=False)
         assert not summary.ok
@@ -128,18 +128,18 @@ def test_policy_validation_is_a_hard_failure(tmp_path, monkeypatch):
         run.restore_cwd()
 
 
-def test_lineage_carries_the_policy_and_fingerprint_changes_with_it(v2):
+def test_lineage_carries_the_policy_and_fingerprint_changes_with_it(fixture_run):
     from cs_image_system.base.lineage import input_fingerprint
-    assert v2.run(["base-image"], apply=False).ok
-    ctx = v2.ctx
+    assert fixture_run.run(["base-image"], apply=False).ok
+    ctx = fixture_run.ctx
     from cs_image_system.contract.lifecycle import ExecutionLifecyclePhase
     from cs_image_system.contract.lifecycles import Lifecycle
-    (v2.generated / BASE_BUILD.parent / "manifest.json").write_text(json.dumps({"last_run_uuid": "u", "builds": [
+    (fixture_run.generated / BASE_BUILD.parent / "manifest.json").write_text(json.dumps({"last_run_uuid": "u", "builds": [
         {"name": "basic-rh-10", "packer_run_uuid": "u", "artifact_id": "us-east-2:ami-0base0001"}]}))
     ctx.current_lifecycle = Lifecycle.BASE_IMAGE
     ctx.image_builders["pckr-ebs-ans"].post_finalize_phase(ExecutionLifecyclePhase.IMAGE_GENERATION)
     ctx.current_lifecycle = None
-    build = next(b for b in yaml.safe_load((v2.meta_state / "lineage.yaml").read_text())["builds"]
+    build = next(b for b in yaml.safe_load((fixture_run.meta_state / "lineage.yaml").read_text())["builds"]
                  if b["build_id"] == "ami-0base0001")
     assert build["update"] == {"policy": "security", "packages": ["openssl"], "exclude": ["kernel*"], "pin": {}}
     base = next(i for i in ctx.image_builders["pckr-ebs-ans"].get_images(os_builder=True) if i.get_name() == "basic-rh-10")

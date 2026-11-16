@@ -234,7 +234,7 @@ builder name and `<ph>` is `image-generation`.
    2. identity activation for the image's owning `group` (the group
       builder's `activation_commands`);
    3. the local modification bundle
-      ([v2_local_mods.py](src/cs_image_system/packer_plugin/v2_local_mods.py)):
+      ([local_mods.py](src/cs_image_system/packer_plugin/local_mods.py)):
       `csis-mods/<image>/` is staged in the block directory with the
       `csis-mods` runner script, a `MANIFEST.yaml` index, and one
       `NN-<mod>/` directory per modification (its playbooks or scripts,
@@ -270,7 +270,7 @@ builder name and `<ph>` is `image-generation`.
 ## Emission
 
 Real file names from the golden emission under
-[tests/fixtures/v2_golden/generated](../../tests/fixtures/v2_golden/generated).
+[tests/fixtures/golden/generated](../../tests/fixtures/golden/generated).
 The base-image lifecycle emits under `base-image/`, the instance-image
 lifecycle under `instance-image/`.
 
@@ -279,15 +279,15 @@ images with no mutual dependencies):
 
 | File | Content |
 |---|---|
-| [pckr-ebs-ans-image-generation-block-000-build.pkr.hcl](../../tests/fixtures/v2_golden/generated/base-image/pckr-ebs-ans/image-generation/block-000/pckr-ebs-ans-image-generation-block-000-build.pkr.hcl) | `build "pckr-ebs-ans-block-000"`; per image: OS update, admin user, `okta` prerequisites, `ebs`/`efs`/`s3` prerequisites (`gcs` and `pd` as "no plugin on runtime" comments), SSM agent, verification; then the manifest post-processor. |
-| [...-block-000-ebs-ansible-setup.pkr.hcl](../../tests/fixtures/v2_golden/generated/base-image/pckr-ebs-ans/image-generation/block-000/pckr-ebs-ans-image-generation-block-000-ebs-ansible-setup.pkr.hcl) | The `locals` block. |
-| [...-block-000-plugins.pkr.hcl](../../tests/fixtures/v2_golden/generated/base-image/pckr-ebs-ans/image-generation/block-000/pckr-ebs-ans-image-generation-block-000-plugins.pkr.hcl) | `required_plugins` `amazon` and `ansible`. |
-| [...-block-000-vars.pkr.hcl](../../tests/fixtures/v2_golden/generated/base-image/pckr-ebs-ans/image-generation/block-000/pckr-ebs-ans-image-generation-block-000-vars.pkr.hcl) | `release` and `base_image_version`. |
-| [...-source-basic-rh-10-block-000.pkr.hcl](../../tests/fixtures/v2_golden/generated/base-image/pckr-ebs-ans/image-generation/block-000/pckr-ebs-ans-image-generation-source-basic-rh-10-block-000.pkr.hcl), `-source-basic-rhel-9-`, `-source-my-deb-12-` | `data "amazon-ami"` (resolved image id) and `source "amazon-ebs"` (name, instance type, VPC, subnet, tags, SSM session interface, block device). |
-| [run-base-image.sh](../../tests/fixtures/v2_golden/generated/base-image/run-base-image.sh) | `packer build .` in each block directory. |
+| [pckr-ebs-ans-image-generation-block-000-build.pkr.hcl](../../tests/fixtures/golden/generated/base-image/pckr-ebs-ans/image-generation/block-000/pckr-ebs-ans-image-generation-block-000-build.pkr.hcl) | `build "pckr-ebs-ans-block-000"`; per image: OS update, admin user, `okta` prerequisites, `ebs`/`efs`/`s3` prerequisites (`gcs` and `pd` as "no plugin on runtime" comments), SSM agent, verification; then the manifest post-processor. |
+| [...-block-000-ebs-ansible-setup.pkr.hcl](../../tests/fixtures/golden/generated/base-image/pckr-ebs-ans/image-generation/block-000/pckr-ebs-ans-image-generation-block-000-ebs-ansible-setup.pkr.hcl) | The `locals` block. |
+| [...-block-000-plugins.pkr.hcl](../../tests/fixtures/golden/generated/base-image/pckr-ebs-ans/image-generation/block-000/pckr-ebs-ans-image-generation-block-000-plugins.pkr.hcl) | `required_plugins` `amazon` and `ansible`. |
+| [...-block-000-vars.pkr.hcl](../../tests/fixtures/golden/generated/base-image/pckr-ebs-ans/image-generation/block-000/pckr-ebs-ans-image-generation-block-000-vars.pkr.hcl) | `release` and `base_image_version`. |
+| [...-source-basic-rh-10-block-000.pkr.hcl](../../tests/fixtures/golden/generated/base-image/pckr-ebs-ans/image-generation/block-000/pckr-ebs-ans-image-generation-source-basic-rh-10-block-000.pkr.hcl), `-source-basic-rhel-9-`, `-source-my-deb-12-` | `data "amazon-ami"` (resolved image id) and `source "amazon-ebs"` (name, instance type, VPC, subnet, tags, SSM session interface, block device). |
+| [run-base-image.sh](../../tests/fixtures/golden/generated/base-image/run-base-image.sh) | `packer build .` in each block directory. |
 
 The GCE builder `pckr-gce-ans` emits the same set of files under
-[base-image/pckr-gce-ans/image-generation/block-000](../../tests/fixtures/v2_golden/generated/base-image/pckr-gce-ans/image-generation/block-000);
+[base-image/pckr-gce-ans/image-generation/block-000](../../tests/fixtures/golden/generated/base-image/pckr-gce-ans/image-generation/block-000);
 its source file holds a `source "googlecompute"` block with `image_name`,
 `image_family`, `image_labels`, `use_iap`, `preemptible`, `disk_size`.
 
@@ -295,12 +295,12 @@ Instance-image lifecycle, builder `pckr-ebs-ans`:
 
 | File | Content |
 |---|---|
-| [block-000/pckr-ebs-ans-image-generation-block-000-build.pkr.hcl](../../tests/fixtures/v2_golden/generated/instance-image/pckr-ebs-ans/image-generation/block-000/pckr-ebs-ans-image-generation-block-000-build.pkr.hcl) | Four images: their modification provisioners (`ansible`, `shell`), identity activation, local bundle upload, verification. |
-| [block-000/...-source-imgfile-basic-dask-block-000.pkr.hcl](../../tests/fixtures/v2_golden/generated/instance-image/pckr-ebs-ans/image-generation/block-000/pckr-ebs-ans-image-generation-source-imgfile-basic-dask-block-000.pkr.hcl) | A `data "amazon-ami"` most-recent query on the parent series name (`basic-rh-10-aws-east2-runtime*`, owner `self`) and the `source "amazon-ebs"`. |
-| [block-000/csis-mods/imgfile-basic-dask/](../../tests/fixtures/v2_golden/generated/instance-image/pckr-ebs-ans/image-generation/block-000/csis-mods/imgfile-basic-dask/MANIFEST.yaml) | The local bundle: `csis-mods`, `MANIFEST.yaml`, `01-dask-setup-jeffy/`, `02-derivative-setup/`. |
+| [block-000/pckr-ebs-ans-image-generation-block-000-build.pkr.hcl](../../tests/fixtures/golden/generated/instance-image/pckr-ebs-ans/image-generation/block-000/pckr-ebs-ans-image-generation-block-000-build.pkr.hcl) | Four images: their modification provisioners (`ansible`, `shell`), identity activation, local bundle upload, verification. |
+| [block-000/...-source-imgfile-basic-dask-block-000.pkr.hcl](../../tests/fixtures/golden/generated/instance-image/pckr-ebs-ans/image-generation/block-000/pckr-ebs-ans-image-generation-source-imgfile-basic-dask-block-000.pkr.hcl) | A `data "amazon-ami"` most-recent query on the parent series name (`basic-rh-10-aws-east2-runtime*`, owner `self`) and the `source "amazon-ebs"`. |
+| [block-000/csis-mods/imgfile-basic-dask/](../../tests/fixtures/golden/generated/instance-image/pckr-ebs-ans/image-generation/block-000/csis-mods/imgfile-basic-dask/MANIFEST.yaml) | The local bundle: `csis-mods`, `MANIFEST.yaml`, `01-dask-setup-jeffy/`, `02-derivative-setup/`. |
 | `block-000/setup_dask.yml`, `setup_data_science.yml`, `mod_image.sh`, `modify_image.yml` | Playbooks and scripts copied beside the root by the modification builders. |
-| [block-001/pckr-ebs-ans-image-generation-block-001-build.pkr.hcl](../../tests/fixtures/v2_golden/generated/instance-image/pckr-ebs-ans/image-generation/block-001/pckr-ebs-ans-image-generation-block-001-build.pkr.hcl) | The second block: `imgfile-basic-cloudflow`, whose `source_image` is built in block-000. |
-| [run-instance-image.sh](../../tests/fixtures/v2_golden/generated/instance-image/run-instance-image.sh) | `packer build .` per block for `pckr-ebs-ans` (two blocks), `pckr-gce-ans` and `some-other-builder` (with its own executable, `packer-1.9.4`), before the instance roots' terraform commands. |
+| [block-001/pckr-ebs-ans-image-generation-block-001-build.pkr.hcl](../../tests/fixtures/golden/generated/instance-image/pckr-ebs-ans/image-generation/block-001/pckr-ebs-ans-image-generation-block-001-build.pkr.hcl) | The second block: `imgfile-basic-cloudflow`, whose `source_image` is built in block-000. |
+| [run-instance-image.sh](../../tests/fixtures/golden/generated/instance-image/run-instance-image.sh) | `packer build .` per block for `pckr-ebs-ans` (two blocks), `pckr-gce-ans` and `some-other-builder` (with its own executable, `packer-1.9.4`), before the instance roots' terraform commands. |
 
 ## Example configuration
 
@@ -751,7 +751,7 @@ the build and the manifest read) shows there as unrecorded.
 parents, manifest parsing (last run only, region prefix stripped, missing
 and malformed manifests). The repository's tests cover the emission
 itself: the golden tree under
-[tests/fixtures/v2_golden/generated](../../tests/fixtures/v2_golden/generated),
+[tests/fixtures/golden/generated](../../tests/fixtures/golden/generated),
 the assertion enforcement, the local bundle, the GCE parity, and the
 encrypted-key emission.
 
@@ -793,7 +793,7 @@ Packer's `file` provisioner cannot create the destination directory, so a
 provisioner. The message means the shell provisioner before the upload
 was removed or reordered; the three bundle provisioners must stay
 together, in
-[v2_local_mods.py](src/cs_image_system/packer_plugin/v2_local_mods.py)'s
+[local_mods.py](src/cs_image_system/packer_plugin/local_mods.py)'s
 order.
 
 **`Command failed after phase image-generation: packer (Return code: 1)`
@@ -801,7 +801,7 @@ at generation with an HCL parse error naming a provisioner line that
 contains `${` or `%{`.** Both sequences open Packer's interpolation and
 directive syntax inside string literals (an rpm query with `--qf
 '%{NAME}...'` is the usual carrier). `_quote()` in
-[v2_provisioners.py](src/cs_image_system/packer_plugin/v2_provisioners.py)
+[bake_provisioners.py](src/cs_image_system/packer_plugin/bake_provisioners.py)
 writes `$${` and `%%{`; any provisioner line that reaches the build file
 through another path (a modification builder's own emission) must escape
 the same two sequences.
@@ -894,9 +894,9 @@ Failures the code raises:
   `one_bake_user_per_chain`); the bake user itself comes from
   [bake_user.py](../base/src/cs_image_system/base/bake_user.py).
 - Provisioner helpers in this package:
-  [v2_provisioners.py](src/cs_image_system/packer_plugin/v2_provisioners.py)
+  [bake_provisioners.py](src/cs_image_system/packer_plugin/bake_provisioners.py)
   (admin user, prerequisites, activation),
-  [v2_local_mods.py](src/cs_image_system/packer_plugin/v2_local_mods.py)
+  [local_mods.py](src/cs_image_system/packer_plugin/local_mods.py)
   (the `csis-mods` bundle); in base:
   [image_tests.py](../base/src/cs_image_system/base/image_tests.py)
   (verification and finalization provisioners),

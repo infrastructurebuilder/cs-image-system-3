@@ -16,13 +16,13 @@ import logging
 import subprocess
 from pathlib import Path
 
-from tests.harness import V2Run
+from tests.harness import FixtureRun
 
 
 def test_an_aborted_run_gives_its_alias_draw_back(tmp_path: Path, monkeypatch, caplog):
     from cs_image_system.base import alias_pool as ap
     from cs_image_system.base.models.executable import ExecutableModel
-    run = V2Run(tmp_path, monkeypatch, dry_run=False)
+    run = FixtureRun(tmp_path, monkeypatch, dry_run=False)
     try:
         run.ctx.config["apply_instances"] = True
         pool = ap.pool_path(run.config_root)
@@ -49,7 +49,7 @@ def test_an_aborted_run_gives_its_alias_draw_back(tmp_path: Path, monkeypatch, c
 
 def test_a_draw_the_launch_gave_a_machine_stays_spent(tmp_path: Path, monkeypatch):
     from cs_image_system.base import alias_pool as ap
-    run = V2Run(tmp_path, monkeypatch, dry_run=False)
+    run = FixtureRun(tmp_path, monkeypatch, dry_run=False)
     try:
         run.ctx.config["apply_instances"] = True
         pool = ap.pool_path(run.config_root)

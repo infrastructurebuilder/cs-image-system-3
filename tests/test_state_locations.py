@@ -23,7 +23,7 @@ from types import SimpleNamespace
 
 import pytest
 import yaml
-from harness import V2Run, command_lines, copy_config
+from harness import FixtureRun, command_lines, copy_config
 
 EAST1 = "s3://my-east1-tfstate-bucket/statefiles/csia"
 EAST2 = "s3://noaa-ioos-cloud-sandbox-tfstate/statefiles/csia-image-system-test"
@@ -40,33 +40,33 @@ def _errors(ctx) -> list[str]:
     return [str(e) for e in state_location_problems(ctx)]
 
 
-def _records(run: V2Run) -> dict[str, dict]:
+def _records(run: FixtureRun) -> dict[str, dict]:
     return yaml.safe_load((run.meta_state / "state-locations.yaml").read_text())["workspaces"]
 
 
 # ------------------------------------------------------------- resolution and records
 
 def test_every_root_resolves_a_location_the_run_records_and_the_emission_carries(tmp_path, monkeypatch):
-    v2 = V2Run(tmp_path, monkeypatch)
-    assert _errors(v2.ctx) == []
-    assert v2.run("all", apply=False).ok
-    rec = _records(v2)
+    fixture_run = FixtureRun(tmp_path, monkeypatch)
+    assert _errors(fixture_run.ctx) == []
+    assert fixture_run.run("all", apply=False).ok
+    rec = _records(fixture_run)
     assert set(rec) >= {"aws-ebs", "aws-efs", "aws-s3", "gcp-pd", "gcp-gcs", "open-tofu", "tofu-gce",
                         "oktagroups", "okta-tf-users"}
     assert rec["aws-ebs"] == {"backend": "s3-east1", "type": "s3", "location": f"{EAST1}/aws_ebs.tfstate",
                               "bucket": "my-east1-tfstate-bucket", "key": "statefiles/csia/aws_ebs.tfstate",
                               "region": "us-east-1", "encrypt": True, "use_lockfile": True, "profile": "noaa",
-                              "run": v2.ctx.run_id}
+                              "run": fixture_run.ctx.run_id}
     assert rec["open-tofu"]["bucket"] == "noaa-ioos-cloud-sandbox-tfstate"      # own value: s3-east2
     assert rec["oktagroups"] == {"backend": "local-dev", "type": "local", "location": "local://state/oktagroups.tfstate",
-                                 "path": "../../../../state/oktagroups.tfstate", "run": v2.ctx.run_id}   # on disk
+                                 "path": "../../../../state/oktagroups.tfstate", "run": fixture_run.ctx.run_id}   # on disk
     # the read across TYPES: the instance root (s3) reads the identity root's state (local)
-    root_local = (v2.generated / "instance-image" / "open-tofu" / "instance-generation" / "open-tofu-instance-generation.tf").read_text()
+    root_local = (fixture_run.generated / "instance-image" / "open-tofu" / "instance-generation" / "open-tofu-instance-generation.tf").read_text()
     assert 'backend = "local"' in root_local and 'path = "../../../../state/oktagroups.tfstate"' in root_local
-    header = (v2.generated / "identity" / "run-identity.sh").read_text()
+    header = (fixture_run.generated / "identity" / "run-identity.sh").read_text()
     assert "# state: workspace oktagroups -> local://state/oktagroups.tfstate" in header
     # the cross-backend read: the instance root (backend A) reads storage state in backend B
-    inst = v2.generated / "instance-image" / "open-tofu" / "instance-generation"
+    inst = fixture_run.generated / "instance-image" / "open-tofu" / "instance-generation"
     root = (inst / "open-tofu-instance-generation.tf").read_text()
     assert 'bucket = "my-east1-tfstate-bucket"' in root and 'key = "statefiles/csia/aws_ebs.tfstate"' in root
     assert 'bucket = "noaa-ioos-cloud-sandbox-tfstate"' in (inst / "open-tofu-instance-generation.tfbackend.hcl").read_text()
@@ -83,10 +83,10 @@ def test_the_chain_reads_the_runtimes_backend_when_the_root_is_silent(tmp_path, 
         rt.pop("state_configuration", None)                       # every runtime silent (the fixture's docker runtime names one)
     next(rt for rt in d["runtime_builders"] if rt["name"] == "aws-east2-runtime")["state_configuration"] = "s3-east1"
     p.write_text(yaml.safe_dump(d, sort_keys=False))
-    v2 = V2Run(tmp_path, monkeypatch, config_root=root)
-    assert _errors(v2.ctx) == []
-    assert v2.run(["identity", "storage", "instance-image"], apply=False).ok
-    rec = _records(v2)
+    fixture_run = FixtureRun(tmp_path, monkeypatch, config_root=root)
+    assert _errors(fixture_run.ctx) == []
+    assert fixture_run.run(["identity", "storage", "instance-image"], apply=False).ok
+    rec = _records(fixture_run)
     assert rec["aws-ebs"]["backend"] == "s3-east1"                # inherited from aws-east2-runtime
     assert rec["gcp-pd"]["backend"] == "s3-east2"                 # gcloud-east1 is silent: the default
     assert rec["open-tofu"]["backend"] == "s3-east2"              # names its own
@@ -104,35 +104,35 @@ def test_two_roots_that_would_share_a_state_object_are_refused_before_anything_i
     twin.pop("is_default", None)
     d["instance_builders"].append(twin)
     p.write_text(yaml.safe_dump(d, sort_keys=False))
-    v2 = V2Run(tmp_path, monkeypatch, config_root=root)
-    errors = _errors(v2.ctx)
+    fixture_run = FixtureRun(tmp_path, monkeypatch, config_root=root)
+    errors = _errors(fixture_run.ctx)
     assert len(errors) == 1 and errors[0].startswith("state location collision:") and f"{EAST2}/open_tofu.tfstate" in errors[0]
-    summary = v2.run(["instance-image"], apply=False)
+    summary = fixture_run.run(["instance-image"], apply=False)
     assert not summary.ok and any("would share the state object" in e for e in summary.validation_errors)
 
 
 def test_an_undeclared_backend_name_is_refused(tmp_path, monkeypatch):
     root = copy_config(tmp_path)
     _rebind_storage(root, "s3-nowhere")
-    v2 = V2Run(tmp_path, monkeypatch, config_root=root)
-    assert any("'s3-nowhere'" in e and "not declared" in e for e in _errors(v2.ctx))
+    fixture_run = FixtureRun(tmp_path, monkeypatch, config_root=root)
+    assert any("'s3-nowhere'" in e and "not declared" in e for e in _errors(fixture_run.ctx))
 
 
 # ------------------------------------------------------------- the move guard
 
 def test_a_rebinding_with_nothing_deployed_passes_and_with_live_resources_is_refused(tmp_path, monkeypatch, caplog):
-    v2 = V2Run(tmp_path, monkeypatch)
-    assert v2.run("all", apply=False).ok                          # records every location
-    _rebind_storage(v2.config_root, "default")                    # the storage roots move to the default backend
-    again = V2Run(tmp_path, monkeypatch, config_root=v2.config_root)
+    fixture_run = FixtureRun(tmp_path, monkeypatch)
+    assert fixture_run.run("all", apply=False).ok                          # records every location
+    _rebind_storage(fixture_run.config_root, "default")                    # the storage roots move to the default backend
+    again = FixtureRun(tmp_path, monkeypatch, config_root=fixture_run.config_root)
     with caplog.at_level(logging.INFO):
         assert _errors(again.ctx) == []
     moved = [r.getMessage() for r in caplog.records if "moves its state" in r.getMessage()]
     assert moved and all("nothing is deployed" in m for m in moved)
     # now the records say a storage stands in aws-efs's state
-    (v2.config_root / "meta-state" / "storage-state.yaml").write_text(yaml.safe_dump(
+    (fixture_run.config_root / "meta-state" / "storage-state.yaml").write_text(yaml.safe_dump(
         {"storages": {"efs-storage": {"state": "active", "history": [], "facts": {"builder": "aws-efs"}}}}))
-    third = V2Run(tmp_path, monkeypatch, config_root=v2.config_root)
+    third = FixtureRun(tmp_path, monkeypatch, config_root=fixture_run.config_root)
     errors = _errors(third.ctx)
     assert len(errors) == 1, errors
     msg = errors[0]
@@ -148,27 +148,27 @@ def test_a_rebinding_with_nothing_deployed_passes_and_with_live_resources_is_ref
 def test_migrate_state_on_a_dry_run_is_refused_before_anything_runs(tmp_path, monkeypatch):
     """The CLI refuses the pair up front (exit 2) and the run itself refuses it
     too, so no path -- a hook, a script, a future command -- moves state dry."""
-    v2 = V2Run(tmp_path, monkeypatch)
-    v2.ctx.migrate_state = ["aws-efs"]
-    summary = v2.run(["storage"], apply=False)
+    fixture_run = FixtureRun(tmp_path, monkeypatch)
+    fixture_run.ctx.migrate_state = ["aws-efs"]
+    summary = fixture_run.run(["storage"], apply=False)
     assert not summary.ok and "needs --no-dry-run" in (summary.error or "") and "never moves state" in (summary.error or "")
-    assert not (v2.generated / "storage").exists()                # refused before anything was generated
+    assert not (fixture_run.generated / "storage").exists()                # refused before anything was generated
     from cs_image_system.system import cli
     src = Path(cli.__file__).read_text()
     assert "needs --no-dry-run" in src and "raise typer.Exit(code=2)" in src
 
 
 def test_a_migration_run_emits_the_operation_for_that_root_alone(tmp_path, monkeypatch):
-    v2 = V2Run(tmp_path, monkeypatch)
-    assert v2.run("all", apply=False).ok
-    _rebind_storage(v2.config_root, "default")
+    fixture_run = FixtureRun(tmp_path, monkeypatch)
+    assert fixture_run.run("all", apply=False).ok
+    _rebind_storage(fixture_run.config_root, "default")
     # a real run's validators want every runtime session present: static keys and an ADC file
     adc = tmp_path / "adc.json"
     adc.write_text(json.dumps({"type": "authorized_user"}))
     monkeypatch.setenv("AWS_ACCESS_KEY_ID", "AKIA-test")
     monkeypatch.setenv("AWS_SECRET_ACCESS_KEY", "secret-test")
     monkeypatch.setenv("GOOGLE_APPLICATION_CREDENTIALS", str(adc))
-    real = V2Run(tmp_path, monkeypatch, dry_run=False, config_root=v2.config_root)
+    real = FixtureRun(tmp_path, monkeypatch, dry_run=False, config_root=fixture_run.config_root)
     real.ctx.migrate_state = ["aws-efs"]
     summary = real.run(["storage"], apply=True)
     assert summary.ok, summary.error
@@ -289,15 +289,15 @@ def test_the_gcs_backend_is_declared_bound_to_nothing_and_its_commented_twin_loa
     live tree carries the same file with every line commented out, which
     loads as no declaration at all."""
     from cs_image_system.hashicorp_utils.collector import terraform_collector
-    v2 = V2Run(tmp_path, monkeypatch)
-    reg = terraform_collector(v2.ctx).resolve_backend("gcs-east1")
+    fixture_run = FixtureRun(tmp_path, monkeypatch)
+    reg = terraform_collector(fixture_run.ctx).resolve_backend("gcs-east1")
     assert reg is not None and reg.type == "gcs" and reg.settings["bucket"] == "csis-sandbox-tfstate"
     assert str(reg.state_location("gcp-pd")) == "gcs://csis-sandbox-tfstate/statefiles/csia/gcp_pd/default.tfstate"
-    assert v2.run("all", apply=False).ok
-    assert not [ws for ws, rec in _records(v2).items() if rec["backend"] == "gcs-east1"]
+    assert fixture_run.run("all", apply=False).ok
+    assert not [ws for ws, rec in _records(fixture_run).items() if rec["backend"] == "gcs-east1"]
     root = copy_config(tmp_path / "live-shape")
     source = (root / "cfg" / "state-gcm.yml").read_text().splitlines()
     (root / "cfg" / "state-gcm.yml").write_text("\n".join(f"# {line}" if line and not line.startswith("#") else line or "#" for line in source) + "\n")
     assert not [line for line in (root / "cfg" / "state-gcm.yml").read_text().splitlines() if not line.startswith("#")]
-    live = V2Run(tmp_path / "live-shape", monkeypatch, config_root=root)
+    live = FixtureRun(tmp_path / "live-shape", monkeypatch, config_root=root)
     assert terraform_collector(live.ctx).resolve_backend("gcs-east1") is None

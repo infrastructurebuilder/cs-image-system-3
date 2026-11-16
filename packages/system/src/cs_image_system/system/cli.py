@@ -4,10 +4,10 @@
 
 """cs-image-system command line interface.
 
-V2 (DESIGN §3A, 3C and 3G): the primary entry point is ``run``, which drives any
-subset of the four lifecycles -- identity, storage, base-image,
-instance-image -- in declared order, headlessly. The V1 commands remain as
-aliases onto the same runner.
+The primary entry point is ``run`` (DESIGN §3A, 3C and 3G), which drives any
+subset of the lifecycles -- identity, storage, base-image, instance-image
+and the registered ones -- in declared order, headlessly. ``build-all`` and
+``generate`` are aliases onto the same runner.
 """
 import contextlib
 import json
@@ -233,7 +233,7 @@ def run_command(
              "generated, because the tree's CI installs the pin and can judge the recording BEHIND. "
              "A tree without .csis-version, and a run without --commit, are not checked.")] = False,
 ) -> None:
-    """Run one or more lifecycles of the meta-workflow (V2)."""
+    """Run one or more lifecycles of the meta-workflow."""
     _hold_to_pin(Path(_loaded(ctx).working_path), commit, allow_unpinned)
     # registered lifecycles (release, retention) must exist before `all` /
     # a name is resolved -- found live: a fresh process resolved --all to
@@ -311,7 +311,7 @@ def validate_command(
              "record the facts in meta-state/runtime-facts.yaml, as a real run does; without it the rules read "
              "the record alone and no cloud is reached")] = False,
 ) -> None:
-    """Validate the configuration (V1 checks plus every V2 rule); generates nothing."""
+    """Validate the configuration against every rule; generates nothing."""
     try:
         errors = validate_only(_loaded(ctx), online=online)
     except NetworkFactsError as e:
@@ -1515,35 +1515,33 @@ def identity_attributes_command(
             typer.secho("attributes already match", fg=typer.colors.GREEN)
 
 
-# V1's `test`, `verify` and `cleanup` were placeholders for lifecycle phases V1
-# planned and never built. V2 built each of them somewhere else and under another
-# name, so the placeholders were retired: `verify` was deleted
-# outright (the `verify` command GROUP above shadowed it -- it could never run),
-# and these two now name their replacement and exit 2 instead of printing a
-# warning and succeeding, which is what an old script needs.
+# `test` and `cleanup` are retired command names: what each would do is done
+# by other commands, under other names. Each names its replacements and exits
+# 2, never a warning that succeeds, which an old script would read as success.
+# (`verify` is the command GROUP above.)
 _RETIRED = {
-    "test": "V2 has no single 'test' phase: `test-mods` runs the modification tests in a "
+    "test": "There is no single 'test' phase: `test-mods` runs the modification tests in a "
             "container, `verify instance` runs an image's post-bake tests on a launched "
             "instance, and `just test` runs the suite.",
-    "cleanup": "V2 disposes through the recorded path: the retention lifecycle (`run retention`) "
+    "cleanup": "Disposal goes through the recorded path: the retention lifecycle (`run retention`) "
                "applies the declared policy, and `dispose image` removes a specific build.",
 }
 
 
 def _retired(name: str) -> None:
-    typer.secho(f"{name}: retired in V2. {_RETIRED[name]}", fg=typer.colors.RED, err=True)
+    typer.secho(f"{name}: retired. {_RETIRED[name]}", fg=typer.colors.RED, err=True)
     raise typer.Exit(code=2)
 
 
 @app.command(name="test")
 def test_command(ctx: typer.Context) -> None:
-    """Retired V1 command: names its V2 replacements and exits 2."""
+    """Retired: names its replacements and exits 2."""
     _retired("test")
 
 
 @app.command(name="cleanup")
 def cleanup_command(ctx: typer.Context) -> None:
-    """Retired V1 command: names its V2 replacements and exits 2."""
+    """Retired: names its replacements and exits 2."""
     _retired("cleanup")
 
 
@@ -1759,7 +1757,7 @@ def main(
     if not nested and any(arg in ("--help", "-h") for arg in sys.argv[1:]):
         return                      # a help request loads nothing: the command's own text answers it
     if typer_cntx.invoked_subcommand in ("test", "cleanup"):
-        return                      # retired V1 names: refuse without loading anything
+        return                      # retired names: refuse without loading anything
     if typer_cntx.invoked_subcommand == "bootstrap":
         # the interview reads the checkout and the raw cfg/*.yml;
         # the sessions and federation it makes may not exist yet, so nothing loads
@@ -1811,8 +1809,8 @@ def main(
     # meta-state/runtime-facts.yaml), so a run prints its sessions itself,
     # after the load (`session_lines`), and `preflight` reads the loaded tree
     try:
-        # V2 reads the whole configuration every time; --base-only only selects
-        # the base-image lifecycle (it no longer changes what is read).
+        # the whole configuration is read every time; --base-only only selects
+        # the base-image lifecycle and never changes what is read
         loaded = read_config_and_transform(typer_cntx,
                                            root_dir,
                                            verbose,

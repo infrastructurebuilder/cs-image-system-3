@@ -22,7 +22,7 @@ import subprocess
 from pathlib import Path
 
 import pytest
-from harness import V2Run, copy_config, modules_beside
+from harness import FixtureRun, copy_config, modules_beside
 
 # module sources are filesystem paths (relative or absolute); provider
 # sources ("hashicorp/aws") are registry addresses and are not paths.
@@ -40,7 +40,7 @@ def relocated(tmp_path, monkeypatch):
     shape of an independent configuration repository."""
     config = copy_config(tmp_path, "cfgrepo")
     modules_beside(config)
-    run = V2Run(tmp_path, monkeypatch, config_root=config)
+    run = FixtureRun(tmp_path, monkeypatch, config_root=config)
     yield run
     run.restore_cwd()
 
@@ -134,7 +134,7 @@ def test_meta_state_commit_leaves_an_operators_staged_edit_alone(relocated):
 
 def test_meta_state_commit_is_skipped_outside_a_git_repo(tmp_path, monkeypatch):
     # tmp_path is never inside a git repository
-    run = V2Run(tmp_path / "x", monkeypatch)
+    run = FixtureRun(tmp_path / "x", monkeypatch)
     try:
         summary = run.run(["identity"], apply=False, commit=True)
         assert summary.ok, summary.error

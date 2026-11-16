@@ -28,7 +28,7 @@ variable "tags" {
   default = {}
 }
 
-# V2 group access (DESIGN Q3/N13/N15): one access point per allowed group,
+# Group access (DESIGN Q3/N13/N15): one access point per allowed group,
 # rooted at the group's private subtree, owned by the group's gid (which the
 # caller passes BY REFERENCE from the identity workspace's outputs -- never a
 # literal), with the subtree mode from share_mode (2770 private / 2775 read-

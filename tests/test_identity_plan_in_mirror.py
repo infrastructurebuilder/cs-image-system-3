@@ -17,7 +17,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from tests.harness import V2Run
+from tests.harness import FixtureRun
 
 
 def _plans(journal: list[str]) -> list[str]:
@@ -36,7 +36,7 @@ def _credentials_present(monkeypatch) -> None:
 
 def test_a_real_run_plans_the_identity_roots_in_the_mirror_after_an_init_there(tmp_path: Path, monkeypatch):
     _credentials_present(monkeypatch)
-    run = V2Run(tmp_path, monkeypatch, dry_run=False)
+    run = FixtureRun(tmp_path, monkeypatch, dry_run=False)
     try:
         run.run(["identity"], apply=False)
         journal = run.journal
@@ -66,7 +66,7 @@ def test_a_real_run_plans_the_identity_roots_in_the_mirror_after_an_init_there(t
 
 def test_a_dry_run_neither_plans_nor_materialises_at_generation(tmp_path: Path, monkeypatch):
     _credentials_present(monkeypatch)
-    run = V2Run(tmp_path, monkeypatch)
+    run = FixtureRun(tmp_path, monkeypatch)
     try:
         run.run(["identity"], apply=False)
         assert _plans(run.journal) == []

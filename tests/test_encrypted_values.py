@@ -16,7 +16,7 @@ from __future__ import annotations
 from dataclasses import field
 
 import pytest
-from harness import FIXTURE_CONFIG, V2Run
+from harness import FIXTURE_CONFIG, FixtureRun
 from pydantic import ValidationError
 from pydantic.dataclasses import dataclass
 
@@ -143,7 +143,7 @@ def test_rotate_text_reencrypts_every_marker_to_the_new_recipients(monkeypatch):
 def test_the_fixture_rosters_are_encrypted_and_load_to_the_same_people(tmp_path, monkeypatch):
     users = (FIXTURE_CONFIG / "groups" / "users.yaml").read_text()
     assert "ENC[age:" in users and "@" not in "".join(l for l in users.splitlines() if not l.strip().startswith("#"))
-    run = V2Run(tmp_path, monkeypatch)                                  # stub_environment sets the fixture identity
+    run = FixtureRun(tmp_path, monkeypatch)                                  # stub_environment sets the fixture identity
     try:
         groups = {g.get_name(): g for g in run.ctx.groups}
         assert all(isinstance(m, Decrypted) for m in groups["stofs"].members)

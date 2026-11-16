@@ -14,7 +14,7 @@ import shutil
 from pathlib import Path
 
 import yaml
-from harness import V2Run, copy_config
+from harness import FixtureRun, copy_config
 
 GCE_RUNTIME = "gcloud-east1"
 GCE_INSTANCE = "gce-test"
@@ -70,7 +70,7 @@ def test_a_dry_run_over_the_gcp_roots_alone_emits_them_with_the_plugins_modules(
     root = copy_config(tmp_path)
     builders, storages = gcp_only_roots(root)
     assert sorted(builders) == ["gcp-gcs", "gcp-pd"] and sorted(storages) == ["gce_bucket", "gce_data"]
-    run = V2Run(tmp_path, monkeypatch, config_root=root)
+    run = FixtureRun(tmp_path, monkeypatch, config_root=root)
     try:
         assert set(run.ctx.storage_builders) == set(builders)
         assert set(run.ctx.instance_builders) == {"tofu-gce"}

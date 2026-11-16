@@ -21,7 +21,7 @@ from typing import Any
 import pytest
 import typer
 
-from tests.harness import V2Run, cli_context, copy_config
+from tests.harness import FixtureRun, cli_context, copy_config
 
 GCE = "gcloud-east1"
 AWS = "aws-east2-runtime"
@@ -29,7 +29,7 @@ AWS = "aws-east2-runtime"
 
 @pytest.fixture
 def run(tmp_path: Path, monkeypatch):
-    r = V2Run(tmp_path, monkeypatch, config_root=copy_config(tmp_path))
+    r = FixtureRun(tmp_path, monkeypatch, config_root=copy_config(tmp_path))
     try:
         yield r
     finally:
@@ -127,7 +127,7 @@ def test_apply_runtime_implies_the_scope_beside_only(tmp_path, monkeypatch):
     once left the scope unimplied, so the run planned every other runtime's
     instance root after applying this one."""
     from cs_image_system.system import cli
-    run = V2Run(tmp_path, monkeypatch)
+    run = FixtureRun(tmp_path, monkeypatch)
     try:
         monkeypatch.setattr(cli, "_run", lambda ctx, lifecycles, **kw: None)
         cli.run_command(cli_context(run.ctx), lifecycles=["instance-image"], only=["none"], apply_runtime=AWS)

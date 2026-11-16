@@ -211,7 +211,7 @@ from it teaches the right layout. The group builder writes
 nothing, and neither builder defers a command, so that one file is all a
 run with a dummy builder produces. The frozen fixture declares neither, so
 the golden emission under
-[tests/fixtures/v2_golden/generated](../../tests/fixtures/v2_golden/generated)
+[tests/fixtures/golden/generated](../../tests/fixtures/golden/generated)
 carries no dummy output.
 
 The hook plugin's emission is outside `generated/`: one JSON line appended

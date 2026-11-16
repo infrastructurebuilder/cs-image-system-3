@@ -19,7 +19,7 @@ import logging
 
 import pytest
 import yaml
-from harness import FIXTURE_CONFIG, V2Run, copy_config
+from harness import FIXTURE_CONFIG, FixtureRun, copy_config
 
 # ------------------------------------------- a modification with nothing to modify with
 
@@ -63,8 +63,8 @@ def test_every_runtime_default_image_builder_names_a_declared_image_builder():
 
 def test_a_load_of_the_fixture_prints_none_of_the_three_warnings(tmp_path, monkeypatch, caplog):
     with caplog.at_level(logging.WARNING):
-        v2 = V2Run(tmp_path, monkeypatch)
-        assert v2.run(["identity", "storage"], apply=False).ok
+        fixture_run = FixtureRun(tmp_path, monkeypatch)
+        assert fixture_run.run(["identity", "storage"], apply=False).ok
     messages = [r.getMessage() for r in caplog.records if r.levelno >= logging.WARNING]
     for needle in ("still contains template tags", "already has a model assigned", "has no 'fk_target' metadata",
                    "FK resolution warning"):
@@ -73,15 +73,15 @@ def test_a_load_of_the_fixture_prints_none_of_the_three_warnings(tmp_path, monke
 
 def test_the_fixture_resolves_every_foreign_key_and_an_unknown_one_is_refused(tmp_path, monkeypatch):
     from cs_image_system.engine.commands.validate import check_foreign_keys
-    v2 = V2Run(tmp_path, monkeypatch)
+    fixture_run = FixtureRun(tmp_path, monkeypatch)
     # the object stage returned none to the loader, so the context carries none
-    assert v2.ctx.unresolved_foreign_keys == [] and check_foreign_keys(v2.ctx) == []
+    assert fixture_run.ctx.unresolved_foreign_keys == [] and check_foreign_keys(fixture_run.ctx) == []
     root = copy_config(tmp_path / "broken")
     p = root / "instances" / "instances.yaml"
     d = yaml.safe_load(p.read_text())
     d["instances"][0]["image"] = "no-such-image"
     p.write_text(yaml.safe_dump(d, sort_keys=False))
-    broken = V2Run(tmp_path / "broken", monkeypatch, config_root=root)
+    broken = FixtureRun(tmp_path / "broken", monkeypatch, config_root=root)
     errors = [str(e) for e in check_foreign_keys(broken.ctx)]
     assert errors and all("no-such-image" in e and "field 'image'" in e for e in errors), errors
     summary = broken.run(["instance-image"], apply=False)

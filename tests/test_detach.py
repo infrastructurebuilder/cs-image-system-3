@@ -17,7 +17,7 @@ from pathlib import Path
 import pytest
 import yaml
 
-from tests.harness import V2Run, command_lines, copy_config
+from tests.harness import FixtureRun, command_lines, copy_config
 
 GCE_ROOT = "tofu-gce/instance-generation"
 AWS_ROOT = "open-tofu/instance-generation"
@@ -52,10 +52,10 @@ def _lines_in(script: str, workspace: str) -> list[str]:
 @pytest.fixture
 def prepared(tmp_path: Path, monkeypatch):
     root = copy_config(tmp_path)
-    runs: list[V2Run] = []
+    runs: list[FixtureRun] = []
 
-    def make(**kw) -> V2Run:
-        run = V2Run(tmp_path, monkeypatch, config_root=root, **kw)
+    def make(**kw) -> FixtureRun:
+        run = FixtureRun(tmp_path, monkeypatch, config_root=root, **kw)
         runs.append(run)
         return run
     try:
@@ -65,7 +65,7 @@ def prepared(tmp_path: Path, monkeypatch):
             r.restore_cwd()
 
 
-def _record_current_mounts(run: V2Run, root: Path, name: str, build: str) -> list[dict]:
+def _record_current_mounts(run: FixtureRun, root: Path, name: str, build: str) -> list[dict]:
     """Seed the launch record from what the tree computes NOW (so only the
     later declaration change differs)."""
     from cs_image_system.base.launch_params import compute_launch_params

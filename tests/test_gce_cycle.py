@@ -21,7 +21,7 @@ import yaml
 
 from cs_image_system.base.meta_ledgers import PINS
 from cs_image_system.gcloud_runtime.gcp_runtime_builders import GCPCloudBuilder
-from tests.harness import V2Run, command_lines, copy_config
+from tests.harness import FixtureRun, command_lines, copy_config
 
 _REAL_GCE_RETAG = GCPCloudBuilder.retag_image     # captured before any harness stub replaces it
 
@@ -76,10 +76,10 @@ def prepared(tmp_path: Path, monkeypatch):
     taking the overlays to load."""
     root = copy_config(tmp_path)
     _undeclare(root, "gce-test")
-    runs: list[V2Run] = []
+    runs: list[FixtureRun] = []
 
-    def make_run(*overlays: str) -> V2Run:
-        run = V2Run(tmp_path, monkeypatch, config_root=root,
+    def make_run(*overlays: str) -> FixtureRun:
+        run = FixtureRun(tmp_path, monkeypatch, config_root=root,
                     overlays=[root / "overlays" / o for o in overlays])
         runs.append(run)
         return run
@@ -131,7 +131,7 @@ def test_undeclare_flag_decommissions_like_the_overlay_form(prepared, tmp_path, 
     leftover standing instance through the gate."""
     root, _ = prepared
     _seed_launched(root, "gce-test", GCE_BUILD, "gcloud-east1")
-    run = V2Run(tmp_path, monkeypatch, config_root=root, undeclare=["instance:gce-test"])
+    run = FixtureRun(tmp_path, monkeypatch, config_root=root, undeclare=["instance:gce-test"])
     try:
         # the recipe's --apply-runtime (the knob the overlay used to carry), as
         # the CLI applies it before run_lifecycles -- the harness has no CLI
@@ -228,7 +228,7 @@ def test_apply_check_rereads_the_overlay_config(prepared, capsys):
 
 
 def test_only_none_bakes_nothing(tmp_path: Path, monkeypatch):
-    run = V2Run(tmp_path, monkeypatch)
+    run = FixtureRun(tmp_path, monkeypatch)
     try:
         summary = run.run(["base-image", "instance-image"], apply=True, only=["none"])
         assert summary.ok, summary.error
@@ -277,7 +277,7 @@ def test_dispose_dry_run_deletes_nothing_and_reports_the_plan(tmp_path, monkeypa
     from cs_image_system.engine.commands.dispose import dispose_images
     root = copy_config(tmp_path)
     _seed_gce_chain(root)
-    run = V2Run(tmp_path, monkeypatch, config_root=root)          # dry_run=True
+    run = FixtureRun(tmp_path, monkeypatch, config_root=root)          # dry_run=True
     try:
         results = dispose_images(run.ctx, runtime="gcloud-east1", all_on_runtime=True)
         assert [r.build_id for r in results] == [GCE_BUILD, BASE_BUILD]   # children first
@@ -294,7 +294,7 @@ def test_dispose_deletes_drops_records_and_unpins(tmp_path, monkeypatch, stub_gc
     from cs_image_system.engine.commands.dispose import dispose_images
     root = copy_config(tmp_path)
     _seed_gce_chain(root)
-    run = V2Run(tmp_path, monkeypatch, config_root=root, dry_run=False)
+    run = FixtureRun(tmp_path, monkeypatch, config_root=root, dry_run=False)
     try:
         results = dispose_images(run.ctx, runtime="gcloud-east1", all_on_runtime=True)
         assert stub_gce_delete == [GCE_BUILD, BASE_BUILD]
@@ -320,7 +320,7 @@ def test_dispose_refuses_unrecorded_and_in_use_builds(tmp_path, monkeypatch, stu
     pins = yaml.safe_load((ms_dir / "pins.yaml").read_text())
     pins["instances"]["gce-test"] = GCE_BUILD                     # a launched instance runs it
     (ms_dir / "pins.yaml").write_text(yaml.safe_dump(pins, sort_keys=True))
-    run = V2Run(tmp_path, monkeypatch, config_root=root, dry_run=False)
+    run = FixtureRun(tmp_path, monkeypatch, config_root=root, dry_run=False)
     try:
         with pytest.raises(ValueError, match="not recorded in lineage"):
             dispose_images(run.ctx, ["no-such-build"])
@@ -347,7 +347,7 @@ def test_dispose_refuses_a_runtime_that_cannot_dispose(tmp_path, monkeypatch, st
     monkeypatch.setattr(AwsCloudBuilder, "dispose_image", RuntimeBuilderBase.dispose_image)
     root = copy_config(tmp_path)
     _seed_gce_chain(root)
-    run = V2Run(tmp_path, monkeypatch, config_root=root, dry_run=False)
+    run = FixtureRun(tmp_path, monkeypatch, config_root=root, dry_run=False)
     try:
         with pytest.raises(NotImplementedError, match="cannot dispose"):
             dispose_images(run.ctx, ["ami-0829ccceee6db194e"])
@@ -361,7 +361,7 @@ def test_dispose_refuses_a_runtime_that_cannot_dispose(tmp_path, monkeypatch, st
 def test_gce_bakes_are_preemptible_when_the_runtime_says_so(tmp_path, monkeypatch):
     """GCP readiness: the runtime's bake_preemptible lands on the
     googlecompute source (spot build VMs; a preempted bake re-runs)."""
-    run = V2Run(tmp_path, monkeypatch)
+    run = FixtureRun(tmp_path, monkeypatch)
     try:
         assert run.run(["base-image"], apply=False, only=["basic-rh-10@gcloud-east1"]).ok
         text = "\n".join(p.read_text() for p in run.generated.rglob("*.pkr.hcl") if "source-" in p.name)
@@ -376,7 +376,7 @@ def test_gcs_state_lookup_goes_through_gcloud(tmp_path, monkeypatch):
     unavailable (any other failure raises, so the query reports it)."""
     import subprocess
     from types import SimpleNamespace
-    run = V2Run(tmp_path, monkeypatch)
+    run = FixtureRun(tmp_path, monkeypatch)
     try:
         from cs_image_system.tf_gcp_plugin.tf_gcp_storage_builder import TofuGcsStorageBuilder
         builder = run.ctx.storage_builders["gcp-gcs"]
@@ -443,7 +443,7 @@ def test_gce_retag_merges_lineage_truth_into_the_image_labels(tmp_path, monkeypa
     fake = FakeImages()
     monkeypatch.setattr(gcp_runtime_builders, "_make_images_client", lambda cfg: fake)
     root = copy_config(tmp_path)
-    run = V2Run(tmp_path, monkeypatch, config_root=root)
+    run = FixtureRun(tmp_path, monkeypatch, config_root=root)
     try:
         rtb = run.ctx.runtime_builders["gcloud-east1"]
         assert isinstance(rtb, GCPCloudBuilder)

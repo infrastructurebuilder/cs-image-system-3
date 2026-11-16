@@ -128,7 +128,7 @@ def test_the_expectations_are_the_modules():
     assert want["admin_policy"]["rules"][0]["admin_level_permissions"] is True
     # the builder passes no delegated admins and no extra labels, so the module's defaults hold:
     # every group's module call in the golden emission says so
-    calls = sorted((REPO / "tests" / "fixtures" / "v2_golden" / "generated" / "identity").rglob("*-group-generation-group-*.tf"))
+    calls = sorted((REPO / "tests" / "fixtures" / "golden" / "generated" / "identity").rglob("*-group-generation-group-*.tf"))
     assert calls, "the golden emission carries the group module calls"
     for call in calls:
         text = call.read_text()

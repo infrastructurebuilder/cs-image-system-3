@@ -14,7 +14,7 @@ import shlex
 from pathlib import Path
 
 import yaml
-from harness import V2Run, copy_config, os_type_for_family
+from harness import FixtureRun, copy_config, os_type_for_family
 
 ANSIBLE = "ansible-default"
 
@@ -48,7 +48,7 @@ def test_a_dry_generation_emits_an_ansible_item_per_modification_and_the_provisi
     root = copy_config(tmp_path)
     kept = ansible_only(root)
     assert kept, "the fixture declares no ansible modification"
-    run = V2Run(tmp_path, monkeypatch, config_root=root)
+    run = FixtureRun(tmp_path, monkeypatch, config_root=root)
     try:
         assert set(run.ctx.mod_builders) == {ANSIBLE}
         summary = run.run(["instance-image"], apply=False)

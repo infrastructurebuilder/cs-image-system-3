@@ -24,12 +24,12 @@ from pathlib import Path
 
 import pytest
 import yaml
-from harness import REPO, V2Run
+from harness import REPO, FixtureRun
 
 from cs_image_system.contract.constants import RUN_LOCAL_FILENAMES
 from cs_image_system.engine.meta_state import commit_meta_state
 
-GOLDEN = REPO / "tests" / "fixtures" / "v2_golden"
+GOLDEN = REPO / "tests" / "fixtures" / "golden"
 EXAMPLES = REPO / "docs" / "examples"
 STARTERS = sorted(p.name for p in EXAMPLES.iterdir() if (p / "cfg").is_dir() and not p.name.startswith("_"))
 SKELETON = EXAMPLES / "_skeleton"           # the .gitignore every starter carries
@@ -111,9 +111,9 @@ def test_packers_manifest_is_run_local(tmp_path, monkeypatch):
     from cs_image_system.contract.constants import PACKER_MANIFEST_FILENAME
     from cs_image_system.packer_plugin.packer_image_builder import MANIFEST_FILENAME
     assert MANIFEST_FILENAME == PACKER_MANIFEST_FILENAME == "manifest.json" and "manifest.json" in RUN_LOCAL_FILENAMES
-    v2 = V2Run(tmp_path, monkeypatch)
-    assert v2.run(["identity"], apply=False).ok
-    assert "manifest.json" in (v2.generated / ".gitignore").read_text().splitlines()
+    fixture_run = FixtureRun(tmp_path, monkeypatch)
+    assert fixture_run.run(["identity"], apply=False).ok
+    assert "manifest.json" in (fixture_run.generated / ".gitignore").read_text().splitlines()
 
 
 def test_the_sanction_list_is_ignored_by_the_emission_and_is_not_drift(tmp_path, monkeypatch):
@@ -122,7 +122,7 @@ def test_the_sanction_list_is_ignored_by_the_emission_and_is_not_drift(tmp_path,
     from cs_image_system.okta_opa_plugin.okta_opa_tf_group_builder import OktaTfGroupBuilder
     name = OktaTfGroupBuilder.SANCTIONED_REMOVALS
     assert name in DEFAULT_GITIGNORE_ENTRIES
-    run = V2Run(tmp_path, monkeypatch)
+    run = FixtureRun(tmp_path, monkeypatch)
     try:
         assert run.run(["identity"], apply=False).ok
         ignore = (run.generated / ".gitignore").read_text()

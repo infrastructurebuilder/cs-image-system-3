@@ -12,12 +12,12 @@ import json
 import pytest
 
 from cs_image_system.engine import state_query as sq
-from tests.harness import V2Run
+from tests.harness import FixtureRun
 
 
 @pytest.fixture
 def stubbed(monkeypatch):
-    """Image hook answering from canned reality, installed AFTER V2Run's own
+    """Image hook answering from canned reality, installed AFTER FixtureRun's own
     stubs (call ``stubbed(run)``)."""
     from cs_image_system.aws_runtime.aws_runtime_builders import AwsCloudBuilder
     reality: dict = {"images": {}, "fail_images": False}
@@ -34,7 +34,7 @@ def stubbed(monkeypatch):
 
 
 def test_run_queries_state_first_and_records_it(tmp_path, monkeypatch, stubbed):
-    run = V2Run(tmp_path, monkeypatch)
+    run = FixtureRun(tmp_path, monkeypatch)
     stubbed["install"](run)
     try:
         summary = run.run("identity", apply=False, state_query=True)
@@ -48,7 +48,7 @@ def test_run_queries_state_first_and_records_it(tmp_path, monkeypatch, stubbed):
 
 
 def test_hard_drift_refuses_the_run(tmp_path, monkeypatch, stubbed):
-    run = V2Run(tmp_path, monkeypatch)
+    run = FixtureRun(tmp_path, monkeypatch)
     try:
         ms = run.ctx.meta_state
         ms.add_build({"build_id": "ami-gone", "series": "basic-rh-10", "runtime": "aws-east2-runtime",
@@ -69,7 +69,7 @@ def test_hard_drift_refuses_the_run(tmp_path, monkeypatch, stubbed):
 
 def test_unavailable_provider_does_not_block(tmp_path, monkeypatch, stubbed):
     stubbed["fail_images"] = True
-    run = V2Run(tmp_path, monkeypatch)
+    run = FixtureRun(tmp_path, monkeypatch)
     stubbed["install"](run)
     try:
         summary = run.run("identity", apply=False, state_query=True)

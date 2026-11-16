@@ -1784,7 +1784,7 @@ before declaring a phase done and before any release.
 
 ### The golden
 
-[GOLDEN.md](../GOLDEN.md) describes it in full. `tests/fixtures/v2_golden/`
+[GOLDEN.md](../GOLDEN.md) describes it in full. `tests/fixtures/golden/`
 is exactly what `run --all` emits over the frozen fixture plus three
 meta-state files (`identity.yaml`, `storage.yaml`, `launch-params.yaml`);
 `tests/test_golden.py` regenerates the emission in memory and reports
@@ -2600,7 +2600,7 @@ repository's, which the release ships.
 | `test-podman-cycle *ARGS` | the cycle above against PODMAN'S API SERVICE instead of the environment's docker daemon; `CSIS_PODMAN_HOST` is the `DOCKER_HOST` URL of a running service (`podman system service`, a `podman machine`, or an `ssh://` URL to a host that has one) -- unset, the leg is SKIPPED, said so, and exits 0; it refuses to pass on a daemon that does not say it is Podman; what differs from docker is recorded under "Container hosts" | `CSIS_PODMAN_HOST` |
 | `test-podman-desktop-cycle *ARGS` | `test-podman-cycle` against Podman Desktop's machine on macOS, its address read from `podman machine` rather than typed (`CSIS_PODMAN_MACHINE` names one of several); the leg never creates, starts or stops the machine -- with no podman, no machine, a stopped or an ambiguous one it is SKIPPED with the reason and exits 0; on an Intel host it proves Podman 5.8 (Podman 6 dropped them) until June 2027 | a running Podman Desktop machine |
 | `preflight` | the reference configuration's runtime sessions from the caches over the loaded tree -- the load reaches no cloud (0 / 2) | reference configuration, its age identity |
-| `golden-regen` | rewrite `tests/fixtures/v2_golden` from the fixture | nothing; review the diff |
+| `golden-regen` | rewrite `tests/fixtures/golden` from the fixture | nothing; review the diff |
 | `public-safe *ARGS` | scan this checkout with the fixture's allow list | nothing |
 | `publish-tree <root> <dest>` | a publishable copy: tracked files, gate, one commit on `main` | a clean root |
 | `publish-starters [yes]` | the five template repositories from `docs/examples/` at a final version's tag: the trees, the gate, one commit and the tag each; `yes` = dry | the tag, `STARTER_PUSH_TOKEN` |

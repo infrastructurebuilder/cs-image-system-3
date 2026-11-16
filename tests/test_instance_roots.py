@@ -17,7 +17,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from harness import V2Run, command_lines, tree
+from harness import FixtureRun, command_lines, tree
 
 
 def _aws_instance_builder(ctx):
@@ -28,7 +28,7 @@ def _aws_instance_builder(ctx):
 
 
 def test_the_security_group_carries_the_configuration_tag(tmp_path, monkeypatch):
-    run = V2Run(tmp_path, monkeypatch)
+    run = FixtureRun(tmp_path, monkeypatch)
     try:
         assert run.run(["instance-image"], apply=False).ok
         gb = _aws_instance_builder(run.ctx)
@@ -43,14 +43,14 @@ def test_a_root_with_nothing_declared_but_state_is_emitted_empty_and_lets_its_gr
     """With `instances: []` after a decommission, no instance root was once
     emitted, and the security group stood in AWS and in the root's state with
     nothing to plan it."""
-    probe = V2Run(tmp_path / "probe", monkeypatch)
+    probe = FixtureRun(tmp_path / "probe", monkeypatch)
     try:
         gb = _aws_instance_builder(probe.ctx)
         ws = gb.name
         mine = [i.get_name() for i in gb._instances]
     finally:
         probe.restore_cwd()
-    run = V2Run(tmp_path / "run", monkeypatch, undeclare=[f"instance:{n}" for n in mine])
+    run = FixtureRun(tmp_path / "run", monkeypatch, undeclare=[f"instance:{n}" for n in mine])
     try:
         ms = run.ctx.meta_state
         assert not _aws_instance_builder(run.ctx)._instances
@@ -76,7 +76,7 @@ def test_an_ephemeral_that_neither_stands_nor_launches_is_absent_from_a_plan_onl
     from test_ephemeral import _declare_ephemeral
     root = copy_config(tmp_path)
     _declare_ephemeral(root, "gce-test")
-    run = V2Run(tmp_path, monkeypatch, config_root=root)
+    run = FixtureRun(tmp_path, monkeypatch, config_root=root)
     try:
         assert run.run(["instance-image"], apply=False).ok      # apply_instances false: the GCE root only plans
         tf = "\n".join(v for k, v in tree(run.generated / "instance-image" / "tofu-gce" / "instance-generation").items()
@@ -99,7 +99,7 @@ def test_release_and_retention_never_write_an_instance_roots_tfvars(tmp_path: Pa
     from cs_image_system.engine.release import RELEASE_LIFECYCLE
     from cs_image_system.engine.retention import RETENTION_LIFECYCLE
     from tests.test_lineage_pins import _fake_manifest
-    run = V2Run(tmp_path, monkeypatch)
+    run = FixtureRun(tmp_path, monkeypatch)
     ctx = None
     try:
         assert run.run(["instance-image"], apply=False).ok

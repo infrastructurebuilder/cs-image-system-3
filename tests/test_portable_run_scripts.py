@@ -28,7 +28,7 @@ from harness import REPO, command_lines
 from cs_image_system.base.models.executable import ExecutableModel
 from cs_image_system.engine.finalizer import ROOT_VARIABLE, render_executable_line, script_lines
 
-GOLDEN_ROOT = REPO / "tests" / "fixtures" / "v2_golden"
+GOLDEN_ROOT = REPO / "tests" / "fixtures" / "golden"
 SCRIPTS = sorted((GOLDEN_ROOT / "generated").glob("*/run-*.sh"))
 _WD = re.compile(r'^\( cd "([^"]+)" && (.*) \)$')
 

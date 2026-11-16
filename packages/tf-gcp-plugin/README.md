@@ -375,32 +375,32 @@ From the frozen golden emission over the test fixture (the fixture declares
 root in the golden).
 
 GCE instance root (`tofu-gce`), under
-[generated/instance-image/tofu-gce/instance-generation/](../../tests/fixtures/v2_golden/generated/instance-image/tofu-gce/instance-generation/):
+[generated/instance-image/tofu-gce/instance-generation/](../../tests/fixtures/golden/generated/instance-image/tofu-gce/instance-generation/):
 
 | File | Content |
 |---|---|
-| [tofu-gce-instance-generation.tf](../../tests/fixtures/v2_golden/generated/instance-image/tofu-gce/instance-generation/tofu-gce-instance-generation.tf) | `terraform {}` with `google` from `hashicorp/google` and `backend "s3" {}`; `provider "google"` (`project = "csis-sandbox"`, `region = "us-east1"`, `zone = "us-east1-b"`, alias `tofu_gce`); `variable "gce_test_image"`, `variable "enrollment_token"`; `data "terraform_remote_state"` for `aws_efs`, `aws_ebs`, `aws_s3`, `gcp_pd`, `gcp_gcs`, `oktagroups` |
-| [tofu-gce-instance-generation-instance-gce_test.tf](../../tests/fixtures/v2_golden/generated/instance-image/tofu-gce/instance-generation/tofu-gce-instance-generation-instance-gce_test.tf) | `module "instance_gce_test"` calling `../../../../../tfmodules/gce_instance` with `name = "gce-test"`, `image = var.gce_test_image`, `image_family = "imgfile-basic-dask"`, `machine_type = "e2-micro"`, `zone`, `subnetwork`, `public_ip = false`, `startup_script = templatefile(...)`, and `attached_disks` for `gce_data` with `device_name = "gce-data"` |
-| [user-data-gce_test.sh.tftpl](../../tests/fixtures/v2_golden/generated/instance-image/tofu-gce/instance-generation/user-data-gce_test.sh.tftpl) | the launch script: the `gce_data` mount at `/mnt/gce-data` from `/dev/disk/by-id/google-gce-data`, the `coops` subtree |
-| [tofu-gce-instance-generation.tfbackend.hcl](../../tests/fixtures/v2_golden/generated/instance-image/tofu-gce/instance-generation/tofu-gce-instance-generation.tfbackend.hcl) | the S3 partial backend configuration with `key = "statefiles/csia-image-system-test/tofu_gce.tfstate"` |
-| [run-instance-image.sh](../../tests/fixtures/v2_golden/generated/instance-image/run-instance-image.sh) | the `tofu-gce/instance-generation` block: `rm -f tfplan`, `init -input=false -reconfigure -backend-config=...`, `plan`, `gate-plan` |
+| [tofu-gce-instance-generation.tf](../../tests/fixtures/golden/generated/instance-image/tofu-gce/instance-generation/tofu-gce-instance-generation.tf) | `terraform {}` with `google` from `hashicorp/google` and `backend "s3" {}`; `provider "google"` (`project = "csis-sandbox"`, `region = "us-east1"`, `zone = "us-east1-b"`, alias `tofu_gce`); `variable "gce_test_image"`, `variable "enrollment_token"`; `data "terraform_remote_state"` for `aws_efs`, `aws_ebs`, `aws_s3`, `gcp_pd`, `gcp_gcs`, `oktagroups` |
+| [tofu-gce-instance-generation-instance-gce_test.tf](../../tests/fixtures/golden/generated/instance-image/tofu-gce/instance-generation/tofu-gce-instance-generation-instance-gce_test.tf) | `module "instance_gce_test"` calling `../../../../../tfmodules/gce_instance` with `name = "gce-test"`, `image = var.gce_test_image`, `image_family = "imgfile-basic-dask"`, `machine_type = "e2-micro"`, `zone`, `subnetwork`, `public_ip = false`, `startup_script = templatefile(...)`, and `attached_disks` for `gce_data` with `device_name = "gce-data"` |
+| [user-data-gce_test.sh.tftpl](../../tests/fixtures/golden/generated/instance-image/tofu-gce/instance-generation/user-data-gce_test.sh.tftpl) | the launch script: the `gce_data` mount at `/mnt/gce-data` from `/dev/disk/by-id/google-gce-data`, the `coops` subtree |
+| [tofu-gce-instance-generation.tfbackend.hcl](../../tests/fixtures/golden/generated/instance-image/tofu-gce/instance-generation/tofu-gce-instance-generation.tfbackend.hcl) | the S3 partial backend configuration with `key = "statefiles/csia-image-system-test/tofu_gce.tfstate"` |
+| [run-instance-image.sh](../../tests/fixtures/golden/generated/instance-image/run-instance-image.sh) | the `tofu-gce/instance-generation` block: `rm -f tfplan`, `init -input=false -reconfigure -backend-config=...`, `plan`, `gate-plan` |
 
 GCP storage roots, under
-[generated/storage/](../../tests/fixtures/v2_golden/generated/storage/):
+[generated/storage/](../../tests/fixtures/golden/generated/storage/):
 
 | File | Content |
 |---|---|
-| [gcp-pd/storage-generation/gcp-pd-storage-generation.tf](../../tests/fixtures/v2_golden/generated/storage/gcp-pd/storage-generation/gcp-pd-storage-generation.tf) | terraform block, `provider "google"` alias `gcp_pd`, remote state of `oktagroups` |
-| [gcp-pd/storage-generation/gcp-pd-storage-generation-storage-gce_data.tf](../../tests/fixtures/v2_golden/generated/storage/gcp-pd/storage-generation/gcp-pd-storage-generation-storage-gce_data.tf) | `module "storage_gce_data"` against `tfmodules/gcp_storage_pd`: `name = "gce-data"`, `size = 30`, `disk_type = "pd-standard"`, `labels = { csis_group_coops = "true", csis_storage = "gce_data" }`, `zone`; `output "storage_gce_data"` |
-| [gcp-gcs/storage-generation/gcp-gcs-storage-generation-storage-gce_bucket.tf](../../tests/fixtures/v2_golden/generated/storage/gcp-gcs/storage-generation/gcp-gcs-storage-generation-storage-gce_bucket.tf) | `module "storage_gce_bucket"` against `tfmodules/gcp_storage_gcs`: `bucket_name`, `labels = { csis_storage = "gce_bucket" }`, `location = "us-east1"`; `output "storage_gce_bucket"` |
-| [gcp-pd-storage-generation.tfbackend.hcl](../../tests/fixtures/v2_golden/generated/storage/gcp-pd/storage-generation/gcp-pd-storage-generation.tfbackend.hcl), [gcp-gcs-storage-generation.tfbackend.hcl](../../tests/fixtures/v2_golden/generated/storage/gcp-gcs/storage-generation/gcp-gcs-storage-generation.tfbackend.hcl) | the partial backend configurations |
-| [run-storage.sh](../../tests/fixtures/v2_golden/generated/storage/run-storage.sh) | the deferred sequence per root |
+| [gcp-pd/storage-generation/gcp-pd-storage-generation.tf](../../tests/fixtures/golden/generated/storage/gcp-pd/storage-generation/gcp-pd-storage-generation.tf) | terraform block, `provider "google"` alias `gcp_pd`, remote state of `oktagroups` |
+| [gcp-pd/storage-generation/gcp-pd-storage-generation-storage-gce_data.tf](../../tests/fixtures/golden/generated/storage/gcp-pd/storage-generation/gcp-pd-storage-generation-storage-gce_data.tf) | `module "storage_gce_data"` against `tfmodules/gcp_storage_pd`: `name = "gce-data"`, `size = 30`, `disk_type = "pd-standard"`, `labels = { csis_group_coops = "true", csis_storage = "gce_data" }`, `zone`; `output "storage_gce_data"` |
+| [gcp-gcs/storage-generation/gcp-gcs-storage-generation-storage-gce_bucket.tf](../../tests/fixtures/golden/generated/storage/gcp-gcs/storage-generation/gcp-gcs-storage-generation-storage-gce_bucket.tf) | `module "storage_gce_bucket"` against `tfmodules/gcp_storage_gcs`: `bucket_name`, `labels = { csis_storage = "gce_bucket" }`, `location = "us-east1"`; `output "storage_gce_bucket"` |
+| [gcp-pd-storage-generation.tfbackend.hcl](../../tests/fixtures/golden/generated/storage/gcp-pd/storage-generation/gcp-pd-storage-generation.tfbackend.hcl), [gcp-gcs-storage-generation.tfbackend.hcl](../../tests/fixtures/golden/generated/storage/gcp-gcs/storage-generation/gcp-gcs-storage-generation.tfbackend.hcl) | the partial backend configurations |
+| [run-storage.sh](../../tests/fixtures/golden/generated/storage/run-storage.sh) | the deferred sequence per root |
 
 The read-models record the GCP items with their plugin and capability type:
-[meta-state/storage.yaml](../../tests/fixtures/v2_golden/meta-state/storage.yaml)
+[meta-state/storage.yaml](../../tests/fixtures/golden/meta-state/storage.yaml)
 (`gce_data`: builder `gcp-pd`, plugin `tf-gcp-pd`, type `pd`, cardinality
 `single`, attached by `gce-test`) and
-[meta-state/launch-params.yaml](../../tests/fixtures/v2_golden/meta-state/launch-params.yaml)
+[meta-state/launch-params.yaml](../../tests/fixtures/golden/meta-state/launch-params.yaml)
 (`gce-test`: session `iap`, mount device `/dev/disk/by-id/google-gce-data`).
 
 Modules called (shipped by the gcloud-runtime plugin as package data; `cs-image-system modules` lists them): [tfmodules/gce_instance](../gcloud-runtime-plugin/src/cs_image_system/gcloud_runtime/tfmodules/gce_instance/main.tf),

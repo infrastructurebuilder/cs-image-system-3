@@ -22,7 +22,7 @@ import yaml
 
 from cs_image_system.contract.lifecycles import Lifecycle
 from cs_image_system.engine import identity_attributes as ia
-from tests.harness import V2Run, copy_config, plain
+from tests.harness import FixtureRun, copy_config, plain
 
 
 def _edit(path: Path, fn) -> None:
@@ -48,10 +48,10 @@ def overlay(root: Path, *, user_attrs=None, group_attrs=None, managed_user=None,
     _edit(root / "groups" / "group-secofs.yaml", groups)
 
 
-def _run(tmp_path, monkeypatch, **kw) -> V2Run:
+def _run(tmp_path, monkeypatch, **kw) -> FixtureRun:
     root = copy_config(tmp_path)
     overlay(root, **kw)
-    return V2Run(tmp_path, monkeypatch, config_root=root)
+    return FixtureRun(tmp_path, monkeypatch, config_root=root)
 
 
 @pytest.fixture
@@ -90,7 +90,7 @@ def test_valid_declarations_pass_and_plan_is_written(declared):
 
 
 def test_plain_configuration_writes_no_plan_and_no_runner_step(tmp_path, monkeypatch):
-    run = V2Run(tmp_path, monkeypatch)
+    run = FixtureRun(tmp_path, monkeypatch)
     try:
         summary = run.run("identity", apply=False)
         assert summary.ok, summary.error
@@ -129,7 +129,7 @@ def test_managed_default_follows_the_builder_type(tmp_path, monkeypatch):
     from cs_image_system.okta_opa_plugin.okta_opa_tf_user_ro_builder import OktaTfUserRoBuilder
     assert OktaTfUserBuilder.default_managed() is True
     assert OktaTfUserRoBuilder.default_managed() is False
-    run = V2Run(tmp_path, monkeypatch)
+    run = FixtureRun(tmp_path, monkeypatch)
     try:
         summary = run.run("identity", apply=False)
         assert summary.ok, summary.error
@@ -224,7 +224,7 @@ def test_the_attributes_probe_step_carries_the_configuration(tmp_path: Path, mon
     data = yaml.safe_load(p.read_text())
     data["groups"][0]["attributes"] = {"unix_gid": 180999}
     p.write_text(yaml.safe_dump(data, sort_keys=False))
-    run = V2Run(tmp_path, monkeypatch, config_root=root)
+    run = FixtureRun(tmp_path, monkeypatch, config_root=root)
     try:
         gb = next(b for b in run.ctx.group_builders.values() if isinstance(b, OktaTfGroupBuilder))
         deferred = gb.get_commands_to_run_after(ExecutionLifecyclePhase.GROUP_GENERATION).finalize_executables

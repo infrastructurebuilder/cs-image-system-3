@@ -22,14 +22,14 @@ from types import SimpleNamespace
 from typing import Any, cast
 
 import pytest
-from harness import V2Run, os_type_for_family
+from harness import FixtureRun, os_type_for_family
 
 OTHER_MANAGERS = re.compile(r"(?<![a-z0-9])(yum|dnf|apt-get|apt|dpkg|rpm)(?![a-z0-9])")
 
 
 @pytest.fixture
-def v2(tmp_path, monkeypatch):
-    run = V2Run(tmp_path, monkeypatch)
+def fixture_run(tmp_path, monkeypatch):
+    run = FixtureRun(tmp_path, monkeypatch)
     yield run
     run.restore_cwd()
 
@@ -108,14 +108,14 @@ def test_every_types_package_check_stops_a_bake_and_names_the_package(family):
 
 
 # ------------------------------------------------------------ the alpine proof
-def test_an_alpine_image_bakes_through_the_hooks(v2):
+def test_an_alpine_image_bakes_through_the_hooks(fixture_run):
     """What the fixture's plugins would bake for an alpine base image: the
     posix group's and the ebs storage's prerequisites (nothing to install:
     no manager at all), the efs and s3 storages' and the runtimes' session
     agents (apk lines), and the declared package tests (apk's own test).
     Nothing says yum, dnf, apt, dpkg or rpm."""
     from cs_image_system.base.image_tests import declared_test_commands
-    ctx = v2.ctx
+    ctx = fixture_run.ctx
     alpine = os_type_for_family("alpine")
     posix = ctx.group_builders["posix-local"]
     ebs, efs, s3 = (ctx.storage_builders[n] for n in ("aws-ebs", "aws-efs", "aws-s3"))
@@ -157,10 +157,10 @@ def test_the_filestore_storage_bakes_apk_on_alpine():
     _says_only_apk(lines)
 
 
-def test_okta_refuses_an_alpine_image_rather_than_guessing(v2):
+def test_okta_refuses_an_alpine_image_rather_than_guessing(fixture_run):
     """OktaPAM publishes deb and rpm repositories and nothing for alpine:
     the identity plugin says so instead of emitting another family's lines."""
-    okta = v2.ctx.group_builders["oktagroups"]
+    okta = fixture_run.ctx.group_builders["oktagroups"]
     with pytest.raises(ValueError, match="publishes no apk package"):
         okta.base_image_prerequisites("alpine")
 

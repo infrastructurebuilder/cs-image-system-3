@@ -12,7 +12,7 @@ import re
 from pathlib import Path
 
 import yaml
-from harness import V2Run, copy_config
+from harness import FixtureRun, copy_config
 
 from cs_image_system.contract.names import super_safe_name
 from cs_image_system.contract_example_plugin.models import INMEM
@@ -39,7 +39,7 @@ def test_a_dry_run_over_an_inmem_only_tree_puts_every_root_in_memory(tmp_path, m
     from cs_image_system.hashicorp_utils.collector import terraform_collector
     root = copy_config(tmp_path)
     inmem_only(root)
-    run = V2Run(tmp_path, monkeypatch, config_root=root)
+    run = FixtureRun(tmp_path, monkeypatch, config_root=root)
     try:
         assert set(run.ctx.state_backends) == {BACKEND}
         summary = run.run("all")
