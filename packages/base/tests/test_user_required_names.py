@@ -4,10 +4,9 @@
 
 """Pins User.first_name / last_name as required data.
 
-They are never derived from ``name`` (the old split_name() parser is gone --
-it corrupted email-shaped names into e.g. last_name='alvis@noaa gov' and had
-no readers), so a User cannot exist without both being explicitly provided
-and non-blank.
+They are never derived from ``name`` (nothing parses it: an email-shaped
+name split on its dots would make a last name of its domain), so a User
+cannot exist without both being explicitly provided and non-blank.
 """
 import pytest
 
@@ -21,9 +20,9 @@ def test_user_with_both_names_constructs():
 
 def test_missing_names_raise_at_construction():
     # the contract is that construction FAILS, not which exception
-    # class carries it. A dataclass raised TypeError for a missing argument;
-    # pydantic raises its own ValidationError. Both are accepted so the test
-    # asserts the behaviour rather than the framework.
+    # class carries it: a missing argument may surface as a TypeError or as
+    # pydantic's ValidationError. Both are accepted so the test asserts the
+    # behaviour rather than the framework.
     from pydantic import ValidationError
     for kwargs in ({"name": "alice.smith"}, {"name": "alice.smith", "first_name": "Alice"}):
         with pytest.raises((TypeError, ValidationError)):
@@ -39,14 +38,14 @@ def test_blank_names_are_rejected(bad):
 
 
 def test_names_are_not_derived_from_dotted_name():
-    """A separator-less name is now legal; nothing parses `name` anymore."""
+    """A separator-less name is legal; nothing parses `name`."""
     u = User(name="jdoe", first_name="John", last_name="Doe")
     assert u.name == "jdoe"
     assert (u.first_name, u.last_name) == ("John", "Doe")
 
 
 def test_email_shaped_name_cannot_corrupt_last_name():
-    """The regression the old parser caused: last_name='alpha@example invalid'."""
+    """An email-shaped name leaves last_name as given, never 'alpha@example invalid'."""
     u = User(
         name="avery.alpha@example.invalid",
         first_name="avery",

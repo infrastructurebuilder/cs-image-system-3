@@ -494,7 +494,7 @@ offers what the mixin reads of a context): the dry-run and real-run
 executable copy per command. The terraform roots have no unit test of
 their own here: their behaviour is pinned through the root plugins that
 subclass them (their module-call tests), through the golden emission of
-the frozen fixture ([tests/test_v2_golden.py](../../tests/test_v2_golden.py))
+the frozen fixture ([tests/test_golden.py](../../tests/test_golden.py))
 and through the neutral-root test
 ([tests/test_neutral_tofu_root.py](../../tests/test_neutral_tofu_root.py)),
 which holds the import graph, the declared dependencies and an isolated

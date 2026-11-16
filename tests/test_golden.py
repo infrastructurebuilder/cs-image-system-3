@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""Pins the exact V2 emission for the frozen fixture (see ``tests/golden.py``
+"""Pins the exact emission for the frozen fixture (see ``tests/golden.py``
 and GOLDEN.md).
 
 A failure here means the generated IaC or meta-state changed. If the change

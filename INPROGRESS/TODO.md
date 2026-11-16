@@ -51,7 +51,8 @@ keys, before §113 or after it but not beside it. The operator,
 2026-11-14: §135 first, then §113, then §116 and §117. §135 and §113
 landed 2026-11-14; §136, hygiene bundle XXVIII, held what they found
 and landed 2026-11-15, before the next release as the operator asked.
-[§137](STAGE-137.md), hygiene bundle XXIX, is the open bundle.
+§137, hygiene bundle XXIX, landed the same day;
+[§138](STAGE-138.md), hygiene bundle XXX, is the open bundle.
 
 
 **Open**
@@ -128,8 +129,13 @@ and landed 2026-11-15, before the next release as the operator asked.
   once on a registry timeout; the kit's tests and prose name nothing
   of the engine; the engine's prose moved to its own README; the V2
   wording left the core's sources. The next release may follow.
-- [§137](STAGE-137.md), hygiene bundle XXIX: open 2026-11-15, the open
-  bundle (what §136 left). It waits for "do 137".
+- §137, hygiene bundle XXIX: landed 2026-11-15 (not pushed). A state
+  migration's rollback `tofu init` retries on a registry timeout by
+  the same rule as every other; the golden's gating header and test
+  names lost the V2 wording (one deliberate regeneration, one line).
+- [§138](STAGE-138.md), hygiene bundle XXX: open 2026-11-15, the open
+  bundle (what §137 left). It waits for "do 138"; it blocks no
+  release.
 - [§116](STAGE-116.md), the decomposition that remains (a runtime
   installed from outside): re-planned 2026-11-13 (docker first; where
   the moved runtime's fixture, golden and legs live is its main new
@@ -145,7 +151,7 @@ and landed 2026-11-15, before the next release as the operator asked.
 **Stage files** (one per stage, in this directory; the plan is read
 and validated by the operator before its "do N")
 
-- [§137, Hygiene bundle XXIX](STAGE-137.md)
+- [§138, Hygiene bundle XXX](STAGE-138.md)
 - [§116, A runtime installed from outside](STAGE-116.md)
 
 **Release**
@@ -242,6 +248,18 @@ and validated by the operator before its "do N")
 
 **Landed since 2026-10-05** (newest first)
 
+- §137, hygiene bundle XXIX: 2026-11-15, its squash commit
+  (feature/hygiene-xxix kept, not pushed). The registry-timeout rule
+  is one kit function (`is_registry_timeout`) that the executable
+  wrapper and the engine's `tofu_run` both call, so a state
+  migration's rollback `init` retries once too; DAILY_DRIVER's failure
+  table names the WARNING. The finalizer's gating header says "the
+  meta-workflow"; the golden was regenerated once on purpose and only
+  that line of `final_execution.sh` moved; `tests/test_v2_golden.py`
+  is `tests/test_golden.py`, and the naming rule has no exception
+  left. Five sources say what is true now in place of their history,
+  and pyright's search paths are in the editor's order, which a test
+  holds.
 - §136, hygiene bundle XXVIII: 2026-11-15, its squash commit
   (feature/hygiene-xxviii kept, not pushed). The registry's alias
   index keys by the bare word, and says why (a top-level name or alias

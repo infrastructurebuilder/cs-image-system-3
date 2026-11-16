@@ -54,12 +54,14 @@ REGISTRY_TIMEOUT = re.compile(r"failed to request discovery document|Client\.Tim
 REGISTRY_NAMED = re.compile(r"registry|discovery document", re.IGNORECASE)
 
 
-def _is_registry_timeout(tools: set[str], args: list[str], stderr: str | None) -> bool:
+def is_registry_timeout(tools: set[str], args: list[str], stderr: str | None) -> bool:
     """Whether a failed command is a ``tofu init`` (or ``terraform init``:
     ``tools`` holds the executable's name and its binary's) whose error
     names a registry and a network timeout. Anything else -- another
     tool, another subcommand, an ``init`` refused for its configuration,
-    a backend that timed out -- is not."""
+    a backend that timed out -- is not. The one rule for the one retry:
+    the wrapper's :meth:`ExecutableModel._run` and the engine's
+    ``state_backup.tofu_run`` both ask it."""
     if not tools & REGISTRY_INIT_TOOLS:
         return False
     if next((a for a in args if not a.startswith("-")), None) != "init":
@@ -218,14 +220,14 @@ class ExecutableModel(NameTyped, PluginArtifactProtocol):
 
     def _run(self, command: list[str], env: dict[str, str] | None) -> subprocess.CompletedProcess[str]:
         """Run ``command`` once. A ``tofu init`` that failed because a
-        registry did not answer in time (:func:`_is_registry_timeout`) runs
+        registry did not answer in time (:func:`is_registry_timeout`) runs
         once more, with a WARNING that names the retry; its second failure
         is raised like any other failure, and no other failure is retried."""
         try:
             return subprocess.run(command, check=True, capture_output=True, text=True, env=env)
         except subprocess.CalledProcessError as first:
             tools = {self.name, Path(command[0]).name}
-            if not _is_registry_timeout(tools, command[1:], first.stderr):
+            if not is_registry_timeout(tools, command[1:], first.stderr):
                 raise
             log.warning(f"Command '{' '.join(command)}' timed out reaching a registry "
                         f"(exit code {first.returncode}); retrying it once. Standard error:\n{first.stderr}")

@@ -1787,7 +1787,7 @@ before declaring a phase done and before any release.
 [GOLDEN.md](../GOLDEN.md) describes it in full. `tests/fixtures/v2_golden/`
 is exactly what `run --all` emits over the frozen fixture plus three
 meta-state files (`identity.yaml`, `storage.yaml`, `launch-params.yaml`);
-`tests/test_v2_golden.py` regenerates the emission in memory and reports
+`tests/test_golden.py` regenerates the emission in memory and reports
 a removed file, an added file, and a unified diff per changed file.
 
 A byte-identical golden is the acceptance proof for a refactor. When a

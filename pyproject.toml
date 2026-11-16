@@ -300,7 +300,9 @@ exclude = ["**/.venv", "**/generated"]
 # Resolve cross-package imports of the cs_image_system namespace directly from
 # source instead of through the venv's editable-install .pth files; otherwise
 # Pylance treats them as library code and find-references/rename only sees open
-# files. Globs are not supported in extraPaths, so each src root is listed.
+# files. Globs are not supported in extraPaths, so each src root is listed:
+# tests and src first, then the packages in name order, the same list as
+# .vscode/settings.json (tests/test_editor_paths.py holds the two equal).
 extraPaths = [
     "tests",
     "src",
@@ -312,21 +314,21 @@ extraPaths = [
     "packages/contract-example-plugin/src",
     "packages/default-os-plugin/src",
     "packages/docker-runtime-plugin/src",
-    "packages/tf-docker-plugin/src",
     "packages/dummy-plugin/src",
     "packages/engine/src",
     "packages/gcloud-runtime-plugin/src",
     "packages/gcs-state-plugin/src",
     "packages/hashicorp-utils/src",
-    "packages/tofu-roots/src",
     "packages/local-state-plugin/src",
-    "packages/posix-identity-plugin/src",
     "packages/okta-opa-plugin/src",
     "packages/packer-plugin/src",
+    "packages/posix-identity-plugin/src",
     "packages/system/src",
+    "packages/tf-docker-plugin/src",
     "packages/tf-ebs-instance-plugin/src",
     "packages/tf-gcp-plugin/src",
     "packages/tf-s3-state-plugin/src",
+    "packages/tofu-roots/src",
 ]
 pythonVersion = "3.13"
 typeCheckingMode = "standard"

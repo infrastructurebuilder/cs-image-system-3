@@ -16,6 +16,7 @@ import subprocess
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+from cs_image_system.base.models.executable import is_registry_timeout
 from cs_image_system.engine.public_safe import PRIVATE_DIRNAME
 
 if TYPE_CHECKING:
@@ -25,7 +26,19 @@ log = logging.getLogger(__name__)
 
 
 def tofu_run(tofu: str, args: list[str], cwd: Path) -> subprocess.CompletedProcess[str]:
-    return subprocess.run([tofu, *args], cwd=cwd, capture_output=True, text=True, check=False)
+    """Run ``tofu <args>`` in ``cwd`` and return what it did; a failure is
+    returned, not raised. A ``tofu init`` that failed because a registry did
+    not answer in time runs once more, with a WARNING that names the retry,
+    by the same rule as the executable wrapper's
+    (:func:`~cs_image_system.base.models.executable.is_registry_timeout`);
+    the second run's result is returned whatever it is."""
+    command = [tofu, *args]
+    res = subprocess.run(command, cwd=cwd, capture_output=True, text=True, check=False)
+    if res.returncode != 0 and is_registry_timeout({Path(tofu).name}, args, res.stderr):
+        log.warning(f"Command '{' '.join(command)}' timed out reaching a registry "
+                    f"(exit code {res.returncode}); retrying it once. Standard error:\n{res.stderr}")
+        res = subprocess.run(command, cwd=cwd, capture_output=True, text=True, check=False)
+    return res
 
 
 def pull_state(tofu: str, cwd: Path) -> dict[str, Any] | None:

@@ -22,7 +22,7 @@ code in a specific way, listed here with its check.
 | [docs/OPERATIONS.md](OPERATIONS.md), CI | A step, a secret or a trigger changed in the workflow. | `.github/workflows/ci.yml` against the CI section; `tests/test_ci_workflow.py` pins the commands and the secrets list, not the prose. | Extend the workflow test to assert each pinned name appears in the manual. |
 | [docs/OPERATIONS.md](OPERATIONS.md), the CLI | A subcommand or option added or changed. | `tests/test_docs_parity.py`: every command and sub-command the Typer app registers is named in a table of the manual; `<subcommand> --help` against the text for the options. | Done for the names: the test. The options are still read by hand. |
 | [docs/DESIGN.md](DESIGN.md) | The design record describes a rule the code no longer keeps, or a mechanism that changed shape. | The golden ([GOLDEN.md](../GOLDEN.md)) is the executable description of the emission: what the design says about the emission is checked against `tests/fixtures/v2_golden/`. | None planned; design prose is reviewed by hand. |
-| [GOLDEN.md](../GOLDEN.md), the file counts | The golden gains or loses files. | `find tests/fixtures/v2_golden -type f \| wc -l` and per lifecycle. | Trivial to assert in `tests/test_v2_golden.py`. |
+| [GOLDEN.md](../GOLDEN.md), the file counts | The golden gains or loses files. | `find tests/fixtures/v2_golden -type f \| wc -l` and per lifecycle. | Trivial to assert in `tests/test_golden.py`. |
 | [DESCRIPTION.md](DESCRIPTION.md) "Known limits" | A limit is lifted and the list is not updated. | Each limit names its evidence (a file, a record, a command); re-check it when the area changes. | None. |
 | [REMINDERS.md](../REMINDERS.md) (the GCP housekeeping) | Console pages, thresholds or recipients changed in the GCP console. | The monthly reminder re-reads the budget page. | None; the console is not scriptable for budgets. |
 | The live configuration's README | It describes a tree this repository does not own. | Read it in the sibling repository when its shape changes. | None. |
@@ -34,7 +34,7 @@ Some documentation claims are backed by tests, and those are the claims to
 trust first:
 
 - The emission: every file under `tests/fixtures/v2_golden/` equals what
-  the run emits (`tests/test_v2_golden.py`).
+  the run emits (`tests/test_golden.py`).
 - The runner scripts are self-contained and name no absolute path
   (`tests/test_portable_run_scripts.py`).
 - The fixture's people are synthetic and its rosters encrypted

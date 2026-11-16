@@ -465,7 +465,7 @@ class PackerImageBuilder(PackerImageBuilderBase[PackerImageBuilderModel]):
     def get_blocks(self) -> tuple[list[str], dict[str, list[Image|BaseImage]]]:
         """Determine blocks of images that can be built together based on their dependencies.
 
-        Under the V2 meta-workflow the current lifecycle selects the images:
+        Under the meta-workflow the current lifecycle selects the images:
         the base-image lifecycle builds only os-builder base images, the
         instance-image lifecycle only user images. With no lifecycle current
         (legacy flow) both ranges are emitted, base images first.

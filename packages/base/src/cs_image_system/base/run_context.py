@@ -364,7 +364,9 @@ class RunContext(RunContextProtocol):
         While a lifecycle is current, its own directory
         (``generated/<lifecycle>/``) so every builder's relative output paths
         (``<builder>/<phase>/...``) relocate under it unchanged (DESIGN §3A).
-        Legacy: the base-only tree for base-only runs, else the root.
+        With no lifecycle current, the root of the generated tree
+        (``generated/``, as :attr:`root_generation_path`), for what a
+        command writes outside any lifecycle.
         """
         if self._current_lifecycle is not None:
             return self._generation_path / self._current_lifecycle.value

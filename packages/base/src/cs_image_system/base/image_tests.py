@@ -170,7 +170,7 @@ def declared_test_commands(spec: dict[str, Any], *, services: bool = True,
         # The first image ever baked went green twice while asserting a package
         # on a system that has no package by that name. The type's test must
         # therefore exit for itself -- and while it is doing that, say which
-        # package (tests/test_v2_in_bake_tests_enforce.py holds it to both).
+        # package (tests/test_in_bake_tests_enforce.py holds it to both).
         assert os_type is not None
         out.append(os_type.package_present_check(shlex.quote(str(p))))
     for c in spec.get("commands", []) or []:

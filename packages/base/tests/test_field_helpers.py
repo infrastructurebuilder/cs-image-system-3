@@ -4,9 +4,9 @@
 
 """Characterization tests for the declarative field-factory API.
 
-Phase 2 replaces the scattered boolean-flag dispatch with a handler registry;
-these lock in the metadata each factory currently emits so the public field API
-stays byte-compatible for plugin models.
+Field kinds are dispatched through a handler registry that reads this
+metadata; these lock in the metadata each factory emits so the public field
+API stays byte-compatible for plugin models.
 """
 from dataclasses import dataclass, fields
 

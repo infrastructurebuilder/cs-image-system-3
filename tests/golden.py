@@ -2,12 +2,12 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""Golden output of the V2 meta-workflow over the frozen fixture
+"""Golden output of the meta-workflow over the frozen fixture
 (``tests/fixtures/config``; see GOLDEN.md).
 
 ``tests/fixtures/v2_golden/`` holds exactly what ``run --all`` (dry-run,
 stubbed cloud/tools, pinned timestamp) generates plus the meta-state files
-it writes. ``test_v2_golden.py`` fails on any drift; regenerate deliberately
+it writes. ``test_golden.py`` fails on any drift; regenerate deliberately
 with ``just golden-regen`` after an intentional emission change and review
 the diff -- the golden tree is the reviewable record of what the system
 emits.

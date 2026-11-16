@@ -57,7 +57,7 @@ just golden-regen        # -> uv run python tests/golden.py
 
 ## How it is enforced
 
-[tests/test_v2_golden.py](tests/test_v2_golden.py) regenerates the emission in
+[tests/test_golden.py](tests/test_golden.py) regenerates the emission in
 memory and compares it against the committed fixture file by file. It reports
 three kinds of problem separately:
 

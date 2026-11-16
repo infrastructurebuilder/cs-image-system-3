@@ -1111,7 +1111,7 @@ took or would take. Nothing plans at generation. The behaviour of the
 root itself (the variables, the state binding, the whitelists, the
 ephemeral sequence, the finalization hooks) is the base's and is pinned
 against this root's emission by the golden test,
-[tests/test_v2_golden.py](../../tests/test_v2_golden.py), and by the
+[tests/test_golden.py](../../tests/test_golden.py), and by the
 repository tests named under "When it fails"; the module arguments this
 package answers are pinned by
 [tests/test_instance_module_calls.py](tests/test_instance_module_calls.py)

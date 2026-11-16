@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""Tests for the open field-kind registry (Phase 2).
+"""Tests for the open field-kind registry.
 
 The *extensibility proof*: a plugin-style custom field kind registered from
 outside base is dispatched through all three hooks (contribute_context /
@@ -16,7 +16,7 @@ from cs_image_system.contract.constants import FIELD_KIND, NO_MODEL_ID, VCT
 
 
 def test_custom_field_kind_dispatched_through_all_hooks(clean_registry):
-    """A plugin can register a brand-new kind + handler and have base drive it."""
+    """A plugin can register a brand-new kind + handler and the engine's resolver drives it."""
     calls = []
 
     class ShoutHandler(field_kinds.FieldKindHandler):

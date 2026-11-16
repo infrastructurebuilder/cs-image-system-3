@@ -197,9 +197,9 @@ def test_absent_apply_flag_key_means_false(tmp_path, monkeypatch):
 
 
 def test_new_storages_start_active_and_a_tombstone_regenerates(tmp_path, monkeypatch):
-    """'Destroyed is terminal' is replaced: a declared storage whose
-    record is a tombstone is a NEW generation of the name (legal), while a
-    never-applied storage still must start active."""
+    """A destroyed storage is not terminal (DESIGN N22): a declared storage
+    whose record is a tombstone is a NEW generation of the name (legal),
+    while a never-applied storage must start active."""
     run = _prepared(tmp_path, monkeypatch, lambda root: (
         _seed_storage_state(root, {"efs-storage": "destroyed"}),
         _set_storage(root, "efs-storage", state="active"),
@@ -214,10 +214,10 @@ def test_new_storages_start_active_and_a_tombstone_regenerates(tmp_path, monkeyp
 
 
 def test_a_recorded_storage_that_left_the_yaml_is_a_planned_destroy(tmp_path, monkeypatch):
-    """DESIGN N22 ('entries never leave the YAML') is replaced: the demise
-    of a storage is its un-declaration; a still-live record that no longer
-    has an entry is destroyed by the next run (its root known from the
-    record's facts), and a tombstone that left the YAML is simply history."""
+    """A storage leaves the system by leaving the YAML (DESIGN N22): a
+    still-live record without an entry is destroyed by the next run (its
+    root known from the record's facts), and a tombstone without an entry
+    is simply history."""
     def mutate(root: Path):
         _seed_storage_state(root, {"old_scratch": "destroyed"})
     run = _prepared(tmp_path, monkeypatch, mutate)
@@ -290,7 +290,7 @@ def test_retired_all_value_and_per_instance_groups_are_rejected_at_load(tmp_path
         Storage(name="x", type_="aws-ebs", runtime="aws", groups=["ALL"])
     from cs_image_system.base.models.instance import Instance
     with pytest.raises(ValueError, match="an instance takes no per-instance groups"):
-        Instance(name="i", image="img", **{"groups": ["coops"]})   # type: ignore[call-arg]   a V1-era key, no longer a field
+        Instance(name="i", image="img", **{"groups": ["coops"]})   # type: ignore[call-arg]   not a field of an instance
     with pytest.raises(ValueError, match="share_mode"):
         Storage(name="x", type_="aws-ebs", runtime="aws", share_mode="0777")
     with pytest.raises(ValueError, match="unknown state"):

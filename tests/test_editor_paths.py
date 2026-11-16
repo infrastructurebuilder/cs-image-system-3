@@ -7,15 +7,18 @@
 Pyright's ``extraPaths`` in the root ``pyproject.toml`` is the one source:
 it names the source root of every package under ``packages/`` (globs are
 not supported there, so each is listed), and the committed
-``.vscode/settings.json`` lists the same roots under
-``python.analysis.extraPaths``, the packages in name order, so an editor
-reads every package from its source and not only the ones someone added.
+``.vscode/settings.json`` lists the same roots, in the same order, under
+``python.analysis.extraPaths``: ``tests`` and ``src`` first, then the
+packages in name order. An editor so reads every package from its source
+and not only the ones someone added, and a package added to one list
+lands in the same place in the other.
 """
 from __future__ import annotations
 
 import json
 import tomllib
 
+import pytest
 from harness import REPO
 
 PREFIX = "${workspaceFolder}/"
@@ -38,12 +41,15 @@ def test_pyright_names_every_packages_source_root():
     assert roots - set(_pyright_paths()) == set()
 
 
-def test_the_editor_lists_what_pyright_lists():
+def test_the_editor_lists_what_pyright_lists_in_the_same_order():
     editor, pyright = _editor_paths(), _pyright_paths()
     assert len(editor) == len(set(editor))
-    assert set(editor) == set(pyright)
+    assert editor == pyright
 
 
-def test_the_editor_lists_the_packages_in_name_order():
-    packages = [p for p in _editor_paths() if p.startswith("packages/")]
+@pytest.mark.parametrize("paths", [_editor_paths, _pyright_paths], ids=["editor", "pyright"])
+def test_each_list_names_tests_and_src_then_the_packages_in_name_order(paths):
+    listed = paths()
+    packages = [p for p in listed if p.startswith("packages/")]
+    assert listed == ["tests", "src", *packages]
     assert packages == sorted(packages, key=lambda p: p.split("/")[1])

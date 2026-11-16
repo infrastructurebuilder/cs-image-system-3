@@ -8,7 +8,7 @@ A value anywhere in the tree may be ENC[age:<base64>]; a field declared
 EncryptedStr decrypts it at load with the identity in CSIS_CONFIG_IDENTITY,
 element by element for collections, and hides the plaintext in reprs. The
 frozen fixture's rosters are encrypted with its committed TEST identity and
-the golden is byte-identical -- proven by tests/test_v2_golden.py; these
+the golden is byte-identical -- proven by tests/test_golden.py; these
 tests pin the mechanism.
 """
 from __future__ import annotations
