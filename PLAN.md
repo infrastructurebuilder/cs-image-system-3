@@ -1,8 +1,7 @@
 # Plans
 
-No plan is open.
+Plans live with their specification: `specs/<number>-<name>/plan.md`,
+written by `/speckit-plan` from that directory's `spec.md`. The open
+specifications are listed in [specs/README.md](specs/README.md).
 
-A plan is written here as a `## <title>` section, newest first, with a
-`*Status:*` line, when work is planned before it becomes a stage in
-[INPROGRESS/TODO.md](INPROGRESS/TODO.md); it is removed when the work lands, and the squash commit is the record. The former worksheet archive and every landed plan
-are frozen, verbatim, in [docs/history/PLAN.md](docs/history/PLAN.md).
+No plan is kept in this file.

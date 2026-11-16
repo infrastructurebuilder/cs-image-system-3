@@ -22,8 +22,8 @@ Privileged Access.
 - [GOLDEN.md](GOLDEN.md) — the pinned emission every change is judged against.
 - [docs/PARITY.md](docs/PARITY.md) — how the system and its documentation can diverge, and how to check.
 - [REMINDERS.md](REMINDERS.md) — what the operator checks at intervals: the monthly general items and the GCP account's cost housekeeping.
-- [docs/history/](docs/history/README.md) — frozen records of how the system got here; nothing there describes the present.
-- [INPROGRESS/TODO.md](INPROGRESS/TODO.md) and [PLAN.md](PLAN.md) — the work in flight; a worksheet, not documentation.
+- [specs/](specs/README.md) — the work in flight: one specification per change, each for a named user, under the [constitution](.specify/memory/constitution.md).
+- [ATTIC/](ATTIC/README.md) — retired: the former work list, the frozen history and past reviews. Nothing there describes the present, and nothing current takes a fact from it.
 
 ## The Justfile contract
 

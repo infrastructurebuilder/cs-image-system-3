@@ -14,8 +14,8 @@ git log --first-parent develop --format='%h|%ad|%s' --date=short
 
 The public history starts on 2026-09-16 with stage 37; the stages before
 it landed in the private repository the public one was cut from, and
-their record is the frozen [history/PLAN.md](history/PLAN.md) and
-[history/LEDGER.md](history/LEDGER.md). A few early public stages have
+their record is the frozen [history/PLAN.md](../ATTIC/history/PLAN.md) and
+[history/LEDGER.md](../ATTIC/history/LEDGER.md). A few early public stages have
 squash subjects that name no number and so have no row. "Released in"
 names the first release whose tag contains the squash; a development
 release counts. The newest row of each stage carries an anchor

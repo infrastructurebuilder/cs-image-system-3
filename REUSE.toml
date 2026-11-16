@@ -19,7 +19,27 @@ path = [
   ".claude/**",
   ".devcontainer/**",
   ".vscode/**",
+  "ATTIC/**",
+  "specs/**",
+  ".specify/memory/**",
 ]
 precedence = "aggregate"
 SPDX-FileCopyrightText = "2026 Mykel Alvis <mykelalvis@infrastructurebuilder.org>"
 SPDX-License-Identifier = "Apache-2.0"
+
+# Spec Kit's own files, as `specify init` wrote them: its scripts, templates and
+# workflow under .specify/ and its skills under .claude/skills/. They are GitHub's,
+# under the MIT licence. The constitution (.specify/memory/) is this project's, above.
+[[annotations]]
+path = [
+  ".specify/.gitignore",
+  ".specify/*.json",
+  ".specify/integrations/**",
+  ".specify/scripts/**",
+  ".specify/templates/**",
+  ".specify/workflows/**",
+  ".claude/skills/speckit-*/**",
+]
+precedence = "override"
+SPDX-FileCopyrightText = "GitHub, Inc."
+SPDX-License-Identifier = "MIT"

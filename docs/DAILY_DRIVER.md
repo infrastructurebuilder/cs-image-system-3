@@ -4,7 +4,7 @@
 bootstrapped, baked, launched, logged into and torn down by an operator
 typing from this page alone, and what the walk found is in this page's
 words. The walk itself is a frozen record,
-[docs/history/WALK-2026-10.md](history/WALK-2026-10.md); nothing here
+[ATTIC/history/WALK-2026-10.md](../ATTIC/history/WALK-2026-10.md); nothing here
 depends on it.*
 
 *How a team actually uses cs-image-system: what must exist before the
@@ -1167,9 +1167,10 @@ the job summary says whether a job ran at all.
 The failures below all happened in the reference deployment, and each row
 says what to do. A row that tells a story links its entry in
 [INCIDENTS.md](INCIDENTS.md), which holds the symptom, the cause, the fix
-and the date of each. A new failure gets an entry there (newest first)
-and, when it is a defect, an item in the open hygiene bundle, the one the
-Open list in [INPROGRESS/TODO.md](../INPROGRESS/TODO.md) names.
+and the date of each. A new failure gets an entry there (newest first).
+When it is a defect that blocks someone, it is fixed under a
+specification in [specs/](../specs/README.md); otherwise it waits until
+its code is next changed.
 
 | Symptom | Meaning | Do |
 | --- | --- | --- |
@@ -1433,10 +1434,9 @@ declares.
 6. GCP costs are yours: a cycle there ends with `just cloud-empty`, and
    any billable resource left standing is named with its cost.
 7. When something fails, the row in section 6 first, then its entry in
-   [INCIDENTS.md](INCIDENTS.md), then the open hygiene bundle, the one
-   the Open list in [INPROGRESS/TODO.md](../INPROGRESS/TODO.md) names; a
-   new failure gets an entry there and, when it is a defect, an item in
-   the bundle.
+   [INCIDENTS.md](INCIDENTS.md); a new failure gets an entry there and,
+   when it is a defect that blocks someone, a fix under a specification
+   in [specs/](../specs/README.md).
 8. Upgrade the system deliberately: a new release, then `just validate`,
    `just dry`, and the diff of `generated/` read before anything runs.
 
