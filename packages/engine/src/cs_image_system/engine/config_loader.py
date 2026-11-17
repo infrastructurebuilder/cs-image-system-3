@@ -419,6 +419,10 @@ def load_overlay(path: Path) -> dict[str, Any]:
     return data
 
 
+#: the key, in the typer context's object, of the ``type:`` words the configuration being loaded declares
+DECLARED_TYPES = "declared_types"
+
+
 def read_config_and_transform(
     typer_cntx: typer.Context,
     root_dir: Path,
@@ -519,6 +523,10 @@ def read_config_and_transform(
     generic_yaml = _single_mapping(generic_yaml)
 
     original_yaml_dictionary_lists = _take_builder_lists(generic_yaml)
+    # what this configuration declares, for whoever reports a failure of the rest of this load: the plugins
+    # asked about it are the declared ones, never every installed one (`commands/load_failures`)
+    typer_cntx.obj[DECLARED_TYPES] = sorted({str(item["type"]) for items in original_yaml_dictionary_lists.values()
+                                             for item in items if item.get("type")})
 
     # generic_yaml no longer contains the plugin-typed builder models
     config_data = _structure_configuration(cvt, generic_yaml)

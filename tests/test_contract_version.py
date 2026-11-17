@@ -8,7 +8,9 @@
 workspace's (0.x until the operator decides otherwise): a bump of the
 workspace leaves it alone, every package that depends on it pins the range
 of its compatible series, and the release tooling that probes and uploads
-by version knows which project follows its own.
+by version knows which project follows its own. The SDK's libraries keep
+version lines of their own too (tests/test_package_metadata.py holds
+those); this file is about the contract's.
 """
 from __future__ import annotations
 

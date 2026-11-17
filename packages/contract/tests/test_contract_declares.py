@@ -5,7 +5,7 @@
 """The contract declares and generates nothing: every
 module imports on its own, the protocols are there to be satisfied, the
 package's version is read, and the example plugin written against the
-contract alone satisfies its protocols structurally."""
+contract and nothing else satisfies its protocols structurally."""
 from __future__ import annotations
 
 import ast

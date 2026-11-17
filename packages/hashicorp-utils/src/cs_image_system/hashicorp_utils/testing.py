@@ -38,6 +38,9 @@ class BareRun:
             setattr(self, name, value)
 
     def plugin_state(self, key: str, factory: Callable[[], Any]) -> Any:
+        namespace, separator, name = key.partition("/")
+        if not (namespace and separator and name):         # the core's context refuses the same
+            raise ValueError(f"plugin_state key {key!r} names no namespace: a key is '<namespace>/<name>'")
         if key not in self._state:
             self._state[key] = factory()
         return self._state[key]

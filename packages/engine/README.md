@@ -42,7 +42,7 @@ hook. Licensed under Apache-2.0. Requires Python 3.13 or later.
 
 Declared dependencies ([`pyproject.toml`](pyproject.toml)):
 `cs-image-system-contract` (its compatible series, as every dependent
-pins it), `cs-image-system-base` (the kit, at `==` the workspace
+pins it), `cs-image-system-base` (the kit, at `==` the kit's own
 version), `Jinja2` (the template resolver), `PyYAML`, `packaging` (the
 version checks and the pinned release), `pydantic` and `typer` (the
 typer context the configuration reader and the commands are handed).
@@ -659,10 +659,12 @@ short, and each item says how the core finds it.
   --all-extras`) installs this package with the kit, the contract and
   every plugin; a release installs it as a dependency of
   `cs-image-system-system` and of the umbrella, `cs-image-system`.
-- **The kit, at the same version.** Every engine module that reads a
+- **The kit, at an exact version.** Every engine module that reads a
   model, a builder, the registry or the run context imports it from
-  `cs_image_system.base`; the pin is `==` because the two release
-  together.
+  `cs_image_system.base`. The kit keeps a version line of its own (it is
+  the SDK a plugin names by a range), and the engine pins the one it was
+  built and tested with, `==`: the engine reaches past the kit's
+  declared surface, which a plugin may not.
 - **Plugins, through entry points.** The core registers no runtime, no
   image builder, no OS builder, no storage, group, user, instance or mod
   builder and no state backend. At every CLI start
@@ -735,9 +737,11 @@ short, and each item says how the core finds it.
   login proof is recorded `as: workload` or `as: client`; the core never
   reads its value. `USER` (else `USERNAME`) names the operator in an
   `unmount --confirm` receipt. A credential-shaped variable (`TF_VAR_*`,
-  `CSIS_*`, `OKTA_*`, plus every prefix the installed runtimes declare
-  through `credential_environment_prefixes()`: `AWS_*`, `GOOGLE_*`,
-  `CLOUDSDK_*`, `DOCKER_*`) that is set but EMPTY is reported by name by
+  `CSIS_*`, `OKTA_*`, plus every prefix the runtimes and group builders
+  the configuration DECLARES name through
+  `credential_environment_prefixes()`: `AWS_*`, `GOOGLE_*`,
+  `CLOUDSDK_*`, `DOCKER_*`; a provider installed and not declared adds
+  none) that is set but EMPTY is reported by name by
   `preflight` (`empty_environment_credentials`). `CSIS_CONFIG_ROOT` is the
   Justfile's, not the core's: the CLI takes `--root-dir`.
 - **The whole process environment, as `ENV`.** The string stage renders
@@ -1143,7 +1147,9 @@ code writes it (values in angle brackets).
   derive a namespace from, and its metadata names none; set
   PluginMetadata.namespace` (`PluginNamespaceError`) -- a plugin
   registered without a distribution behind its entry point and without
-  the field; a packaging problem.
+  the field; a packaging problem. The plugin is skipped: the line is
+  logged once as `Plugin <name> is skipped: refused: ...`, every other
+  plugin loads, and only a configuration that needs this one fails.
 - `KeyError: <type>` while structuring -- the `type:` names no registered
   model: the plugin is not installed or the name is misspelt (aliases are
   canonicalised first).

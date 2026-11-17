@@ -153,9 +153,10 @@ Expect three results in order, each saying it ran and succeeded: the
 install of `cs-image-system[docker]` from the built wheels, the
 validation, the dry run.
 
-To see that the check bites, the suite holds a case that runs the same
-recipe against a build whose `[docker]` extra names a package that
-does not exist, and expects the install step to fail.
+To see that the check bites, the suite holds the cases in which a step
+does not succeed (`tests/test_isolated_run.py`): a failed install
+reports the validation and the dry run as not run, a failed validation
+reports the dry run as not run, and each fails the check.
 
 ## Step 7: nothing moved
 
@@ -188,12 +189,27 @@ Expect a listing of lifecycle directories. If the dry run asks for the
 starter's test identity, export it as the starter's own `README` says
 and run the box again.
 
-Under 10 seconds, after step 6.
+Under 10 seconds, after step 6. A dry run's emission carries the run's
+own id and its time stamp in image names, and the "before" tree holds
+what `tofu init` left behind, so the two trees are compared as
+`config-drift` compares an emission: after the system's own
+normalisation of exactly those things.
 
 ```sh
-# step 7 -- box 3 of 3 -- v1
-diff -r "$TMPDIR/before-tree/generated" "$TMPDIR/after-standard-docker" \
-  && echo "identical"
+# step 7 -- box 3 of 3 -- v2
+uv run python - "$TMPDIR/before-tree/generated" "$TMPDIR/after-standard-docker/generated" <<'PY'
+import shutil, sys, tempfile
+from pathlib import Path
+from cs_image_system.engine.commands.emission import diff_trees, normalise_emission
+with tempfile.TemporaryDirectory() as td:
+    sides = []
+    for name, src in zip(("before", "after"), sys.argv[1:3]):
+        dst = Path(td) / name
+        shutil.copytree(src, dst, symlinks=True)
+        normalise_emission(dst)
+        sides.append(dst)
+    print("\n".join(diff_trees(*sides)) or "identical")
+PY
 ```
 
 Expect `identical`. Afterwards the temporary checkout can be removed

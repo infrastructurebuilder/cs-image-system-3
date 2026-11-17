@@ -6,7 +6,11 @@
 
 A wheel installed from an index has only its metadata to go on, so every
 package declares exactly the third-party distributions its sources import
-(41.1), pins every sibling at == its own version (41.2), carries the
+(41.1), names every sibling as that sibling's kind requires (41.2: at ==
+the workspace's version, except the contract, by the range of its series,
+and the SDK's libraries, which keep version lines of their own and are
+pinned exactly by the core and by a range by a provider that stands
+alone), carries the
 description, readme and urls an index page shows (41.8); the root is the
 buildable `cs-image-system` umbrella whose dependencies are the core and
 whose extras (`[aws]`, `[gcloud]`, `[docker]`, `[okta]`, `[all]`) are the
@@ -17,9 +21,11 @@ group alone, classified `Private :: Do Not Upload`, and never published;
 and `bump-my-version` moves every version line and every pin -- the
 extras' and the dev group's included -- at once under the
 MAJOR.MINOR.PATCH[.devN] scheme (41.4, 41.5), proven on a copy of the tree.
-The one exception is the contract: its version is its own, every
-dependent pins it to a range, and the bump leaves it alone
-(tests/test_contract_version.py holds that side).
+The exceptions are the contract (its version is its own, every
+dependent pins it to a range, and the bump leaves it alone;
+tests/test_contract_version.py holds that side) and the SDK's two
+version lines, the kit's and the terraform libraries', which the
+workspace's bump leaves alone and `just sdk-bump` moves.
 """
 from __future__ import annotations
 

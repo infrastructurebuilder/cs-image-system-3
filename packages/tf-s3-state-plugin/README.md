@@ -636,7 +636,7 @@ and a remote-state reference whose producer has no backend
 is registered for it`) -- all `HclConfigConflictError`, which fails the
 lifecycle's generation. `generate_terraform_block` and
 `generate_remote_state_datasources` also run the collector's provider
-`validate_all()` first. In a real run the generation-time `init` then
+check for their own workspace (`validate_for`) first. In a real run the generation-time `init` then
 proves the backend reachable: tofu's own exit code fails the run. After
 generation, dry or real, `_record_state_locations` writes every bound
 workspace's location to `meta-state/state-locations.yaml` (a migrating

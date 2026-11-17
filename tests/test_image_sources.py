@@ -182,7 +182,10 @@ def test_the_stand_in_runtime_is_the_one_that_offers_a_local_target():
     assert ImageSourceCatalog(installed).stand_in_block("debian", "12") is not None
 
 
-def test_a_conflict_between_two_runtimes_parts_keeps_the_first_and_says_so(caplog):
+def test_a_conflict_between_two_runtimes_parts_is_said_and_a_disputed_block_is_neithers(caplog):
+    """What a family IS keeps the first part's word, with a warning. A
+    runtime type's block that two parts give differently is a collision:
+    neither is used, whichever part was read first, and both are named."""
     from cs_image_system.base.image_sources import ImageSource, merge_entries, structure_entries
     a = structure_entries([{"family": "x", "is": "rhel", "description": "one",
                             "sources": {"alpha": {"name": "a-{version}"}}}], where="alpha")
@@ -191,11 +194,13 @@ def test_a_conflict_between_two_runtimes_parts_keeps_the_first_and_says_so(caplo
     with caplog.at_level(logging.WARNING, logger="cs_image_system.base.image_sources"):
         merged = merge_entries([("alpha", a), ("beta", b)])
     assert len(merged) == 1 and isinstance(merged[0], ImageSource)
-    assert merged[0].is_ == "rhel" and merged[0].runtime_types() == ["alpha", "beta"]
-    assert merged[0].sources["alpha"] == {"name": "a-{version}"}
+    assert merged[0].is_ == "rhel" and merged[0].runtime_types() == ["beta"]
     messages = [r.getMessage() for r in caplog.records]
     assert any("says is='debian'" in m and "keeping the first" in m for m in messages), messages
-    assert any("`alpha` block differs" in m for m in messages), messages
+    errors = [r.getMessage() for r in caplog.records if r.levelno == logging.ERROR]
+    assert len(errors) == 1 and "alpha" in errors[0] and "beta" in errors[0] and "image-source block 'alpha'" in errors[0]
+    # the other order: the same catalog
+    assert merge_entries([("beta", b), ("alpha", a)])[0].runtime_types() == ["beta"]
 
 
 def test_the_tree_layer_lands_on_the_releases_and_a_version_on_the_generic(ctx):

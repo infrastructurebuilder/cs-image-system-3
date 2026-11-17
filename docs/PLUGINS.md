@@ -1,7 +1,6 @@
 # The packages
 
-The uv workspace is twenty-three packages under `packages/`, twenty-one
-of them published. Each has its own
+The uv workspace is the packages under `packages/`. Each has its own
 README that describes it on its own terms: what it registers, its models
 and how they extend the base models, its builder's hooks, what it emits,
 and one example configuration. The core and the CLI are packages too.
@@ -17,8 +16,18 @@ extra is `cs_image_system.extras`, the umbrella's one module). The dummy plugin 
 contract example plugin are workspace-only: classified `Private :: Do
 Not Upload`, installed through the root's `dev` group, never on the
 index. Every package declares exactly the
-third-party distributions its sources import and pins its siblings at its
-own version; `tests/test_package_metadata.py` holds it to that.
+third-party distributions its sources import, and
+`tests/test_package_metadata.py` holds it to that.
+
+How a package names its siblings depends on what the sibling is. The
+contract has a version of its own and is named by the range of its
+series. The SDK's libraries (the kit, and the two terraform libraries
+together) each keep a version line of their own: the core and the
+plugins that release with it pin them exactly, and a provider that
+stands alone, as the docker provider does, names them by a range.
+Everything else carries the workspace's one version and is pinned at it.
+[WRITING_A_PROVIDER.md](WRITING_A_PROVIDER.md) says what the SDK's
+version numbers promise.
 
 ## The core
 
@@ -28,7 +37,7 @@ own version; `tests/test_package_metadata.py` holds it to that.
 | [base](../packages/base/README.md) | The kit: the base models and builder bases that implement the contract, the registry (one per run, made by the loader), the lifecycles and phases, the run context (made by the loader and bound to every builder; nothing on it loads or executes), encryption, lineage, generations, launch parameters, capabilities. Exactly what the plugins import from the core, measured; it imports nothing of the engine. Every built-in plugin depends on it; an external one need not. |
 | [engine](../packages/engine/README.md) | The engine: the plugin loader, the configuration reader, the resolver, the finalizer, the lifecycle runner and its commands, meta-state on disk, the public-safe gate, the state query, releases, retention, the bootstrap. Depends on the kit; no plugin imports it. The CLI host and the umbrella depend on it. |
 | [system](../packages/system/README.md) | The CLI host: the `cs-image-system` command and every subcommand. |
-| [hashicorp-utils](../packages/hashicorp-utils/README.md) | A library, not a plugin, on the contract alone: the terraform and packer collectors (providers, plugins, backends, sensitive values by reference; one instance per run, reached through the run context, never a process singleton), HCL rendering. It imports nothing of the core. Nine packages use it. |
+| [hashicorp-utils](../packages/hashicorp-utils/README.md) | A library, not a plugin, that depends on the contract and nothing else of the system: the terraform and packer collectors (providers, plugins, backends, sensitive values by reference; one instance per run, reached through the run context, never a process singleton), HCL rendering. It imports nothing of the core. |
 | [tofu-roots](../packages/tofu-roots/README.md) | A library, not a plugin: the terraform roots every OpenTofu root plugin subclasses -- the root mixin (init, the gated plan → gate → apply sequence), the provider-neutral instance and storage roots (`TofuInstanceBuilderBase`, `TofuStorageBuilderBase`, their models and the `tofu` version checker) and the run hooks that check and record state locations for the core, which knows no terraform. |
 
 ## The plugins
@@ -56,7 +65,7 @@ declares `other`).
 | [tf-ebs-instance-plugin](../packages/tf-ebs-instance-plugin/README.md) | instances and storages | the AWS terraform roots: `tofu` (instances) and `tf-aws-ebs`, `tf-aws-efs`, `tf-aws-s3` (storages); a subclass of tofu-roots' neutral roots with the `aws` provider |
 | [tf-gcp-plugin](../packages/tf-gcp-plugin/README.md) | instances and storages | the GCE terraform roots: `tofu-gce` (instances) and `tf-gcp-pd`, `tf-gcp-filestore`, `tf-gcp-gcs` (storages); a subclass of tofu-roots' neutral roots with the `google` provider, with no dependency on the AWS root |
 | [tf-s3-state-plugin](../packages/tf-s3-state-plugin/README.md) | state backends | `s3` |
-| [contract-example-plugin](../packages/contract-example-plugin/README.md) | state backends | `inmem` (OpenTofu's in-memory state; the proof of the contract: written against the contract alone, never a backend for a real tree) |
+| [contract-example-plugin](../packages/contract-example-plugin/README.md) | state backends | `inmem` (OpenTofu's in-memory state; the proof of the contract: written against the contract and nothing else, never a backend for a real tree) |
 | [local-state-plugin](../packages/local-state-plugin/README.md) | state backends | `local` (a state file on disk) |
 | [gcs-state-plugin](../packages/gcs-state-plugin/README.md) | state backends | `gcs` (a Google Cloud Storage bucket; declared in the fixture, bound to nothing) |
 | [dummy-plugin](../packages/dummy-plugin/README.md) | extension template and test double | see its README |
@@ -70,8 +79,11 @@ Every plugin registers under a **namespace**, and every class it registers
 is keyed by its classification, that namespace and its canonical name. A
 plugin names its namespace with `PluginMetadata(namespace="...")`, or
 inherits it from its distribution: the distribution name with the
-`cs-image-system-` prefix and the `-plugin` suffix dropped, so the
-packages above register as `aws-runtime`, `gcloud-runtime`,
+`cs-image-system-` prefix and the `-plugin` suffix dropped. The docker
+package names its two namespaces itself (`docker-runtime` for the
+runtime, `tf-docker` for the roots), as they were when it was two
+packages, so a tree that wrote a qualified word still loads. The
+packages above therefore register as `aws-runtime`, `gcloud-runtime`,
 `docker-runtime`, `tf-docker`, `default-os`, `packer`, `ansible`,
 `bash-mod`, `okta-opa`, `posix-identity`, `tf-ebs-instance`, `tf-gcp`,
 `tf-s3-state`, `contract-example`, `local-state`, `gcs-state` and
@@ -80,8 +92,9 @@ therefore answer to one `type:` word: a tree writes the bare word while
 one class answers to it, and the qualified form `<namespace>/<name>`
 (`tf-ebs-instance/tofu`) when different classes do, which `validate`
 says in one line. A plugin whose entry point has no distribution behind
-it must name the namespace or is refused at discovery with the field
-named. The reasoning is in [the stage index](CHANGES.md#s131); the
+it must name the namespace, or it is refused at discovery with the field
+named: skipped, with one error line, like any plugin that cannot be used
+([WRITING_A_PROVIDER.md](WRITING_A_PROVIDER.md#how-a-plugin-that-cannot-be-used-shows-itself)). The reasoning is in [the stage index](CHANGES.md#s131); the
 registry's tables and the resolution rule are in
 [base's README](../packages/base/README.md#the-registry).
 
@@ -192,11 +205,13 @@ runtime declares only what it has.
 
 ### What a plugin may import
 
-A plugin is written against `cs-image-system-contract`, and from the core
-it imports three things only: the base classes under
-`cs_image_system.base.basic` (the convenient way to satisfy a protocol),
-the models under `cs_image_system.base.models` (what it subclasses or
-attaches to) and the two metadata abstractions. Everything else it needs
+A plugin is written against `cs-image-system-contract` and the declared
+surface of the SDK: the kit and the two terraform libraries, each of
+which lists what a plugin may use in its `surface` module.
+[WRITING_A_PROVIDER.md](WRITING_A_PROVIDER.md) is the guide: what a
+provider is made of, what it may import and how to check it, how it
+names the SDK by a range, where its tests live and how to run them
+alone. Everything else a plugin needs
 of a run it reads from the context it is handed at `bind(ctx)`, typed as
 the contract's `RunContextProtocol`: the collections and paths, the
 meta-state, and the services under `ctx.services`, each a protocol sized
@@ -219,7 +234,8 @@ adds). The
 contract's protocols hold what a plugin calls on the core's objects and
 what the core calls on a plugin's, nothing mirrored from the base classes
 for its own sake; a plugin that falls short of its kind's protocol is
-refused when the plugins are discovered, by name and by member.
+refused when the plugins are discovered, by name and by member, and is
+skipped: the plugins beside it load.
 
 ### What a plugin adds to the command line
 
@@ -255,9 +271,10 @@ path, and the script mounts it once -- `verify login` is one callback in
 the core (`cs_image_system.engine.commands.login_proof.verify_login_command`)
 that every identity plugin mounts, so the proof is there whichever
 identity plugin a tree installs. A *different* callback or sub-app under a
-name a built-in command or an earlier mount already took is refused when
-the script starts: two owners of one command is a packaging error, never a
-silent replacement. The examples: the okta-opa plugin's
+name is never a silent replacement. Two plugins that mount different
+things under one name are both skipped, with one error line that names
+both; a plugin that takes a built-in command's name is skipped alone.
+The script still starts, and `--help` still answers. The examples: the okta-opa plugin's
 [`cli.py`](../packages/okta-opa-plugin/src/cs_image_system/okta_opa_plugin/cli.py)
 mounts the `workload` sub-app (`describe`, `token`, `probe`) and `verify
 login`; the posix-identity plugin's

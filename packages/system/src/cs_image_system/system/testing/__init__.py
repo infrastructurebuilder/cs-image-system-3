@@ -13,6 +13,7 @@ The kit needs ``pytest`` only for the ``monkeypatch`` a test passes to it;
 install it with the ``testing`` extra of this distribution.
 """
 from .golden import IGNORED_FILES, assert_matches, differences, emitted, write
+from .neighbours import broken_neighbour
 from .run import (
     FIXED_CHECKED_AT,
     FIXED_NOW,
@@ -34,6 +35,7 @@ from .run import (
     plain,
     stub_core,
     tree,
+    validation_errors,
 )
 
 __all__ = [
@@ -46,6 +48,7 @@ __all__ = [
     "Run",
     "Stub",
     "assert_matches",
+    "broken_neighbour",
     "cli_context",
     "command_lines",
     "copy_fixture",
@@ -61,5 +64,6 @@ __all__ = [
     "plain",
     "stub_core",
     "tree",
+    "validation_errors",
     "write",
 ]

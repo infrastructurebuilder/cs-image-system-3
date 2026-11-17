@@ -14,15 +14,12 @@ of the *shape*, not a working example: a declared `type: dummy` builder
 loads, validates and runs the identity lifecycle, but it manages nothing:
 the group builder writes nothing and the user builder writes one
 comment-only file. The hook plugin is the part the tests prove most.
-Second, the package has no tests of its own (there is no
-`packages/dummy-plugin/tests` directory, and the root
-[pyproject.toml](../../pyproject.toml) lists none among its
-`testpaths`); the repository's
+Second, the package's own tests are few
+([tests/](tests/)); the repository's
 [tests/test_plugin_hooks.py](../../tests/test_plugin_hooks.py)
 covers the hooks, and
 [tests/test_identity_roots.py](../../tests/test_identity_roots.py)
-and [tests/test_identity_roots.py](../../tests/test_identity_roots.py)
-cover the builders and models.
+covers the builders and models.
 
 ## What it registers
 
@@ -262,24 +259,23 @@ user_builders:
 
 ## Using it as a template
 
-To write a new builder plugin: copy this package, rename the `cs_image_system.<name>`
-module, keep one model per builder type extending the base model for that
-classification (`GroupBuilderModel`, `UserBuilderModel`,
-`StorageBuilderModel`, ...), give each model and builder the same
-`csis_name()` (the `type:` key), list them in the metadata's services and
-`builders_for_models`, and declare the entry point under the
-`cs_image_system.plugins.<kind>` group for the builder kind (`runtime`,
-`state`, `modification`, `storage`, `group`, `user`, `image`, `os`,
-`instance`, `other`; the list is `PLUGIN_TYPES` in the contract's
-[constants.py](../contract/src/cs_image_system/contract/constants.py); the
-loader refuses a plugin that registers no class of its group's kind, and
-`other` is the group of a plugin that registers none of the named kinds).
-Return an
-`AssetSet` from every `generate_items_*` hook, not a list. To write a
-hook plugin: return a `HookSet` from an entry point in the
+[WRITING_A_PROVIDER.md](../../docs/WRITING_A_PROVIDER.md) is the guide
+to writing a plugin: what it is made of, what it may import, how it
+names the SDK, where its tests live and how to run them alone. This
+package is the thing to copy for a group or user builder: rename the
+`cs_image_system.<name>` module, keep one model per builder type
+extending the base model for that classification, give each model and
+builder the same `csis_name()` (the `type:` key), list them in the
+metadata's services and `builders_for_models`, and declare the entry
+point under the `cs_image_system.plugins.<kind>` group for the builder
+kind. Return an `AssetSet` from every `generate_items_*` hook, not a
+list.
+
+To write a hook plugin: return a `HookSet` from an entry point in the
 `cs_image_system.plugins.hooks` group. Registration is validated: a
 lifecycle cannot reuse a built-in name, its `after` anchor must exist, and
 registering the same name twice with a different definition is an error.
+
 What a model and a builder must satisfy, kind by kind, is the
 [contract's README](../contract/README.md); a plugin that
 subclasses nothing of the core is the

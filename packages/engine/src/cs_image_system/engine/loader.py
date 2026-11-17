@@ -6,9 +6,10 @@ import logging
 from collections.abc import Callable
 from functools import cache
 from importlib.metadata import entry_points
-from typing import Any, NamedTuple
+from typing import Any, NamedTuple, cast
 
 from cs_image_system.base import registry
+from cs_image_system.contract import enrollment, field_kinds
 from cs_image_system.contract.constants import PLUGIN_TYPES, VCT
 from cs_image_system.contract.core import PluginArtifactProtocol, PluginMetadataProtocol
 from cs_image_system.contract.testing import conformance_problems, protocol_for
@@ -177,52 +178,322 @@ class DiscoveredPlugin(NamedTuple):
     initializer: Callable[[], Any]
 
 
-# shared by every run in the process: the installed plugins, which each run replays into a registry of its own
-@cache
-def _discovered_plugins() -> tuple[DiscoveredPlugin, ...]:
-    """Every installed plugin's ``initialize`` by plugin type and name, in
-    name order: discovered (entry points read, modules imported) ONCE per
-    process; what each one registers is replayed into every registry a run
-    makes. Discovery is where the installed plugin is held to the
-    contract: every class its metadata registers is checked
-    against the protocol of its classification, once, as shipped -- a
-    shortfall is a :class:`PluginConformanceError` here, with the member
-    named, and nothing of that plugin loads -- and the entry-point group
-    it was found under is held to what it registers (:func:`check_group`). The plugin's namespace is
-    settled here too (:func:`namespace_of_distribution`,
-    :func:`namespace_for`): a plugin with none is refused the same way. A
-    plugin whose entry point fails to import (or whose ``initialize``
-    raises) is not a refusal but an absence: one ERROR line names the
-    plugin and the error, and the rest load."""
-    found: list[DiscoveredPlugin] = []
-    for plugin_type, _plugin_key in PLUGIN_TYPES:
-        log.debug(f"Loading plugins of type: {plugin_type}")
-        plugins = entry_points(group=f'cs_image_system.plugins.{plugin_type}')
-        if not plugins:
-            log.debug(f"No '{plugin_type}' plugins found.")
-        plugin_names = sorted([plugin.name for plugin in plugins])
-        log.info(f"Found {len(plugins)} {plugin_type} plugins.")
-        for pname in plugin_names:
-            entry = plugins[pname]
-            dist = getattr(entry, "dist", None)
-            derived = namespace_of_distribution(dist.name) if dist is not None else None
-            # an entry point whose module does not import, or whose
-            # ``initialize`` raises, is reported once and skipped, as a hook
-            # plugin is: the other plugins load and every command keeps
-            # working without it (a traceback here would end them all)
-            try:
-                initializer = entry.load()
-                metadata = _metadata_of(initializer)
-            except Exception as e:
-                log.error(f"Plugin {pname} ({plugin_type}) failed to import and is skipped: {type(e).__name__}: {e}")
-                continue
+#: why a plugin could not be used
+FAILED_TO_IMPORT = "failed to import"
+REFUSED = "refused"
+COLLIDES = "collides"
+
+
+class Unusable(NamedTuple):
+    """One installed plugin that discovery could not use. It is skipped:
+    nothing of it loads, one ERROR line names it and the cause, and every
+    command on a configuration that does not use it works. ``words`` are
+    the ``classification:name`` pairs it would have registered, when its
+    metadata could be read; ``other`` is, for a collision, the plugin it
+    collides with and ``claim`` the thing both claim."""
+
+    plugin: str
+    distribution: str
+    plugin_type: str
+    cause: str
+    detail: str
+    words: tuple[str, ...] = ()
+    other: str = ""
+    claim: str = ""
+
+    def named(self) -> str:
+        return f"{self.plugin} ({self.distribution})" if self.distribution else self.plugin
+
+    def said(self) -> str:
+        """The plugin and why it could not be used, as a sentence's end:
+        ``thing (cs-image-system-thing-plugin): failed to import: ...``."""
+        if self.cause == COLLIDES:
+            return f"{self.named()}: it and {self.other} both register {self.claim}"
+        return f"{self.named()}: {self.cause}: {self.detail}"
+
+
+def _words_of(metadata: list[Any]) -> tuple[str, ...]:
+    out: list[str] = []
+    for md in metadata:
+        if isinstance(md, PluginMetadataProtocol):
+            for services in md.services.values():
+                out += [f"{s.csis_classifier().value}:{s.csis_name()}" for s in services
+                        if isinstance(s, PluginArtifactProtocol)]
+    return tuple(sorted(set(out)))
+
+
+def _registrations(pname: str, derived: str | None, metadata: list[Any]) -> dict[tuple[str, str, str], type]:
+    """What one plugin would put in a registry, by key: (classification,
+    namespace, name) -> class."""
+    out: dict[tuple[str, str, str], type] = {}
+    for md in metadata:
+        if not isinstance(md, PluginMetadataProtocol):
+            continue
+        namespace = namespace_for(pname, md, derived)
+        for services in md.services.values():
+            for service in services:
+                out[(service.csis_classifier().value, namespace, service.csis_name())] = service
+    return out
+
+
+#: the classifications a runtime type is registered under
+RUNTIME_CLASSIFICATIONS = frozenset({VCT.RUNTIME_BUILDER, VCT.CLOUD_BUILDER, VCT.CONTAINER_BUILDER})
+#: who else may own something a plugin replaced
+THE_SYSTEM = "the system itself"
+
+
+def _shared_kinds() -> dict[str, dict[str, Any]]:
+    """The two registries of the contract that a plugin fills by a call of
+    its own, not through its metadata, and that every run in the process
+    shares: the enrollment kinds and the field kinds, by what a collision
+    over one is called."""
+    return {"enrollment kind": cast(dict[str, Any], enrollment._KINDS),
+            "field kind": cast(dict[str, Any], field_kinds._HANDLERS)}
+
+
+def _replaced(before: dict[str, dict[str, Any]]) -> list[tuple[str, str]]:
+    """Every (registry, key) that held something in ``before`` and holds
+    something else now: what the plugin that just loaded replaced. The
+    same value registered again (a module loaded twice) is no replacement."""
+    out: list[tuple[str, str]] = []
+    for what, now in _shared_kinds().items():
+        for key, was in before[what].items():
+            if key in now and now[key] is not was and now[key] != was:
+                out.append((what, key))
+    return sorted(out)
+
+
+def _restore(before: dict[str, dict[str, Any]]) -> None:
+    """Put the two shared registries back as ``before`` has them: nothing
+    of a plugin that is skipped stays registered."""
+    for what, now in _shared_kinds().items():
+        now.clear()
+        now.update(before[what])
+
+
+def _runtime_types(metadata: list[Any]) -> set[str]:
+    """The runtime types one plugin registers."""
+    return {s.csis_name() for md in metadata if isinstance(md, PluginMetadataProtocol)
+            for services in md.services.values() for s in services
+            if isinstance(s, PluginArtifactProtocol) and s.csis_classifier() in RUNTIME_CLASSIFICATIONS}
+
+
+def _image_source_blocks(metadata: list[Any]) -> set[str]:
+    """The runtime types the image-source catalog one plugin ships carries
+    a block for (each runtime class's ``image_source_entries()``)."""
+    out: set[str] = set()
+    for md in metadata:
+        if not isinstance(md, PluginMetadataProtocol):
+            continue
+        for services in md.services.values():
+            for service in services:
+                hook: Any = getattr(service, "image_source_entries", None)
+                if not callable(hook) or not isinstance(service, PluginArtifactProtocol) \
+                        or service.csis_classifier() not in RUNTIME_CLASSIFICATIONS:
+                    continue
+                answered: Any = cast(Any, hook)()
+                for entry in answered or []:
+                    out.update(str(k) for k in (entry.get("sources") or {}))
+    return out
+
+
+class _Discovering:
+    """One reading of the installed plugins, as it goes: the plugins that
+    loaded and passed the checks (``candidates``), those that could not be
+    used, and the collisions among the candidates."""
+
+    def __init__(self) -> None:
+        self.candidates: list[tuple[DiscoveredPlugin, list[Any], str]] = []
+        self.unusable: list[Unusable] = []
+        # collisions among the candidates, by the candidate's index: the other party and the claim
+        self.colliding: dict[int, tuple[str, str]] = {}
+        # who registered each enrollment kind and field kind in this reading, by candidate index
+        self.kind_owner: dict[tuple[str, str], int] = {}
+
+    def named(self, index: int) -> str:
+        found, _metadata, dist_name = self.candidates[index]
+        return f"{found.name} ({dist_name})" if dist_name else found.name
+
+    def skip(self, u: Unusable) -> None:
+        self.unusable.append(u)
+        log.error(f"Plugin {u.named()} is skipped: {u.cause}: {u.detail}")
+
+    def one_name_twice(self, plugin_type: str, pname: str, dists: list[str]) -> None:
+        """One entry-point name in one group, from several distributions:
+        none is loaded, all are named."""
+        claim = f"entry point {pname!r} (cs_image_system.plugins.{plugin_type})"
+        both = " and ".join(f"{pname} ({d or 'a distribution without a name'})" for d in sorted(dists))
+        log.error(f"Plugins {both} are both skipped: both register {claim}")
+        for n, dist_name in enumerate(dists):
+            others = ", ".join(sorted(d for m, d in enumerate(dists) if m != n))
+            self.unusable.append(Unusable(pname, dist_name, plugin_type, COLLIDES, claim, (), others, claim))
+
+    def load(self, plugin_type: str, pname: str, entry: Any, dist_name: str) -> None:
+        """Load one plugin and hold it to the contract; a candidate when
+        it passes, else skipped with whatever it registered on the way
+        taken back."""
+        derived = namespace_of_distribution(dist_name) if dist_name else None
+        before = {what: dict(held) for what, held in _shared_kinds().items()}
+        try:
+            initializer = entry.load()
+            metadata = _metadata_of(initializer)
+        except Exception as e:
+            _restore(before)
+            self.skip(Unusable(pname, dist_name, plugin_type, FAILED_TO_IMPORT, f"{type(e).__name__}: {e}"))
+            return
+        try:
             for md in metadata:
                 if isinstance(md, PluginMetadataProtocol):
                     namespace_for(pname, md, derived)
                     check_conformance(pname, md)
             check_group(pname, plugin_type, metadata)
-            found.append(DiscoveredPlugin(plugin_type, pname, derived, initializer))
-    return tuple(found)
+        except (PluginNamespaceError, PluginConformanceError, PluginGroupError) as e:
+            _restore(before)
+            self.skip(Unusable(pname, dist_name, plugin_type, REFUSED, str(e), _words_of(metadata)))
+            return
+        replaced = _replaced(before)
+        if replaced:
+            self.replaced_a_kind(Unusable(pname, dist_name, plugin_type, COLLIDES, "", _words_of(metadata)),
+                                 replaced[0], before)
+            return
+        for what, held in _shared_kinds().items():
+            for key in held:
+                if key not in before[what]:
+                    self.kind_owner[(what, key)] = len(self.candidates)
+        self.candidates.append((DiscoveredPlugin(plugin_type, pname, derived, initializer), metadata, dist_name))
+
+    def replaced_a_kind(self, plugin: Unusable, kind: tuple[str, str], before: dict[str, dict[str, Any]]) -> None:
+        """An enrollment kind or a field kind that was already registered
+        now holds this plugin's: this one is skipped and the registries are
+        put back; when another plugin of this reading owned the kind that
+        one is skipped too, and the kind is neither's."""
+        what, key = kind
+        claim = f"{what} {key!r}"
+        _restore(before)
+        owner = self.kind_owner.get((what, key))
+        me = plugin._replace(detail=claim, claim=claim, other=THE_SYSTEM if owner is None else self.named(owner))
+        self.unusable.append(me)
+        if owner is None:
+            log.error(f"Plugin {me.named()} is skipped: it registers {claim}, which is {THE_SYSTEM}'s")
+            return
+        del _shared_kinds()[what][key]
+        self.colliding.setdefault(owner, (me.named(), claim))
+        log.error(f"Plugins {self.named(owner)} and {me.named()} are both skipped: both register {claim}")
+
+    def _one_key_two_classes(self) -> dict[frozenset[int], str]:
+        """Two candidates that would register DIFFERENT classes under one
+        key (the same class from several plugins is one registration and
+        is allowed), by pair, with the key."""
+        registered = [_registrations(found.name, found.derived_namespace, metadata)
+                      for found, metadata, _dist in self.candidates]
+        owners: dict[tuple[str, str, str], list[int]] = {}
+        for index, mine in enumerate(registered):
+            for key in mine:
+                owners.setdefault(key, []).append(index)
+        pairs: dict[frozenset[int], str] = {}
+        for key, indexes in sorted(owners.items()):
+            if len({id(registered[i][key]) for i in indexes}) > 1:
+                claim = f"{key[0]} {key[1]}{registry.NAMESPACE_SEPARATOR}{key[2]}"
+                for i in indexes:
+                    pairs.setdefault(frozenset((i, next(j for j in indexes if j != i))), claim)
+        return pairs
+
+    def _a_block_for_anothers_runtime(self) -> dict[frozenset[int], str]:
+        """A candidate whose image-source catalog carries a block for a
+        runtime type ANOTHER candidate registers (the block is the
+        registering plugin's to ship), by pair, with the block."""
+        runtime_owner: dict[str, int] = {}
+        for index, (_found, metadata, _dist) in enumerate(self.candidates):
+            for runtime_type in _runtime_types(metadata):
+                runtime_owner.setdefault(runtime_type, index)
+        pairs: dict[frozenset[int], str] = {}
+        for index, (_found, metadata, _dist) in enumerate(self.candidates):
+            for runtime_type in sorted(_image_source_blocks(metadata) - _runtime_types(metadata)):
+                owner = runtime_owner.get(runtime_type)
+                if owner is not None and owner != index:
+                    pairs.setdefault(frozenset((index, owner)), f"image-source block {runtime_type!r}")
+        return pairs
+
+    def settled(self) -> tuple[tuple[DiscoveredPlugin, ...], tuple[Unusable, ...]]:
+        """The usable plugins and the unusable ones, once the collisions
+        among the candidates are found: both sides of each are skipped."""
+        pairs = self._one_key_two_classes()
+        for pair, claim in self._a_block_for_anothers_runtime().items():
+            pairs.setdefault(pair, claim)
+        for pair, claim in sorted(pairs.items(), key=lambda item: sorted(item[0])):
+            i, j = sorted(pair)
+            log.error(f"Plugins {self.named(i)} and {self.named(j)} are both skipped: both register {claim}")
+            self.colliding.setdefault(i, (self.named(j), claim))
+            self.colliding.setdefault(j, (self.named(i), claim))
+        for i, (other, claim) in sorted(self.colliding.items()):
+            found, metadata, dist_name = self.candidates[i]
+            self.unusable.append(Unusable(found.name, dist_name, found.plugin_type, COLLIDES, claim,
+                                          _words_of(metadata), other, claim))
+        usable = tuple(found for i, (found, _m, _d) in enumerate(self.candidates) if i not in self.colliding)
+        return usable, tuple(self.unusable)
+
+
+def discover() -> tuple[tuple[DiscoveredPlugin, ...], tuple[Unusable, ...]]:
+    """Read the installed plugins once, from their entry points: the ones
+    that can be used, by plugin type and name, in name order, and the ones
+    that cannot, each with its cause.
+
+    Discovery is where an installed plugin is held to the contract: every
+    class its metadata registers is checked against the protocol of its
+    classification, as shipped (:func:`check_conformance`); the entry-point
+    group it was found under is held to what it registers
+    (:func:`check_group`); and its namespace is settled
+    (:func:`namespace_of_distribution`, :func:`namespace_for`).
+
+    A plugin that cannot be used is never a reason to stop: it is an
+    absence. That is so whether its entry point fails to import, its
+    ``initialize`` raises, it is refused by one of the three checks above,
+    or it collides with another plugin: two entry points of one name in
+    one group; two plugins registering different classes under one key;
+    one plugin replacing an enrollment kind or a field kind another
+    registered; or one plugin shipping an image-source block for a runtime
+    type another registers. One ERROR line names the plugin and the cause
+    -- for a collision both plugins, and neither is used, so the outcome
+    never depends on the order they were found in -- and the rest load. A
+    configuration that needs such a plugin fails validation, which says so
+    (``commands/load_failures``)."""
+    found = _Discovering()
+    for plugin_type, _plugin_key in PLUGIN_TYPES:
+        log.debug(f"Loading plugins of type: {plugin_type}")
+        plugins = list(entry_points(group=f'cs_image_system.plugins.{plugin_type}'))
+        if not plugins:
+            log.debug(f"No '{plugin_type}' plugins found.")
+        log.info(f"Found {len(plugins)} {plugin_type} plugins.")
+        by_name: dict[str, list[Any]] = {}
+        for entry in plugins:
+            by_name.setdefault(entry.name, []).append(entry)
+        for pname in sorted(by_name):
+            entries = by_name[pname]
+            dists = [str(getattr(getattr(e, "dist", None), "name", "") or "") for e in entries]
+            if len(entries) > 1:
+                found.one_name_twice(plugin_type, pname, dists)
+            else:
+                found.load(plugin_type, pname, entries[0], dists[0])
+    return found.settled()
+
+
+# shared by every run in the process: the installed plugins, which each run replays into a registry of its own
+@cache
+def _discovery() -> tuple[tuple[DiscoveredPlugin, ...], tuple[Unusable, ...]]:
+    return discover()
+
+
+def _discovered_plugins() -> tuple[DiscoveredPlugin, ...]:
+    """Every usable installed plugin's ``initialize`` by plugin type and
+    name, in name order: discovered ONCE per process (:func:`discover`);
+    what each one registers is replayed into every registry a run makes."""
+    return _discovery()[0]
+
+
+def unusable_plugins() -> tuple[Unusable, ...]:
+    """The installed plugins this process could not use, with their causes
+    (:func:`discover`): what a command names when a configuration needs one."""
+    return _discovery()[1]
 
 
 def _metadata_of(initializer: Callable[[], Any]) -> list[Any]:

@@ -9,7 +9,8 @@ name: CI
 # configuration nor credentials; `core-alone` runs the core's own tests with
 # no provider installed, `terraform-alone` the two terraform libraries' own
 # tests with nothing but themselves and `docker-alone` the docker family's own
-# tests in an environment that holds only that package; `live` proves the system against real clouds
+# tests in an environment that holds only that package; `docker-install`
+# installs the docker extra alone and validates and dry-runs its starter; `live` proves the system against real clouds
 # over the FROZEN FIXTURE, read-only; `publish` uploads a pushed `v*` tag to
 # the index (TestPyPI always, PyPI for a final version). The
 # reference configuration (cs-image-system-testconfig) is driven, recorded and
@@ -124,6 +125,31 @@ jobs:
 
       - name: The docker family alone
         run: just test-docker-alone
+
+  docker-install:
+    # What a person who installs the docker extra gets: `cs-image-system[docker]`
+    # from the built wheels, alone in an empty environment, renders the
+    # standard-docker starter with the installed command, validates it and
+    # dry-runs every lifecycle. Every push and PR; no condition and no
+    # credentials. It needs the daemon (the socket mounted below) and the
+    # registry: a dry run resolves the base image with a pull. The recipe
+    # fails unless the install, the validation and the dry run each ran and
+    # succeeded, so this job cannot pass without having run them.
+    runs-on: ubuntu-24.04
+    container:
+      image: ${{ vars.CSIS_RUNNER_IMAGE || 'ghcr.io/infrastructurebuilder/csis-ci:alma10-20261016.4' }}
+      credentials:
+        username: ${{ vars.CSIS_RUNNER_IMAGE_USERNAME || github.actor }}
+        password: ${{ secrets.CSIS_RUNNER_IMAGE_PASSWORD || github.token }}
+      options: -v /var/run/docker.sock:/var/run/docker.sock
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Install dependencies
+        run: just init
+
+      - name: The docker extra, installed alone
+        run: just test-docker-install
 
   live:
     # The system's live proof over the frozen fixture: the fixture

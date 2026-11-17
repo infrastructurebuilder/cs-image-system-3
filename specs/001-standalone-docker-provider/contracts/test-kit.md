@@ -67,6 +67,23 @@ It also fails if the kit's opened-secret store lost an entry. That
 store is shared by every run in the process by decision and may only
 grow.
 
+It is `cs_image_system.system.testing.isolation.process_unchanged()`.
+An environment variable that changed is named and its value is never
+shown. The load makes the configuration's root the working directory,
+which is the core's own doing and is put back by the command line when
+a command ends; a test stands in the root before it starts, as a
+command run from the root does.
+
+## A broken neighbour
+
+`broken_neighbour(monkeypatch)` installs, for the length of one test,
+a plugin that fails to import, in the entry-point group the test
+names (a runtime by default), and reads the installed plugins again
+with it among them. It returns what could not be used. A provider's
+suite calls it before making its run, then asserts that its fixture
+still validates (`validation_errors(ctx)` is empty) and that the run
+still emits its golden.
+
 ## What the test kit promises not to do
 
 - It does not import a provider.

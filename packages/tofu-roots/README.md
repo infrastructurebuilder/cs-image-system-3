@@ -516,7 +516,10 @@ always has it).
 nothing here loads configuration, and no configuration file names this
 package; its one entry point is the hook set above. It is installed as a
 workspace member from the root [pyproject.toml](../../pyproject.toml) by
-`just init`, and every root plugin pins it at the same version. There is
+`just init`. A root plugin that releases with the workspace pins it
+exactly, at the terraform libraries' own version; a provider that stands
+alone, as the docker provider does, names it by a range
+([WRITING_A_PROVIDER.md](../../docs/WRITING_A_PROVIDER.md)). There is
 no account, role, API or credential of its own. What its OUTPUT needs at
 execution time is listed here, because the commands this package emits
 are the ones the operator sees fail.

@@ -1,7 +1,10 @@
 # cs-image-system-contract
 
-The plugin contract: the one package a plugin is written against. It
-carries the protocols a model and a builder satisfy, the constants and
+The plugin contract: the protocols every plugin satisfies. A plugin is
+written against this package and against the declared surface of the SDK
+(the kit and the two terraform libraries);
+[WRITING_A_PROVIDER.md](../../docs/WRITING_A_PROVIDER.md) is the guide.
+This package carries the protocols a model and a builder satisfy, the constants and
 field helpers a model is declared with, the lifecycle phases a hook keys
 on, and the data carriers a hook returns. It depends on no other package of
 the system -- `pydantic` and `packaging` only -- and the core (the
@@ -81,7 +84,9 @@ classification (`testing.protocol_for`), with `assert_conforms`, when it
 discovers the installed plugins (once per process, as shipped): a builder
 that lacks a hook, or answers it with the wrong parameters, is refused
 with the plugin, the class, the protocol and the member named
-(`PluginConformanceError`), never later with an `AttributeError`. The loader, the registry and the orchestrator decide what
+(`PluginConformanceError`), never later with an `AttributeError`. A
+refused plugin is skipped, with one error line; the plugins beside it
+load, and only a configuration that needs it fails. The loader, the registry and the orchestrator decide what
 kind of thing they hold by `isinstance` against the `runtime_checkable`
 protocols of `core` (`PluginArtifactProtocol`, `NameTypedProtocol`,
 `BuilderModelProtocol`, `RuntimeEnabledBuilderModelProtocol`,
@@ -125,7 +130,7 @@ repository runs against itself.
 ### Version
 
 The contract carries a semantic version of its own, independent of the
-workspace's: `0.4.3` now, and 0.x until the operator decides otherwise
+workspace's: `0.4.4` now, and 0.x until the operator decides otherwise
 (the decision of 2026-11-05). What a bump means: a PATCH is a change no
 plugin can observe (a docstring, a test helper); a MINOR, while the
 version is 0.x, is a change a plugin can observe, so a protocol member
@@ -133,8 +138,9 @@ added, renamed or removed, a constant's value changed, a module added or
 removed, and it is the breaking step; from 1.0 a MINOR adds without
 breaking and a MAJOR breaks. Every package that depends on the contract
 pins the compatible series, `cs-image-system-contract>=0.4,<0.5`, and
-`just release`, which moves every other package's version in lockstep,
-leaves the contract's where it is (`bump-my-version` excludes its
+`just release`, which moves the workspace's version, leaves the
+contract's where it is (as it leaves the SDK's two version lines, the
+kit's and the terraform libraries') (`bump-my-version` excludes its
 manifest by name; the upload and the index probe read its version from
 its own manifest). The contract's version moves only by hand, in the
 stage that changes its surface, and
@@ -158,6 +164,7 @@ The versions so far:
 | `0.4.0` | Two members removed from `LaunchServiceProtocol`: `hostname_problems` and `register_enrollment_kind`, both pure contract functions a plugin reaches without a run (`launch_vocabulary.hostname_problems`, `enrollment.register_enrollment_kind`) and none reached through the service; the core's adapter loses them too. A member removed is something a plugin can observe, so while the contract is 0.x it is a MINOR step, and every dependent's range moved from `>=0.3,<0.4` ([the stage index](../../docs/CHANGES.md#s130)). |
 | `0.4.2` | Documents and the package's own import-direction test name the engine (`cs_image_system.engine`), the core's second package beside the kit; nothing a plugin can observe changed, so it is a PATCH ([the stage index](../../docs/CHANGES.md#s113)). |
 | `0.4.3` | This document names the test and the declaration that now hold what a plugin may import of the kit (the kit's `surface` module and `tests/test_plugins_keep_to_the_surface.py`, in place of `tests/test_plugin_imports.py`); nothing a plugin can observe changed, so it is a PATCH |
+| `0.4.4` | This document and three docstrings say what is now so: a plugin is written against the contract and the SDK's declared surface, with one guide for it; a plugin that is refused is skipped and named, not the end of every command; and a second registration of an enrollment kind or a field kind by another plugin is reported as a collision by the loader. No function, protocol or constant changed, so it is a PATCH |
 
 ## Writing a plugin
 
@@ -168,19 +175,18 @@ A plugin is a Python distribution with an entry point in the group
 that returns one `PluginMetadata` or a list of them. The kind is the one
 the plugin is: at least one class it registers must carry that kind's
 classification (a `runtime` plugin a runtime builder model, a `group`
-plugin a group builder), or the loader refuses it naming the group that
-fits; it may register more than its kind, and a plugin of no named kind
+plugin a group builder), or the loader refuses it, naming the group that
+fits, and skips it; it may register more than its kind, and a plugin of no named kind
 (a version checker alone, an injected model) declares `other`.
 
-1. **Depend on the contract.** In `pyproject.toml`, `dependencies =
-   ["cs-image-system-contract>=X"]`, with `X` the first release that
-   carries the contract ([the stage index](../../docs/CHANGES.md#s30)
-   names it; 0.1.3 and before do not): a floor, not a pin --
-   the workspace's own packages pin each other at `==` because they
-   release together, an external plugin does not. Add `cs-image-system-base` only
-   if the plugin subclasses the kit's base classes (every built-in plugin
-   does; it is the convenient way, not the required one). Never depend on
-   `cs-image-system-system`, the CLI host.
+1. **Depend on the contract, by the range of its series**:
+   `"cs-image-system-contract>=0.4,<0.5"`. A plugin that subclasses the
+   kit's base classes (every built-in plugin does; it is the convenient
+   way, not the required one) or uses the terraform libraries names
+   those by a range too, and imports only what each declares.
+   [WRITING_A_PROVIDER.md](../../docs/WRITING_A_PROVIDER.md) says what
+   the ranges mean and how the imports are checked. Never depend on
+   `cs-image-system-system`, the CLI host, outside a `test` extra.
 2. **Write the model**: a pydantic dataclass, `@dataclass(kw_only=True,
    config=CSIS_MODEL_CONFIG)`, that satisfies the kind's
    `<Kind>BuilderModelProtocol`. The universal fields are `name`, `type`
@@ -222,15 +228,18 @@ fits; it may register more than its kind, and a plugin of no named kind
    an outside `acme-roots` under `acme-roots`); `namespace="..."` on the
    record overrides the derivation, and a record with no distribution
    behind it (one a test builds in process) must name one, or the loader
-   refuses the plugin with the field named. Only the same classification,
-   namespace and name taken by a *different* class is the collision; the
+   refuses the plugin with the field named and skips it. Only the same classification,
+   namespace and name taken by a *different* class is the collision, and
+   both plugins are then skipped and named; the
    same class registered by several plugins (one version checker three
    root plugins carry) is one registration, and its bare word resolves.
    The reasoning is in [the stage index](../../docs/CHANGES.md#s131).
 5. **Prove it.** In the plugin's tests, `assert_conforms(Model,
    <Kind>BuilderModelProtocol)` and `assert_conforms(Builder,
-   <Kind>BuilderProtocol)`; then a dry `cs-image-system run --all` over a
-   tree that declares the plugin's `type:`.
+   <Kind>BuilderProtocol)`. The rest of a plugin's proof (a fixture and
+   a golden of its own, a whole stubbed run through the test kit, and
+   the suite run with nothing else of this repository installed) is in
+   [WRITING_A_PROVIDER.md](../../docs/WRITING_A_PROVIDER.md).
 
 A state backend is the smallest kind: a model that answers
 `to_backend_registration()` with a `BackendRegistration` naming its type's
@@ -239,8 +248,8 @@ workspace's backend file carries, the settings a consumer's remote-state
 data source carries), and a builder that emits nothing; the core hands
 the registration to the terraform collector once the state backends are
 loaded. The [contract example plugin](../contract-example-plugin/README.md)
-is exactly that, written against this package alone with nothing of the
-core, and the proof the bar runs; the
+is exactly that, written against this package and nothing else of the
+system, and the proof the bar runs; the
 [local state plugin](../local-state-plugin/README.md) is the same kind
 written the convenient way on the base classes; the
 [dummy plugin](../dummy-plugin/README.md) is the template for a group or
@@ -365,7 +374,8 @@ under a dry run and a real one, on every runtime.
   `isinstance(..., PluginMetadataProtocol)` and logs an error for anything
   else; runs `assert_conforms` over every class the metadata registers,
   against the protocol of its classification, and refuses the plugin on a
-  shortfall (`PluginConformanceError`); the registry refuses a `csis_name`
+  shortfall (`PluginConformanceError`), which skips it and leaves the
+  others loaded; the registry refuses a `csis_name`
   registered twice under one classification (`Type Collision`).
 
 ## When it fails
@@ -384,7 +394,10 @@ failure's symptom, its meaning and what to do.
   <member>: ...` (`PluginConformanceError`) at load: the plugin registered
   a class that lacks a member of its kind's protocol or answers it with
   the wrong parameters. Fix the class; nothing of the plugin loads until
-  it conforms.
+  it conforms. The line is logged once as `Plugin <name> (<distribution>)
+  is skipped: refused: ...`, every other plugin loads, and a tree that
+  names one of this plugin's `type:` words is told the plugin is
+  installed and why it could not be used.
 - `Plugin <name> did not return a valid PluginMetadataProtocol instance`
   in the log at load, and the plugin's types unknown to every `type:`: the
   entry point returned something other than a `PluginMetadata` (or a list
@@ -396,7 +409,7 @@ failure's symptom, its meaning and what to do.
   in-process entry point, a module put on the path by hand) and the
   record left `namespace` at `None`, so nothing could qualify its
   registrations. Name the namespace on the record, or install the plugin
-  as a distribution.
+  as a distribution. The plugin is skipped, as above.
 - `Type Collision: <namespace>/<name> under <classification> is
   <module.Class>, and <module.Other> registers it too` (`ValueError`
   from the registry) at load: one plugin, or two plugins that derive the
@@ -404,7 +417,10 @@ failure's symptom, its meaning and what to do.
   classification and name. The same word in two plugins with different
   namespaces is not this: both load, and a tree names one by its
   qualified form. Rename one of the classes' `csis_name`, or give one
-  plugin a `namespace` of its own.
+  plugin a `namespace` of its own. Between two plugins the loader finds
+  it first, when the plugins are discovered: both are skipped, in one
+  line, `Plugins <a> (<distribution>) and <b> (<distribution>) are both
+  skipped: both register <classification> <namespace>/<name>`.
 - `type '<word>' is ambiguous under <classification>: N plugins register
   it; write one of <ns1>/<word>, <ns2>/<word>` (`AmbiguousTypeError`) at
   load, which `validate` prints as one configuration error under

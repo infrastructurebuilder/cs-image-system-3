@@ -150,9 +150,20 @@ def merge_entries(parts: list[tuple[str, list[ImageSource]]]) -> list[ImageSourc
     ``sources`` is the union by runtime type; ``description``, ``is`` and
     ``versions`` are the first non-empty value, a later part that says
     something else logged at WARNING and ignored. Families keep the order
-    in which they were first seen."""
+    in which they were first seen.
+
+    A runtime type's block that two parts give DIFFERENTLY is a collision,
+    and neither wins: the block is left out of the family and one ERROR
+    line names both parts, so what the catalog says never depends on which
+    part was read first. A configuration that needs that block is told the
+    family has no source for the runtime type, as for any block that is
+    absent. (Discovery already skips both plugins when one ships a block
+    for a runtime type the other registers; this is the same rule for
+    whatever reaches the merge.)"""
     merged: dict[tuple[str, tuple[str, ...]], dict[str, Any]] = {}
     owners: dict[tuple[str, tuple[str, ...]], str] = {}
+    block_owner: dict[tuple[tuple[str, tuple[str, ...]], str], str] = {}
+    collided: set[tuple[tuple[str, tuple[str, ...]], str]] = set()
     for name, entries in parts:
         for e in entries:
             key = (e.family, tuple(e.versions))
@@ -161,6 +172,8 @@ def merge_entries(parts: list[tuple[str, list[ImageSource]]]) -> list[ImageSourc
                 merged[key] = {"family": e.family, "versions": list(e.versions), "is": e.is_,
                                "description": e.description, "sources": {k: dict(v) for k, v in e.sources.items()}}
                 owners[key] = name
+                for runtime_type in e.sources:
+                    block_owner[(key, runtime_type)] = name
                 continue
             for attr, mine in (("is", e.is_), ("description", e.description)):
                 if not mine:
@@ -171,11 +184,17 @@ def merge_entries(parts: list[tuple[str, list[ImageSource]]]) -> list[ImageSourc
                     log.warning(f"image sources: family {e.family}: the {name} runtime says {attr}={mine!r}, "
                                 f"the {owners[key]} runtime said {raw[attr]!r}; keeping the first")
             for runtime_type, block in e.sources.items():
-                if runtime_type not in raw["sources"]:
+                slot = (key, runtime_type)
+                if slot in collided:
+                    continue
+                if slot not in block_owner:
                     raw["sources"][runtime_type] = dict(block)
+                    block_owner[slot] = name
                 elif raw["sources"][runtime_type] != dict(block):
-                    log.warning(f"image sources: family {e.family}: the {name} runtime's `{runtime_type}` block "
-                                f"differs from the {owners[key]} runtime's; keeping the first")
+                    log.error(f"image sources: family {e.family}: the {block_owner[slot]} and {name} runtimes both "
+                              f"register image-source block {runtime_type!r}, differently; neither is used")
+                    del raw["sources"][runtime_type]
+                    collided.add(slot)
     return structure_entries(list(merged.values()), where="the release's image-source catalog")
 
 

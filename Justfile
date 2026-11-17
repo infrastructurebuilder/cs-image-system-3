@@ -65,7 +65,8 @@ test: lint typecheck pytest test-core test-terraform-alone test-docker-alone
 # `run --all` over a private copy of the fixture followed by
 # `state query --strict`. A leg whose prerequisite is absent reports SKIPPED
 # loudly with its reason and does not fail the run; a leg that runs and fails
-# does. Identity credentials (OKTA_API_*, TF_VAR_<team>_*) are not gated: a
+# does. One leg is never skipped: `test-docker-install`, which fails when the
+# container daemon does not answer. Identity credentials (OKTA_API_*, TF_VAR_<team>_*) are not gated: a
 # dry run without them warns and skips the identity roots' plan.
 [doc("`test` plus the docker-backed modification tests and, when the runtime sessions are present, a headless dry run --all with state query --strict")]
 full-test: test
@@ -193,6 +194,10 @@ full-test-legs:
 	# TestPyPI, nothing else from it (read-only; needs the network, not a session)
 	echo "full-test: a development pin resolves with the starters' install line (dev-pin-resolves)"
 	uv run --no-sync python scripts/dev-pin-resolves || { echo "full-test: FAILED dev-pin-resolves"; status=1; }
+	# not gated on the daemon: the usual install must deliver a docker provider that runs, so a daemon
+	# that does not answer FAILS this leg (it is the one leg here that never reports SKIPPED)
+	echo "full-test: cs-image-system[docker] installed alone validates and dry-runs the docker starter (test-docker-install)"
+	just test-docker-install || { echo "full-test: FAILED test-docker-install"; status=1; }
 	if docker info >/dev/null 2>&1; then
 		echo "full-test: modification tests under docker (test-mods --strict)"
 		just test-mods --strict || { echo "full-test: FAILED test-mods"; status=1; }
@@ -370,6 +375,20 @@ test-docker-alone:
 	@uv run --no-sync python scripts/isolated-run --subject "docker, high end" --require "cs-image-system-docker-plugin[test]" --root packages/docker-plugin --sdk-end high
 	@uv run --no-sync python scripts/isolated-run --subject "docker, high end, copy outside the workspace" --require "cs-image-system-docker-plugin[test]" --root packages/docker-plugin --sdk-end high --copy-outside
 	@uv run --no-sync python scripts/isolated-run --subject "docker, low end" --require "cs-image-system-docker-plugin" --root packages/docker-plugin --sdk-end low --tests tests/unit
+
+# What a person who installs the docker extra gets: the workspace's wheels are
+# built, an empty environment outside the workspace gets `cs-image-system[docker]`
+# from them and nothing else, the INSTALLED command renders the standard-docker
+# starter (`init-config <dir> --from standard-docker`), and the installed
+# `validate` and a dry `run --all` run on it. Three steps are reported, each as
+# ran and succeeded, ran and failed, or did not run, and the recipe passes only
+# when all three ran and succeeded. It needs what the starter needs: docker,
+# packer, ansible-playbook, bash and tofu, a container daemon that answers, and
+# the registry (a dry run resolves the base image with a pull). `keep=<directory>`
+# (or the directory alone) leaves the emitted `generated` tree there.
+[doc("`cs-image-system[docker]` installed alone from the built wheels, the standard-docker starter rendered with the installed command, then `validate` and a dry `run --all` on it; all three must run and succeed (needs a container daemon)")]
+test-docker-install keep="":
+	@uv run --no-sync python scripts/isolated-run --install-check --subject "docker install" --require "cs-image-system[docker]" --starter standard-docker {{ if keep != "" { "--keep " + quote(trim_start_match(keep, "keep=")) } else { "" } }}
 
 # One file, or any pytest expression, for iterating on a single change.
 # NOT the acceptance bar -- `just test` is, and a change is not done until

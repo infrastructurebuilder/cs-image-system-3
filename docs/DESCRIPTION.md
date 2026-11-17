@@ -111,7 +111,7 @@ lifecycles.
   instance and storage builders for AWS (`tf-ebs-instance`), Google Cloud
   (`tf-gcp`) and docker (`tf-docker`); the `s3`, `gcs` and `local` state
   backends; `contract-example` (the `inmem` state backend, the proof that
-  a plugin can be written against the contract alone); and `dummy`, the
+  a plugin can be written against nothing but the contract); and `dummy`, the
   extension template and test double. Adding a cloud, a storage kind or
   a modification mechanism means adding a plugin, not editing the core.
   Each package has its own README ([docs/PLUGINS.md](PLUGINS.md)).

@@ -15,9 +15,11 @@ requires-python = ">=3.13"
 # word to the extra that installs its plugin (the core names no provider, so the table is
 # the umbrella's and the core reads it through the entry point below). Its dependencies are the core --
 # the CLI, the engine, the libraries and every plugin that needs no provider account --
-# pinned at == its own version; each provider is an extra below, and a bare install carries
+# each pinned exactly; each provider is an extra below, and a bare install carries
 # no runtime (`validate` names the extra a tree's `type:` words need, base/extras.py).
-# The contract has a version of its own and is pinned to its compatible series.
+# A pin is at the workspace's version, except on what keeps a version of its own: the
+# contract, named by the range of its series, and the SDK's libraries (the kit; the two
+# terraform libraries together), each pinned at its own line's version.
 dependencies = [
     "cs-image-system-ansible-plugin==0.1.10",
     "cs-image-system-base==0.2.0",
@@ -35,7 +37,8 @@ dependencies = [
 
 # The extras: a provider's runtime plugin with its terraform-root and state-backend
 # plugins, and `all` for every provider. Every pin is == the workspace version, so a bump moves
-# them with the rest (the `=={current_version}"` rule below reads the whole file). The two
+# them with the rest (the `=={current_version}"` rule below reads the whole file); the
+# docker extra is one package, the runtime and its roots together. The two
 # private plugins (dummy, contract-example) are in the dev group, never here.
 [project.optional-dependencies]
 aws = [
@@ -185,7 +188,7 @@ replace = "version = \"{new_version}\""
 [[tool.bumpversion.files]]
 glob = "packages/*/pyproject.toml"
 glob_exclude = ["packages/contract/pyproject.toml"]     # the contract depends on no other package
-ignore_missing_version = true                            # a package that depends on the contract alone has no == pin
+ignore_missing_version = true                            # a package that depends on nothing but the contract has no == pin
 search = "=={current_version}\""
 replace = "=={new_version}\""
 

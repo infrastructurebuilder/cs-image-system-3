@@ -83,9 +83,26 @@ Filled in as tasks complete.
 | T055, T056 | Both lines are at 0.2.0. `.bumpversion-kit.toml` and `.bumpversion-terraform.toml` name each exact pin, so neither line nor the workspace's bump can move another's. A test moves each line by `last` and by `middle` over a copy of the tree |
 | T061, T062 | The docker suite's conftest moved to `tests/pipeline/conftest.py`: the low-end environment holds the package, the SDK and the contract only (5 distributions), with no test kit to import |
 | T063 | Story 3 checkpoint, 2026-11-17: `just test` passed end to end: lint clean, type check 0 errors, 2,581 passed and 29 skipped, `test-core` 290 passed and 0 skipped, `test-docker-alone` 28 and 28 passed at the high end (in place, from the copy) and 24 at the low end, 0 skipped. 32 min 9 s (the suite itself took 30 min on this run). Shared fixture and golden untouched |
-| T073 | Was the contract package changed, and its new version if so: already at 0.4.3 since T050 (see above) |
-| T101 | Budget actuals written into plan.md: |
-| T102 to T104 | Quickstart steps 1 to 9, each result: |
+| T073 | Was the contract package changed, and its new version if so: NOT CHANGED by Phase 7 (still 0.4.3, from T050). Replacements of an enrollment kind or a field kind are detected in the loader, which reads the contract's two registries before and after each plugin loads and puts them back when a plugin is skipped. The contract's two docstrings that say a second registration "replaces" the first are corrected with the other documents, in T107 |
+| T072, T074, T075 | One line per skipped plugin or colliding pair, in the wording of `contracts/commands.md` (`Plugin <name> (<distribution>) is skipped: <cause>: <detail>`; `Plugins <a> and <b> are both skipped: both register <what>`). Discovery is `loader.discover()`; what could not be used is `loader.unusable_plugins()` |
+| T076 | A plugin's commands are mounted plugin by plugin. One that cannot be mounted whole (its entry point fails, it returns something that is no mount, it takes a built-in command's name, or it and another plugin mount different things under one name) is skipped whole with one ERROR line, and the command line still starts. `mount_plugin_commands(root, mounts)` with a caller's own list still raises, as its existing tests hold |
+| T077 | A section entry point that fails was a WARNING and is now the same ERROR line as any skipped plugin. Two sections declaring one provider differently raise the contract's `Refused`; the `bootstrap` command now catches it around generation too (it caught it only around the interview) and keeps the answers |
+| T078 | Two rules. Discovery skips both plugins when one ships an image-source block for a runtime type the other registers (today each plugin ships blocks for its own type only). The kit's merge no longer keeps the first of two differing blocks: neither is used, and one ERROR line names both parts. The WARNING and first-wins rule for what a family `is` and its description is unchanged: the task named the block only |
+| T080 | Failure classification asks the classes of the `type:` words the configuration declares. A load that fails after its builder lists are read leaves those words in the typer context (`declared_types`); `validate --online` passes its loaded builders' words. A load that fails before the lists are read still asks every installed class, since nothing is known of the configuration then. An OS builder whose `type` was defaulted from its family is not among the words; no OS builder classifies a failure |
+| T081 | `validate_all()` keeps its signature and meaning (run-wide), so the Terraform libraries' surface is unaltered and their version line did not move. Emission calls the new `validate_for(workspace)`; the baseline of `hashicorp-utils` was re-recorded with that one added entry, which the 0.2 line (not yet released) allows |
+| T082 | The contract's `plugin_state(key, factory)` is unchanged. The kit's context refuses a key that is not `<namespace>/<name>`, and the three keys in use became `hashicorp-utils/terraform-collector`, `hashicorp-utils/packer-collector` and `base/alias-pool.draws`. The context cannot know who is calling, so it holds the form, not the ownership |
+| T083, T085 | The test kit gained `isolation.process_unchanged()`, `broken_neighbour(monkeypatch)` and `validation_errors(ctx)`. The docker family's isolation test stands in the configuration's root first: the load's change of directory is the core's own and deliberate, undone by the command line. The family changed nothing: the test passed on its first run |
+| T084 | The skips and collisions are tested where each lives, not all in one file: discovery (import failure; namespace, conformance and group refusals; registry key; entry-point name; enrollment kind; field kind; image-source block) in `packages/engine/tests/test_unusable_plugins.py`; bootstrap sections and providers in `packages/engine/tests/test_bootstrap_collisions.py`; commands in `packages/system/tests/test_plugin_commands_are_guarded.py`, because an engine test may not import the command line; a whole run beside a broken plugin, and the validation message, in `packages/system/tests/test_a_broken_neighbour.py` |
+| T086 | `packages/engine/tests/test_modules_collision.py` added: no test held the module-name refusal before |
+| T087 | Story 4 checkpoint, 2026-11-17: `just test` passed end to end: lint clean, type check 0 errors, 2,638 passed and 29 skipped, `test-core` 331 passed and 0 skipped, `test-terraform-alone` 4, 31 and 4, `test-docker-alone` 31, 31 and 24, every isolated run with 0 skipped; shared fixture and golden untouched; 33 min 21 s for the unit tests. A first run failed on one test, the ceiling on sentence assertions (38 against 37): three new assertions checked a phrase and now check the plugin's name and its cause |
+| T088 to T091 | FR-021 checkpoint, 2026-11-17, on the operator's machine with its container daemon answering: `just test-docker-install` reported the install, the validation and the dry run each as ran and succeeded (14 distributions of this repository installed, all from the built wheels). The mode is `scripts/isolated-run --install-check`; rendering the starter is counted with the install, so a failed render reports the install as ran and failed. `--keep` refuses a directory that already holds a `generated` tree and replaces nothing. The recipe takes `keep=<directory>` or the directory alone. In `full-test-legs` the leg stands outside the daemon check, so it fails where the other docker legs report SKIPPED |
+| T092 to T098, T107 | Story 5, 2026-11-17. `docs/WRITING_A_PROVIDER.md` written with the docker provider as its example; the four earlier how-to places keep what is theirs and link to it. The search of quickstart step 8 prints only `searched`: true statements that used the words (the Terraform library depends on nothing but the contract; the example plugin) were reworded, a history row in `docs/CHANGES.md` and one test docstring among them. THE CONTRACT IS NOW 0.4.4 (a PATCH: its README and three docstrings; no function, protocol or constant changed), and the lock file was refreshed. Counts of packages were deleted, not updated. Not changed, and why: `tests/fixtures/config/README.md`, because what it says of the shared fixture still holds and leaving it keeps `git status --short tests/fixtures` empty; the comments in `scripts/own-versions-current` and `scripts/dev-pin-resolves`, already corrected in Phase 6. The documentation tests, the metadata tests and the contract's version tests pass |
+| After T081 | Left as it was: the collector's check of state locations (`validate_state_locations`) still runs run-wide beside the per-root provider check, so two roots that collide on one state location still stop the emission of a third. The task and decision R14 name provider agreement only; a state-location collision is a fault in the configuration's own bindings, not a disagreement between providers |
+| T099, T100 | `just headers` changed no file and the licensing check passes (1,278 of 1,278 files). The core's fixture and golden are `packages/system/tests/fixture` and `golden`, covered by the `packages/*/tests/fixture/**` and `golden/**` entries (see T036). `just public-safe`: 1,320 files hold nothing that must not be public |
+| T101 | Budget actuals written into plan.md on 2026-11-17: source lines 56,792 (+2,310), test lines 47,146 (+2,019), packages 22, contract protocol members unchanged, tests 2,041 (+102), golden files 222 (+74). Four are outside their expected range, each with its reason there; the largest single cause is that T024 to T026 are open, so no docker test left `tests/` |
+| T103 | FR-022, 2026-11-17, both halves made the same day. The reference configuration: `just cli config-drift` exit **0**, as T003 recorded; the committed emission is current, with the one vendor-image line (`almalinux-10-v20261110` to `almalinux-10-v20261116`) that is not the tree's change. The `standard-docker` starter: the emission from the commit the branch started at (`be648dbb`, a temporary worktree, every provider installed) and the one `just test-docker-install keep=…` left (the built wheels, `cs-image-system[docker]` alone) are IDENTICAL over 41 files after the normalisation `config-drift` applies. A raw `diff -r`, which the quickstart first asked for, cannot be empty: two dry runs differ in their run id, the time stamp in image names, an absolute path in `run-summary.json` and what `tofu init` leaves behind, and in nothing else. Box 3 of step 7 is now v2 and compares the normalised trees |
+| T106 | Reported to the operator on 2026-11-17: the first release after this feature publishes the kit and the two Terraform libraries at 0.2.0 on their own version lines for the first time, and one new project on the index, `cs-image-system-docker-plugin`; the contract goes out at 0.4.4. This feature releases nothing |
+| T102, T104 | Quickstart steps 2, 6, 7 and 8 passed on 2026-11-17 (step 2: the one expected difference, `instance-image/tofu-docker`; step 6: all three steps ran and succeeded; step 7: see T103; step 8: only `searched`). Steps 1, 3, 4, 5 and 9 are one run of `just full-test`, which was still running when phases 7 to 10 were committed at the operator's request; its result is recorded here when it reports: |
 
 ---
 
@@ -637,7 +654,7 @@ Serves FR-015 to FR-020. Messages:
 [contracts/commands.md](contracts/commands.md). Decisions: research
 R13 to R16. Depends on Phase 2 only.
 
-- [ ] T072 [US4] Add the unusable-plugin record to
+- [X] T072 [US4] Add the unusable-plugin record to
   `packages/engine/src/cs_image_system/engine/loader.py`: for each
   plugin that could not be used, its entry-point name, its
   distribution, the cause (`failed to import`, `refused`, `collides`),
@@ -646,7 +663,7 @@ R13 to R16. Depends on Phase 2 only.
   (namespace, conformance, group) from an exception that ends every
   command into a skip that logs one ERROR line in the form given in
   `specs/001-standalone-docker-provider/contracts/commands.md`.
-- [ ] T073 [US4] Report silent replacements of enrollment kinds and
+- [X] T073 [US4] Report silent replacements of enrollment kinds and
   field kinds (`packages/contract/src/cs_image_system/contract/enrollment.py`
   line 54, `field_kinds.py` line 93) as collisions that skip both
   plugins. Prefer detecting them in the loader, by comparing those
@@ -654,35 +671,35 @@ R13 to R16. Depends on Phase 2 only.
   package itself has to change, raise its version in the same task,
   update every range on it, and record that here and in plan.md, whose
   constraint "the contract does not change" then no longer holds.
-- [ ] T074 [US4] In
+- [X] T074 [US4] In
   `packages/engine/src/cs_image_system/engine/loader.py` (lines 203 to
   206), treat two entry points with one name in one group as a
   collision: both skipped, one line naming both distributions.
-- [ ] T075 [US4] Treat a registry key claimed by two plugins with
+- [X] T075 [US4] Treat a registry key claimed by two plugins with
   different classes as a collision, in
   `packages/base/src/cs_image_system/base/registry.py` (lines 436 to
   447 and 707 to 711) and where `load_plugins` replays registrations
   in `packages/engine/src/cs_image_system/engine/loader.py`: both
   plugins skipped, neither registered, one line naming both. The same
   class registered by several plugins stays allowed.
-- [ ] T076 [US4] Guard the commands entry points in
+- [X] T076 [US4] Guard the commands entry points in
   `packages/system/src/cs_image_system/system/cli.py` (line 1585, run
   at import from line 1656): one that fails to load is skipped with
   one ERROR line and `--help` still works; two plugins mounting a
   different command under one name (lines 1640 to 1643) are both
   skipped and named.
-- [ ] T077 [US4] Report bootstrap collisions in
+- [X] T077 [US4] Report bootstrap collisions in
   `packages/engine/src/cs_image_system/engine/bootstrap/sections.py`
   (line 34: a section name claimed twice skips both) and in
   `packages/engine/src/cs_image_system/engine/bootstrap/hcl.py` (lines
   79 to 87: two sections that declare one provider differently is an
   error naming both, not last-one-wins).
-- [ ] T078 [US4] In
+- [X] T078 [US4] In
   `packages/base/src/cs_image_system/base/image_sources.py` (lines 148
   to 179), make an image-source block for a runtime type that another
   plugin registers a collision naming both, in place of the WARNING
   and first-by-name rule.
-- [ ] T079 [US4] Make validation say the truth about a skipped plugin:
+- [X] T079 [US4] Make validation say the truth about a skipped plugin:
   when a configuration uses a word that an unusable plugin would have
   registered, `packages/engine/src/cs_image_system/engine/commands/load_failures.py`
   (lines 87 to 91) prints ` - <kind> type '<word>' is registered by
@@ -690,14 +707,14 @@ R13 to R16. Depends on Phase 2 only.
   the "install the extra" advice of
   `src/cs_image_system/extras.py`, which stays for a plugin that
   really is absent.
-- [ ] T080 [US4] Ask what is declared, not what is installed: failure
+- [X] T080 [US4] Ask what is declared, not what is installed: failure
   classification in
   `packages/engine/src/cs_image_system/engine/commands/load_failures.py`
   (lines 68 to 76) and credential prefixes in
   `packages/engine/src/cs_image_system/engine/commands/preflight.py`
   (lines 118 to 133) consult only the classes the configuration
   declares.
-- [ ] T081 [US4] Scope the provider agreement check in
+- [X] T081 [US4] Scope the provider agreement check in
   `packages/hashicorp-utils/src/cs_image_system/hashicorp_utils/collector.py`
   (`validate_all`, lines 428 to 438, and its callers at lines 443,
   494, 506, 549; the Packer equivalent near lines 636 to 642): when a
@@ -707,18 +724,18 @@ R13 to R16. Depends on Phase 2 only.
   `packages/hashicorp-utils/tests/test_agreement_is_scoped.py`: two
   roots that disagree on a provider a third root does not declare
   leave the third root's emission working.
-- [ ] T082 [US4] Namespace `plugin_state` keys in
+- [X] T082 [US4] Namespace `plugin_state` keys in
   `packages/base/src/cs_image_system/base/run_context.py` (lines 421
   to 429) so two plugins using one key string hold separate state, and
   update its callers.
-- [ ] T083 [US4] Create the isolation assertion in
+- [X] T083 [US4] Create the isolation assertion in
   `packages/system/src/cs_image_system/system/testing/isolation.py`: a
   context manager that fails, naming what changed, if the process
   environment, the working directory, `sys.path`, or the root logger's
   level and handlers differ on exit, or if the kit's opened-secret
   store lost an entry. Use it around a load and a dry run in
   `packages/docker-plugin/tests/pipeline/test_leaves_the_process_alone.py`.
-- [ ] T084 [US4] Test every skip and collision in
+- [X] T084 [US4] Test every skip and collision in
   `packages/engine/tests/test_unusable_plugins.py`, with entry points
   supplied by the test: a plugin that fails to import; one refused for
   each of namespace, conformance and group; a broken commands entry
@@ -727,19 +744,19 @@ R13 to R16. Depends on Phase 2 only.
   an image-source block. Each asserts the plugin or pair is skipped,
   the one line names it, a configuration that does not use it loads,
   and a configuration that uses it fails validation with the cause.
-- [ ] T085 [US4] Prove SC-006 in
+- [X] T085 [US4] Prove SC-006 in
   `packages/docker-plugin/tests/pipeline/test_broken_neighbour.py`:
   with a deliberately broken extra plugin supplied as an entry point,
   the family's fixture validates and completes a dry run, and the
   emission equals the family's golden.
-- [ ] T086 [US4] Hold the two channels that already behave correctly,
+- [X] T086 [US4] Hold the two channels that already behave correctly,
   adding a test only where none exists: two distributions shipping a
   Terraform module directory of one name
   (`packages/engine/src/cs_image_system/engine/modules.py` lines 102
   to 106) in `packages/engine/tests/test_modules_collision.py`; and
   two plugins claiming one bare `type:` word, which
   `tests/test_registration_namespaces.py` already covers.
-- [ ] T087 [US4] Checkpoint: `just test`, `just test-core` and
+- [X] T087 [US4] Checkpoint: `just test`, `just test-core` and
   `just test-docker-alone` pass; the shared golden is unmoved.
 
 **Checkpoint**: Stories 1 to 4 each pass on their own.
@@ -757,7 +774,7 @@ step 6).
 
 Depends on Phase 3. Decision: research R18.
 
-- [ ] T088 Add an install-check mode to `scripts/isolated-run`: install
+- [X] T088 Add an install-check mode to `scripts/isolated-run`: install
   `cs-image-system[docker]` at the workspace version from the built
   wheels into an empty environment that holds nothing else; render the
   starter with the installed command
@@ -766,17 +783,17 @@ Depends on Phase 3. Decision: research R18.
   and succeeded, ran and failed, or did not run; exit non-zero unless
   all three ran and succeeded. With `keep=<directory>`, leave the
   emitted `generated` tree there.
-- [ ] T089 Extend `tests/test_isolated_run.py` for that mode with a
+- [X] T089 Extend `tests/test_isolated_run.py` for that mode with a
   stubbed shell: a failed install fails the run and reports the
   validation and the dry run as not run; a failed validation reports
   the dry run as not run; all three succeeding passes.
-- [ ] T090 Add the recipe `test-docker-install` to `Justfile`. Add it
+- [X] T090 Add the recipe `test-docker-install` to `Justfile`. Add it
   to `full-test-legs` as a leg that fails, and does not skip, when the
   container daemon does not answer. Add the job `docker-install` to
   `.github/workflows/ci.yml` running `just test-docker-install`, and
   update `tests/test_ci_workflow.py` and
   `tests/test_justfile_contract.py`.
-- [ ] T091 Checkpoint, on a machine with a container daemon:
+- [X] T091 Checkpoint, on a machine with a container daemon:
   `just test-docker-install` reports the install, the validation and
   the dry run as each having run and succeeded.
 
@@ -797,7 +814,7 @@ Serves FR-023. The list of statements is in
 [plan.md](plan.md), "Statements this change makes false". Decision:
 research R20.
 
-- [ ] T092 [US5] Write `docs/WRITING_A_PROVIDER.md`, each point
+- [X] T092 [US5] Write `docs/WRITING_A_PROVIDER.md`, each point
   answered once with the docker family as the example: what a provider
   is made of; what it may import (the contract and the declared SDK
   surfaces) and how to check it; how it declares the kit and the
@@ -807,21 +824,21 @@ research R20.
   test kit gives it; and how a plugin that cannot be used shows itself
   to an operator. Finish the testing and dependency sections of
   `packages/docker-plugin/README.md` by linking to it.
-- [ ] T093 [P] [US5] Correct `docs/PLUGINS.md`: the "contract alone"
+- [X] T093 [P] [US5] Correct `docs/PLUGINS.md`: the "contract alone"
   statements (lines 27, 28, 60, 196), the shared-version statements
   (lines 10, 19 to 21), the two docker packages wherever listed, the
   counts (lines 3, 31) deleted, and its how-to reduced to a link to
   the guide.
-- [ ] T094 [P] [US5] Correct `docs/OPERATIONS.md`: "Writing a plugin"
+- [X] T094 [P] [US5] Correct `docs/OPERATIONS.md`: "Writing a plugin"
   (lines 2608 to 2654) reduced to a link to the guide; the
   shared-version statements (lines 2455 to 2459, 2469); the counts
   (lines 2386, 2451 to 2471, 2544) deleted.
-- [ ] T095 [P] [US5] Correct the other documents: `README.md` (lines
+- [X] T095 [P] [US5] Correct the other documents: `README.md` (lines
   58, 60, 67, 69, 76, 115), `GOALS.md` (line 24), `docs/DESIGN.md`
   (line 24), `docs/DESCRIPTION.md` (line 114), `docs/DAILY_DRIVER.md`
   (lines 1231, 1291, 1408), `docs/PARITY.md` (line 55), and
   `GOLDEN.md` (line 75, and its per-lifecycle table deleted).
-- [ ] T096 [P] [US5] Correct the package READMEs:
+- [X] T096 [P] [US5] Correct the package READMEs:
   `packages/contract/README.md` (lines 3, 135, 173 to 181, 240, and
   "Writing a plugin" at 160 to 269 reduced to what is specific to the
   contract plus a link), `packages/base/README.md` (lines 3, 9 to 11,
@@ -831,13 +848,31 @@ research R20.
   `packages/tofu-roots/README.md` (line 515) and
   `packages/dummy-plugin/README.md` (lines 17 to 20, which are already
   false, and 263 to 288).
-- [ ] T097 [P] [US5] Correct the comments and docstrings:
+- [X] T097 [P] [US5] Correct the comments and docstrings:
   `pyproject.toml` (lines 16 to 20, 37 to 38, 143),
   `tests/fixtures/config/README.md` (lines 13 to 18, prose only: no
   fixture file changes), and the module docstrings of
   `tests/test_package_metadata.py` and
   `tests/test_contract_version.py`.
-- [ ] T098 [US5] Run the documentation tests with `just test-one` on
+- [X] T107 [US5] Correct the statements Phase 7 made false, found
+  after this list was written (the contract's README among them, so
+  the contract's version rises once more, with every range on it, in
+  this task). A plugin that is refused is now skipped and named, not
+  the end of every command: `docs/PLUGINS.md` (line 83, and "a
+  packaging error" at line 259), `docs/OPERATIONS.md` (line 2668),
+  `packages/contract/README.md` (lines 84, 225, 367 to 368, 384, 394),
+  `packages/base/README.md` (lines 132, 292) and
+  `packages/engine/README.md` (line 1144). Emission checks provider
+  agreement per root with `validate_for`, not run-wide with
+  `validate_all`: `packages/hashicorp-utils/README.md` (lines 137,
+  286, 513), `packages/gcs-state-plugin/README.md` (line 316) and
+  `packages/tf-s3-state-plugin/README.md` (line 639). Credential
+  prefixes and failure classification ask the declared classes:
+  `packages/engine/README.md` (line 739). The two docstrings in the
+  contract that say a second registration replaces the first
+  (`enrollment.py` line 52, `field_kinds.py` line 92) now describe
+  what the loader reports as a collision.
+- [X] T098 [US5] Run the documentation tests with `just test-one` on
   `tests/test_docs_contract.py`, `tests/test_docs_parity.py`,
   `tests/test_docs_examples.py` and
   `tests/test_sources_do_not_narrate.py`, then the search of
@@ -851,7 +886,7 @@ research R20.
 
 **Purpose**: what crosses stories, and the acceptance run.
 
-- [ ] T099 Give every new file its licence information: an SPDX header
+- [X] T099 Give every new file its licence information: an SPDX header
   on each new source and script, and `REUSE.toml` entries for
   `packages/docker-plugin/tests/fixture/**`,
   `packages/docker-plugin/tests/golden/**`,
@@ -859,9 +894,9 @@ research R20.
   `packages/system/tests/core_golden/**` and the three
   `surface-baseline.txt` files, none of which may carry a header. Then
   run `just headers`.
-- [ ] T100 Run `just public-safe`. The new fixtures hold only the
+- [X] T100 Run `just public-safe`. The new fixtures hold only the
   synthetic personas and the test identity.
-- [ ] T101 Measure the budget and write the actual figures beside the
+- [X] T101 Measure the budget and write the actual figures beside the
   expected ones in the Budget table of
   `specs/001-standalone-docker-provider/plan.md`: source lines, test
   lines, workspace packages, contract protocol members, tests, golden
@@ -870,7 +905,7 @@ research R20.
 - [ ] T102 Walk steps 1 to 6 and step 8 of
   `specs/001-standalone-docker-provider/quickstart.md` and record each
   result.
-- [ ] T103 Prove FR-022 with step 7 of
+- [X] T103 Prove FR-022 with step 7 of
   `specs/001-standalone-docker-provider/quickstart.md`:
   `just cli config-drift` exits with the status T003 recorded, and the
   `standard-docker` emission from the commit the branch started at
@@ -879,12 +914,12 @@ research R20.
 - [ ] T104 Run `just full-test` (quickstart step 9). A leg that fails
   for an expired session or an unreachable service is reported as
   environmental, apart from a code failure.
-- [ ] T105 Bring the specification's own files up to date: the status
+- [X] T105 Bring the specification's own files up to date: the status
   line of `specs/001-standalone-docker-provider/spec.md`; the note in
   `specs/001-standalone-docker-provider/checklists/requirements.md`
   that still says two planning choices are "bounded by FR-024"; and
   the row for 001 in `specs/README.md`.
-- [ ] T106 Report to the operator what the first release after this
+- [X] T106 Report to the operator what the first release after this
   feature does for the first time (research R21): it publishes the kit
   and the two Terraform libraries at 0.2.0 on their own version lines,
   and a new project on the index, `cs-image-system-docker-plugin`.

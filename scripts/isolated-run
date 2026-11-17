@@ -46,11 +46,28 @@ from this repository's build, and the run says which, by name: a
 development install is never mistaken for a release. The index is asked;
 if it cannot be asked the run fails, since it would otherwise have to
 guess.
+
+The install check is a second mode, for what a person installs rather than
+what a package's tests need:
+
+    isolated-run --install-check --subject NAME --require REQ --starter NAME
+                 [--keep DIR]
+
+It builds the wheels, installs ``REQ`` (``cs-image-system[docker]``) from
+them into an empty environment that holds nothing else, renders the named
+starter with the INSTALLED command (``init-config <dir> --from NAME``),
+then runs the installed ``validate`` and a dry ``run --all`` on it. Three
+steps are reported, each as ``ran and succeeded``, ``ran and failed`` or
+``did not run``: the install (with the render), the validation and the dry
+run. The check passes only when all three ran and succeeded; a step that
+did not run is a failure, never a pass. ``--keep DIR`` leaves the emitted
+``generated`` tree in ``DIR`` (which must not hold one already).
 """
 from __future__ import annotations
 
 import argparse
 import json
+import os
 import shutil
 import subprocess
 import sys
@@ -335,11 +352,98 @@ def run(subject: str, requirement: str, root: Path, tests: Sequence[str], *, cop
     return 0 if ok else 1
 
 
+SUCCEEDED, FAILED_STEP, NOT_RUN = "ran and succeeded", "ran and failed", "did not run"
+INSTALL, VALIDATION, DRY_RUN = "the install", "the validation", "the dry run"
+COMMAND = "cs-image-system"
+IDENTITY_FILE = ".age-identity"
+
+
+def install_check(subject: str, requirement: str, starter: str, *, keep: Path | None = None,
+                  shell: Shell = real_shell, say: Callable[[str], None] = print, work: Path | None = None,
+                  user: str = "csis") -> int:
+    """The install check; 0 when the install, the validation and the dry
+    run each ran and succeeded. ``work`` is a directory to work in (a
+    temporary one is made and removed when none is given)."""
+    if work is None:
+        with tempfile.TemporaryDirectory(prefix="csis-install-") as td:
+            return install_check(subject, requirement, starter, keep=keep, shell=shell, say=say, work=Path(td),
+                                 user=user)
+    who = f"isolated-run [{subject}]"
+    results = {INSTALL: NOT_RUN, VALIDATION: NOT_RUN, DRY_RUN: NOT_RUN}
+
+    def report() -> int:
+        for step, result in results.items():
+            say(f"{who}: {step}: {result}")
+        ok = all(result == SUCCEEDED for result in results.values())
+        say(f"{who}: {'passed' if ok else 'FAILED'} -- "
+            + ("the install, the validation and the dry run each ran and succeeded" if ok else
+               "; ".join(f"{step} {result}" for step, result in results.items() if result != SUCCEEDED)))
+        return 0 if ok else 1
+
+    def stopped(step: str, what: str, done: Done | None = None) -> int:
+        if done is not None:
+            say(done.out.strip()[-6000:])
+        say(f"{who}: {what}" + (f" (exit {done.rc})" if done is not None else ""))
+        results[step] = FAILED_STEP if done is not None else NOT_RUN
+        return report()
+
+    if keep is not None and (keep / "generated").exists():
+        return stopped(INSTALL, f"{keep / 'generated'} already exists; --keep writes the emitted tree there and "
+                                "replaces nothing")
+    wheel_dir = work / "wheels"
+    built = shell(["uv", "build", "--all-packages", "--wheel", "--out-dir", str(wheel_dir)], REPO)
+    if built.rc != 0:
+        say(built.out.strip()[-4000:])
+        return stopped(INSTALL, f"building the workspace's wheels did not succeed (exit {built.rc})")
+    wanted = Requirement(requirement)
+    wheels = wheels_by_name(wheel_dir)
+    if canonicalize_name(wanted.name) not in wheels:
+        return stopped(INSTALL, f"{wanted.name} is not a distribution this workspace builds")
+    found = closure(wanted, wheels)
+    venv = work / "venv"
+    made = shell(["uv", "venv", "--quiet", "--python", f"{sys.version_info.major}.{sys.version_info.minor}", str(venv)], work)
+    if made.rc != 0:
+        return stopped(INSTALL, "creating the empty environment did not succeed", made)
+    python = venv / "bin" / "python"
+    installed = shell(["uv", "pip", "install", "--quiet", "--python", str(python), *install_lines(found, wheels)], work)
+    if installed.rc != 0:
+        return stopped(INSTALL, f"installing {requirement} did not succeed", installed)
+    listed = shell(["uv", "pip", "list", "--python", str(python), "--format", "freeze"], work)
+    stray = sorted(line.split("==")[0] for line in listed.out.splitlines()
+                   if canonicalize_name(line.split("==")[0]).startswith(OURS)
+                   and canonicalize_name(line.split("==")[0]) not in found)
+    if listed.rc != 0 or stray:
+        return stopped(INSTALL, "the environment holds distributions of this repository that the requirement does "
+                                f"not reach: {stray or listed.out.strip()[-500:]}", listed if listed.rc != 0 else Done(1))
+    say(f"{who}: installed {requirement} from this repository's build ({len(found)}): {', '.join(sorted(found))}")
+    command = str(venv / "bin" / COMMAND)
+    config = work / "config"
+    rendered = shell([command, "init-config", str(config), "--from", starter], work)
+    if rendered.rc != 0:
+        return stopped(INSTALL, f"rendering the {starter} starter with the installed command did not succeed", rendered)
+    results[INSTALL] = SUCCEEDED
+    # the starter's own test identity opens its encrypted values, as its README says
+    env = ["env", f"CSIS_CONFIG_IDENTITY={config / IDENTITY_FILE}", f"USER={user}"]
+    validated = shell([*env, command, "--root-dir", str(config), "validate"], config)
+    if validated.rc != 0:
+        return stopped(VALIDATION, "`validate` on the rendered starter did not succeed", validated)
+    results[VALIDATION] = SUCCEEDED
+    dry = shell([*env, command, "--root-dir", str(config), "--dry-run", "run", "--all"], config)
+    if dry.rc != 0:
+        return stopped(DRY_RUN, "a dry `run --all` on the rendered starter did not succeed", dry)
+    results[DRY_RUN] = SUCCEEDED
+    if keep is not None:
+        keep.mkdir(parents=True, exist_ok=True)
+        shutil.copytree(config / "generated", keep / "generated")
+        say(f"{who}: the emitted tree is kept in {keep / 'generated'}")
+    return report()
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=(__doc__ or "").split("\n\n")[0])
     parser.add_argument("--subject", required=True, help="what the run is called in its report")
     parser.add_argument("--require", required=True, help="the requirement to install, with any extras")
-    parser.add_argument("--root", required=True, type=Path, help="the package's directory")
+    parser.add_argument("--root", type=Path, default=None, help="the package's directory")
     parser.add_argument("--tests", nargs="*", default=[], help="test paths inside the root (its testpaths when none)")
     parser.add_argument("--pytest-config", type=Path, default=None,
                         help="the pytest settings file, when not the root's own pyproject.toml")
@@ -347,7 +451,20 @@ def main(argv: Sequence[str] | None = None) -> int:
                         help="take each SDK library at the lowest or highest version of the provider's range")
     parser.add_argument("--copy-outside", action="store_true",
                         help="copy the package's directory out of the workspace, build and test it there")
+    parser.add_argument("--install-check", action="store_true",
+                        help="install the requirement alone, render --starter with the installed command, then "
+                             "validate and dry-run it")
+    parser.add_argument("--starter", default=None, help="the starter the install check renders")
+    parser.add_argument("--keep", type=Path, default=None,
+                        help="with --install-check: leave the emitted `generated` tree in this directory")
     args = parser.parse_args(argv)
+    if args.install_check:
+        if not args.starter:
+            parser.error("--install-check needs --starter")
+        return install_check(args.subject, args.require, args.starter, user=os.environ.get("USER") or "csis",
+                             keep=(Path.cwd() / args.keep).resolve() if args.keep else None)
+    if args.root is None:
+        parser.error("--root is required")
     return run(args.subject, args.require, (REPO / args.root).resolve(), args.tests, copy_outside=args.copy_outside,
                pytest_config=(REPO / args.pytest_config).resolve() if args.pytest_config else None,
                sdk_end=args.sdk_end)

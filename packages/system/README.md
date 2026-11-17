@@ -9,7 +9,8 @@ delegates to the engine, the kit or a plugin.
 
 Licensed under Apache-2.0. Requires Python 3.13 or later. Declared
 dependencies ([`pyproject.toml`](pyproject.toml)): `cs-image-system-base`
-and `cs-image-system-engine` (both pinned to the same version), `typer`,
+and `cs-image-system-engine` (each pinned exactly: the engine at the
+workspace's version, the kit at its own), `typer`,
 `rich`, `PyYAML` and `packaging`
 (`init-config` compares release versions with it). The entry point is
 `cs_image_system.system.cli:app` (a Typer application); `python -m
@@ -830,7 +831,7 @@ library is pinned to the same version in
 builder comes from a plugin discovered through the
 `cs_image_system.plugins.<type>` entry points, and the `release` and
 `retention` lifecycles (plus every validator and recorder hook) from the
-`cs_image_system.plugins.hooks` group. The workspace pins all seventeen. A
+`cs_image_system.plugins.hooks` group. A
 missing runtime plugin surfaces at load as `No runtime providers
 configured.` or `<kind> builder '<type>' specified for '<name>' not
 configured`; a missing hook plugin makes `run release` an unknown

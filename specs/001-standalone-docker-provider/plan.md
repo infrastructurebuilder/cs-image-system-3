@@ -112,15 +112,52 @@ violated.
 
 ### Budget (Principle VII)
 
-| Measure | Today | Expected | Reason for any growth |
-| --- | --- | --- | --- |
-| Source lines (`packages/*/src`, `src`) | 54,482 | +700 to +1,300 | About 400 are the harness's neutral part moving from `tests/` into the system package. New: three surface declarations, the import check, the baseline record and check, collision and skip reporting, the test-double runtime. |
-| Test lines | 45,127 | −300 to +300 | The harness's neutral part leaves; new tests arrive. |
-| Workspace packages | 23 | 22 | Docker's two packages become one. No package is added. |
-| Contract protocol members | unchanged | 0 | The stand-in capability already exists (`local_test_target`). |
-| Tests | 1,939 | +25 to +55 | New: surface and baseline, each collision and skip case, the stand-in cases, the isolation assertion, two goldens. Removed: the old import-rule file. |
-| Golden files | 148 | +35 to +50 | The docker family's golden (about 26 files that duplicate the shared golden's docker subtrees, by the operator's decision of 2026-11-16) and the core's. |
-| Repository-wide checks | n/a | 2 removed, 2 added | Removed: the import-rule test, the assertion that a plugin reaches every kit module. (The cap on the import edge between docker's two halves stays: the analyser counts by import package, and those two names did not change.) Added: every workspace plugin and both Terraform libraries pass the surface check; no core module imports a Terraform library (FR-026). |
+| Measure | Today | Expected | Actual, 2026-11-17 | Reason for any growth |
+| --- | --- | --- | --- | --- |
+| Source lines (`packages/*/src`, `src`) | 54,482 | +700 to +1,300 | 56,792 (+2,310) | About 400 are the harness's neutral part moving from `tests/` into the system package. New: three surface declarations, the import check, the baseline record and check, collision and skip reporting, the test-double runtime. |
+| Test lines | 45,127 | −300 to +300 | 47,146 (+2,019) | The harness's neutral part leaves; new tests arrive. |
+| Workspace packages | 23 | 22 | 22 | Docker's two packages become one. No package is added. |
+| Contract protocol members | unchanged | 0 | 0 (unchanged) | The stand-in capability already exists (`local_test_target`). |
+| Tests | 1,939 | +25 to +55 | 2,041 (+102) | New: surface and baseline, each collision and skip case, the stand-in cases, the isolation assertion, two goldens. Removed: the old import-rule file. |
+| Golden files | 148 | +35 to +50 | 222 (+74) | The docker family's golden (about 26 files that duplicate the shared golden's docker subtrees, by the operator's decision of 2026-11-16) and the core's. |
+| Repository-wide checks | n/a | 2 removed, 2 added | 2 removed, 2 added | Removed: the import-rule test, the assertion that a plugin reaches every kit module. (The cap on the import edge between docker's two halves stays: the analyser counts by import package, and those two names did not change.) Added: every workspace plugin and both Terraform libraries pass the surface check; no core module imports a Terraform library (FR-026). |
+
+**Measured** on 2026-11-17 with one method for both columns, on the
+commit the branch started at (`be648dbb`, which reproduces every figure
+in the Today column) and on the working tree: lines of `*.py` under
+`packages/*/src` and `src`; lines of `*.py` under `tests` and
+`packages/*/tests`, fixtures and goldens left out; `pyproject.toml`
+files under `packages/`; functions named `test_`; files under every
+golden directory.
+
+**Four figures are outside their expected range.** The reasons:
+
+- **Source lines, +2,310 against +700 to +1,300.** The test kit is 764
+  lines, not the 400 that moved: it gained the test-double runtime, the
+  golden comparison, the isolation assertion and the broken neighbour.
+  The kit's surface package is 663 lines (the declaration, the import
+  check, the baseline record and its command line). Each provider's
+  stubs now ship in its package and so count as source (docker,
+  `tofu-roots`, `hashicorp-utils`: about 290 lines that were test
+  code). The engine grew by 390 for skip-and-name discovery, the
+  collisions and the stand-in rule. Nothing was added that a
+  requirement did not ask for; the estimate was low.
+- **Test lines, +2,019 against −300 to +300.** The estimate assumed the
+  four docker test files would leave `tests/` for the family's suite;
+  they have not (tasks T024 to T026 are open), so nothing left. What
+  arrived: the family's suite, the core's suite, the surface and
+  baseline tests for three libraries, the isolated-run tests, and a
+  test for every skip and collision.
+- **Tests, +102 against +25 to +55.** The same cause: every skip and
+  collision case, each end of each SDK range and each failure of the
+  isolated runs has a test of its own, and none of the docker tests
+  moved out.
+- **Golden files, +74 against +35 to +50.** The docker family's golden
+  is 42 files (26 were expected: its fixture also declares identity
+  and a release, which the estimate left out) and the core's is 32.
+
+`scripts/isolated-run` (474 lines) is outside every measure above: it
+is a script, not package source.
 
 ### Statements this change makes false (Principle X)
 

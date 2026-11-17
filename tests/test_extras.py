@@ -195,13 +195,13 @@ def without_gcloud(monkeypatch):
         return _Points([p for p in real(group=group) if shown(p)])
 
     monkeypatch.setattr(loader, "entry_points", hiding)
-    loader._discovered_plugins.cache_clear()
+    loader._discovery.cache_clear()
     loader.discover_plugins()                 # the plugins are held to the contract BEFORE any hook is stubbed
     try:
         yield
     finally:
         monkeypatch.undo()
-        loader._discovered_plugins.cache_clear()
+        loader._discovery.cache_clear()
         loader.discover_plugins()
 
 

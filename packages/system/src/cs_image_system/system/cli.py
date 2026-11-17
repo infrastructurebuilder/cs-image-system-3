@@ -82,7 +82,7 @@ from cs_image_system.engine.commands.runtime_facts import describe_runtime, empt
 from cs_image_system.engine.commands.state_migration import backup, begin, finish
 from cs_image_system.engine.commands.unmount import read_receipt, unmount_storage
 from cs_image_system.engine.commands.upgrade import upgrade
-from cs_image_system.engine.config_loader import read_config_and_transform
+from cs_image_system.engine.config_loader import DECLARED_TYPES, read_config_and_transform
 from cs_image_system.engine.identity_attributes import (
     AttributeApplyDisabled,
     apply,
@@ -319,7 +319,9 @@ def validate_command(
         # a runtime's online check failed: lapsed credentials get the one line
         # a load-time failure gets, and its exit code; anything else the
         # plugin's own words
-        failure = classify_load_failure(e.__cause__) if e.__cause__ is not None else None
+        # the plugins asked are those of the builders this configuration declares
+        declared = [type(b).csis_name() for b in _loaded(ctx).all_sorted_builders]
+        failure = classify_load_failure(e.__cause__, declared_types=declared) if e.__cause__ is not None else None
         lines, code = (failure.lines, failure.code) if failure is not None else (e.lines, e.code)
         for line in lines:
             typer.secho(line, fg=typer.colors.RED, err=True)
@@ -389,7 +391,10 @@ def preflight_command(
         typer.secho(line, fg=colour)
     # a credential the environment sets but leaves EMPTY is a failure,
     # not an absence -- reported by name, never by value
-    empty = empty_environment_credentials(ctx.reg)
+    # the classes asked are those of the builders THIS configuration declares: a provider installed beside it
+    # and not used by it has no say in what counts as a credential here
+    declared_builders = [type(b) for b in (*ctx.runtime_builders.values(), *ctx.group_builders.values())]
+    empty = empty_environment_credentials(ctx.reg, declared=declared_builders)
     for name in empty:
         typer.secho(f"environment: {name} is set but EMPTY -- a credential that exists with no value "
                     "is a failure, not an absence", fg=typer.colors.RED)
@@ -713,7 +718,12 @@ def bootstrap_command(
         typer.secho(f"bootstrap: {e}", fg=typer.colors.RED, err=True)
         raise typer.Exit(code=2) from None
     write_answers(root / ANSWERS_FILE, result)
-    written = regenerate(root, sections=sections) or []
+    try:
+        written = regenerate(root, sections=sections) or []
+    except Refused as e:
+        # two sections that cannot share one root (one provider declared two ways): the answers are kept
+        typer.secho(f"bootstrap: refused: {e}", fg=typer.colors.RED, err=True)
+        raise typer.Exit(code=2) from None
     wanted = [name for name, a in sorted(result.items()) if a.get("wanted")]
     typer.echo(f"bootstrap: answers in {ANSWERS_FILE}; sections wanted: {', '.join(wanted) or 'none'}")
     for p in written:
@@ -1601,18 +1611,59 @@ def deferred_load_commands() -> set[str]:
     return set(_DEFERRED_LOAD_COMMANDS)
 
 
-def plugin_command_mounts() -> list[CommandMount]:
-    """Every mount the installed plugins register in the contract's
-    ``cs_image_system.commands`` entry-point group, in entry-point name order
-    (a plugin's entry point is a callable returning the list)."""
-    out: list[CommandMount] = []
-    for ep in sorted(entry_points(group=COMMANDS_ENTRY_POINT_GROUP), key=lambda e: e.name):
-        mounts = ep.load()()
+def _mounted_thing(mount: CommandMount) -> object:
+    """What a mount puts under its name: the sub-app, or the callback."""
+    return mount.app if mount.is_app else _callback_of(mount)
+
+
+def plugin_commands() -> list[tuple[str, list[CommandMount]]]:
+    """What each installed plugin mounts, by the plugin (``name
+    (distribution)``), in entry-point name order: the contract's
+    ``cs_image_system.commands`` group, where an entry point is a callable
+    returning the list of mounts.
+
+    A plugin whose commands cannot be used is skipped, never a reason for
+    the command line to stop: this runs when the command line is imported,
+    so a failure here would take ``--help`` and every command with it. One
+    ERROR line names the plugin and the cause when its entry point does not
+    load, raises, or returns something that is no ``CommandMount``; and when
+    two plugins mount DIFFERENT things under one name and path both are
+    skipped and one line names both (the same callback or sub-app from
+    several plugins is one command, and allowed)."""
+    found: list[tuple[str, list[CommandMount]]] = []
+    for ep in sorted(entry_points(group=COMMANDS_ENTRY_POINT_GROUP),
+                     key=lambda e: (e.name, str(getattr(getattr(e, "dist", None), "name", "") or ""))):
+        dist_name = str(getattr(getattr(ep, "dist", None), "name", "") or "")
+        owner = f"{ep.name} ({dist_name})" if dist_name else ep.name
+        try:
+            mounts = list(ep.load()())
+        except Exception as e:
+            log.error(f"Plugin {owner} is skipped: failed to import: its commands: {type(e).__name__}: {e}")
+            continue
+        strangers = [m for m in mounts if not isinstance(m, CommandMount)]
+        if strangers:
+            log.error(f"Plugin {owner} is skipped: refused: its commands entry point returned {strangers[0]!r}, "
+                      "not a CommandMount")
+            continue
+        found.append((owner, mounts))
+    claims: dict[str, list[tuple[int, object]]] = {}
+    for index, (_owner, mounts) in enumerate(found):
         for mount in mounts:
-            if not isinstance(mount, CommandMount):
-                raise TypeError(f"command entry point {ep.name!r} returned {mount!r}, not a CommandMount")
-            out.append(mount)
-    return out
+            claims.setdefault("/".join((*mount.path, mount.name)), []).append((index, _mounted_thing(mount)))
+    skipped: set[int] = set()
+    for where, claimed in sorted(claims.items()):
+        if len({id(thing) for _index, thing in claimed}) > 1:
+            owners = sorted({index for index, _thing in claimed})
+            log.error(f"Plugins {' and '.join(found[i][0] for i in owners)} are both skipped: both register "
+                      f"command {where!r}")
+            skipped.update(owners)
+    return [entry for index, entry in enumerate(found) if index not in skipped]
+
+
+def plugin_command_mounts() -> list[CommandMount]:
+    """Every mount the usable installed plugins register
+    (:func:`plugin_commands`), in entry-point name order."""
+    return [mount for _owner, mounts in plugin_commands() for mount in mounts]
 
 
 #: The core's commands a plugin mounts by name (``CommandMount.kit_command``).
@@ -1640,6 +1691,29 @@ def _sub_app(root: typer.Typer, path: tuple[str, ...]) -> typer.Typer:
     return current
 
 
+def _mount_refusal(root: typer.Typer, mounts: list[CommandMount]) -> str | None:
+    """Why one plugin's mounts cannot all go on ``root``, read without
+    mounting anything: a path that names no sub-app (one this plugin mounts
+    itself counts), or a name a built-in command or an earlier plugin
+    took for something else. None when they all can."""
+    own_apps = {m.name for m in mounts if m.is_app and not m.path}
+    for mount in mounts:
+        where = "/".join((*mount.path, mount.name))
+        try:
+            parent = _sub_app(root, mount.path)
+        except ValueError as e:
+            if mount.path and mount.path[0] in own_apps:
+                continue
+            return f"command {where!r}: {e}"
+        groups = {g.name: g.typer_instance for g in parent.registered_groups}
+        commands = {c.name: c.callback for c in parent.registered_commands}
+        same = groups.get(mount.name) is mount.app if mount.is_app else \
+            commands.get(mount.name) is _callback_of(mount)
+        if (mount.name in groups or mount.name in commands) and not same:
+            return f"command {where!r} is already mounted, by the system itself or an earlier plugin"
+    return None
+
+
 def mount_plugin_commands(root: typer.Typer, mounts: list[CommandMount] | None = None) -> list[str]:
     """Mount each record on ``root``: a sub-app under the root by its name, a
     command under the sub-app its path names. Returns what was mounted, as
@@ -1647,11 +1721,30 @@ def mount_plugin_commands(root: typer.Typer, mounts: list[CommandMount] | None =
     callback (by identity) or the same sub-app object mounted again under
     the same name and path is one command, recorded once -- several plugins
     may each mount the core's ``verify login`` -- while a DIFFERENT callback
-    or sub-app under a name a built-in or an earlier mount took is refused:
-    two owners of one command is a packaging error, never a silent
-    replacement."""
+    or sub-app under a name a built-in or an earlier mount took is never a
+    silent replacement.
+
+    Without ``mounts`` the installed plugins' are mounted
+    (:func:`plugin_commands`), plugin by plugin, and a plugin whose mounts
+    cannot all be mounted is skipped whole with one ERROR line that names
+    it: the command line still starts. With ``mounts`` (a caller's own
+    list) the first one that cannot be mounted is refused with a
+    ``ValueError``."""
+    if mounts is not None:
+        return _mount_all(root, mounts)
     mounted: list[str] = []
-    for mount in (plugin_command_mounts() if mounts is None else mounts):
+    for owner, theirs in plugin_commands():
+        refusal = _mount_refusal(root, theirs)
+        if refusal is not None:
+            log.error(f"Plugin {owner} is skipped: refused: {refusal}")
+            continue
+        mounted += _mount_all(root, theirs)
+    return mounted
+
+
+def _mount_all(root: typer.Typer, mounts: list[CommandMount]) -> list[str]:
+    mounted: list[str] = []
+    for mount in mounts:
         parent = _sub_app(root, mount.path)
         where = "/".join((*mount.path, mount.name))
         if mount.is_app:
@@ -1852,7 +1945,8 @@ def main(
         # a known load-time failure is one line and an exit code, not a
         # traceback; an unknown one keeps its traceback, and --verbose keeps
         # every traceback
-        failure = classify_load_failure(e)
+        # the plugins asked are those of the types this configuration declares, once the load read them
+        failure = classify_load_failure(e, declared_types=(typer_cntx.obj or {}).get(DECLARED_TYPES))
         if failure is None:
             typer.echo(f"Error reading config file : {e}", err=True)
             raise e

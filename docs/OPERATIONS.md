@@ -1764,9 +1764,15 @@ and tool execution stubbed.
 
 Everything `test` does plus the slow and external legs:
 
-1. the modification tests under docker (`just test-mods --strict`), when
+1. the docker extra installed alone (`just test-docker-install`):
+   `cs-image-system[docker]` from the built wheels in an empty
+   environment, the standard-docker starter rendered, validated and
+   dry-run. This leg is never skipped: without a container daemon it
+   fails, because the usual install has to deliver a docker provider
+   that runs;
+2. the modification tests under docker (`just test-mods --strict`), when
    `docker info` succeeds;
-2. only when the reference configuration is present AND `just preflight`
+3. only when the reference configuration is present AND `just preflight`
    finds every runtime session present: a headless dry `run --all` over a
    private copy of it (its `.git`, `generated/`, `_private/` and
    `.tofu-plugin-cache/` excluded; the copy's `tofu init`s use this
@@ -1777,7 +1783,8 @@ Everything `test` does plus the slow and external legs:
    own `full-test` copies it the same way.
 
 A leg whose prerequisite is absent reports `SKIPPED` loudly with its
-reason and does not fail the run; a leg that runs and fails does.
+reason and does not fail the run (the first leg above excepted); a leg
+that runs and fails does.
 Identity credentials (`OKTA_API_*`, `TF_VAR_<team>_*`) are not gated: a
 dry run without them warns and skips the identity roots' plan. Run it
 before declaring a phase done and before any release.
@@ -2383,7 +2390,7 @@ line per endpoint) reads the target's `[[tool.uv.index]]` entry and
 asks two things of it: the upload endpoint (`publish-url`) answers
 below 500 to a request that uploads nothing, and the simple index
 answers for EVERY project a release uploads -- the root project and each
-`packages/*` member, twenty-four today -- with 200, or 404 for a project
+published `packages/*` member -- with 200, or 404 for a project
 it has never seen. With `--version` it also says which projects already
 hold that version: none (a fresh release), all, or some (a partial
 upload, which `just publish` completes). Exit 0 is ready; **75 is "not
@@ -2448,16 +2455,24 @@ from the environment or, absent that, the index's own name --
 `.envrc` line serves the shell and CI alike -- and never in the Justfile:
 while versions are being deleted and re-cut, an account-scoped TestPyPI
 token; trusted publishing
-(a pending publisher per project name, twenty-two registrations: the
-umbrella and the twenty-one published packages) waits until
+(a pending publisher per project name: the umbrella and every
+published package) waits until
 the names are stable, and is then the CI job's credential.
 
-The version lives in twenty-four `version =` lines -- the root's and the
-twenty-three workspace packages', the two private ones included -- and in
-every `== <version>` pin between the packages (the root's dependencies,
-its extras and its dev group alike), and `bump-my-version` is the
-one thing that changes them (`uv version` bumps the lines but never a
-pin, so it is not used). The scheme is `MAJOR.MINOR.PATCH[.devN]`; every
+The workspace's version lives in the `version =` line of the root and of
+every package that releases with it (the two private ones included), and
+in every `== <version>` pin between them (the root's dependencies, its
+extras and its dev group alike), and `bump-my-version` is the one thing
+that changes them (`uv version` bumps the lines but never a pin, so it
+is not used). Three things keep versions of their own, which the
+workspace's bump leaves alone: the contract, named everywhere by the
+range of its series; the kit; and the two terraform libraries, which
+move together. The kit's line and the terraform libraries' line are
+moved with `just sdk-bump <kit|terraform> <last|middle>`, which also
+moves every exact pin on that line. Removing or altering anything on a
+library's declared surface takes `middle`; anything else takes `last`
+([WRITING_A_PROVIDER.md](WRITING_A_PROVIDER.md#how-it-depends-on-the-sdk)).
+A release is refused while `just surface-check` fails. The scheme is `MAJOR.MINOR.PATCH[.devN]`; every
 version goes to TestPyPI first, and versions there are deleted as
 development goes on, so an increment must be cheap: `just release dev`
 is one. `tests/test_package_metadata.py` bumps a copy of the tree and
@@ -2465,10 +2480,10 @@ asserts nothing of the old version is left.
 
 ### Installing a release
 
-Twenty-two packages are on the index: `cs-image-system`, the umbrella
+The published packages are on the index: `cs-image-system`, the umbrella
 (no sources of its own; its dependencies are the core at a `==` pin,
-and each provider is an extra), and `cs-image-system-<package>` for the
-twenty-one others. The bare install carries no runtime:
+and each provider is an extra), and `cs-image-system-<package>` for each
+of the others. The bare install carries no runtime:
 
 ```sh
 uv tool install cs-image-system               # the CLI, the engine, the OS families, packer,
@@ -2541,7 +2556,7 @@ system drives (`tofu`, `packer`, `gcloud`, `ansible-playbook`, docker) are
 not Python packages and are not installed by this; the configuration's
 `cfg/executables.yml` pins where they are. The same install from the
 built files, without an index, is `uv pip install --find-links dist
-'cs-image-system[all]==<version>'` after `just build`; the twenty-two wheels
+'cs-image-system[all]==<version>'` after `just build`; the wheels
 installed that way into a fresh virtualenv run `cs-image-system --help`
 and `decrypt`, which is the proof that every package declares what it
 imports (`just build` builds the two private wheels too; nothing installs
@@ -2620,53 +2635,27 @@ command prints which it used.
 
 ### Writing a plugin
 
-A plugin is written against one package, `cs-image-system-contract`:
-the protocols a model and a builder satisfy, the constants
-and field helpers a model is declared with, the lifecycle phases a hook
-keys on, and the data carriers a hook returns. It depends on nothing of
-the system, and the core depends on it, never the reverse: the contract
-is upstream, and a new hook is a contract change first. The core is two
-packages in one direction, contract <- kit <- engine: the kit
-(`cs-image-system-base`) holds the base classes, the models and what
-they import, the engine (`cs-image-system-engine`) runs a tree (the
-loader, the configuration reader, the lifecycle runner, the commands),
-and a plugin never depends on the engine. The core's base
-classes implement every protocol with a default for every hook, so the
-convenient plugin subclasses them; a plugin that satisfies the protocols
-structurally is a first-class plugin, and
-`cs_image_system.contract.testing.assert_conforms` is the check that says
-so (the core's own bar runs it over every base class and every built-in
-plugin). The recipe, step by step, with what to depend on and what to
-return from the entry point, is "Writing a plugin" in
-[packages/contract/README.md](../packages/contract/README.md); the
+[WRITING_A_PROVIDER.md](WRITING_A_PROVIDER.md) is the guide: what a
+provider is made of, what it may import (the contract and the declared
+surface of the SDK) and how to check it, how it names the SDK by a
+range and what the version numbers promise, where its tests, fixture,
+golden and stubs live, how to run its tests with nothing else of this
+repository beside it, and how a plugin that cannot be used shows
+itself. Its example is the docker provider.
+
+What is specific to one package is in that package's README: the
+protocols and the conformance check
+(`cs_image_system.contract.testing.assert_conforms`) in
+[the contract's](../packages/contract/README.md); the base classes and
+the run context in [the kit's](../packages/base/README.md). The
 [contract example plugin](../packages/contract-example-plugin/README.md)
-is the proof and the worked example (OpenTofu's `inmem` state backend,
-written against the contract alone, subclassing nothing of the core), the
+is the smallest plugin there is (OpenTofu's `inmem` state backend,
+written against the contract and nothing else, subclassing nothing of
+the core), the
 [local state plugin](../packages/local-state-plugin/README.md) the same
 kind written the convenient way on the base classes, and the
 [dummy plugin](../packages/dummy-plugin/README.md) the template for a
-group or user builder and for a hook plugin. The run context is in the
-contract (`RunContextProtocol`, handed to a builder at `bind(ctx)` and
-read back through `_get_context()`), and so are the run's services
-(`ctx.services.lineage`, `launch`, `secrets`, `files`, `commands`,
-`images`, `identity`, `storage`, `workspaces`, `scope`, `cli`,
-`lifecycles`, `meta_state`), the hooks entry point (`contract.hooks`) and
-the bootstrap vocabulary (`contract.bootstrap`). What a plugin may import
-from `base` is what the kit's `surface` module declares
-(`cs_image_system.base.surface`), nothing else;
-`tests/test_plugins_keep_to_the_surface.py` holds that rule over every
-plugin with the kit's own check
-(`python -m cs_image_system.base.surface check <source directory>`), which
-also refuses any import of the engine (`cs_image_system.engine`) from a
-plugin. A plugin written outside this
-repository needs the two packages from the index,
-`cs-image-system-contract` (pinned `>=0.4,<0.5`, the range every
-package of this workspace declares; the contract has its own version,
-0.x until it is declared stable, and while it is 0.x a change a plugin
-can observe is a MINOR step that moves the range) and, if it subclasses
-the base classes, `cs-image-system-base`, the kit; it tests itself with
-`assert_conforms` against the protocol of its kind and is refused at load
-by name if it falls short.
+group or user builder and for a hook plugin.
 
 ### Recipe catalogue
 
@@ -2696,6 +2685,7 @@ repository's, which the release ships.
 | `test-core` | the core's own tests (the contract, the kit, the engine, the command line and the always-installed plugins) in an empty environment that holds a plain `cs-image-system` with no extras, installed from built wheels: no docker, AWS, Google Cloud or Okta plugin. Fails when no test was collected or any was skipped | nothing; the package index for third-party packages |
 | `test-terraform-alone` | the two shared terraform libraries' own tests (`packages/hashicorp-utils/tests`, `packages/tofu-roots/tests`) in an empty environment that holds only the two libraries and what they declare (the kit and the contract), at both ends of the kit range the roots library declares. Fails when no test was collected or any was skipped | nothing; the package index, for third-party packages and to ask which kit versions it holds |
 | `test-docker-alone` | the docker family's own tests ([packages/docker-plugin/tests](../packages/docker-plugin/tests)) in an empty environment that holds only the docker package and what it declares, installed from built wheels, at both ends of the SDK range it declares: at the high end the whole suite, in place and from a copy of the package's directory outside the workspace; at the low end the unit tests and the surface check with the package and the SDK alone. Says for each SDK library whether it came from the index or from this repository's build. Fails when no test was collected or any was skipped | nothing (no daemon: its runs are stubbed); the package index, for third-party packages and to ask which SDK versions it holds |
+| `test-docker-install` | what a person who installs the docker extra gets: `cs-image-system[docker]` installed from the built wheels into an empty environment that holds nothing else, the [standard-docker](examples/standard-docker) starter rendered with the installed command, then the installed `validate` and a dry `run --all` on it. Reports the install, the validation and the dry run each as ran and succeeded, ran and failed, or did not run, and passes only when all three ran and succeeded. `keep=<directory>` leaves the emitted `generated` tree there | `docker`, `packer`, `ansible-playbook`, `bash` and `tofu`; a container daemon that answers; the registry (a dry run resolves the base image with a pull); the package index, for third-party packages |
 | `test-one *ARGS` | one pytest expression, each word passed to pytest whole (`-k "a or b"` is one expression) | nothing |
 | `test-mods *ARGS` | the modification tests in a container over the reference configuration | docker, reference configuration |
 | `test-posix-accounts *ARGS` | the posix accounts script on AlmaLinux 10 and Debian 12 under docker, run twice: against an equal and a differing pre-existing group, a member with no account yet, sudo through visudo; a leg of `full-test`, skipped under `just test` | docker |
@@ -2761,9 +2751,13 @@ cloud-dispose-images gcloud-east1` from that repository.
 
 Three workflows in this repository, and one in a configuration
 repository. This repository's [ci.yml](../.github/workflows/ci.yml)
-proves the SYSTEM: `verify` is the bar, `live` proves the frozen fixture
-against the real accounts read-only, `publish` uploads a pushed `v*` tag
-to the index. Every job of it runs inside the **runner
+proves the SYSTEM: `verify` is the bar; `core-alone`, `terraform-alone`
+and `docker-alone` each run one part's own tests in an environment that
+holds only that part (the core with no provider, the two terraform
+libraries, the docker provider), and `docker-install` installs the
+docker extra alone and validates and dry-runs its starter; `live` proves
+the frozen fixture against the real accounts read-only; `publish`
+uploads a pushed `v*` tag to the index. Every job of it runs inside the **runner
 image** (`container:` -- `ghcr.io/infrastructurebuilder/csis-ci:<tag>`,
 AlmaLinux 10 with every tool a job calls at a pinned version, built from
 [ci/runner-image/](../ci/runner-image/) and described by

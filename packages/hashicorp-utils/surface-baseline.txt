@@ -85,6 +85,7 @@ cs_image_system.hashicorp_utils.collector:TerraformCollector.set_backend = metho
 cs_image_system.hashicorp_utils.collector:TerraformCollector.state_collisions = staticmethod (locations: 'dict[str, StateLocation]') -> 'list[str]'
 cs_image_system.hashicorp_utils.collector:TerraformCollector.state_locations = method (self) -> 'dict[str, StateLocation]'
 cs_image_system.hashicorp_utils.collector:TerraformCollector.validate_all = method (self) -> 'None'
+cs_image_system.hashicorp_utils.collector:TerraformCollector.validate_for = method (self, workspace: 'str') -> 'None'
 cs_image_system.hashicorp_utils.collector:TerraformCollector.validate_state_locations = method (self) -> 'None'
 cs_image_system.hashicorp_utils.collector:TerraformCollector.workspace_backend = method (self, workspace: 'str') -> 'BackendRegistration | None'
 cs_image_system.hashicorp_utils.collector:TerraformVariable = class ()

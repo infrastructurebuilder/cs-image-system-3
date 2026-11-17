@@ -11,23 +11,15 @@ question: **did this change what the system produces?**
 
 ## What is in it
 
-148 files under [tests/fixtures/golden/](tests/fixtures/golden/), in two
+The files under [tests/fixtures/golden/](tests/fixtures/golden/), in two
 subtrees.
 
-`generated/` — the emitted infrastructure-as-code (144 files): one directory
-per lifecycle, plus two files at the top, `final_execution.sh` (the script
-that runs each lifecycle's runner in meta-workflow order, if and only if
-that runner exists) and the `.gitignore` that keeps state, plans and
-manifests out of a configuration repository:
-
-| Lifecycle | Files |
-| --- | --- |
-| `identity` | 17 |
-| `storage` | 17 |
-| `base-image` | 14 |
-| `instance-image` | 64 |
-| `release` | 3 |
-| `retention` | 1 |
+`generated/` — the emitted infrastructure-as-code: one directory per
+lifecycle (`identity`, `storage`, `base-image`, `instance-image`,
+`release`, `retention`), plus two files at the top, `final_execution.sh`
+(the script that runs each lifecycle's runner in meta-workflow order, if
+and only if that runner exists) and the `.gitignore` that keeps state,
+plans and manifests out of a configuration repository.
 
 `meta-state/` — four of the system's records: `identity.yaml`,
 `storage.yaml`, `launch-params.yaml` and `state-locations.yaml`. These are
@@ -55,6 +47,23 @@ just golden-regen        # -> uv run python tests/golden.py
    root through a variable defined relative to the script, so the emission
    names no absolute path and is compared verbatim.
 
+## The other goldens
+
+This one is the **shared** golden: every provider's emission for one
+configuration that declares them all. Two smaller ones pin a part of the
+system by itself, each from a fixture of its own, and each is compared
+the same way:
+
+- the core's, [packages/system/tests/golden/](packages/system/tests/golden/):
+  what the core emits with no provider installed
+  (`just golden-regen core`);
+- the docker provider's,
+  [packages/docker-plugin/tests/golden/](packages/docker-plugin/tests/golden/):
+  what the docker runtime and its roots emit for a tree that declares
+  nothing else (`just golden-regen docker`). The same test compares it
+  with only the docker package installed and with every provider
+  installed beside it.
+
 ## How it is enforced
 
 [tests/test_golden.py](tests/test_golden.py) regenerates the emission in
@@ -72,9 +81,9 @@ So a failure tells you exactly what moved, not merely that something did.
 This is the project's strongest safety net. A change that touches a hundred
 files can be accepted on one fact: the golden came back byte-identical.
 That is a far stronger statement than "the tests pass": it says the
-system's output did not move by a single byte, on both the AWS and GCE
-runtimes, so the change cannot have altered what would be applied to a
-cloud account. Ports of the model layer, replacements of the mapping
+system's output did not move by a single byte, on every runtime the
+fixture declares, so the change cannot have altered what would be applied
+to a cloud account or a container host. Ports of the model layer, replacements of the mapping
 layer and repository-wide renames have all been accepted that way.
 
 The inverse is just as useful. When the golden *does* move, the diff is the

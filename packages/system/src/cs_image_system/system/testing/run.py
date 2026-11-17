@@ -199,6 +199,14 @@ def load_context(config_root: Path, dry_run: bool = True, overlays: list[Path] |
                                      overlays=list(overlays or []), undeclare=list(undeclare or []))
 
 
+def validation_errors(ctx) -> list[str]:
+    """What ``validate`` would print for the loaded context ``ctx``, one
+    string per configuration error; empty when the configuration is valid.
+    Under :func:`stub_core` the check of the executables on this machine is
+    off, so the answer is the configuration's alone."""
+    return [str(e) for e in _validate.collect_validation_errors(ctx)]
+
+
 def cli_context(ctx) -> Any:
     """The typer context a console-script command reads the loaded context
     from (``typer_cntx.obj["ctx"]``), for calling a command

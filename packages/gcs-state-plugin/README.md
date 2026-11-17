@@ -313,8 +313,9 @@ other plugins, decide whether any of it is used:
   1, nothing generated. A root with nothing deployed moves with one INFO
   line. Note the timing of the `..` rule: the model accepts `prefix:
   a/../b` at load, and the refusal comes when a location is asked for.
-- **At generation.** The collector's `validate_all()` (provider
-  constraints plus the collision rule) runs before every terraform block,
+- **At generation.** The collector's `validate_for(<workspace>)` (the
+  constraints on the providers that workspace declares, plus the
+  collision rule) runs before every terraform block,
   provider block, variable block and remote-state data source is rendered;
   a conflict is an `HclConfigConflictError` and the run fails. Each bound
   root's location is written to `meta-state/state-locations.yaml`

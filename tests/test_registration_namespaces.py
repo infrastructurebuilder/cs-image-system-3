@@ -233,15 +233,16 @@ def _with_entry_points(monkeypatch, *points: Any) -> None:
 def test_a_plugin_without_a_distribution_and_without_the_field_is_refused_at_load(monkeypatch):
     nameless = types.SimpleNamespace(name="nameless", dist=None, load=lambda: (lambda: PluginMetadata()))
     _with_entry_points(monkeypatch, nameless)
-    with pytest.raises(loader.PluginNamespaceError) as refused:
-        loader._discovered_plugins.__wrapped__()
-    assert "nameless" in str(refused.value) and "PluginMetadata.namespace" in str(refused.value)
+    found, unusable = loader.discover()
+    assert found == ()
+    [refused] = unusable
+    assert refused.cause == loader.REFUSED and "nameless" in refused.detail and "PluginMetadata.namespace" in refused.detail
 
 
 def test_a_plugin_without_a_distribution_loads_when_its_metadata_names_the_namespace(monkeypatch):
     named = types.SimpleNamespace(name="named", dist=None, load=lambda: (lambda: PluginMetadata(namespace="mine")))
     _with_entry_points(monkeypatch, named)
-    found = loader._discovered_plugins.__wrapped__()
+    found = loader.discover()[0]
     assert [(d.plugin_type, d.name, d.derived_namespace) for d in found] == [("other", "named", None)]
     assert loader.namespace_for("named", found[0].initializer(), found[0].derived_namespace) == "mine"
 
@@ -250,7 +251,7 @@ def test_a_plugin_with_a_distribution_takes_its_namespace_from_it(monkeypatch):
     dist = types.SimpleNamespace(name="cs-image-system-stand-in-plugin")
     shipped = types.SimpleNamespace(name="shipped", dist=dist, load=lambda: (lambda: PluginMetadata()))
     _with_entry_points(monkeypatch, shipped)
-    found = loader._discovered_plugins.__wrapped__()
+    found = loader.discover()[0]
     assert found[0].derived_namespace == "stand-in"
 
 

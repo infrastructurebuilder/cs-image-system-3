@@ -23,19 +23,29 @@ collectors in -- it names in a small protocol of its own (`CollectorContext` in
 which the core's run context satisfies and a bare holder in a test can
 satisfy too.
 
-In the workspace, nine packages depend on it directly: `tofu-roots`,
-whose root mixin and neutral roots drive the terraform collector; the
-identity root plugin (`okta-opa-plugin`) and the three provider root
-plugins (`tf-ebs-instance-plugin`, `tf-gcp-plugin`, `docker-plugin`),
-which reach the collector and the block model beside the roots they
-subclass from tofu-roots; `packer-plugin`, which uses the packer
-collector; and the three runtime plugins (`aws-runtime-plugin`,
-`gcloud-runtime-plugin`, `docker-plugin`), which import the
-formatter options for their packer sources. The state plugins
+In the workspace, the packages that depend on it directly are
+`tofu-roots`, whose root mixin and neutral roots drive the terraform
+collector; the identity root plugin (`okta-opa-plugin`) and the provider
+root plugins (`tf-ebs-instance-plugin`, `tf-gcp-plugin`,
+`docker-plugin`), which reach the collector and the block model beside
+the roots they subclass from tofu-roots; `packer-plugin`, which uses the
+packer collector; and the runtime plugins (`aws-runtime-plugin`,
+`gcloud-runtime-plugin`, `docker-plugin`), which import the formatter
+options for their packer sources. The state plugins
 (`tf-s3-state-plugin`, `local-state-plugin`, `gcs-state-plugin`) do not
 depend on it: their models answer a registration the collector pulls
-from the run context when it is first asked for, and they import the
-contract alone. The base library neither depends on it nor imports it:
+from the run context when it is first asked for, and they import
+nothing but the contract and the kit.
+
+With `tofu-roots` it is the terraform half of the SDK. The two share one
+version line, apart from the kit's and from the workspace's, and each
+declares what a plugin may use in its `surface` module; a provider names
+them by a range
+([WRITING_A_PROVIDER.md](../../docs/WRITING_A_PROVIDER.md)). Their own
+tests pass in an environment that holds only the two libraries and what
+they declare (`just test-terraform-alone`).
+
+The base library neither depends on it nor imports it:
 what the core used to read from the collector (the state header lines of
 the runner scripts, the location record, the collision check at
 `validate`) is answered by the run hooks of
@@ -136,7 +146,12 @@ satisfiable. Two sources for the same provider (`hashicorp/aws` and
 `mycorp/aws`) are a conflict; sources are compared case-insensitively and
 the first spelling seen is the one emitted. `validate_all()` runs the same
 checks across every workspace of the run **and** `validate_state_locations()`
-(below); every generator calls it first, so a conflict between two
+(below). `validate_for(workspace)` is the same check as one workspace
+owes it: only the providers that workspace declares are compared, against
+every other workspace that declares the same ones, so a disagreement
+between two other roots over a provider this one does not use never stops
+this one's emission. Every generator calls `validate_for` with its own
+workspace first, so a conflict between two
 workspaces surfaces at generation even when each workspace is consistent
 on its own.
 
@@ -284,6 +299,7 @@ run context; nothing constructs one in a run.
 | `declare_variable(workspace, PackerVariableDecl(name, type="string", default=None, description=None, env_var=None, sensitive=False))` | Declares a packer variable; redefinition with different attributes is a conflict. |
 | `merged_plugins(workspace)` | One entry per plugin with merged constraints; disagreeing sources are a conflict. |
 | `validate_all()` | Run-wide satisfiability per plugin name (sources are not compared run-wide, only per workspace). |
+| `validate_for(workspace)` | The same check for the plugins that workspace requires only; what `generate_packer_block` and `generate_variable_blocks` call. |
 | `generate_packer_block(workspace)` | `packer { required_plugins { <name> = { version, source } } }`. |
 | `generate_variable_blocks(workspace)` | `variable "<name>" { type, default, description, sensitive }` blocks through `packer_variable`. With `env_var` the default is `env("<VAR>")` and a `default` given beside it is dropped; a boolean default renders lower-case; a string default is quoted as an HCL string (a `QString` default is passed through as given). |
 
@@ -388,10 +404,12 @@ run from the workspace (which always has both).
 **This is a library, not a plugin.** Nothing here is discovered through an
 entry point, nothing here loads configuration, and no configuration file
 names this package. It is installed as a workspace member from the root
-[pyproject.toml](../../pyproject.toml) by `just init`, and every plugin
-that emits HCL pins it at the same version. There is no account, role, API
-or credential of its own, and it needs nothing of the core at import
-time: a plugin written against the contract alone can use it. What its
+[pyproject.toml](../../pyproject.toml) by `just init`. A plugin that
+releases with the workspace pins it exactly, at the terraform libraries'
+own version; a provider that stands alone names it by a range. There is
+no account, role, API or credential of its own, and it needs nothing of
+the core at import time: a plugin written against nothing but the
+contract can use it. What its
 OUTPUT needs at execution time is listed here; the commands the terraform
 roots emit, and what they need, are
 [tofu-roots](../tofu-roots/README.md#prerequisites-and-integration)'.
@@ -510,9 +528,11 @@ generator is called.
 - `normalize_constraint`: a clause `packaging` cannot parse --
   `ValueError` from the first generator that merges it.
 
-**At generation (every `generate_*` call, through `validate_all`).**
+**At generation (every `generate_*` call, through `validate_for` with
+the workspace being generated).**
 
-- Per provider name across ALL workspaces: sources agree
+- Per provider name the workspace declares, across ALL the workspaces
+  that declare it: sources agree
   (case-insensitively) and the conjunction of every constraint is
   satisfiable -- else `HclConfigConflictError` naming the provider, each
   constraint and its requester. The packer collector does the same per

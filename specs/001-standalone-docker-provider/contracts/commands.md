@@ -129,8 +129,26 @@ Plugin <name> (<distribution>) is skipped: refused: <reason>
 Plugins <a> (<distribution>) and <b> (<distribution>) are both skipped: both register <kind> '<name>'
 ```
 
-`<kind>` is one of: type, command, bootstrap section, entry point,
-enrollment kind, field kind, image-source block.
+What both register is one of: a registry key (written
+`<classification> <namespace>/<name>`), `command '<path>/<name>'`,
+`bootstrap section '<name>'`, `entry point '<name>' (<group>)`,
+`enrollment kind '<name>'`, `field kind '<name>'`, or
+`image-source block '<runtime type>'`.
+
+A plugin that claims something the system itself already holds (a
+built-in command, the system's own bootstrap section, one of its field
+kinds) is skipped alone, in one line that names the plugin and what it
+claimed.
+
+A plugin's commands and its bootstrap section are read apart from its
+classes, each through an entry point of its own. One that cannot be
+used is skipped the same way, and the line says which part failed
+(`its commands`, `its bootstrap section`). The command line still
+starts, and `--help` still answers.
+
+Two bootstrap sections that declare one Terraform provider differently
+refuse the generated root, in one line that names the provider and
+both sections. The answers already given are kept.
 
 ### A configuration that needs such a plugin
 
@@ -144,6 +162,15 @@ The existing message for a word no installed plugin registers
 ("install the extra: ...") is unchanged and is used only when the
 plugin really is absent.
 
+A plugin whose module did not import registered nothing, so the words
+it would have registered are not known. A configuration that names a
+word nothing usable registers therefore gets the unknown word's own
+line, followed by one line for each such plugin:
+
+```text
+   (installed but could not be used: <plugin> (<distribution>): failed to import: <error>)
+```
+
 ### Two plugins claim one bare word
 
 Unchanged: validation names the word, both qualified forms, and asks
@@ -152,11 +179,18 @@ for one of them to be written.
 ### Terraform provider disagreement
 
 Raised when a root is emitted, and only for a provider that root
-declares:
+declares. The message is the collector's own, unchanged, and names the
+provider and every root in the disagreement:
 
 ```text
-provider '<name>' is declared differently by roots <a>, <b>: <the two declarations>
+Irreconcilable version constraints for '<name>': '<constraint>' requested by <a>; '<constraint>' requested by <b>
+Provider '<name>' requested with different sources: [<sources>] (requested by [<a>, <b>])
 ```
+
+A root that does not declare the provider is emitted as if the
+disagreement were not there. The run-wide form of the check
+(`validate_all()`, every provider) is unchanged for a caller that
+wants it; emission uses the per-root form (`validate_for(<root>)`).
 
 ### The stand-in
 

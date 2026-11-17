@@ -537,6 +537,15 @@ validation).
 
 ## Prerequisites and integration
 
+The package depends on the contract and on the SDK's three libraries
+(the kit, `hashicorp-utils` and `tofu-roots`), each **by a range**
+(`>=0.2,<0.3` for the SDK), and on nothing else of this system; its
+`test` extra adds the command line with its test kit and the core
+plugins its fixture declares. What the ranges promise, and how the
+package is held to the SDK's declared surface, is in
+[WRITING_A_PROVIDER.md](../../docs/WRITING_A_PROVIDER.md), which uses
+this package as its example.
+
 ### The runtime
 
 - A daemon that speaks the Docker Engine API, reachable from the machine
@@ -632,6 +641,19 @@ Execution knobs read through the base: `config.apply_instances` and
 or runtime), `config.use_state_backends`, `config.module_source_base`.
 
 ## What it tests and verifies
+
+The package's own suite ([tests/](tests/)) needs nothing else of this
+repository: unit tests that run with only the contract, the SDK and the
+package; and pipeline tests that drive a whole stubbed run over the
+package's own fixture ([tests/fixture/](tests/fixture)) and compare it
+with the package's own golden ([tests/golden/](tests/golden)), through
+the published test kit and the stubs this package ships
+([testing.py](src/cs_image_system/docker_runtime/testing.py)). `just
+test-docker-alone` runs it in an empty environment at both ends of the
+SDK range, and `just test-docker-install` installs
+`cs-image-system[docker]` alone and validates and dry-runs the starter.
+[WRITING_A_PROVIDER.md](../../docs/WRITING_A_PROVIDER.md) explains each
+of these.
 
 ### The runtime
 
