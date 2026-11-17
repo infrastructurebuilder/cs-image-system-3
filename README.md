@@ -84,8 +84,9 @@ The plugins, discovered through Python entry points, one package each:
   runtime: profiles, regions, VPCs and subnets. `[aws]`
 - [gcloud-runtime-plugin](packages/gcloud-runtime-plugin/README.md) — the
   `gcloud` runtime: projects, zones and networks. `[gcloud]`
-- [docker-runtime-plugin](packages/docker-runtime-plugin/README.md) — the
-  `docker` runtime: a host's container daemon. `[docker]`
+- [docker-plugin](packages/docker-plugin/README.md) — the
+  `docker` runtime (a host's container daemon), and containers and
+  named volumes on it through OpenTofu's docker provider. `[docker]`
 - [default-os-plugin](packages/default-os-plugin/README.md) — the OS
   families a base image is built from. **bare**
 - [packer-plugin](packages/packer-plugin/README.md) — the one `packer`
@@ -102,8 +103,6 @@ The plugins, discovered through Python entry points, one package each:
   the OpenTofu instance and storage builders for AWS. `[aws]`
 - [tf-gcp-plugin](packages/tf-gcp-plugin/README.md) — the OpenTofu
   instance and storage builders for Google Cloud. `[gcloud]`
-- [tf-docker-plugin](packages/tf-docker-plugin/README.md) — containers and
-  named volumes through OpenTofu's docker provider. `[docker]`
 - [tf-s3-state-plugin](packages/tf-s3-state-plugin/README.md) — the `s3`
   state backend. `[aws]`
 - [gcs-state-plugin](packages/gcs-state-plugin/README.md) — the `gcs`

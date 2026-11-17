@@ -1,0 +1,44 @@
+---
+id: cs-image-action-test
+generation_directory: ./generated/
+sleep_before_finalization: 30
+# Every ENC[age:...] value is encrypted to these recipients; the
+# fixture's identity (.age-identity, a TEST key) opens them in the suite
+encryption:
+  recipients:
+    - age1hl95vsankapyxyyejhdejmywuwc4ddvpjmflj0hf0y8xjtuk3vystd9ang
+# What the scanner may let through, by decision (the reason beside each);
+# everything else that looks like a secret or a person refuses the commit
+public_safe:
+  allow:
+    - ".iam.gserviceaccount.com"     # the runner service account's address is an identifier, not a person
+    - "path:.age-identity"           # the fixture's TEST identity, committed on purpose
+    - "mykelalvis@infrastructurebuilder.org"   # the copyright holder's address in every SPDX header and REUSE.toml: public by intent
+gitignore:
+  - ".*" # Ignore all dotfiles except for .gitignore and the tf lockfiles
+  - "!.terraform.lock.hcl"
+  - "!.gitignore"
+  - "**/target/" # Ignore all target directories
+dateformat : "%Y%m%d_%H%M%S"    
+config:
+  use_state_backends: true # emit backend/remote-state blocks (needs real state buckets)
+  apply_instances: false # FINALIZATION runs 'tofu apply' for instances only when true
+  apply_storage: false
+  apply_identity: false # FINALIZATION runs 'tofu apply' for identity roots only when true
+  # Relative to THIS configuration tree (test_folder/); every generated
+  # terraform root resolves it to the right relative path for its own depth.
+  # Absolute paths and git/registry URLs pass through unchanged.
+  module_source_base: ../tfmodules
+  some_key: some_value
+  another_key: another_value
+  systemuser: "{{ ENV.USER }}"
+  okta_gateway_selector: "environment=staging"
+  # Mandatory local admin user on every base image (DESIGN Q2/N9/N12): a LIST
+  # of PUBLIC keys (rotation = add new, migrate, remove old); the schema refuses
+  # anything resembling private-key material. Per-base override: admin_public_keys
+  # on the OS builder. Encrypted to prove the packer path: the
+  # emission carries this ciphertext and `materialize` substitutes the key
+  # into the private mirror packer actually builds from.
+  admin_public_keys:
+    - ENC[age:YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSBrbzlLM25IMlEvdWtkOUxNWVg1cDBxeUJQUEZLZHVjUzh4ZzROdmFpcTBrCitNSGJncm9PTWR4bzBsbGsyUEZTUWFZZ25Ja2JrUEtGcGNyaWMvc0k3SlEKLS0tIHkwbTQ4VFBTS3BGcm9hdG1RNHNVUjlibzJNL0UycGdNbzhWb0trV0s3LzgK0178wSJZ9P74ygZxA7hNhYpJWwT+YLH+rFrEZvk7TbCEsIgvH3OKRYMCtkA9Muf6Lm5uIe6HU4eUhm6rXfcYi5V+W3u5UpfK44dj0Z3UCHsSZuEUyP9H/rYZyt8nr3THNh3r2ZDofOuXH+i1osQJk8I9x0isMnBoxYUeOWZqtzsODENxSQ==]
+

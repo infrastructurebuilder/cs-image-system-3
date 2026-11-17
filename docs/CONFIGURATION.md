@@ -854,7 +854,7 @@ family (the `aws` blocks in
 the `gcloud` blocks in
 [the gcloud plugin's](../packages/gcloud-runtime-plugin/src/cs_image_system/gcloud_runtime/data/image-sources.yml),
 the `docker` blocks in
-[the docker plugin's](../packages/docker-runtime-plugin/src/cs_image_system/docker_runtime/data/image-sources.yml)).
+[the docker plugin's](../packages/docker-plugin/src/cs_image_system/docker_runtime/data/image-sources.yml)).
 So the release catalog a tree sees carries a block for a runtime type
 exactly when that runtime's plugin is installed, whether or not the tree
 declares a runtime of that type, and a runtime the release does not know
@@ -1254,7 +1254,7 @@ Key: `instance_builders`. One terraform root per builder. Model:
 types `tofu` (AWS), `tofu-gce` (GCE, same fields,
 [`tf_gcp_models.py`](../packages/tf-gcp-plugin/src/cs_image_system/tf_gcp_plugin/tf_gcp_models.py))
 and `tofu-docker` (a container on a `docker` runtime, same fields,
-[`tf_docker_models.py`](../packages/tf-docker-plugin/src/cs_image_system/tf_docker_plugin/tf_docker_models.py)).
+[`tf_docker_models.py`](../packages/docker-plugin/src/cs_image_system/tf_docker_plugin/tf_docker_models.py)).
 A `tofu-docker` root names no address of its own: the runtime's daemon rides
 in the environment of every tofu process the root runs, and the root calls
 the release's `tfmodules/docker_container`, which declares the container
@@ -1307,7 +1307,7 @@ Key: `storage_builders`. One terraform root per builder; each realizes one
 kind of storage on one runtime. Models:
 [`tf_storage_models.py`](../packages/tf-ebs-instance-plugin/src/cs_image_system/tf_ebs_instance_plugin/tf_storage_models.py),
 [`tf_gcp_models.py`](../packages/tf-gcp-plugin/src/cs_image_system/tf_gcp_plugin/tf_gcp_models.py),
-[`tf_docker_models.py`](../packages/tf-docker-plugin/src/cs_image_system/tf_docker_plugin/tf_docker_models.py).
+[`tf_docker_models.py`](../packages/docker-plugin/src/cs_image_system/tf_docker_plugin/tf_docker_models.py).
 
 Fields common to every storage builder (`TofuStorageBuilderModel`):
 

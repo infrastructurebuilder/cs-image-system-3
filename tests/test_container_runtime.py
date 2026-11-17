@@ -340,9 +340,9 @@ def test_the_docs_name_the_runtime_and_the_justfile_its_leg():
     from harness import REPO
     cfg = (REPO / "docs" / "CONFIGURATION.md").read_text()
     assert any(line.startswith("#") and "`docker`" in line for line in cfg.splitlines()), "a heading for the runtime"
-    assert "docker-runtime-plugin" in (REPO / "docs" / "PLUGINS.md").read_text()
-    assert "docker-runtime-plugin" in (REPO / "docs" / "DAILY_DRIVER.md").read_text()
-    assert "test-docker-bake" in (REPO / "packages" / "docker-runtime-plugin" / "README.md").read_text()
+    assert "docker-plugin" in (REPO / "docs" / "PLUGINS.md").read_text()
+    assert "docker-plugin" in (REPO / "docs" / "DAILY_DRIVER.md").read_text()
+    assert "test-docker-bake" in (REPO / "packages" / "docker-plugin" / "README.md").read_text()
     rc, out = _just("--summary")
     assert rc == 0 and {"test-docker-bake", "test-docker-cycle"} <= set(out.split())
 
@@ -692,10 +692,10 @@ def test_the_plugin_is_a_member_of_the_workspace():
     from harness import REPO
     root = tomllib.loads((REPO / "pyproject.toml").read_text())
     docker_extra = root["project"]["optional-dependencies"]["docker"]
-    assert any(d.startswith("cs-image-system-tf-docker-plugin==") for d in docker_extra)   # the docker extra carries it
-    assert not any(d.startswith("cs-image-system-tf-docker-plugin") for d in root["project"]["dependencies"])
-    assert "cs-image-system-tf-docker-plugin" in root["tool"]["uv"]["sources"]
-    assert "packages/tf-docker-plugin/tests" in root["tool"]["pytest"]["ini_options"]["testpaths"]
+    assert any(d.startswith("cs-image-system-docker-plugin==") for d in docker_extra)   # the docker extra carries it
+    assert not any(d.startswith("cs-image-system-docker-plugin") for d in root["project"]["dependencies"])
+    assert "cs-image-system-docker-plugin" in root["tool"]["uv"]["sources"]
+    assert "packages/docker-plugin/tests" in root["tool"]["pytest"]["ini_options"]["testpaths"]
     from cs_image_system.tf_docker_plugin.main import initialize
     meta = initialize()
     assert meta is not None

@@ -49,8 +49,7 @@ gcloud = [
     "cs-image-system-gcs-state-plugin==0.1.10",
 ]
 docker = [
-    "cs-image-system-docker-runtime-plugin==0.1.10",
-    "cs-image-system-tf-docker-plugin==0.1.10",
+    "cs-image-system-docker-plugin==0.1.10",
 ]
 okta = [
     "cs-image-system-okta-opa-plugin==0.1.10",
@@ -62,8 +61,7 @@ all = [
     "cs-image-system-gcloud-runtime-plugin==0.1.10",
     "cs-image-system-tf-gcp-plugin==0.1.10",
     "cs-image-system-gcs-state-plugin==0.1.10",
-    "cs-image-system-docker-runtime-plugin==0.1.10",
-    "cs-image-system-tf-docker-plugin==0.1.10",
+    "cs-image-system-docker-plugin==0.1.10",
     "cs-image-system-okta-opa-plugin==0.1.10",
 ]
 
@@ -118,8 +116,7 @@ cs-image-system-hashicorp-utils = { workspace = true }
 cs-image-system-local-state-plugin = { workspace = true }
 cs-image-system-posix-identity-plugin = { workspace = true }
 cs-image-system-gcs-state-plugin = { workspace = true }
-cs-image-system-docker-runtime-plugin = { workspace = true }
-cs-image-system-tf-docker-plugin = { workspace = true }
+cs-image-system-docker-plugin = { workspace = true }
 cs-image-system-tofu-roots = { workspace = true }
 
 # The indexes a release is published to: `uv publish --index <name>` reads the
@@ -201,8 +198,7 @@ testpaths = ["tests",
    "packages/local-state-plugin/tests",
    "packages/posix-identity-plugin/tests",
    "packages/gcs-state-plugin/tests",
-   "packages/docker-runtime-plugin/tests",
-   "packages/tf-docker-plugin/tests",
+   "packages/docker-plugin/tests",
    "packages/tofu-roots/tests",
    "packages/contract/tests",
    "packages/contract-example-plugin/tests",
@@ -227,8 +223,7 @@ pythonpath = [
     "packages/tf-ebs-instance-plugin/src",
     "packages/tf-gcp-plugin/src",
     "packages/default-os-plugin/src",
-    "packages/docker-runtime-plugin/src",
-    "packages/tf-docker-plugin/src",
+    "packages/docker-plugin/src",
     "packages/gcs-state-plugin/src",
     "packages/hashicorp-utils/src",
     "packages/tofu-roots/src",
@@ -313,7 +308,7 @@ extraPaths = [
     "packages/contract/src",
     "packages/contract-example-plugin/src",
     "packages/default-os-plugin/src",
-    "packages/docker-runtime-plugin/src",
+    "packages/docker-plugin/src",
     "packages/dummy-plugin/src",
     "packages/engine/src",
     "packages/gcloud-runtime-plugin/src",
@@ -324,7 +319,6 @@ extraPaths = [
     "packages/packer-plugin/src",
     "packages/posix-identity-plugin/src",
     "packages/system/src",
-    "packages/tf-docker-plugin/src",
     "packages/tf-ebs-instance-plugin/src",
     "packages/tf-gcp-plugin/src",
     "packages/tf-s3-state-plugin/src",

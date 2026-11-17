@@ -12,20 +12,24 @@ with ``just golden-regen`` after an intentional emission change and review
 the diff -- the golden tree is the reviewable record of what the system
 emits.
 
+The reading of an emission and the rewriting of a golden tree are the test
+kit's (``cs_image_system.system.testing``); this module holds the shared
+fixture's and the shared golden's paths.
+
 Run as a script to regenerate.
 """
 from __future__ import annotations
 
-import shutil
 import sys
 from pathlib import Path
 
 import pytest
-from harness import REPO, FixtureRun, tree
+from harness import REPO, FixtureRun
+
+from cs_image_system.system import testing as kit
 
 GOLDEN = REPO / "tests" / "fixtures" / "golden"
-IGNORED_FILES = {"run-summary.json", "runs.yaml",   # carry run-local detail
-                 "runtime-facts.yaml"}              # the harness's INPUT (copy_config writes it before the load; a dry run never rewrites it)
+IGNORED_FILES = set(kit.IGNORED_FILES)
 
 
 def current_output(tmp_path: Path, monkeypatch) -> dict[str, str]:
@@ -33,12 +37,7 @@ def current_output(tmp_path: Path, monkeypatch) -> dict[str, str]:
     try:
         summary = run.run("all", apply=True)
         assert summary.ok, summary.error
-        out = {f"generated/{k}": v for k, v in tree(run.generated).items()}
-        out.update({f"meta-state/{k}": v for k, v in tree(run.meta_state).items()})
-        # nothing in the emission may name the (temporary, per-run) root: the
-        # run scripts reach it through $CSIS_ROOT, so the golden
-        # is compared verbatim and a stray absolute path fails the test
-        return {k: v for k, v in out.items() if Path(k).name not in IGNORED_FILES}
+        return kit.emitted(run.generated, run.meta_state)
     finally:
         run.restore_cwd()
 
@@ -51,13 +50,8 @@ def regenerate() -> int:
             out = current_output(Path(td), mp)
     finally:
         mp.undo()
-    if GOLDEN.exists():
-        shutil.rmtree(GOLDEN)
-    for rel, content in out.items():
-        p = GOLDEN / rel
-        p.parent.mkdir(parents=True, exist_ok=True)
-        p.write_text(content)
-    print(f"wrote {len(out)} golden files under {GOLDEN}")
+    count = kit.write(GOLDEN, out)
+    print(f"wrote {count} golden files under {GOLDEN}")
     return 0
 
 

@@ -26,11 +26,11 @@ satisfy too.
 In the workspace, nine packages depend on it directly: `tofu-roots`,
 whose root mixin and neutral roots drive the terraform collector; the
 identity root plugin (`okta-opa-plugin`) and the three provider root
-plugins (`tf-ebs-instance-plugin`, `tf-gcp-plugin`, `tf-docker-plugin`),
+plugins (`tf-ebs-instance-plugin`, `tf-gcp-plugin`, `docker-plugin`),
 which reach the collector and the block model beside the roots they
 subclass from tofu-roots; `packer-plugin`, which uses the packer
 collector; and the three runtime plugins (`aws-runtime-plugin`,
-`gcloud-runtime-plugin`, `docker-runtime-plugin`), which import the
+`gcloud-runtime-plugin`, `docker-plugin`), which import the
 formatter options for their packer sources. The state plugins
 (`tf-s3-state-plugin`, `local-state-plugin`, `gcs-state-plugin`) do not
 depend on it: their models answer a registration the collector pulls

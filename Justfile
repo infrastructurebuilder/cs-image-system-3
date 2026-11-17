@@ -51,10 +51,11 @@ build:
 	@uv build --all-packages
 
 # The fast suite, every check blocking: lint (ruff), type-check (pyright), the
-# unit tests (the golden emission included). The local acceptance bar;
-# `verify` is its alias.
-[doc("The fast suite, all blocking: lint (ruff), type-check (pyright), the unit tests; `verify` is its alias")]
-test: lint typecheck pytest
+# unit tests (the golden emission included), and the docker family's own suite
+# in an environment that holds only that package (`test-docker-alone`). The
+# local acceptance bar; `verify` is its alias.
+[doc("The fast suite, all blocking: lint (ruff), type-check (pyright), the unit tests, the docker family alone; `verify` is its alias")]
+test: lint typecheck pytest test-docker-alone
 
 # Everything `test` does plus the slow and external legs: the
 # modification tests under docker (`test-mods --strict`), and -- only when
@@ -249,8 +250,8 @@ headers:
 	#!/usr/bin/env bash
 	set -euo pipefail
 	H="Mykel Alvis <mykelalvis@infrastructurebuilder.org>"; Y=$(date +%Y)
-	find src packages -name '*.py' -not -path '*/.venv/*' -print0 | xargs -0 uv run reuse annotate --copyright "$H" --license Apache-2.0 --year "$Y" --skip-existing
-	find packages -name '*.tf' -not -path '*/.venv/*' -print0 | xargs -0 uv run reuse annotate --copyright "$H" --license Apache-2.0 --year "$Y" --skip-existing
+	find src packages -name '*.py' -not -path '*/.venv/*' -not -path '*/tests/fixture/*' -not -path '*/tests/golden/*' -print0 | xargs -0 uv run reuse annotate --copyright "$H" --license Apache-2.0 --year "$Y" --skip-existing
+	find packages -name '*.tf' -not -path '*/.venv/*' -not -path '*/tests/fixture/*' -not -path '*/tests/golden/*' -print0 | xargs -0 uv run reuse annotate --copyright "$H" --license Apache-2.0 --year "$Y" --skip-existing
 	uv run reuse annotate --copyright "$H" --license Apache-2.0 --year "$Y" --skip-existing tests/*.py bin/*.sh .github/workflows/*.yml pyproject.toml packages/*/pyproject.toml
 	uv run reuse annotate --copyright "$H" --license Apache-2.0 --year "$Y" --skip-existing --style python Justfile .githooks/pre-commit
 	uv run reuse lint
@@ -274,6 +275,19 @@ typecheck:
 # The unit tests alone (`test` runs them after lint and typecheck)
 pytest:
 	@uv run pytest
+
+# The docker family's own suite (packages/docker-plugin/tests) where nothing
+# else of this repository can help it: the workspace's wheels are built, an
+# empty environment outside the workspace gets the docker package and only what
+# it declares (its dependencies and its `test` extra), each from its wheel, and
+# the suite runs there with the package's own pytest settings. Twice: in place,
+# and from a copy of the package's directory outside the workspace. A run
+# fails when no test was collected, any was skipped, or any failed. No
+# container daemon is needed: the suite's runs are stubbed.
+[doc("The docker family's own tests in an empty environment holding only that package and what it declares: in place, and from a copy outside the workspace; a skipped test fails")]
+test-docker-alone:
+	@uv run --no-sync python scripts/isolated-run --subject docker --require "cs-image-system-docker-plugin[test]" --root packages/docker-plugin
+	@uv run --no-sync python scripts/isolated-run --subject "docker (copy outside the workspace)" --require "cs-image-system-docker-plugin[test]" --root packages/docker-plugin --copy-outside
 
 # One file, or any pytest expression, for iterating on a single change.
 # NOT the acceptance bar -- `just test` is, and a change is not done until
@@ -400,11 +414,19 @@ runner-image tag="csis-ci:alma10-local":
 preflight: config-guard
 	@{{live_cli}} preflight
 
-# Regenerate tests/fixtures/golden (the pinned emission) after an
-# INTENTIONAL emission change; review the resulting diff before committing.
-[doc("Regenerate tests/fixtures/golden (the pinned emission) after an INTENTIONAL emission change; review the diff before committing")]
-golden-regen:
-	@uv run python tests/golden.py
+# Regenerate a golden (a pinned emission) after an INTENTIONAL emission
+# change; read the rewritten files one by one before committing. SUITE is
+# `shared` (tests/fixtures/golden, every provider's emission; the default) or
+# `docker` (packages/docker-plugin/tests/golden, the docker family's own).
+[doc("Regenerate a golden after an INTENTIONAL emission change: `shared` (tests/fixtures/golden, the default) or `docker` (the docker family's own); read the diff before committing")]
+golden-regen suite="shared":
+	#!/usr/bin/env bash
+	set -euo pipefail
+	case "{{suite}}" in
+		shared) uv run python tests/golden.py ;;
+		docker) uv run python packages/docker-plugin/tests/regen_golden.py ;;
+		*) echo "golden-regen: '{{suite}}' is not a golden; say shared or docker" >&2; exit 2 ;;
+	esac
 
 # Public-safe by construction: scan what a commit could publish -- tracked files and
 # untracked files that are not ignored -- for material that must never be public (keys, tokens,

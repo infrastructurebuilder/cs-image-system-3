@@ -1317,21 +1317,17 @@ declares.
   [configuration](../packages/gcloud-runtime-plugin/README.md#configuration-reference) ·
   [tests](../packages/gcloud-runtime-plugin/README.md#what-it-tests-and-verifies) ·
   [failures](../packages/gcloud-runtime-plugin/README.md#when-it-fails)
-- [docker-runtime-plugin](../packages/docker-runtime-plugin/README.md): a
+- [docker-plugin](../packages/docker-plugin/README.md): a
   durable host's container daemon as a runtime: images in the
   daemon's store, builds named by tags, bakes through `docker exec`.
-  [prerequisites](../packages/docker-runtime-plugin/README.md#prerequisites-and-integration) ·
-  [configuration](../packages/docker-runtime-plugin/README.md#configuration-reference) ·
-  [tests](../packages/docker-runtime-plugin/README.md#what-it-tests-and-verifies) ·
-  [failures](../packages/docker-runtime-plugin/README.md#when-it-fails)
-- [tf-docker-plugin](../packages/tf-docker-plugin/README.md): containers and
-  volumes on the docker runtime as OpenTofu roots: `tofu-docker`
-  and `tf-docker-volume`; a stopped container is left stopped, the launch
-  script arrives by `docker exec`, labels are fixed at creation.
-  [prerequisites](../packages/tf-docker-plugin/README.md#prerequisites-and-integration) ·
-  [configuration](../packages/tf-docker-plugin/README.md#configuration-reference) ·
-  [tests](../packages/tf-docker-plugin/README.md#what-it-tests-and-verifies) ·
-  [failures](../packages/tf-docker-plugin/README.md#when-it-fails)
+  The same package holds containers and volumes on that runtime as
+  OpenTofu roots: `tofu-docker` and `tf-docker-volume`; a stopped
+  container is left stopped, the launch script arrives by
+  `docker exec`, labels are fixed at creation.
+  [prerequisites](../packages/docker-plugin/README.md#prerequisites-and-integration) ·
+  [configuration](../packages/docker-plugin/README.md#configuration-reference) ·
+  [tests](../packages/docker-plugin/README.md#what-it-tests-and-verifies) ·
+  [failures](../packages/docker-plugin/README.md#when-it-fails)
 - [default-os-plugin](../packages/default-os-plugin/README.md): the OS
   families: vendor image lookup, updates, the admin user and its keys, the
   prerequisites a base image bakes for its identity and storage types.

@@ -1329,7 +1329,7 @@ itself needs is short.
   [bash-mod-plugin](../bash-mod-plugin/README.md),
   [contract-example-plugin](../contract-example-plugin/README.md),
   [default-os-plugin](../default-os-plugin/README.md),
-  [docker-runtime-plugin](../docker-runtime-plugin/README.md),
+  [docker-plugin](../docker-plugin/README.md),
   [dummy-plugin](../dummy-plugin/README.md),
   [gcloud-runtime-plugin](../gcloud-runtime-plugin/README.md),
   [gcs-state-plugin](../gcs-state-plugin/README.md),
@@ -1337,7 +1337,6 @@ itself needs is short.
   [okta-opa-plugin](../okta-opa-plugin/README.md),
   [packer-plugin](../packer-plugin/README.md),
   [posix-identity-plugin](../posix-identity-plugin/README.md),
-  [tf-docker-plugin](../tf-docker-plugin/README.md),
   [tf-ebs-instance-plugin](../tf-ebs-instance-plugin/README.md),
   [tf-gcp-plugin](../tf-gcp-plugin/README.md),
   [tf-s3-state-plugin](../tf-s3-state-plugin/README.md).

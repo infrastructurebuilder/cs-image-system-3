@@ -1,0 +1,13 @@
+workspaces:
+  docker-volume:
+    backend: local-dev
+    location: local://state/docker_volume.tfstate
+    path: ../../../../state/docker_volume.tfstate
+    run: 2026_08_26t12_00_00
+    type: local
+  tofu-docker:
+    backend: local-dev
+    location: local://state/tofu_docker.tfstate
+    path: ../../../../state/tofu_docker.tfstate
+    run: 2026_08_26t12_00_00
+    type: local

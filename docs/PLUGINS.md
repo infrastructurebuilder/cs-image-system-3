@@ -46,8 +46,7 @@ declares `other`).
 | --- | --- | --- |
 | [aws-runtime-plugin](../packages/aws-runtime-plugin/README.md) | runtime | `aws` |
 | [gcloud-runtime-plugin](../packages/gcloud-runtime-plugin/README.md) | runtime | `gcloud` |
-| [docker-runtime-plugin](../packages/docker-runtime-plugin/README.md) | runtime | `docker` (a durable host's container daemon, reached through the Docker Engine API) |
-| [tf-docker-plugin](../packages/tf-docker-plugin/README.md) | instance and storage builders | `tofu-docker` (containers through OpenTofu's `kreuzwerker/docker` provider) and `tf-docker-volume` (named volumes); a subclass of tofu-roots' neutral roots, with no dependency on the AWS root |
+| [docker-plugin](../packages/docker-plugin/README.md) | runtime; instance and storage builders | `docker` (a durable host's container daemon, reached through the Docker Engine API); `tofu-docker` (containers through OpenTofu's `kreuzwerker/docker` provider) and `tf-docker-volume` (named volumes); a subclass of tofu-roots' neutral roots, with no dependency on the AWS root |
 | [default-os-plugin](../packages/default-os-plugin/README.md) | OS families | the family names an OS builder declares |
 | [packer-plugin](../packages/packer-plugin/README.md) | image builders | the one `packer` image builder, for every runtime (the older keys `packer-ebs`, `packer-gce` and `packer-docker` still load for one release) |
 | [ansible-plugin](../packages/ansible-plugin/README.md) | modifications | `ansible` (playbooks) |
@@ -106,14 +105,14 @@ plugin's model that names instances is marked with
 to be read the same way (the okta group builder's `posix` is).
 
 The three terraform root plugins (`tf-ebs-instance-plugin`,
-`tf-gcp-plugin`, `tf-docker-plugin`) share one implementation of the
+`tf-gcp-plugin`, `docker-plugin`) share one implementation of the
 root: the provider-neutral bases in
 [tofu-roots](../packages/tofu-roots/README.md#the-terraform-roots)
 own the workspace, the variables, the state binding, the module calls,
 the gated runner lines, the finalization hooks and the state query, and
 each plugin subclasses them and answers the hooks with its provider,
 its modules and its module arguments. No root plugin depends on another
-provider's root plugin: `tf-gcp-plugin` and `tf-docker-plugin` do not
+provider's root plugin: `tf-gcp-plugin` and `docker-plugin` do not
 depend on `tf-ebs-instance-plugin`, so installing either installs
 neither the AWS root nor `aws-runtime-plugin` nor `boto3`. The change is
 recorded in the stage index under

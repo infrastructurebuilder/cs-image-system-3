@@ -41,7 +41,7 @@ SCC_ALL_MAX = 25
 # one plugin importing another, by (importer -> imported) family; a pair
 # absent here may not appear, and a listed count may not grow
 CROSS_PLUGIN_MAX = {
-    "tf_docker_plugin->docker_runtime": 1,
+    "tf_docker_plugin->docker_runtime": 1,      # two halves of one distribution (packages/docker-plugin)
     "tf_ebs_instance_plugin->aws_runtime": 1,
     "tf_gcp_plugin->gcloud_runtime": 3,
 }

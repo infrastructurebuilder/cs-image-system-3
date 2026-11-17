@@ -154,7 +154,7 @@ host's setup, not the system's: `usermod --add-subuids ... --add-subgids
 
 **Where it was told.** [OPERATIONS.md](OPERATIONS.md) section 5, "Podman
 as the daemon" ("What differed");
-[../packages/docker-runtime-plugin/README.md](../packages/docker-runtime-plugin/README.md)
+[../packages/docker-plugin/README.md](../packages/docker-plugin/README.md)
 "When it fails" (the `parent: lineage=` row).
 
 ### GitHub refused a workflow whose credential was an empty string

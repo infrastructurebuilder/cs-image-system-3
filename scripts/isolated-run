@@ -1,0 +1,235 @@
+#!/usr/bin/env python3
+# SPDX-FileCopyrightText: 2026 Mykel Alvis <mykelalvis@infrastructurebuilder.org>
+#
+# SPDX-License-Identifier: Apache-2.0
+
+"""Run one package's tests in an environment that holds only that package
+and what it declares.
+
+The workspace's own environment cannot prove that a package stands alone:
+every package's sources are on its path and every plugin is installed. This
+script builds the workspace's wheels, makes an empty virtual environment
+outside the workspace, installs the named requirement from the built wheels
+(every workspace distribution it reaches is installed from its wheel, by
+file, so nothing of this repository comes from an index; third-party
+packages come from the index), and runs pytest there on the package's own
+directory, with the package's own pytest settings and none of the
+workspace's.
+
+The verdict is strict: the run fails when no test was collected, when any
+test was skipped, or when any test failed or errored. A step that could
+not start is reported as not run, and that is a failure too.
+
+    isolated-run --subject NAME --require REQ --root DIR [--tests PATH ...] [--copy-outside]
+
+``REQ`` is a requirement on a workspace distribution, with any extras
+(``cs-image-system-docker-plugin[test]``). ``--root`` is the package's
+directory; ``--tests`` are paths inside it (its declared ``testpaths``
+when none is given). ``--copy-outside`` copies the package's directory out
+of the workspace first, builds its wheel from the copy and runs the tests
+from the copy, so nothing of the workspace is beside them.
+"""
+from __future__ import annotations
+
+import argparse
+import shutil
+import subprocess
+import sys
+import tempfile
+import xml.etree.ElementTree as ET
+import zipfile
+from collections.abc import Callable, Sequence
+from dataclasses import dataclass
+from pathlib import Path
+
+from packaging.requirements import Requirement
+from packaging.utils import canonicalize_name
+
+REPO = Path(__file__).resolve().parents[1]
+OURS = "cs-image-system"
+
+
+@dataclass(frozen=True)
+class Done:
+    """What one command returned."""
+    rc: int
+    out: str = ""
+
+
+Shell = Callable[[Sequence[str], Path], Done]
+
+
+def real_shell(cmd: Sequence[str], cwd: Path) -> Done:
+    try:
+        res = subprocess.run(list(cmd), cwd=cwd, capture_output=True, text=True, check=False)
+    except OSError as e:
+        return Done(127, f"{cmd[0]}: {e}")
+    return Done(res.returncode, (res.stdout or "") + (res.stderr or ""))
+
+
+@dataclass(frozen=True)
+class Counts:
+    """What a pytest run reported."""
+    collected: int
+    skipped: int
+    failed: int
+
+    @property
+    def passed(self) -> int:
+        return self.collected - self.skipped - self.failed
+
+
+def verdict(counts: Counts | None) -> tuple[bool, str]:
+    """Whether a run passes, and the one line that says why. ``None``: the
+    tests did not run at all."""
+    if counts is None:
+        return False, "the tests did not run"
+    if counts.collected == 0:
+        return False, "no test was collected"
+    if counts.failed:
+        return False, f"{counts.failed} of {counts.collected} failed"
+    if counts.skipped:
+        return False, f"{counts.skipped} of {counts.collected} were skipped (a skipped test is a test that did not run)"
+    return True, f"{counts.passed} passed, 0 skipped"
+
+
+def read_counts(junit: Path) -> Counts | None:
+    """The totals of a junit report, or ``None`` when pytest wrote none."""
+    if not junit.is_file():
+        return None
+    root = ET.parse(junit).getroot()
+    suites = [root] if root.tag == "testsuite" else list(root.iter("testsuite"))
+    total = sum(int(s.get("tests", 0)) for s in suites)
+    skipped = sum(int(s.get("skipped", 0)) for s in suites)
+    failed = sum(int(s.get("failures", 0)) + int(s.get("errors", 0)) for s in suites)
+    return Counts(total, skipped, failed)
+
+
+def wheel_requirements(wheel: Path) -> list[Requirement]:
+    """The ``Requires-Dist`` lines of a wheel."""
+    with zipfile.ZipFile(wheel) as z:
+        name = next(n for n in z.namelist() if n.endswith(".dist-info/METADATA"))
+        lines = z.read(name).decode().splitlines()
+    return [Requirement(line.split(":", 1)[1].strip()) for line in lines if line.startswith("Requires-Dist:")]
+
+
+def wheels_by_name(directory: Path) -> dict[str, Path]:
+    """The wheels under ``directory`` by canonical distribution name."""
+    out: dict[str, Path] = {}
+    for wheel in sorted(directory.glob("*.whl")):
+        out[canonicalize_name(wheel.name.split("-")[0])] = wheel
+    return out
+
+
+def closure(requirement: Requirement, wheels: dict[str, Path]) -> dict[str, set[str]]:
+    """Every workspace distribution ``requirement`` reaches through declared
+    dependencies, with the extras asked of each: the distributions that are
+    installed from their built wheels. A requirement on a distribution this
+    workspace does not build is third-party and is left to the index."""
+    found: dict[str, set[str]] = {}
+    todo: list[tuple[str, frozenset[str]]] = [(canonicalize_name(requirement.name), frozenset(requirement.extras))]
+    while todo:
+        name, extras = todo.pop()
+        if name not in wheels:
+            continue
+        seen = found.setdefault(name, set())
+        new = (set(extras) | {""}) - seen
+        if not new:
+            continue
+        seen |= new
+        for dep in wheel_requirements(wheels[name]):
+            wanted = any(dep.marker is None or dep.marker.evaluate({"extra": extra}) for extra in new)
+            if wanted:
+                todo.append((canonicalize_name(dep.name), frozenset(dep.extras)))
+    return found
+
+
+def install_lines(found: dict[str, set[str]], wheels: dict[str, Path]) -> list[str]:
+    """One requirement per workspace distribution in ``found``, each naming
+    its wheel by file."""
+    out = []
+    for name in sorted(found):
+        extras = sorted(e for e in found[name] if e)
+        out.append(f"{name}{'[' + ','.join(extras) + ']' if extras else ''} @ {wheels[name].resolve().as_uri()}")
+    return out
+
+
+def run(subject: str, requirement: str, root: Path, tests: Sequence[str], *, copy_outside: bool,
+        shell: Shell = real_shell, say: Callable[[str], None] = print, work: Path | None = None) -> int:
+    """The whole isolated run; 0 when it passes. ``work`` is a directory to
+    work in (a temporary one is made and removed when none is given)."""
+    if work is None:
+        with tempfile.TemporaryDirectory(prefix="csis-isolated-") as td:
+            return run(subject, requirement, root, tests, copy_outside=copy_outside, shell=shell, say=say,
+                       work=Path(td))
+    who = f"isolated-run [{subject}]"
+    wheel_dir = work / "wheels"
+
+    def fail(step: str, done: Done) -> int:
+        say(done.out.strip()[-4000:])
+        say(f"{who}: FAILED -- {step} did not succeed (exit {done.rc}); the tests did not run")
+        return 1
+
+    built = shell(["uv", "build", "--all-packages", "--wheel", "--out-dir", str(wheel_dir)], REPO)
+    if built.rc != 0:
+        return fail("building the workspace's wheels", built)
+    wanted = Requirement(requirement)
+    if copy_outside:
+        copy = work / "outside" / root.name
+        shutil.copytree(root, copy, ignore=shutil.ignore_patterns("__pycache__", ".pytest_cache", "*.egg-info"))
+        rebuilt = shell(["uv", "build", "--wheel", "--out-dir", str(work / "outside-wheel"), str(copy)], work)
+        if rebuilt.rc != 0:
+            return fail("building the package from its copy outside the workspace", rebuilt)
+        for wheel in (work / "outside-wheel").glob("*.whl"):       # the copy's wheel takes the place of the workspace's
+            shutil.copy(wheel, wheel_dir / wheel.name)
+        root = copy
+        say(f"{who}: the package's directory was copied to {copy} and built there")
+    wheels = wheels_by_name(wheel_dir)
+    if canonicalize_name(wanted.name) not in wheels:
+        say(f"{who}: FAILED -- {wanted.name} is not a distribution this workspace builds; the tests did not run")
+        return 1
+    found = closure(wanted, wheels)
+    venv = work / "venv"
+    made = shell(["uv", "venv", "--quiet", "--python", f"{sys.version_info.major}.{sys.version_info.minor}", str(venv)], work)
+    if made.rc != 0:
+        return fail("creating the empty environment", made)
+    python = venv / "bin" / "python"
+    installed = shell(["uv", "pip", "install", "--quiet", "--python", str(python), "pytest>=8.3",
+                       *install_lines(found, wheels)], work)
+    if installed.rc != 0:
+        return fail("installing the package and what it declares", installed)
+    ours = sorted(found)
+    say(f"{who}: installed from this repository's build ({len(ours)}): {', '.join(ours)}")
+    listed = shell(["uv", "pip", "list", "--python", str(python), "--format", "freeze"], work)
+    stray = sorted(line.split("==")[0] for line in listed.out.splitlines()
+                   if canonicalize_name(line.split("==")[0]).startswith(OURS)
+                   and canonicalize_name(line.split("==")[0]) not in found)
+    if listed.rc != 0 or stray:
+        say(f"{who}: FAILED -- the environment holds distributions of this repository that were not declared: "
+            f"{stray or listed.out.strip()[-500:]}; the tests did not run")
+        return 1
+    junit = work / "junit.xml"
+    ran = shell([str(python), "-m", "pytest", "-c", str(root / "pyproject.toml"), "--rootdir", str(root),
+                 "-p", "no:cacheprovider", "-q", "-rs", f"--junitxml={junit}", *tests], root)
+    counts = read_counts(junit)
+    ok, why = verdict(counts)
+    if not ok:
+        say(ran.out.strip()[-6000:])
+    say(f"{who}: {'passed' if ok else 'FAILED'} -- {why}")
+    return 0 if ok else 1
+
+
+def main(argv: Sequence[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description=(__doc__ or "").split("\n\n")[0])
+    parser.add_argument("--subject", required=True, help="what the run is called in its report")
+    parser.add_argument("--require", required=True, help="the requirement to install, with any extras")
+    parser.add_argument("--root", required=True, type=Path, help="the package's directory")
+    parser.add_argument("--tests", nargs="*", default=[], help="test paths inside the root (its testpaths when none)")
+    parser.add_argument("--copy-outside", action="store_true",
+                        help="copy the package's directory out of the workspace, build and test it there")
+    args = parser.parse_args(argv)
+    return run(args.subject, args.require, (REPO / args.root).resolve(), args.tests, copy_outside=args.copy_outside)
+
+
+if __name__ == "__main__":
+    sys.exit(main())

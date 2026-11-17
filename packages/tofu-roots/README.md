@@ -22,7 +22,7 @@ tree with no terraform roots installs the same hooks and they find
 nothing to say. The three provider root plugins of the workspace
 ([tf-ebs-instance-plugin](../tf-ebs-instance-plugin/README.md) for AWS,
 [tf-gcp-plugin](../tf-gcp-plugin/README.md) for Google Cloud,
-[tf-docker-plugin](../tf-docker-plugin/README.md) for a container
+[docker-plugin](../docker-plugin/README.md) for a container
 daemon) subclass the two bases, and the identity roots of
 [okta-opa-plugin](../okta-opa-plugin/README.md) mix in the root mixin.
 
@@ -261,7 +261,7 @@ once, as two provider-neutral bases, and a provider's root plugin
 subclasses a base and answers its hooks. The three root plugins of the
 workspace ([tf-ebs-instance-plugin](../tf-ebs-instance-plugin/README.md)
 for AWS, [tf-gcp-plugin](../tf-gcp-plugin/README.md) for Google Cloud,
-[tf-docker-plugin](../tf-docker-plugin/README.md) for a container
+[docker-plugin](../docker-plugin/README.md) for a container
 daemon) are each such a subclass, and no root plugin depends on another
 provider's root plugin: installing the GCE or the container root
 installs neither the AWS root, nor `aws-runtime-plugin`, nor `boto3`.
@@ -560,7 +560,7 @@ are the ones the operator sees fail.
 `TofuVersionChecker`: [tf-ebs-instance-plugin](../tf-ebs-instance-plugin/README.md)
 (AWS, which also depends on `aws-runtime-plugin` for its boto3 session),
 [tf-gcp-plugin](../tf-gcp-plugin/README.md) (Google Cloud) and
-[tf-docker-plugin](../tf-docker-plugin/README.md) (a container daemon).
+[docker-plugin](../docker-plugin/README.md) (a container daemon).
 Each depends on this package and on its own runtime plugin, and on no
 other provider's root plugin. A provider's prerequisites (the account,
 the credentials, the CLI the transition scripts call, the network) are

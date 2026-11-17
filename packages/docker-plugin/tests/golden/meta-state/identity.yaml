@@ -1,0 +1,19 @@
+groups:
+  pxgroup:
+    admins:
+    - taylor_tango
+    builder: posix-local
+    gid_policy: config-time
+    identity_type: posix
+    is_root: true
+    managed: true
+    members:
+    - taylor_tango
+    - unity_uniform
+note: structural facts only; gids flow by terraform remote-state reference (N7)
+run: 2026_08_26t12_00_00
+user_builders:
+  posix-users: posix
+users:
+- taylor_tango
+- unity_uniform

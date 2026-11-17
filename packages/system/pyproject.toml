@@ -20,6 +20,12 @@ dependencies = [
     "packaging>=26.2",   # hygiene IX item 1: init-config never moves .csis-version backwards
 ]
 
+# The test kit (cs_image_system.system.testing) is handed a test's
+# `monkeypatch`, so whoever uses it runs under pytest; the command line
+# itself never needs it.
+[project.optional-dependencies]
+testing = ["pytest>=8.3"]
+
 [project.urls]
 Repository = "https://github.com/infrastructurebuilder/cs-image-system-3"
 Documentation = "https://github.com/infrastructurebuilder/cs-image-system-3/blob/develop/docs/OPERATIONS.md"

@@ -48,7 +48,8 @@ def _run_steps(job: dict) -> list[tuple[str, str]]:
 
 def test_every_command_is_a_just_target_and_nothing_performs_or_commits():
     wf = _workflow()
-    assert set(wf["jobs"]) == {"verify", "live", "publish"}, "recording and performing live in the configuration repository (stage 64)"
+    assert set(wf["jobs"]) == {"verify", "docker-alone", "live", "publish"}, \
+        "recording and performing live in the configuration repository (stage 64)"
     for job_name, job in wf["jobs"].items():
         for name, run in _run_steps(job):
             if name.startswith(_PLUMBING):

@@ -5,8 +5,9 @@
 name: CI
 
 # Every command is a `just` target, so CI and a developer's shell run the same
-# thing. Three jobs: `verify` is the acceptance bar and needs neither
-# configuration nor credentials; `live` proves the system against real clouds
+# thing. `verify` is the acceptance bar and needs neither
+# configuration nor credentials; `docker-alone` runs the docker family's own
+# tests in an environment that holds only that package; `live` proves the system against real clouds
 # over the FROZEN FIXTURE, read-only; `publish` uploads a pushed `v*` tag to
 # the index (TestPyPI always, PyPI for a final version). The
 # reference configuration (cs-image-system-testconfig) is driven, recorded and
@@ -54,6 +55,29 @@ jobs:
       - name: Public-safe
         # nothing in the checkout may be material that must never be public
         run: just public-safe
+
+  docker-alone:
+    # The docker family proves itself alone: its own tests, fixture and golden
+    # in an empty environment that holds only the docker package and what it
+    # declares, in place and from a copy outside the workspace. Every push and
+    # PR; no condition, no credentials, no daemon (its runs are stubbed). The
+    # recipe fails when no test was collected or any was skipped, so this job
+    # cannot pass without having run them.
+    runs-on: ubuntu-24.04
+    container:
+      image: ${{ vars.CSIS_RUNNER_IMAGE || 'ghcr.io/infrastructurebuilder/csis-ci:alma10-20261016.4' }}
+      credentials:
+        username: ${{ vars.CSIS_RUNNER_IMAGE_USERNAME || github.actor }}
+        password: ${{ secrets.CSIS_RUNNER_IMAGE_PASSWORD || github.token }}
+      options: -v /var/run/docker.sock:/var/run/docker.sock
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Install dependencies
+        run: just init
+
+      - name: The docker family alone
+        run: just test-docker-alone
 
   live:
     # The system's live proof over the frozen fixture: the fixture

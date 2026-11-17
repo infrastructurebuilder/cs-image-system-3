@@ -1,0 +1,31 @@
+# The docker family's own fixture: one runtime, a synthetic container daemon.
+# `context` is a docker context NAME that exists on no machine; a stubbed run
+# answers every daemon call, so no test reaches a daemon.
+# Taken from the repository's shared fixture (tests/fixtures/config) with its
+# names unchanged, so the family's golden and the shared golden pin the same
+# docker emission.
+runtime_builders:
+- name: docker-fixture
+  type: docker
+  is_default: true
+  description: The fixture's synthetic container daemon, reached by a docker context that exists nowhere
+  context: csis-fixture-daemon
+  executable: docker
+  repository: csis/fixture
+  state_configuration: local-dev
+  credentials: {}
+  ephemeral: false
+  tags:
+    project: MyProject
+    environment: development
+  default_machine_type: small
+  default_image_builder: pckr-docker
+  machine_types:
+    small:
+      cpus: 1
+      memory: 1g
+    medium:
+      cpus: 2
+      memory: 4g
+  networking:
+    network: bridge

@@ -58,7 +58,7 @@ PLUGIN_TYPES: dict[str, set[str]] = {
     "aws-runtime-plugin": {"aws"},
     "bash-mod-plugin": {"bash-remote"},
     "default-os-plugin": {"rhel", "debian", "ubuntu"},      # fedora and alpine are the same plugin, unused here
-    "docker-runtime-plugin": {"docker"},
+    "docker-plugin": {"docker", "tofu-docker", "tf-docker-volume"},
     "gcloud-runtime-plugin": {"gcloud"},
     "gcs-state-plugin": {"gcs"},
     "local-state-plugin": {"local"},
@@ -67,7 +67,6 @@ PLUGIN_TYPES: dict[str, set[str]] = {
     "packer-plugin": {"packer"},
     "tf-ebs-instance-plugin": {"tofu", "tf-aws-ebs", "tf-aws-efs", "tf-aws-s3"},
     "tf-gcp-plugin": {"tofu-gce", "tf-gcp-pd", "tf-gcp-filestore", "tf-gcp-gcs"},
-    "tf-docker-plugin": {"tofu-docker", "tf-docker-volume"},
     "tf-s3-state-plugin": {"s3"},
 }
 NOT_PLUGINS = {"base", "engine", "contract", "contract-example-plugin", "system", "hashicorp-utils", "tofu-roots",

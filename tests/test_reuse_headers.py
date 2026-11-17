@@ -50,14 +50,23 @@ def test_reuse_toml_declares_what_carries_no_header():
 
 
 def test_every_source_file_carries_the_header_and_no_hashed_file_does():
-    sources = [p for p in (REPO / "packages").rglob("*.py") if ".venv" not in p.parts]
-    sources += list((REPO / "tests").glob("*.py")) + [p for p in (REPO / "packages").rglob("*.tf") if ".venv" not in p.parts]
+    def _a_source(p: Path) -> bool:
+        """Not a virtual environment's file, and not a package's own fixture or golden
+        (hashed content and pinned emission carry no header, as tests/fixtures does not)."""
+        rel = p.relative_to(REPO).parts
+        return ".venv" not in rel and rel[2:4] not in (("tests", "fixture"), ("tests", "golden"))
+    sources = [p for p in (REPO / "packages").rglob("*.py") if _a_source(p)]
+    sources += list((REPO / "tests").glob("*.py")) + [p for p in (REPO / "packages").rglob("*.tf") if _a_source(p)]
     sources += list((REPO / "bin").glob("*.sh")) + [REPO / "Justfile", REPO / ".githooks" / "pre-commit"]
     assert len(sources) > 300
     missing = [str(p.relative_to(REPO)) for p in sources if HEADER not in "\n".join(p.read_text().splitlines()[:6])]
     assert not missing, f"sources without the header: {missing[:10]}"
     for name in ("setup_dask.yml", "setup_data_science.yml", "modify_image.yml", "mod_image.sh"):
         assert HEADER not in (FIXTURE_CONFIG / name).read_text(), f"{name} is hashed into lineage: no header"
+    in_packages = [p for d in ("fixture", "golden") for p in (REPO / "packages").glob(f"*/tests/{d}/**/*") if p.is_file()]
+    carrying = [str(p.relative_to(REPO)) for p in in_packages
+                if p.suffix in (".tf", ".hcl", ".sh", ".yml") and HEADER in "\n".join(p.read_text().splitlines()[:6])]
+    assert not carrying, f"a package's fixture or golden file carries the header: {carrying[:10]}"
 
 
 def test_a_source_without_the_header_fails_reuse_lint(tmp_path: Path):

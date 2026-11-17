@@ -2,7 +2,8 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""Shared harness for the tests that run the meta-workflow.
+"""Shared harness for the tests that run the meta-workflow with every
+provider installed.
 
 Every such test runs the real pipeline over a private COPY of the frozen
 fixture (``tests/fixtures/config``: owned by the tests, never a
@@ -14,28 +15,79 @@ live configuration) with all external touchpoints stubbed:
 * deterministic: the run timestamp and ``USER`` are pinned, and dummy okta /
   oktapam credentials are present so command lists never depend on the
   developer's shell.
+
+The harness is a composition. What names no provider is the published test
+kit (``cs_image_system.system.testing``), which a provider's own suite uses
+directly. What stands in for a provider is that provider's own stub
+function where its package ships one (docker, the terraform roots library);
+the stubs for AWS, Google Cloud and Okta are kept here, beside the frozen
+fixture that declares all of them.
 """
 from __future__ import annotations
 
 import os
 import shutil
-import subprocess
-import types
-from datetime import datetime
 from pathlib import Path
-from typing import Any, Callable, cast
+from typing import Any
+
+from cs_image_system.docker_runtime import testing as docker_testing
+from cs_image_system.system import testing as kit
+from cs_image_system.system.testing import (
+    FIXED_CHECKED_AT,
+    FIXED_NOW,
+    FIXED_RUN_ID,
+    FIXED_TIMESTAMP,
+    BareRun,
+    bare_run,
+    cli_context,
+    command_lines,
+    drive_lifecycles,
+    load_context,
+    module_path,
+    modules_beside,
+    modules_inside,
+    os_type_for_family,
+    passing_session,
+    tree,
+)
+from cs_image_system.tofu_roots import testing as roots_testing
+
+__all__ = [
+    "DOCKER_DIGEST",
+    "FIXED_CHECKED_AT",
+    "FIXED_NOW",
+    "FIXED_RUN_ID",
+    "FIXED_TIMESTAMP",
+    "FIXTURE_CONFIG",
+    "REPO",
+    "VENDOR_AMI",
+    "VPCS",
+    "BareRun",
+    "FixtureRun",
+    "bare_run",
+    "cli_context",
+    "command_lines",
+    "copy_config",
+    "docker_binary",
+    "drive_lifecycles",
+    "load_context",
+    "module_path",
+    "modules_beside",
+    "modules_inside",
+    "os_type_for_family",
+    "plain",
+    "record_network_facts",
+    "stub_environment",
+    "tree",
+]
 
 REPO = Path(__file__).resolve().parents[1]
 FIXTURE_CONFIG = REPO / "tests" / "fixtures" / "config"     # frozen; the live tree is elsewhere
 
-FIXED_NOW = datetime(2026, 8, 26, 12, 0, 0)
-FIXED_TIMESTAMP = "20260826_120000"          # per the fixture's dateformat
-FIXED_RUN_ID = "2026_08_26t12_00_00"         # iso_sanitized
-
 VPCS = ["vpc-0c78d0d63b7a100df", "vpc-0381e9f82c9ae68e7", "default"]
 VENDOR_AMI = "ami-0feedfacecafebeef"
 # what the fixture's docker runtime (docker-fixture) "pulls" -- a digest reference no registry holds
-DOCKER_DIGEST = "almalinux@sha256:" + "f" * 64
+DOCKER_DIGEST = docker_testing.DIGEST
 
 
 class _AnySecurityGroups(dict):
@@ -46,32 +98,15 @@ class _AnySecurityGroups(dict):
         return True
 
 
-class _FixedDT(datetime):
-    @classmethod
-    def now(cls, tz=None):  # type: ignore[override]
-        return FIXED_NOW
-
-
 def copy_config(tmp_path: Path, name: str = "config") -> Path:
     """A private copy of the frozen fixture (without any generated output).
     The transient apply_* flags are normalized to false -- a live run's
     TEMP flag flip must never leak into tests (found live during the first
     GCP apply, when the fixture was still the live tree); tests that want
     a flag on set ``ctx.config`` (and the file, for apply-check)
-    themselves."""
-    import re
-    dst = tmp_path / name
-    # The frozen fixture carries no generated output and no meta-state
-    # (records of live cloud resources); the ignore list is the guard that
-    # keeps it so should either ever be copied in.
-    shutil.copytree(FIXTURE_CONFIG, dst,
-                    ignore=shutil.ignore_patterns("generated", "meta-state", ".git", ".DS_Store"))
-    cfg = dst / "cfg" / "_config.yml"
-    cfg.write_text(re.sub(r"^(  apply_\w+:) \S+.*$", r"\1 false", cfg.read_text(), flags=re.M))
-    # The live GCE runtime declares `ephemeral: true` (rule 58);
-    # copies start non-ephemeral and tests that want it declare it.
-    rb = dst / "cfg" / "runtime-builders.yml"
-    rb.write_text(re.sub(r"^(\s+ephemeral:) true.*$", r"\1 false", rb.read_text(), flags=re.M))
+    themselves. The live GCE runtime declares `ephemeral: true` (rule 58);
+    copies start non-ephemeral and tests that want it declare it."""
+    dst = kit.copy_fixture(FIXTURE_CONFIG, tmp_path, name)
     # The suite's instance subjects (test, test2, gce-test) are declared in
     # the fixture itself; nothing is injected here.
     # The one meta-state file a copy starts with: the network
@@ -80,11 +115,6 @@ def copy_config(tmp_path: Path, name: str = "config") -> Path:
     # networks the stubs used to resolve at load and the emission stays put.
     record_network_facts(dst)
     return dst
-
-
-# the record's fixed timestamp: a dry run never rewrites the record, so the
-# copy's file is the harness's input, not the run's output
-FIXED_CHECKED_AT = "2026-01-01T00:00:00+00:00"
 
 
 def record_network_facts(root: Path, checked_at: str = FIXED_CHECKED_AT) -> Path:
@@ -118,35 +148,6 @@ def record_network_facts(root: Path, checked_at: str = FIXED_CHECKED_AT) -> Path
     return path
 
 
-def module_path(name: str) -> Path:
-    """The directory of one installed terraform module, inside the plugin
-    that ships it (``installed_modules()[name].path``)."""
-    from cs_image_system.engine.modules import installed_modules
-    return installed_modules()[name].path
-
-
-def modules_beside(config_root: Path) -> Path:
-    """Every installed module written (and stamped) into
-    ``<config_root>/../tfmodules``, where the fixture's ``module_source_base``
-    (``../tfmodules``) expects them; the directory is returned."""
-    from cs_image_system.engine.modules import materialise_modules
-    dest = config_root.parent / "tfmodules"
-    report = materialise_modules(dest)
-    assert report.ok, "\n".join(report.lines())
-    return dest
-
-
-def modules_inside(config_root: Path) -> Path:
-    """Every installed module written into the tree's own ``tfmodules``
-    directory, where a starter's ``module_source_base`` (``tfmodules``)
-    expects them; the directory is returned."""
-    from cs_image_system.engine.modules import materialise_modules
-    dest = config_root / "tfmodules"
-    report = materialise_modules(dest)
-    assert report.ok, "\n".join(report.lines())
-    return dest
-
-
 def docker_binary() -> str:
     """The docker CLI the FIXTURE declares (``cfg/executables.yml``, entry
     ``docker``) when its binary exists on this machine, else ``docker``
@@ -169,70 +170,19 @@ def plain(value: Any) -> Any:
     """The plaintext of a fixture value that may be an ``ENC[age:...]`` marker,
     opened with the fixture's TEST identity -- for tests that
     address roster entries by name in the raw YAML."""
-    from cs_image_system.base.encryption import _identities_for, decrypt_marker, is_marker
-    if is_marker(value):
-        return decrypt_marker(value, _identities_for(str(FIXTURE_CONFIG / ".age-identity")))
-    return value
+    return kit.plain(value, FIXTURE_CONFIG / kit.IDENTITY_FILE)
 
 
-class BareRun:
-    """A bare run context for a builder driven outside a run: the global
-    ``config:`` map (backends off unless given), the declared state backends
-    (none unless given) and ``plugin_state``, the slot per key the terraform
-    library keeps its collectors in, exactly as the core's context has
-    them, plus ``dry_run`` and whatever else a test sets. Two holders are
-    two runs: a collector made on one is invisible to the other."""
-
-    dry_run: bool = False
-
-    def __init__(self, **attrs: Any) -> None:
-        self.config: dict[str, Any] = attrs.pop("config", {})
-        self.state_backends: dict[str, Any] = attrs.pop("state_backends", {})
-        self._state: dict[str, Any] = {}
-        for name, value in attrs.items():
-            setattr(self, name, value)
-
-    def plugin_state(self, key: str, factory: Callable[[], Any]) -> Any:
-        if key not in self._state:
-            self._state[key] = factory()
-        return self._state[key]
-
-
-def bare_run(**attrs: Any) -> BareRun:
-    """See :class:`BareRun`."""
-    return BareRun(**attrs)
-
-
-def os_type_for_family(family: str | None) -> type:
-    """The OS type that serves ``family`` among the INSTALLED plugins' types
-    (a registry of the lookup's own): what a loaded run answers through
-    ``ctx.services.images.os_type_for_family``, for a test that drives no
-    run."""
-    from cs_image_system.base import os_types
-    from cs_image_system.engine.loader import installed_registry
-    return os_types.os_type_for_family(family, installed_registry())
-
-
-def stub_environment(monkeypatch) -> list[str]:
-    """Install every stub; returns the command journal."""
-    # The installed plugins are held to the contract ONCE, as shipped, before
-    # any hook below is replaced: a stub's parameter names are the
-    # test's, not the plugin's. tests/conftest.py does this at session start
-    # for the root suite; a package's tests and `tests/golden.py` run without
-    # that conftest, so the harness does it here too (memoised: free after
-    # the first call).
-    from cs_image_system.engine.loader import discover_plugins
-    discover_plugins()
-    monkeypatch.setenv("USER", "testuser")
+def _credentials(monkeypatch) -> None:
+    """Dummy okta / oktapam credentials, so command lists never depend on
+    the developer's shell."""
     monkeypatch.setenv("OKTA_API_PRIVATE_KEY", "dummy")
     monkeypatch.setenv("TF_VAR_nos_coastal_modeling_cloud_sandbox_key", "dummy")
     monkeypatch.setenv("TF_VAR_nos_coastal_modeling_cloud_sandbox_secret", "dummy")
-    # the frozen fixture's TEST identity opens its encrypted values
-    monkeypatch.setenv("CSIS_CONFIG_IDENTITY", str(FIXTURE_CONFIG / ".age-identity"))
 
-    from cs_image_system.engine import config_loader
-    monkeypatch.setattr(config_loader, "datetime", _FixedDT)     # the loader's clock is the run's
 
+def _clouds(monkeypatch, retags: list[tuple[str, dict[str, str]]]) -> None:
+    """The AWS and Google Cloud stubs."""
     # The cloud discovery stubs: a LOAD never calls them --
     # the copy's meta-state/runtime-facts.yaml (record_network_facts) says
     # what they would answer -- but a real run's `discover` and a test's
@@ -244,6 +194,7 @@ def stub_environment(monkeypatch) -> list[str]:
     from cs_image_system.aws_runtime.aws_runtime_builders import AwsCloudBuilder
     from cs_image_system.gcloud_runtime import gcp_utils
     from cs_image_system.gcloud_runtime.gcp_runtime_builders import GCPCloudBuilder
+
     def _gcp_network_map(session_config, clients=None):
         # Config-derived like the SG stub: which subnets exist is a
         # live-account fact, and the fixture's ids are data these tests must
@@ -266,50 +217,25 @@ def stub_environment(monkeypatch) -> list[str]:
     # The read-only state-query hooks would reach AWS/OPA: answer "nothing
     # of ours exists" by default. Tests of the query itself re-patch these
     # AFTER constructing their FixtureRun.
-    from cs_image_system.okta_opa_plugin.okta_opa_tf_group_builder import OktaTfGroupBuilder
-    from cs_image_system.tofu_roots.tofu_storage_builder import TofuStorageBuilderBase
     monkeypatch.setattr(AwsCloudBuilder, "query_images", lambda self, series: [])
     monkeypatch.setattr(GCPCloudBuilder, "query_images", lambda self, series: [])
-    # the fixture's docker runtime names a daemon that exists nowhere
-    # (context csis-fixture-daemon); its pull, its image listing, its retagging
-    # and its session are answered here as the clouds' are, so no test reaches
-    # a daemon and the golden pins the docker emission
-    from cs_image_system.docker_runtime.docker_runtime_builders import DockerContainerBuilder
-    monkeypatch.setattr(DockerContainerBuilder, "query_provider_image",
-                        lambda self, osb: (DOCKER_DIGEST, "library", {}))
-    monkeypatch.setattr(DockerContainerBuilder, "query_images", lambda self, series: [])
     # zero-drift-report: post-bake retagging would reach EC2; journal it.
-    retags: list[tuple[str, dict[str, str]]] = []
     monkeypatch.setattr(AwsCloudBuilder, "retag_image",
                         lambda self, image_id, tags: retags.append((image_id, dict(tags))) or True)
     # the post-bake suite runs over the session command; the stub
     # answers PASS for every assertion the script carries (tests that need a
     # failing or dead session override this per test)
-    import re as _re
-
-    from cs_image_system.gcloud_runtime.gcp_runtime_builders import GCPCloudBuilder
-    _real_aws_session = AwsCloudBuilder.run_session_command
-    _real_gcp_session = GCPCloudBuilder.run_session_command
-
-    def _session_stub(real):
-        def _run(self, name, script, timeout=300):
-            idx = _re.findall(r'CSIS_TEST (\d+) PASS', script)
-            if not idx:                      # an unmount or any other session: the real hook (its
-                return real(self, name, script, timeout)   # subprocess is what those tests fake)
-            return 0, "".join(f"CSIS_TEST {i} PASS\n" for i in sorted(set(idx), key=int))
-        return _run
-    monkeypatch.setattr(AwsCloudBuilder, "run_session_command", _session_stub(_real_aws_session))
-    monkeypatch.setattr(GCPCloudBuilder, "run_session_command", _session_stub(_real_gcp_session))
+    monkeypatch.setattr(AwsCloudBuilder, "run_session_command",
+                        passing_session(AwsCloudBuilder.run_session_command))
+    monkeypatch.setattr(GCPCloudBuilder, "run_session_command",
+                        passing_session(GCPCloudBuilder.run_session_command))
     monkeypatch.setattr(GCPCloudBuilder, "retag_image",                    # GCE relabels too
                         lambda self, image_id, tags: retags.append((image_id, dict(tags))) or True)
-    _real_docker_session = DockerContainerBuilder.run_session_command
-    monkeypatch.setattr(DockerContainerBuilder, "run_session_command", _session_stub(_real_docker_session))
-    monkeypatch.setattr(DockerContainerBuilder, "retag_image",            # the daemon's tags too
-                        lambda self, image_id, tags: retags.append((image_id, dict(tags))) or True)
-    stub_environment.retags = retags  # type: ignore[attr-defined]
-    monkeypatch.setattr(TofuStorageBuilderBase, "query_state",
-                        lambda self: {s.get_name(): {"present": False, "type": self.capability_type()}
-                                      for s in self.model._storages})
+
+
+def _identity_provider(monkeypatch, retirements: list[tuple[str, str]]) -> None:
+    """The Okta stubs."""
+    from cs_image_system.okta_opa_plugin.okta_opa_tf_group_builder import OktaTfGroupBuilder
     monkeypatch.setattr(OktaTfGroupBuilder, "query_state",
                         lambda self: {g.get_name(): {"present": True, "gid": 1}
                                       for g in self.get_groups_for_builder()})
@@ -317,77 +243,35 @@ def stub_environment(monkeypatch) -> list[str]:
     # retirements are journaled. Silence would be refused by design (a run
     # that can launch will not trust an unreachable registry), and the
     # harness models a reachable OPA, not an absent one.
-    retirements: list[tuple[str, str]] = []
     monkeypatch.setattr(OktaTfGroupBuilder, "registered_servers", lambda self, group: [])
     monkeypatch.setattr(OktaTfGroupBuilder, "retire_servers_named",
                         lambda self, group, hostname: retirements.append((group, hostname)) or [])
+
+
+def stub_environment(monkeypatch) -> list[str]:
+    """Install every stub; returns the command journal.
+
+    The test kit installs the core's stubs (it also holds the installed
+    plugins to the contract once, as shipped, before any hook is replaced:
+    tests/conftest.py does this at session start for the root suite; a
+    package's tests and `tests/golden.py` run without that conftest). Each
+    provider's stubs follow: the fixture's docker runtime names a daemon
+    that exists nowhere (context csis-fixture-daemon), and its pull, its
+    image listing, its retagging and its session are answered by the docker
+    package's own stub as the clouds' are answered here, so no test reaches
+    a daemon and the golden pins the docker emission."""
+    retags: list[tuple[str, dict[str, str]]] = []
+    retirements: list[tuple[str, str]] = []
+    journal = kit.stub_core(monkeypatch, FIXTURE_CONFIG / kit.IDENTITY_FILE, stubs=(
+        _credentials,
+        lambda mp: _clouds(mp, retags),
+        lambda mp: docker_testing.stub(mp, retags),
+        roots_testing.stub,
+        lambda mp: _identity_provider(mp, retirements),
+    ))
+    stub_environment.retags = retags  # type: ignore[attr-defined]
     stub_environment.retirements = retirements  # type: ignore[attr-defined]
-
-    journal: list[str] = []
-    from cs_image_system.base.models.executable import ExecutableModel
-
-    def _fake_execute(self, *args, skips=False):
-        cmd = [self.binary or self.name] + list(self.args or []) + list(args)
-        journal.append(f"{self.working_directory}: {' '.join(cmd)}")
-        return subprocess.CompletedProcess(cmd, 0, stdout="", stderr="")
-
-    monkeypatch.setattr(ExecutableModel, "execute", _fake_execute)
-
-    # the system's own steps (materialize, gate-plan, prune-attachments,
-    # release --declared, ...) no longer go through `execute`: the executor
-    # runs them IN PROCESS over the loaded context through the seam the
-    # system's CLI registers at import. The harness journals them the same
-    # way (the same line a spawned step would have produced), so a test
-    # reads one journal; a test of the in-process path itself registers
-    # its own runner after constructing its FixtureRun.
-    import cs_image_system.system.cli  # noqa: F401 - registers the real runner BEFORE the patch window, so the
-    from cs_image_system.contract.constants import SYSTEM_CLI
-    from cs_image_system.engine import in_process as _in_process
-    #                                      teardown restores it instead of None (a first import inside the window
-    #                                      would be undone with the patch)
-
-    def _fake_runner(ctx, args, working_directory):
-        journal.append(f"{working_directory}: {SYSTEM_CLI} {' '.join(str(a) for a in args)}")
-        return 0
-
-    monkeypatch.setattr(_in_process, "_RUNNER", _fake_runner)
-
-    from cs_image_system.engine.commands import validate as _validate
-    monkeypatch.setattr(_validate, "check_executables_exist_and_versions", lambda ctx: [])
     return journal
-
-
-def load_context(config_root: Path, dry_run: bool = True, overlays: list[Path] | None = None,
-                 undeclare: list[str] | None = None):
-    """The loader's run context over ``config_root`` (plus any transient
-    ``--overlay`` files and ``--undeclare`` specs). A new context per load,
-    with a registry, an image-source catalog and a template resolver of its
-    own: the returned one is THE context of the run the test drives, and
-    nothing of an earlier load is left in the process to reset."""
-    from cs_image_system.engine.config_loader import read_config_and_transform
-    return read_config_and_transform(cast(Any, types.SimpleNamespace(obj={})),
-                                     config_root, False, dry_run=dry_run,
-                                     overlays=list(overlays or []), undeclare=list(undeclare or []))
-
-
-def cli_context(ctx) -> Any:
-    """The typer context a console-script command reads the loaded context
-    from (``typer_cntx.obj["ctx"]``), for calling a command
-    function directly."""
-    return cast(Any, types.SimpleNamespace(obj={"ctx": ctx}))
-
-
-def drive_lifecycles(ctx, lifecycles: list[str] | str = "all", *, apply: bool = True, commit: bool = False,
-           state_query: bool = False, only: list[str] | None = None,
-           force_bake: list[str] | None = None):
-    """``ctx`` is the context ``load_context`` returned (passed, never
-    fetched). ``state_query`` is OFF here: the real hooks would reach AWS/OPA. Tests
-    of the pre-run query stub the hooks and pass ``state_query=True``."""
-    from cs_image_system.base.lifecycles import parse_lifecycles
-    from cs_image_system.engine.commands.run_lifecycles import run_lifecycles
-    names = [lifecycles] if isinstance(lifecycles, str) else lifecycles
-    return run_lifecycles(ctx, parse_lifecycles(names), apply=apply, commit=commit,
-                          state_query=state_query, only=only, force_bake=force_bake)
 
 
 class FixtureRun:
@@ -412,29 +296,3 @@ class FixtureRun:
 
     def restore_cwd(self) -> None:
         os.chdir(self._cwd)
-
-
-def tree(root: Path, *, ignore_parts: tuple[str, ...] = (".terraform", "temp_assets")) -> dict[str, str]:
-    """``{relative path: text}`` for every file under root."""
-    out: dict[str, str] = {}
-    if not root.exists():
-        return out
-    for p in sorted(root.rglob("*")):
-        if not p.is_file():
-            continue
-        rel = p.relative_to(root)
-        if any(part in ignore_parts for part in rel.parts):
-            continue
-        out[str(rel)] = p.read_text()
-    return out
-
-
-def command_lines(script_text: str) -> list[str]:
-    """The executable lines of a runner script (no shebang/comments/set/cd)."""
-    lines = []
-    for line in script_text.splitlines():
-        s = line.strip()
-        if not s or s.startswith("#") or s.startswith("set ") or s == 'cd "$(dirname "$0")"' or s.startswith("CSIS_ROOT="):
-            continue
-        lines.append(s)
-    return lines
