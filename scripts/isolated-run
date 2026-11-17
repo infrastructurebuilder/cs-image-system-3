@@ -20,22 +20,43 @@ The verdict is strict: the run fails when no test was collected, when any
 test was skipped, or when any test failed or errored. A step that could
 not start is reported as not run, and that is a failure too.
 
-    isolated-run --subject NAME --require REQ --root DIR [--tests PATH ...] [--copy-outside]
+    isolated-run --subject NAME --require REQ --root DIR [--tests PATH ...]
+                 [--pytest-config FILE] [--copy-outside]
 
 ``REQ`` is a requirement on a workspace distribution, with any extras
-(``cs-image-system-docker-plugin[test]``). ``--root`` is the package's
-directory; ``--tests`` are paths inside it (its declared ``testpaths``
-when none is given). ``--copy-outside`` copies the package's directory out
-of the workspace first, builds its wheel from the copy and runs the tests
-from the copy, so nothing of the workspace is beside them.
+(``cs-image-system-docker-plugin[test]``). ``--root`` is the directory the
+tests live under, a package's own or the repository's; ``--tests`` are
+paths inside it (the ``testpaths`` its pytest settings declare when none is
+given). The pytest settings are the root's own ``pyproject.toml`` unless
+``--pytest-config`` names another file: a run over several packages names
+one package's, so the workspace's settings (which put every package's
+sources on the path) never apply. ``--copy-outside`` copies the root out of
+the workspace first, builds its wheel from the copy and runs the tests from
+the copy, so nothing of the workspace is beside them.
+
+The interpreter is started with ``-P``, so the directory the run starts in
+is never on the import path: a test can import only what is installed.
+
+``--sdk-end low|high`` is for a provider that pins the SDK (the kit and the
+two terraform libraries) by a range: the run takes each SDK library at the
+lowest or the highest version of the provider's range, counting both what
+the index has published and what this repository builds. A version the
+index holds is installed FROM the index; one it does not hold is installed
+from this repository's build, and the run says which, by name: a
+development install is never mistaken for a release. The index is asked;
+if it cannot be asked the run fails, since it would otherwise have to
+guess.
 """
 from __future__ import annotations
 
 import argparse
+import json
 import shutil
 import subprocess
 import sys
 import tempfile
+import urllib.error
+import urllib.request
 import xml.etree.ElementTree as ET
 import zipfile
 from collections.abc import Callable, Sequence
@@ -43,10 +64,83 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from packaging.requirements import Requirement
+from packaging.specifiers import SpecifierSet
 from packaging.utils import canonicalize_name
+from packaging.version import InvalidVersion, Version
 
 REPO = Path(__file__).resolve().parents[1]
 OURS = "cs-image-system"
+#: the SDK's libraries: what a provider may pin by a range
+SDK = ("cs-image-system-base", "cs-image-system-hashicorp-utils", "cs-image-system-tofu-roots")
+INDEX_JSON = "https://pypi.org/pypi/{name}/json"
+FROM_INDEX = "from the index"
+FROM_BUILD = "from this repository's build (development install)"
+
+
+class IndexUnasked(RuntimeError):
+    """The index could not be asked which versions of a library it holds."""
+
+
+Published = Callable[[str], set[Version]]
+
+
+def published_versions(name: str) -> set[Version]:
+    """The versions of ``name`` the index holds (none when it has never
+    heard of it); :class:`IndexUnasked` when it cannot be asked."""
+    try:
+        with urllib.request.urlopen(INDEX_JSON.format(name=name), timeout=30) as answer:
+            releases = json.load(answer).get("releases", {})
+    except urllib.error.HTTPError as e:
+        if e.code == 404:
+            return set()
+        raise IndexUnasked(f"{name}: the index answered {e.code}") from e
+    except (urllib.error.URLError, TimeoutError, ValueError) as e:
+        raise IndexUnasked(f"{name}: {e}") from e
+    out: set[Version] = set()
+    for text, files in releases.items():
+        try:
+            if files:
+                out.add(Version(text))
+        except InvalidVersion:
+            continue
+    return out
+
+
+def wheel_version(wheel: Path) -> Version:
+    return Version(wheel.name.split("-")[1])
+
+
+@dataclass(frozen=True)
+class SdkChoice:
+    """One SDK library at one end of a provider's range."""
+    name: str
+    version: Version
+    from_index: bool
+
+    def said(self) -> str:
+        return f"{self.name} {self.version} {FROM_INDEX if self.from_index else FROM_BUILD}"
+
+
+def sdk_choices(wanted: Requirement, wheels: dict[str, Path], end: str, published: Published) -> list[SdkChoice]:
+    """Each SDK library the provider declares, at the ``low`` or ``high``
+    end of the range it declares it by: the lowest or highest version in
+    that range among what the index holds and what this repository builds.
+    ``ValueError`` when a range holds neither."""
+    ranges: dict[str, SpecifierSet] = {}
+    for dep in wheel_requirements(wheels[canonicalize_name(wanted.name)]):
+        if canonicalize_name(dep.name) in SDK and dep.marker is None:
+            ranges[canonicalize_name(dep.name)] = dep.specifier
+    out: list[SdkChoice] = []
+    for name in sorted(ranges):
+        held = {v for v in published(name) if ranges[name].contains(v, prereleases=True)}
+        built = wheel_version(wheels[name])
+        candidates = held | ({built} if ranges[name].contains(built, prereleases=True) else set())
+        if not candidates:
+            raise ValueError(f"{wanted.name} declares {name}{ranges[name]}, which neither the index nor this "
+                             f"repository's build ({built}) satisfies")
+        version = min(candidates) if end == "low" else max(candidates)
+        out.append(SdkChoice(name, version, version in held))
+    return out
 
 
 @dataclass(frozen=True)
@@ -155,13 +249,14 @@ def install_lines(found: dict[str, set[str]], wheels: dict[str, Path]) -> list[s
 
 
 def run(subject: str, requirement: str, root: Path, tests: Sequence[str], *, copy_outside: bool,
+        pytest_config: Path | None = None, sdk_end: str | None = None, published: Published = published_versions,
         shell: Shell = real_shell, say: Callable[[str], None] = print, work: Path | None = None) -> int:
     """The whole isolated run; 0 when it passes. ``work`` is a directory to
     work in (a temporary one is made and removed when none is given)."""
     if work is None:
         with tempfile.TemporaryDirectory(prefix="csis-isolated-") as td:
-            return run(subject, requirement, root, tests, copy_outside=copy_outside, shell=shell, say=say,
-                       work=Path(td))
+            return run(subject, requirement, root, tests, copy_outside=copy_outside, pytest_config=pytest_config,
+                       sdk_end=sdk_end, published=published, shell=shell, say=say, work=Path(td))
     who = f"isolated-run [{subject}]"
     wheel_dir = work / "wheels"
 
@@ -189,28 +284,49 @@ def run(subject: str, requirement: str, root: Path, tests: Sequence[str], *, cop
         say(f"{who}: FAILED -- {wanted.name} is not a distribution this workspace builds; the tests did not run")
         return 1
     found = closure(wanted, wheels)
+    lines = install_lines(found, wheels)
+    if sdk_end is not None:
+        try:
+            chosen = sdk_choices(wanted, wheels, sdk_end, published)
+        except (IndexUnasked, ValueError) as e:
+            say(f"{who}: FAILED -- {e}; the tests did not run")
+            return 1
+        versions = sorted({str(c.version) for c in chosen})
+        say(f"{who}: the {sdk_end} end of the SDK range" + (f" ({', '.join(versions)})" if versions else ""))
+        for choice in chosen:
+            say(f"{who}:   {choice.said()}")
+            if choice.from_index:                    # the published version, by name, in place of the built wheel
+                found.pop(choice.name, None)
+                lines = [ln for ln in lines if not ln.startswith(choice.name + " @ ")
+                         and not ln.startswith(choice.name + "[")] + [f"{choice.name}=={choice.version}"]
+            elif choice.version != wheel_version(wheels[choice.name]):
+                say(f"{who}: FAILED -- {choice.name} {choice.version} is neither on the index nor this "
+                    "repository's build; the tests did not run")
+                return 1
     venv = work / "venv"
     made = shell(["uv", "venv", "--quiet", "--python", f"{sys.version_info.major}.{sys.version_info.minor}", str(venv)], work)
     if made.rc != 0:
         return fail("creating the empty environment", made)
     python = venv / "bin" / "python"
-    installed = shell(["uv", "pip", "install", "--quiet", "--python", str(python), "pytest>=8.3",
-                       *install_lines(found, wheels)], work)
+    installed = shell(["uv", "pip", "install", "--quiet", "--python", str(python), "pytest>=8.3", *lines], work)
     if installed.rc != 0:
         return fail("installing the package and what it declares", installed)
     ours = sorted(found)
     say(f"{who}: installed from this repository's build ({len(ours)}): {', '.join(ours)}")
     listed = shell(["uv", "pip", "list", "--python", str(python), "--format", "freeze"], work)
+    known = set(found) | set(SDK if sdk_end is not None else ())
     stray = sorted(line.split("==")[0] for line in listed.out.splitlines()
                    if canonicalize_name(line.split("==")[0]).startswith(OURS)
-                   and canonicalize_name(line.split("==")[0]) not in found)
+                   and canonicalize_name(line.split("==")[0]) not in known)
     if listed.rc != 0 or stray:
         say(f"{who}: FAILED -- the environment holds distributions of this repository that were not declared: "
             f"{stray or listed.out.strip()[-500:]}; the tests did not run")
         return 1
     junit = work / "junit.xml"
-    ran = shell([str(python), "-m", "pytest", "-c", str(root / "pyproject.toml"), "--rootdir", str(root),
-                 "-p", "no:cacheprovider", "-q", "-rs", f"--junitxml={junit}", *tests], root)
+    ran = shell([str(python), "-P", "-m", "pytest", "-c", str(pytest_config or root / "pyproject.toml"),
+                 "--rootdir", str(root), "--confcutdir", str(root),      # a conftest at the root applies, none above it
+                 "-p", "no:cacheprovider", "-q", "-rs", f"--junitxml={junit}",
+                 *(str(root / t) for t in tests)], root)
     counts = read_counts(junit)
     ok, why = verdict(counts)
     if not ok:
@@ -225,10 +341,16 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--require", required=True, help="the requirement to install, with any extras")
     parser.add_argument("--root", required=True, type=Path, help="the package's directory")
     parser.add_argument("--tests", nargs="*", default=[], help="test paths inside the root (its testpaths when none)")
+    parser.add_argument("--pytest-config", type=Path, default=None,
+                        help="the pytest settings file, when not the root's own pyproject.toml")
+    parser.add_argument("--sdk-end", choices=("low", "high"), default=None,
+                        help="take each SDK library at the lowest or highest version of the provider's range")
     parser.add_argument("--copy-outside", action="store_true",
                         help="copy the package's directory out of the workspace, build and test it there")
     args = parser.parse_args(argv)
-    return run(args.subject, args.require, (REPO / args.root).resolve(), args.tests, copy_outside=args.copy_outside)
+    return run(args.subject, args.require, (REPO / args.root).resolve(), args.tests, copy_outside=args.copy_outside,
+               pytest_config=(REPO / args.pytest_config).resolve() if args.pytest_config else None,
+               sdk_end=args.sdk_end)
 
 
 if __name__ == "__main__":

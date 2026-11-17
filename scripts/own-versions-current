@@ -8,8 +8,9 @@
 
 A release moves every package's version in lockstep but the ones its bump
 leaves alone: each `glob_exclude` of the root's `[[tool.bumpversion.files]]`
-names a manifest whose version is its own (the contract's), which moves only
-by hand. An index never takes a second build under a version it holds, so a
+names a manifest whose version is its own (the contract's, and those of the
+SDK's two version lines: the kit; the two terraform libraries), which moves
+only by hand (the SDK's with `just sdk-bump`). An index never takes a second build under a version it holds, so a
 change to such a package without its own bump is refused at the upload --
 after the whole gate. The builds are reproducible (two builds of one tree
 are byte-identical), so that refusal can be foreseen in seconds, and this

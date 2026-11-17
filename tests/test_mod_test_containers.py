@@ -97,7 +97,9 @@ def test_a_container_that_cannot_start_is_unstarted_not_a_failed_modification(tm
         FakeTarget.instances.clear()
         again = run_mod_tests(run.ctx, images=["imgfile-basic-dask"], make_target=lambda img: FakeTarget(img))
         assert [r.status for r in again] == ["pass"] and "cached" not in again[0].detail
-        assert any("twice" in r.message for r in caplog.records)
+        # ... and it was really run: once to apply, once more for idempotence (what the
+        # target saw, not a line the run logged, so the test holds at any logging level)
+        assert [t._applies for t in FakeTarget.instances] == [2]
     finally:
         run.restore_cwd()
 
@@ -108,7 +110,7 @@ def test_the_command_says_cannot_start_and_exits_1(cli_root, monkeypatch):
     unstarted = ModTestResult(image="img", mod="m", type="bash-remote", content_hash="h", target="almalinux:10",
                               status="unstarted", detail="cannot start a container from almalinux:10: docker pull "
                               "(after 3 attempts) exited 1: context deadline exceeded")
-    monkeypatch.setattr(mod_tests, "run_mod_tests", lambda ctx, images=None, force=False: [unstarted])
+    monkeypatch.setattr(mod_tests, "run_mod_tests", lambda ctx, images=None, force=False, stand_in=None: [unstarted])
     result = _invoke(cli_root, "test-mods")
     assert result.exit_code == 1, result.output
     assert "CANNOT START img/m" in result.output

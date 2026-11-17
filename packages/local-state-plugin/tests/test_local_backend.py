@@ -15,7 +15,7 @@ from pathlib import Path
 
 import pytest
 
-from cs_image_system.hashicorp_utils.collector import BackendRegistration, StateLocation, TerraformCollector
+from cs_image_system.hashicorp_utils.collector import StateLocation, TerraformCollector
 from cs_image_system.local_state_plugin.local_state_models import LOCAL_KIND, LocalBackendKind
 
 
@@ -35,29 +35,6 @@ def test_the_kind_keeps_an_absolute_directory_and_normalises_spelling():
     assert LocalBackendKind.directory({}) == "."
     assert LOCAL_KIND.location({"path": "state//"}, "a-b") == LOCAL_KIND.location({"path": "./state"}, "a_b")
 
-
-def test_the_same_name_under_two_types_is_not_a_collision_but_two_roots_on_one_directory_are():
-    from cs_image_system.tf_s3_state_plugin.tf_s3_state_models import S3_KIND
-    col = TerraformCollector()
-    col.reset()
-    try:
-        col.register_backend(BackendRegistration(
-            name="s3-east2", type="s3", kind=S3_KIND, is_default=True,
-            settings={"bucket": "b", "region": "us-east-2", "key_prefix": "state/", "encrypt": False,
-                      "use_lockfile": True, "profile": None}))
-        col.register_backend(BackendRegistration(name="local-dev", type="local", kind=LOCAL_KIND,
-                                                 settings={"path": "state"}))
-        col.set_backend("ws", "s3-east2")
-        col.set_backend("ws-local", "local-dev")
-        locations = col.state_locations()
-        assert str(locations["ws"]) == "s3://b/state/ws.tfstate" and str(locations["ws-local"]) == "local://state/ws_local.tfstate"
-        col.set_backend("other", "local-dev")
-        col.validate_state_locations()                                   # different files: fine
-        col.set_backend("ws_local", "local-dev")                         # collapses to ws_local.tfstate
-        assert col.state_collisions(col.state_locations()) == [
-            "workspaces ws-local, ws_local would share the state object local://state/ws_local.tfstate"]
-    finally:
-        col.reset()
 
 
 @pytest.mark.skipif(shutil.which("tofu") is None, reason="tofu is not installed")

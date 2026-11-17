@@ -1,0 +1,21 @@
+# The core's own fixture: one runtime, the test-double.
+# It declares no provider: its one runtime is the test kit's test-double
+# (cs_image_system.system.testing.double), which exists only inside a test run.
+runtime_builders:
+- name: here
+  type: test-double
+  is_default: true
+  description: A runtime that exists only inside a test run
+  state_configuration: local-dev
+  credentials: {}
+  ephemeral: false
+  tags:
+    project: MyProject
+  default_machine_type: small
+  default_image_builder: pckr
+  machine_types:
+    small:
+      cpus: 1
+      memory: 1g
+  networking:
+    network: bridge

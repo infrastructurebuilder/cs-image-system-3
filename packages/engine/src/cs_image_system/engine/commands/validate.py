@@ -22,7 +22,12 @@ from cs_image_system.base.basic.builder_base import BuilderBase
 from cs_image_system.base.capabilities import group_builder_of
 from cs_image_system.base.encryption import decrypted_plaintexts
 from cs_image_system.base.image_names import output_names_by_runtime
-from cs_image_system.base.image_sources import container_reference, stand_in_runtime_type
+from cs_image_system.base.image_sources import (
+    StandInChoiceError,
+    container_reference,
+    stand_in_runtime_type,
+    stand_in_types,
+)
 from cs_image_system.base.launch_params import HOSTNAME_LABEL_MAX, canonical_hostname, hostname_problems
 from cs_image_system.base.models.container_builder import ContainerBuilderModel
 from cs_image_system.base.models.executable import ExecutableModel
@@ -601,7 +606,16 @@ def check_image_sources(ctx: RunContext) -> list[Exception]:
     will be asked without opening the catalog."""
     exs: list[Exception] = []
     catalog = ctx.image_sources
-    stand_in_type = stand_in_runtime_type(ctx.reg.runtime_builder_classes()) or "no installed runtime offers a local test target"
+    try:
+        stand_in_type = (stand_in_runtime_type(ctx.reg.runtime_builder_classes(), catalog.named_stand_in)
+                         or "no installed runtime offers a local test target")
+    except StandInChoiceError:
+        # several can serve and none is named: validation only reports it; the
+        # modification tests are the command that needs the choice
+        stand_in_type = None
+        log.info("mod-test stand-in: more than one installed runtime can serve "
+                 f"({', '.join(stand_in_types(ctx.reg.runtime_builder_classes()))}); "
+                 "the modification tests need one named with --stand-in")
     for osb_name, osb in sorted((ctx.os_builders or {}).items()):
         model = osb.model
         family, version = model.get_vendor_family(), model.get_family_version()
@@ -610,7 +624,7 @@ def check_image_sources(ctx: RunContext) -> list[Exception]:
         override = getattr(model, "local_test_image", None)
         if override:
             log.info(f"mod-test stand-in: OS builder '{osb_name}': {override} (declared: local_test_image)")
-        else:
+        elif stand_in_type is not None:
             block = catalog.stand_in_block(family, version)
             stand_in = container_reference(block) if block is not None else None
             if stand_in:

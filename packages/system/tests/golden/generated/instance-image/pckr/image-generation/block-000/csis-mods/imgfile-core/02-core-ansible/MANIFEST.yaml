@@ -1,0 +1,9 @@
+content_hash: d2081ba0c162b159780527abeff9cfe0095c282be068bd26c7a7efc96c4e8921
+files:
+- setup_dask.yml
+idempotent: ansible
+image: imgfile-core
+name: core-ansible
+operation: ansible
+run: 2026_08_26t12_00_00
+type: ansible-default

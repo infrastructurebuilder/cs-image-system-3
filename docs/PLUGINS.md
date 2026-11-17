@@ -206,10 +206,10 @@ by what plugins use (`lineage`, `launch`, `secrets`, `files`, `commands`,
 names, the enrollment variable, the mount mark, storage states, gid
 policies, power states, the secret marker type) are the contract's
 vocabulary modules; the hooks entry point and the bootstrap facts protocol
-are the contract's too. `tests/test_plugin_imports.py` holds the rule over
-every installed plugin and carries the exception list, which is empty: the
-last four entries were fetches of the process's current context or
-registry, and the process keeps neither now. A model method that needs
+are the contract's too. What a plugin may use of the kit is what the kit's
+`surface` module declares, and `tests/test_plugins_keep_to_the_surface.py`
+holds every plugin to it; no plugin fetches the process's current context
+or registry, and the process keeps neither. A model method that needs
 something of its run is handed it (the caller passes `ctx.config`, or the
 runtime builder gives the image what it needs in
 `prepare_provider_specific_image`), and a state backend's `session_status`

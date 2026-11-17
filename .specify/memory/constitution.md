@@ -1,20 +1,29 @@
 <!--
 Sync Impact Report (scratch for review; remove before committing)
 
-Version change: none -> 1.0.0 (first ratified constitution)
-Modified principles: none (first version)
-Added sections: Users; Core Principles I-X; Additional Constraints;
-  Development Workflow; Governance
+Version change: 1.0.0 -> 1.1.0
+Bump: MINOR. A section was materially expanded (Governance: "MINOR when
+  a principle or section is added or materially expanded"); no principle
+  was removed or redefined.
+Amended: 2026-11-17, by the operator.
+Modified principles: none
+Added sections: none
+Expanded sections: Additional Constraints, by one constraint: Azure
+  cloud testing is at the operator's cost, under the same rule as the
+  Google Cloud constraint above it, and whatever is created is torn
+  down.
 Removed sections: none
-Source of each principle:
-  III, IV, V and the first half of VI restate invariants the system
-  already keeps (dry run and the plan gate; the golden; public-safety;
-  the import direction). I, II, VII, VIII, IX, X and the second half of
-  VI are new, from the examination of 2026-11-16.
-Supersedes: the "Standing decisions" block of the retired work list.
 Templates: plan, spec and tasks templates read this file at run time and
   were not modified.
 Deferred items: none.
+
+Earlier amendments:
+  none -> 1.0.0 (2026-11-16): first ratified constitution. Sections
+    Users; Core Principles I-X; Additional Constraints; Development
+    Workflow; Governance. III, IV, V and the first half of VI restate
+    invariants the system already keeps; I, II, VII, VIII, IX, X and
+    the second half of VI are new, from the examination of 2026-11-16.
+    Supersedes the "Standing decisions" block of the retired work list.
 -->
 
 # cs-image-system Constitution
@@ -141,6 +150,9 @@ opened.
 - Google Cloud spending is the operator's own money. No GCE cycle runs
   unless a change could break the Google Cloud code, and whatever it
   stands up is torn down.
+- Any Azure cloud testing follows the same principle: the operator bears
+  the cost.  No Azure cycle runs unless a change could break the
+  Azure code, and whatever is created is torn down.
 
 ## Development Workflow
 
@@ -176,4 +188,4 @@ document is corrected.
   before it is planned: it names its user and ends in an executable
   acceptance.
 
-**Version**: 1.0.0 | **Ratified**: 2026-11-16 | **Last Amended**: 2026-11-16
+**Version**: 1.1.0 | **Ratified**: 2026-11-16 | **Last Amended**: 2026-11-17

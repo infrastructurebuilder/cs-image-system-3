@@ -488,10 +488,14 @@ or listed.
 ## Tests
 
 [`tests/test_roots.py`](tests/test_roots.py) pins the root mixin against
-a bare run holder (the workspace suite's `harness.bare_run`, which
-offers what the mixin reads of a context): the dry-run and real-run
-`init` arguments, the runner's own `init`, the backend path, one
-executable copy per command. The terraform roots have no unit test of
+a bare run holder (`cs_image_system.hashicorp_utils.testing.bare_run`,
+which offers what the mixin reads of a context): the `init` arguments
+without a backend, the backend path, one executable copy per command. It
+needs nothing but this library and what it declares, and runs that way in
+`just test-terraform-alone`. The `init` arguments WITH a backend, in dry
+and real runs, and the runner's own `init` need a provider's backend kind
+and are pinned in the workspace's suite,
+[`tests/test_roots_with_a_state_backend.py`](../../tests/test_roots_with_a_state_backend.py). The terraform roots have no unit test of
 their own here: their behaviour is pinned through the root plugins that
 subclass them (their module-call tests), through the golden emission of
 the frozen fixture ([tests/test_golden.py](../../tests/test_golden.py))

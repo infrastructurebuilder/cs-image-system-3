@@ -122,34 +122,6 @@ def plain(value: Any, identity: Path) -> Any:
     return value
 
 
-class BareRun:
-    """A bare run context for a builder driven outside a run: the global
-    ``config:`` map (backends off unless given), the declared state backends
-    (none unless given) and ``plugin_state``, the slot per key a library
-    keeps its per-run objects in, exactly as the core's context has them,
-    plus ``dry_run`` and whatever else a test sets. Two holders are two
-    runs: an object made on one is invisible to the other."""
-
-    dry_run: bool = False
-
-    def __init__(self, **attrs: Any) -> None:
-        self.config: dict[str, Any] = attrs.pop("config", {})
-        self.state_backends: dict[str, Any] = attrs.pop("state_backends", {})
-        self._state: dict[str, Any] = {}
-        for name, value in attrs.items():
-            setattr(self, name, value)
-
-    def plugin_state(self, key: str, factory: Callable[[], Any]) -> Any:
-        if key not in self._state:
-            self._state[key] = factory()
-        return self._state[key]
-
-
-def bare_run(**attrs: Any) -> BareRun:
-    """See :class:`BareRun`."""
-    return BareRun(**attrs)
-
-
 def os_type_for_family(family: str | None) -> type:
     """The OS type that serves ``family`` among the INSTALLED plugins' types
     (a registry of the lookup's own): what a loaded run answers through

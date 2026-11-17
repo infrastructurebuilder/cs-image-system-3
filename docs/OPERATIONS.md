@@ -1596,7 +1596,7 @@ changed).
 | `run --migrate-state` under a dry run | 2 | a move needs `--no-dry-run` |
 | `--locked` (global) | 75 | another command holds the tofu lock (`.tofu-plugin-cache/.lock`); the holder's pid is named; 2 without `TF_PLUGIN_CACHE_DIR` in the environment |
 | `empty --runtime` | 1 | a leftover or drift; 2 when the runtime cannot answer |
-| `test-mods` | 1 | a failed or non-idempotent mod; with `--strict`, any skip |
+| `test-mods` | 1 | a failed or non-idempotent mod; tests that could not run because no local stand-in is installed or its daemon did not answer (unless `--allow-not-run`); two installed stand-ins with none named (`--stand-in`); with `--strict`, any skip at all |
 | `release` | 1 | refused (evidence missing); 2 with no image and no `--declared` |
 | `dispose`, `upgrade`, `verify`, `unmount`, `lineage *`, `decrypt`, `reencrypt`, `runtime describe` | 1 | refused or failed |
 | `config-drift` | 1 | the committed emission is BEHIND the declarations (the diff is printed); 2 when nothing is committed under `generated/` or the dry run itself fails |
@@ -2596,14 +2596,27 @@ tag (below).
 
 ### The modification tests
 
-`just test-mods [--image <img>]... [--force] [--strict]` runs every
-modification against a throwaway local container, twice (apply, then
-idempotence), and records the results in the live configuration's
+`just test-mods [--image <img>]... [--force] [--strict] [--stand-in <type>] [--allow-not-run]`
+runs every modification against a throwaway local container, twice (apply,
+then idempotence), and records the results in the live configuration's
 `meta-state/mod-tests.yaml` keyed by the mod's content hash. The container
 image follows the instance image's OS family and version (`almalinux:<v>`
-for the EL images). `--strict` exits 1 when a test is skipped (no docker,
-an unsupported family); `--force` re-tests mods that already passed. It
-needs docker and the live configuration, no cloud credentials.
+for the EL images). `--force` re-tests mods that already passed. It needs
+the live configuration and no cloud credentials.
+
+The container is supplied by the local stand-in: the installed runtime
+plugin that declares it can supply one (the docker plugin does). The
+command prints which it used.
+
+- With exactly one such plugin installed, it is used.
+- With two or more, the command exits 1 until `--stand-in <type>` names
+  one. It never picks by name or by order.
+- With none installed, or when the stand-in's daemon does not answer, the
+  tests did not run. That is a failure (exit 1), never a pass.
+  `--allow-not-run` asks for the exclusion on purpose: the command says the
+  tests did not run and exits 0.
+- `--strict` exits 1 when a test is skipped for any reason, an OS family
+  with no local test image included.
 
 ### Writing a plugin
 
@@ -2639,11 +2652,13 @@ read back through `_get_context()`), and so are the run's services
 `images`, `identity`, `storage`, `workspaces`, `scope`, `cli`,
 `lifecycles`, `meta_state`), the hooks entry point (`contract.hooks`) and
 the bootstrap vocabulary (`contract.bootstrap`). What a plugin may import
-from `base` is its base classes (`cs_image_system.base.basic`), its models
-(`cs_image_system.base.models`) and the two metadata abstractions, nothing
-else; `tests/test_plugin_imports.py` holds that rule over every installed
-plugin, and the same test refuses any import of the engine
-(`cs_image_system.engine`) from a plugin. A plugin written outside this
+from `base` is what the kit's `surface` module declares
+(`cs_image_system.base.surface`), nothing else;
+`tests/test_plugins_keep_to_the_surface.py` holds that rule over every
+plugin with the kit's own check
+(`python -m cs_image_system.base.surface check <source directory>`), which
+also refuses any import of the engine (`cs_image_system.engine`) from a
+plugin. A plugin written outside this
 repository needs the two packages from the index,
 `cs-image-system-contract` (pinned `>=0.4,<0.5`, the range every
 package of this workspace declares; the contract has its own version,
@@ -2663,7 +2678,7 @@ repository's, which the release ships.
 | --- | --- | --- |
 | `init` | `uv sync --all-extras`, then `hooks` | nothing |
 | `build` | sdist + wheel of every workspace member under `dist/` (the system package carries the five starter trees) | nothing |
-| `test` | lint → typecheck → pytest → `test-docker-alone`, all blocking (the bar) | nothing |
+| `test` | lint → typecheck → pytest → `test-core` → `test-terraform-alone` → `test-docker-alone`, all blocking (the bar) | nothing |
 | `full-test` | `test`, then `full-test-legs`: the dev-pin resolution check (`scripts/dev-pin-resolves`), the docker legs (`test-mods --strict`, `test-posix-accounts`, `test-bake-steps`, `runner-image`, `test-docker-bake`, `test-docker-cycle`, `test-podman-cycle`, `test-podman-desktop-cycle`) and, gated on `preflight`, a dry `run --all` and `state query --strict` over a copy of the reference configuration | docker, the network, reference configuration, runtime sessions; each leg skips loudly |
 | `release <part\|version> [test\|pypi] [yes]` | from `develop`: probe (the branch; a clean tree; the index ready and free of the version; token; tag; the remote, fetched, holding nothing `main` or `develop` lacks), the move to `main` and `uv sync`, the venv's probes, the bar or `full-test`, the index again, `bump-my-version`, `uv lock`, `publish`, the `CHANGES.md` row, commit, tag `v<version>`, then the pushes of `main` and `develop` and the resync; `yes` = dry (the logic is `scripts/release.py`) | `UV_PUBLISH_TOKEN`; for `pypi`: clean trees, mod-test evidence, `full-test`'s needs |
 | `release-take <part\|version> <test\|pypi> [main] [yes]` | the live configuration asked first, then `release`, then `UV_REFRESH=1 just take <version>` there (the version read back; the variable reaches the take alone), `main` passed through; `yes` = dry | `release`'s needs, and the live configuration's sessions for the take |
@@ -2678,7 +2693,9 @@ repository's, which the release ships.
 | `reuse-live` | the REUSE lint over the reference configuration | reference configuration |
 | `typecheck` | pyright, standard mode | nothing |
 | `pytest` | the unit tests alone | nothing |
-| `test-docker-alone` | the docker family's own tests ([packages/docker-plugin/tests](../packages/docker-plugin/tests)) in an empty environment that holds only the docker package and what it declares, installed from built wheels: once in place, once from a copy of the package's directory outside the workspace. Fails when no test was collected or any was skipped | nothing (no daemon: its runs are stubbed); the package index for third-party packages |
+| `test-core` | the core's own tests (the contract, the kit, the engine, the command line and the always-installed plugins) in an empty environment that holds a plain `cs-image-system` with no extras, installed from built wheels: no docker, AWS, Google Cloud or Okta plugin. Fails when no test was collected or any was skipped | nothing; the package index for third-party packages |
+| `test-terraform-alone` | the two shared terraform libraries' own tests (`packages/hashicorp-utils/tests`, `packages/tofu-roots/tests`) in an empty environment that holds only the two libraries and what they declare (the kit and the contract), at both ends of the kit range the roots library declares. Fails when no test was collected or any was skipped | nothing; the package index, for third-party packages and to ask which kit versions it holds |
+| `test-docker-alone` | the docker family's own tests ([packages/docker-plugin/tests](../packages/docker-plugin/tests)) in an empty environment that holds only the docker package and what it declares, installed from built wheels, at both ends of the SDK range it declares: at the high end the whole suite, in place and from a copy of the package's directory outside the workspace; at the low end the unit tests and the surface check with the package and the SDK alone. Says for each SDK library whether it came from the index or from this repository's build. Fails when no test was collected or any was skipped | nothing (no daemon: its runs are stubbed); the package index, for third-party packages and to ask which SDK versions it holds |
 | `test-one *ARGS` | one pytest expression, each word passed to pytest whole (`-k "a or b"` is one expression) | nothing |
 | `test-mods *ARGS` | the modification tests in a container over the reference configuration | docker, reference configuration |
 | `test-posix-accounts *ARGS` | the posix accounts script on AlmaLinux 10 and Debian 12 under docker, run twice: against an equal and a differing pre-existing group, a member with no account yet, sudo through visudo; a leg of `full-test`, skipped under `just test` | docker |
@@ -2689,7 +2706,10 @@ repository's, which the release ships.
 | `test-podman-cycle *ARGS` | the cycle above against PODMAN'S API SERVICE instead of the environment's docker daemon; `CSIS_PODMAN_HOST` is the `DOCKER_HOST` URL of a running service (`podman system service`, a `podman machine`, or an `ssh://` URL to a host that has one) -- unset, the leg is SKIPPED, said so, and exits 0; it refuses to pass on a daemon that does not say it is Podman; what differs from docker is recorded under "Container hosts" | `CSIS_PODMAN_HOST` |
 | `test-podman-desktop-cycle *ARGS` | `test-podman-cycle` against Podman Desktop's machine on macOS, its address read from `podman machine` rather than typed (`CSIS_PODMAN_MACHINE` names one of several); the leg never creates, starts or stops the machine -- with no podman, no machine, a stopped or an ambiguous one it is SKIPPED with the reason and exits 0; on an Intel host it proves Podman 5.8 (Podman 6 dropped them) until June 2027 | a running Podman Desktop machine |
 | `preflight` | the reference configuration's runtime sessions from the caches over the loaded tree -- the load reaches no cloud (0 / 2) | reference configuration, its age identity |
-| `golden-regen` | rewrite a golden from its fixture: `shared` (`tests/fixtures/golden`, the default) or `docker` (the docker family's own, `packages/docker-plugin/tests/golden`) | nothing; read the diff file by file |
+| `surface-check` | compare each SDK library's surface (every declared name, member, field and hook, with its shape) with the baseline committed beside it; fails naming an entry removed or changed while the library's middle number is unchanged | nothing |
+| `surface-record` | rewrite each SDK library's baseline from its code, once per middle number; refused when an entry would be removed or changed under the same middle number | nothing; read the diff |
+| `sdk-bump` | move one of the SDK's two version lines: `kit` (`cs-image-system-base`) or `terraform` (`cs-image-system-hashicorp-utils` and `cs-image-system-tofu-roots` together), by `last` or `middle`; the members' versions and every exact pin on them move, ranges do not | nothing; after `middle`, move the ranges by hand and run `just surface-record` |
+| `golden-regen` | rewrite a golden from its fixture: `shared` (`tests/fixtures/golden`, the default), `core` (the core's own, `packages/system/tests/golden`) or `docker` (the docker family's own, `packages/docker-plugin/tests/golden`) | nothing; read the diff file by file |
 | `public-safe *ARGS` | scan this checkout with the fixture's allow list | nothing |
 | `publish-tree <root> <dest>` | a publishable copy: tracked files, gate, one commit on `main` | a clean root |
 | `publish-starters [yes]` | the five template repositories from `docs/examples/` at a final version's tag: the trees, the gate, one commit and the tag each; `yes` = dry | the tag, `STARTER_PUSH_TOKEN` |

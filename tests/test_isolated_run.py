@@ -164,3 +164,64 @@ def test_an_undeclared_distribution_of_this_repository_in_the_environment_fails_
     rc, said = _run(tmp_path, shell)
     assert rc == 1 and "cs-image-system-neighbour-plugin" in said[-1]
     assert not any("pytest" in c for c in shell.calls)
+
+
+# ------------------------------------------------------------ the two ends of a provider's SDK range
+
+def _sdk_wheels(directory: Path, built: str, spec: str = ">=0.2,<0.3") -> dict[str, Path]:
+    directory.mkdir(parents=True, exist_ok=True)
+    stem = "cs_image_system_base"
+    kit = directory / f"{stem}-{built}-py3-none-any.whl"
+    with zipfile.ZipFile(kit, "w") as z:
+        z.writestr(f"{stem}-{built}.dist-info/METADATA", f"Name: cs-image-system-base\nVersion: {built}\n")
+    _wheel(directory, "cs-image-system-thing-plugin", [f"cs-image-system-base{spec}", "thirdparty>=1"])
+    return I.wheels_by_name(directory)
+
+
+def _versions(*texts: str):
+    from packaging.version import Version
+    return lambda name: {Version(t) for t in texts}
+
+
+@pytest.mark.parametrize("held, built, end, version, from_index", [
+    ((), "0.2.0", "low", "0.2.0", False),                       # nothing published: the build, at both ends
+    ((), "0.2.0", "high", "0.2.0", False),
+    (("0.2.0", "0.2.1"), "0.2.2", "low", "0.2.0", True),        # the oldest published one in the range
+    (("0.2.0", "0.2.1"), "0.2.2", "high", "0.2.2", False),      # the build is newer than anything published
+    (("0.2.0", "0.2.1"), "0.2.1", "high", "0.2.1", True),       # the build's version is published: from the index
+    (("0.1.10", "0.3.0"), "0.2.0", "low", "0.2.0", False),      # published versions outside the range do not count
+])
+def test_each_end_is_the_lowest_or_highest_version_in_the_range_and_says_where_it_comes_from(
+        tmp_path: Path, held, built: str, end: str, version: str, from_index: bool):
+    wheels = _sdk_wheels(tmp_path / "wheels", built)
+    [choice] = I.sdk_choices(Requirement("cs-image-system-thing-plugin"), wheels, end, _versions(*held))
+    assert (choice.name, str(choice.version), choice.from_index) == ("cs-image-system-base", version, from_index)
+    assert (I.FROM_INDEX in choice.said()) is from_index and (I.FROM_BUILD in choice.said()) is not from_index
+
+
+def test_a_range_that_neither_the_index_nor_the_build_satisfies_is_an_error(tmp_path: Path):
+    wheels = _sdk_wheels(tmp_path / "wheels", "0.3.0")
+    with pytest.raises(ValueError, match="cs-image-system-base"):
+        I.sdk_choices(Requirement("cs-image-system-thing-plugin"), wheels, "high", _versions("0.1.10"))
+
+
+def test_an_index_that_cannot_be_asked_fails_the_run_and_nothing_is_guessed(tmp_path: Path):
+    def unasked(name: str):
+        raise I.IndexUnasked(f"{name}: no route to the index")
+    said: list[str] = []
+    root = tmp_path / "pkg"
+    root.mkdir()
+    work = tmp_path / "work"
+    work.mkdir()
+    shell = _Shell(tmp_path, junit=_junit(tests=4))
+    real_build = shell.__call__
+
+    def with_sdk(cmd, cwd):
+        done = real_build(cmd, cwd)
+        if " ".join(str(c) for c in cmd[:3]).startswith("uv build --all-packages"):
+            _sdk_wheels(Path(cmd[cmd.index("--out-dir") + 1]), "0.2.0")
+        return done
+    rc = I.run("thing", "cs-image-system-thing-plugin", root, [], copy_outside=False, sdk_end="low",
+               published=unasked, shell=with_sdk, say=said.append, work=work)
+    assert rc == 1 and "did not run" in said[-1] and "no route to the index" in said[-1]
+    assert not any("pytest" in c for c in shell.calls)

@@ -1,0 +1,119 @@
+# The surface of cs_image_system.hashicorp_utils as a plugin sees it, at the first release of its 0.2 line.
+# Written by `just surface-record`; compared by the library's own test. Never edited by hand.
+# middle: 2
+cs_image_system.hashicorp_utils.blocks:BlockSpec = class ()
+cs_image_system.hashicorp_utils.blocks:BlockSpec#args = field dict[str, Any] optional
+cs_image_system.hashicorp_utils.blocks:BlockSpec#children = field list[NestedBlock] optional
+cs_image_system.hashicorp_utils.blocks:BlockSpec#comment = field str | None optional
+cs_image_system.hashicorp_utils.blocks:BlockSpec#commented_out = field bool optional
+cs_image_system.hashicorp_utils.blocks:BlockSpec#kind = field str optional
+cs_image_system.hashicorp_utils.blocks:BlockSpec#label = field str required
+cs_image_system.hashicorp_utils.blocks:BlockSpec#labels = field list[str] | None optional
+cs_image_system.hashicorp_utils.blocks:BlockSpec#type = field str required
+cs_image_system.hashicorp_utils.blocks:BlockSpec.block = method (self, block_name: 'str', /, **args: 'Any') -> 'NestedBlock'
+cs_image_system.hashicorp_utils.blocks:BlockSpec.rendered_labels = method (self) -> 'list[str]'
+cs_image_system.hashicorp_utils.blocks:DataSpec = class (cs_image_system.hashicorp_utils.blocks.BlockSpec)
+cs_image_system.hashicorp_utils.blocks:DataSpec#args = field dict[str, Any] optional
+cs_image_system.hashicorp_utils.blocks:DataSpec#children = field list[NestedBlock] optional
+cs_image_system.hashicorp_utils.blocks:DataSpec#comment = field str | None optional
+cs_image_system.hashicorp_utils.blocks:DataSpec#commented_out = field bool optional
+cs_image_system.hashicorp_utils.blocks:DataSpec#kind = field str optional
+cs_image_system.hashicorp_utils.blocks:DataSpec#label = field str required
+cs_image_system.hashicorp_utils.blocks:DataSpec#labels = field list[str] | None optional
+cs_image_system.hashicorp_utils.blocks:DataSpec#type = field str required
+cs_image_system.hashicorp_utils.blocks:DataSpec.block = method (self, block_name: 'str', /, **args: 'Any') -> 'NestedBlock'
+cs_image_system.hashicorp_utils.blocks:DataSpec.rendered_labels = method (self) -> 'list[str]'
+cs_image_system.hashicorp_utils.blocks:OutputSpec = function (name: 'str', value: 'Any', description: 'str | None' = None, sensitive: 'bool' = False, comment: 'str | None' = None) -> 'BlockSpec'
+cs_image_system.hashicorp_utils.blocks:Raw = class ()
+cs_image_system.hashicorp_utils.blocks:ResourceSpec = class (cs_image_system.hashicorp_utils.blocks.BlockSpec)
+cs_image_system.hashicorp_utils.blocks:ResourceSpec#args = field dict[str, Any] optional
+cs_image_system.hashicorp_utils.blocks:ResourceSpec#children = field list[NestedBlock] optional
+cs_image_system.hashicorp_utils.blocks:ResourceSpec#comment = field str | None optional
+cs_image_system.hashicorp_utils.blocks:ResourceSpec#commented_out = field bool optional
+cs_image_system.hashicorp_utils.blocks:ResourceSpec#kind = field str optional
+cs_image_system.hashicorp_utils.blocks:ResourceSpec#label = field str required
+cs_image_system.hashicorp_utils.blocks:ResourceSpec#labels = field list[str] | None optional
+cs_image_system.hashicorp_utils.blocks:ResourceSpec#type = field str required
+cs_image_system.hashicorp_utils.blocks:ResourceSpec.block = method (self, block_name: 'str', /, **args: 'Any') -> 'NestedBlock'
+cs_image_system.hashicorp_utils.blocks:ResourceSpec.rendered_labels = method (self) -> 'list[str]'
+cs_image_system.hashicorp_utils.blocks:render_blocks = function (specs: 'Sequence[BlockSpec]', separator: 'str' = '') -> 'list[str]'
+cs_image_system.hashicorp_utils.collector:ConfiguredTerraformProvider = class ()
+cs_image_system.hashicorp_utils.collector:ConfiguredTerraformProvider#config = field dict[str, Any] optional
+cs_image_system.hashicorp_utils.collector:ConfiguredTerraformProvider#name = field str required
+cs_image_system.hashicorp_utils.collector:ConfiguredTerraformProvider#source = field str required
+cs_image_system.hashicorp_utils.collector:ConfiguredTerraformProvider#version = field str required
+cs_image_system.hashicorp_utils.collector:PackerVariableDecl = class ()
+cs_image_system.hashicorp_utils.collector:PackerVariableDecl#default = field Any | None optional
+cs_image_system.hashicorp_utils.collector:PackerVariableDecl#description = field str | None optional
+cs_image_system.hashicorp_utils.collector:PackerVariableDecl#env_var = field str | None optional
+cs_image_system.hashicorp_utils.collector:PackerVariableDecl#name = field str required
+cs_image_system.hashicorp_utils.collector:PackerVariableDecl#sensitive = field bool optional
+cs_image_system.hashicorp_utils.collector:PackerVariableDecl#type = field str optional
+cs_image_system.hashicorp_utils.collector:StateLocation = class ()
+cs_image_system.hashicorp_utils.collector:StateLocation#container = field str required
+cs_image_system.hashicorp_utils.collector:StateLocation#key = field str required
+cs_image_system.hashicorp_utils.collector:StateLocation#type = field str required
+cs_image_system.hashicorp_utils.collector:StateLocation.bucket = property
+cs_image_system.hashicorp_utils.collector:StateLocation.normalise_key = staticmethod (key: 'str | None') -> 'str'
+cs_image_system.hashicorp_utils.collector:StateLocation.of = classmethod (type: 'str', container: 'str', prefix: 'str | None', workspace: 'str') -> "'StateLocation'"
+cs_image_system.hashicorp_utils.collector:TerraformCollector = class ()
+cs_image_system.hashicorp_utils.collector:TerraformCollector.backend_record = method (self, workspace: 'str') -> 'dict[str, Any] | None'
+cs_image_system.hashicorp_utils.collector:TerraformCollector.backends_enabled = method (self) -> 'bool'
+cs_image_system.hashicorp_utils.collector:TerraformCollector.bind_workspace = method (self, workspace: 'str', *candidates: 'str | None') -> 'str'
+cs_image_system.hashicorp_utils.collector:TerraformCollector.bound_workspaces = method (self) -> 'list[str]'
+cs_image_system.hashicorp_utils.collector:TerraformCollector.configure_provider = method (self, workspace: 'str', name: 'str', config: 'dict[str, Any]', alias: 'str | None' = None) -> 'None'
+cs_image_system.hashicorp_utils.collector:TerraformCollector.declare_variable = method (self, workspace: 'str', variable: 'TerraformVariable') -> 'None'
+cs_image_system.hashicorp_utils.collector:TerraformCollector.effective_backend_name = staticmethod (*candidates: 'str | None') -> 'str'
+cs_image_system.hashicorp_utils.collector:TerraformCollector.generate_backend_config = method (self, workspace: 'str') -> 'list[str]'
+cs_image_system.hashicorp_utils.collector:TerraformCollector.generate_provider_blocks = method (self, workspace: 'str') -> 'list[str]'
+cs_image_system.hashicorp_utils.collector:TerraformCollector.generate_remote_state_datasources = method (self, workspace: 'str') -> 'list[str]'
+cs_image_system.hashicorp_utils.collector:TerraformCollector.generate_sensitive_blocks = method (self, workspace: 'str') -> 'list[str]'
+cs_image_system.hashicorp_utils.collector:TerraformCollector.generate_terraform_block = method (self, workspace: 'str') -> 'list[str]'
+cs_image_system.hashicorp_utils.collector:TerraformCollector.generate_variable_blocks = method (self, workspace: 'str') -> 'list[str]'
+cs_image_system.hashicorp_utils.collector:TerraformCollector.merged_providers = method (self, workspace: 'str') -> 'list[ConfiguredTerraformProvider]'
+cs_image_system.hashicorp_utils.collector:TerraformCollector.provider_bindings = method (self, workspace: 'str') -> 'dict[str, str]'
+cs_image_system.hashicorp_utils.collector:TerraformCollector.pull_declared_backends = method (self, models: 'Mapping[str, Any]') -> 'None'
+cs_image_system.hashicorp_utils.collector:TerraformCollector.reference_remote_state = method (self, consumer_workspace: 'str', producer_workspace: 'str', backend_name: 'str | None' = None, label: 'str | None' = None) -> 'None'
+cs_image_system.hashicorp_utils.collector:TerraformCollector.register_backend = method (self, registration: 'BackendRegistration') -> 'None'
+cs_image_system.hashicorp_utils.collector:TerraformCollector.render_backend_config = staticmethod (settings: 'dict[str, Any]', comment: 'str') -> 'list[str]'
+cs_image_system.hashicorp_utils.collector:TerraformCollector.require_provider = method (self, workspace: 'str', name: 'str', source: 'str | None' = None, version: 'str | None' = None, requested_by: 'str | None' = None) -> 'None'
+cs_image_system.hashicorp_utils.collector:TerraformCollector.reset = method (self) -> 'None'
+cs_image_system.hashicorp_utils.collector:TerraformCollector.resolve_backend = method (self, name_or_default: 'str | None') -> 'BackendRegistration | None'
+cs_image_system.hashicorp_utils.collector:TerraformCollector.sensitive_ref = method (self, workspace: 'str', key: 'str', value: 'Any') -> 'Any'
+cs_image_system.hashicorp_utils.collector:TerraformCollector.sensitive_values = method (self, workspace: 'str') -> 'dict[str, str]'
+cs_image_system.hashicorp_utils.collector:TerraformCollector.set_backend = method (self, workspace: 'str', backend_name: 'str' = 'default') -> 'None'
+cs_image_system.hashicorp_utils.collector:TerraformCollector.state_collisions = staticmethod (locations: 'dict[str, StateLocation]') -> 'list[str]'
+cs_image_system.hashicorp_utils.collector:TerraformCollector.state_locations = method (self) -> 'dict[str, StateLocation]'
+cs_image_system.hashicorp_utils.collector:TerraformCollector.validate_all = method (self) -> 'None'
+cs_image_system.hashicorp_utils.collector:TerraformCollector.validate_state_locations = method (self) -> 'None'
+cs_image_system.hashicorp_utils.collector:TerraformCollector.workspace_backend = method (self, workspace: 'str') -> 'BackendRegistration | None'
+cs_image_system.hashicorp_utils.collector:TerraformVariable = class ()
+cs_image_system.hashicorp_utils.collector:TerraformVariable#default = field Any | None optional
+cs_image_system.hashicorp_utils.collector:TerraformVariable#description = field str | None optional
+cs_image_system.hashicorp_utils.collector:TerraformVariable#name = field str required
+cs_image_system.hashicorp_utils.collector:TerraformVariable#sensitive = field bool optional
+cs_image_system.hashicorp_utils.collector:TerraformVariable#type = field str optional
+cs_image_system.hashicorp_utils.collector:packer_collector = function (ctx: 'CollectorContext') -> 'PackerCollector'
+cs_image_system.hashicorp_utils.collector:terraform_collector = function (ctx: 'CollectorContext') -> 'TerraformCollector'
+cs_image_system.hashicorp_utils.hashicorp:FO = constant FormatterOptions
+cs_image_system.hashicorp_utils.hashicorp:QString = class ()
+cs_image_system.hashicorp_utils.hashicorp:QString#quote_char = field str optional
+cs_image_system.hashicorp_utils.hashicorp:QString#quoted = field bool optional
+cs_image_system.hashicorp_utils.hashicorp:QString#value = field str required
+cs_image_system.hashicorp_utils.hashicorp:TerraformGenerator = class ()
+cs_image_system.hashicorp_utils.hashicorp:TerraformGenerator.generate_terraform = method (self, setup: 'dict[str, Any] | None' = None) -> 'list[str]'
+cs_image_system.hashicorp_utils.hashicorp:TerraformGenerator.generate_terraform_data = method (self, setup: 'dict[str, Any] | None' = None) -> 'list[str]'
+cs_image_system.hashicorp_utils.hashicorp_models:PackerPluginConfig = class (cs_image_system.hashicorp_utils.hashicorp_models.GenericPluginModel)
+cs_image_system.hashicorp_utils.hashicorp_models:PackerPluginConfig#config = field dict[str, typing.Any] optional
+cs_image_system.hashicorp_utils.hashicorp_models:PackerPluginConfig#name = field str required
+cs_image_system.hashicorp_utils.hashicorp_models:PackerPluginConfig#source = field str | None optional
+cs_image_system.hashicorp_utils.hashicorp_models:PackerPluginConfig#version = field str required
+cs_image_system.hashicorp_utils.hashicorp_models:TFTofuPluginModel = class (cs_image_system.hashicorp_utils.hashicorp_models.GenericPluginModel)
+cs_image_system.hashicorp_utils.hashicorp_models:TFTofuPluginModel#config = field dict[str, typing.Any] optional
+cs_image_system.hashicorp_utils.hashicorp_models:TFTofuPluginModel#name = field str required
+cs_image_system.hashicorp_utils.hashicorp_models:TFTofuPluginModel#source = field str | None optional
+cs_image_system.hashicorp_utils.hashicorp_models:TFTofuPluginModel#version = field str required
+cs_image_system.hashicorp_utils.testing:BareRun = class ()
+cs_image_system.hashicorp_utils.testing:BareRun.dry_run = attribute bool False
+cs_image_system.hashicorp_utils.testing:BareRun.plugin_state = method (self, key: 'str', factory: 'Callable[[], Any]') -> 'Any'
+cs_image_system.hashicorp_utils.testing:bare_run = function (**attrs: 'Any') -> 'BareRun'

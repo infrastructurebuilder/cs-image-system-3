@@ -11,6 +11,7 @@ path = [
   "tests/fixtures/**",
   "packages/*/tests/fixture/**",
   "packages/*/tests/golden/**",
+  "packages/*/surface-baseline.txt",
   "docs/**",
   "**/*.md",
   "uv.lock",

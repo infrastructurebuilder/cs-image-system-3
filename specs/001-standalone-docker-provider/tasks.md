@@ -56,7 +56,8 @@ Filled in as tasks complete.
 | Task | Record |
 | --- | --- |
 | T002 | `just test` before any change: passed on 2026-11-16, lint clean, type check 0 errors, 2,497 tests passed and 29 skipped, 21 min 31 s |
-| T003 | `just cli config-drift` exit status before any change: NOT YET TAKEN. The AWS session had expired (`just preflight`, 2026-11-16). Take it from the commit the branch started at (`git merge-base develop HEAD`) once a session is live |
+| T003 | `just cli config-drift` exit status before any change: **0**, taken on 2026-11-17 with the code of the commit the branch started at (`be648dbb`, in a temporary worktree) against the reference configuration at its `develop`. Its message: the committed emission is current with the configuration; the vendor's newest image has moved under a base the tree has not baked (1 line), which is not a change of the tree's. 3 min 40 s. The after-reading (T103) must also be 0; the vendor-image line may differ by the day |
+| Postponed | Found at T022 and postponed by the operator on 2026-11-17: a docker instance root carries remote-state blocks for every storage builder the configuration declares, whichever provider it belongs to. Not part of this specification; do not change it here |
 | T011 | Phase 2 checkpoint: `just test` passed, 2,497 passed and 29 skipped (the same as T002), shared fixture and golden untouched |
 | T019 | Shared golden after the merge (must be unmoved): UNMOVED. Full `just test` on 2026-11-16: lint clean, type check 0 errors, 2,491 passed, 29 skipped, 1 failed (`tests/test_module_sources.py`, an expectation naming the old distribution; corrected, and that file then passed alone, 18 tests). One value does derive from the distribution's name: the namespace a shipped Terraform module is listed and stamped under is now `docker`, was `docker-runtime`. It is not in any emission. A `.csis-module` stamp in a configuration changes only when that module's copy is next rewritten |
 | T012 | Not yet done from this task: the package's `test` extra and its own pytest settings. They are added with T028 to T030, where they are first used |
@@ -65,10 +66,24 @@ Filled in as tasks complete.
 | T012, T027 | The package's `test` extra names the command line (with its `testing` extra) and the six core plugins whose `type:` words the fixture declares, not the top-level package: naming `cs-image-system` makes a dependency cycle with its `docker` extra, which the release tooling refuses |
 | T033 | Story 1 checkpoint, 2026-11-16: `just test` passed end to end (lint clean, type check 0 errors, 2,510 tests passed and 29 skipped, then `test-docker-alone`: 24 passed and 0 skipped in place, and the same from a copy outside the workspace), 22 min 20 s. Shared fixture and golden untouched. T024 to T026 are still open |
 | T026 | `test_bootstrap_docker.py`: ported or left, and why: |
-| T034 | Does the core's image builder emit with Packer's `null` source: |
-| T037 | `test_ansible_only_modifications.py`: ported or moved: |
-| T066 to T068 | Each Terraform-library test file: ported or moved: |
-| T073 | Was the contract package changed, and its new version if so: |
+| T034 | Does the core's image builder emit with Packer's `null` source: YES (2026-11-17). With the test-double runtime a stubbed run emits a base image and an instance image with a shell and an ansible modification. The fixture must declare an image source for the double, since no catalog ships one |
+| T037 | `test_ansible_only_modifications.py`: PORTED to the test kit and the core fixture; what it asserts did not change. Two more tests failed in the empty environment and were moved whole: the example plugin's conformance test to `packages/contract-example-plugin/tests/test_example_conforms.py`, and the local-state test that needs the S3 backend kind to `tests/test_state_locations.py`. A contract test now reads its manifest from beside the test file instead of beside the installed module |
+| T036, T038 | The core's fixture and golden are `packages/system/tests/fixture` and `packages/system/tests/golden` (not `core_fixture` and `core_golden` as the plan named them), so one licence rule covers every package's own fixture and golden. Golden: 32 files |
+| T039 to T041 | `test-mods` with no stand-in installed used to exit 0 with every result `unsupported`. It now says the tests did not run and exits 1 unless `--allow-not-run` is given. Every recipe here and in the starters already passes `--strict` |
+| T044 | Story 2 checkpoint, 2026-11-17: `just test` passed end to end: lint clean, type check 0 errors, 2,526 passed and 29 skipped, then `test-core` 267 passed and 0 skipped, then `test-docker-alone` 24 passed and 0 skipped twice. 24 min 11 s. Shared fixture and golden untouched |
+| After T044 | Verified 2026-11-17 by a full `just test` with the restore in place: lint clean, type check 0 errors, 2,532 passed and 29 skipped, `test-core` 269 passed and 0 skipped, `test-docker-alone` 26 passed and 0 skipped twice, 23 min 37 s, shared fixture and golden untouched. At the operator's request (2026-11-17): the root logger is restored after every test. The restore's body is `cs_image_system.system.testing.isolation.root_logger_restored`; `conftest.py` (root), `packages/conftest.py` and the docker suite's conftest make it a fixture. A two-test proof sits in `tests/`, `packages/system/tests/` and the docker suite. `scripts/isolated-run` now passes `--confcutdir` so the conftest at a run's root applies. One test that read a logged word (`tests/test_mod_test_containers.py`) now asserts what the target saw |
+| T066 to T068 | `test_packer_collector.py`: PORTED (its run holder now comes from `cs_image_system.hashicorp_utils.testing`, moved there from the test kit, which may not import this library). `test_terraform_collector.py` (26 tests): MOVED whole to `tests/`; its sample backend throughout is the S3 plugin's backend kind. `test_roots.py`: SPLIT; three tests without a backend stay, three that need the S3 backend kind moved to `tests/test_roots_with_a_state_backend.py` |
+| T065 | `tofu-roots` passed the import check as soon as the kit's declaration was seeded (it lists `_get_context` and the other members the roots use as hooks). The check's scan of a library's private members now leaves out the library's `testing` module: matching is by name, and a test helper's `_state` was being reported against plugins' own attributes |
+| T070 | Three runs, all with the roots library and what it declares installed: the roots at the high end, the collectors at the high end, the roots at the low end. The collectors' suite needs the kit for its baseline test, so it runs in the pair's environment, not alone |
+| T071 | FR-026 checkpoint, 2026-11-17: `just test` passed end to end: lint clean, type check 0 errors, 2,586 passed and 29 skipped, `test-core` 290, `test-terraform-alone` 4, 24 and 4, `test-docker-alone` 28, 28 and 24, all with 0 skipped. Shared fixture and golden untouched |
+| T045 to T047 | The three declarations were seeded from what every plugin uses today and committed as seeded: the kit 55 names in 41 modules and 9 hook names; `hashicorp-utils` 18 names; `tofu-roots` 11 names and 32 hook names. Not yet read and trimmed by a person |
+| T048 | The check also lets a plugin import a plugin it DECLARES as a dependency (read from the manifest beside its sources, or `--family`): the AWS and Google Cloud roots import their runtimes, and the spec leaves them alone. Its entry point is the module `cs_image_system.base.surface.cli`; `check` holds `findings`, `record` the baseline |
+| T050 | Replacing `tests/test_plugin_imports.py` left a dead link in the contract's README, so the CONTRACT IS NOW 0.4.3 (a PATCH: its README names the new test; nothing a plugin observes changed). Five documents that named the old test were corrected |
+| T052 to T054 | Baselines: `packages/base/surface-baseline.txt` (about 1,640 lines), `packages/hashicorp-utils/surface-baseline.txt` (115), `packages/tofu-roots/surface-baseline.txt` (256). A third recipe was added, `just surface-check`, which the release's probes run |
+| T055, T056 | Both lines are at 0.2.0. `.bumpversion-kit.toml` and `.bumpversion-terraform.toml` name each exact pin, so neither line nor the workspace's bump can move another's. A test moves each line by `last` and by `middle` over a copy of the tree |
+| T061, T062 | The docker suite's conftest moved to `tests/pipeline/conftest.py`: the low-end environment holds the package, the SDK and the contract only (5 distributions), with no test kit to import |
+| T063 | Story 3 checkpoint, 2026-11-17: `just test` passed end to end: lint clean, type check 0 errors, 2,581 passed and 29 skipped, `test-core` 290 passed and 0 skipped, `test-docker-alone` 28 and 28 passed at the high end (in place, from the copy) and 24 at the low end, 0 skipped. 32 min 9 s (the suite itself took 30 min on this run). Shared fixture and golden untouched |
+| T073 | Was the contract package changed, and its new version if so: already at 0.4.3 since T050 (see above) |
 | T101 | Budget actuals written into plan.md: |
 | T102 to T104 | Quickstart steps 1 to 9, each result: |
 
@@ -88,7 +103,7 @@ Filled in as tasks complete.
   the Records table of
   `specs/001-standalone-docker-provider/tasks.md`. If it does not
   pass, stop and report: the feature must start from green.
-- [ ] T003 Run `just cli config-drift` against the reference
+- [X] T003 Run `just cli config-drift` against the reference
   configuration checked out beside this repository
   (`../cs-image-system-testconfig`) and record its exit status in the
   Records table of `specs/001-standalone-docker-provider/tasks.md`.
@@ -334,32 +349,32 @@ Cloud or Okta plugin (quickstart step 3).
 
 Serves FR-005 to FR-008. Decisions: research R4, R5, R17.
 
-- [ ] T034 [US2] Settle research R5 before building on it: in a
+- [X] T034 [US2] Settle research R5 before building on it: in a
   throwaway test, give the core's image builder a runtime whose
   `packer_source_type` is `null` and see whether a dry run emits.
   Record the answer in the Records table of
   `specs/001-standalone-docker-provider/tasks.md`. If it does not
   emit, the core fixture of T036 declares no image.
-- [ ] T035 [US2] Create the test-double runtime in
+- [X] T035 [US2] Create the test-double runtime in
   `packages/system/src/cs_image_system/system/testing/double.py`: a
   model and a `RuntimeBuilderBase` subclass that bake through Packer's
   `null` source and offer no instance, no storage and no stand-in,
   registered by the test kit for the length of one run and never as
   an installed entry point. It must name no provider.
-- [ ] T036 [US2] Create the core fixture in
+- [X] T036 [US2] Create the core fixture in
   `packages/system/tests/core_fixture/`: one runtime of the
   test-double's type, the local state backend, POSIX groups with the
   synthetic personas, one OS builder, the mod builders, and (if T034
   allows) one base image and one instance image. No provider-specific
   runtime and nothing that needs Okta.
-- [ ] T037 [US2] Port, or move,
+- [X] T037 [US2] Port, or move,
   `packages/ansible-plugin/tests/test_ansible_only_modifications.py`:
   onto the test kit and the core fixture if what it asserts survives,
   otherwise to `tests/`. Record which.
-- [ ] T038 [US2] Create `packages/system/tests/test_core_golden.py`,
+- [X] T038 [US2] Create `packages/system/tests/test_core_golden.py`,
   record `packages/system/tests/core_golden/`, and read every recorded
   file.
-- [ ] T039 [US2] Change stand-in selection in
+- [X] T039 [US2] Change stand-in selection in
   `packages/engine/src/cs_image_system/engine/mod_tests.py`
   (`stand_in_target_factory` near line 112, and the callers near lines
   297 to 338) and `stand_in_runtime_type` in
@@ -368,19 +383,19 @@ Serves FR-005 to FR-008. Decisions: research R4, R5, R17.
   `local_test_target()` returns a factory is used and named; two or
   more is an error until one is named; none, or one whose daemon does
   not answer, is a failure. It must never pick by name or by order.
-- [ ] T040 [US2] Add `--stand-in <runtime type>` and an explicit
+- [X] T040 [US2] Add `--stand-in <runtime type>` and an explicit
   exclusion option to the `test-mods` command in
   `packages/system/src/cs_image_system/system/cli.py` (near lines 864
   to 879), printing exactly the lines given under "The stand-in" in
   `specs/001-standalone-docker-provider/contracts/commands.md`.
   "Did not run" exits non-zero unless the exclusion was asked for.
-- [ ] T041 [US2] Test the stand-in in
+- [X] T041 [US2] Test the stand-in in
   `packages/engine/tests/test_stand_in.py` with stand-in runtime
   classes defined in the test: one installed; two installed and none
   named; two installed and one named; none installed; one installed
   whose factory returns nothing; and each of the last two with the
   exclusion.
-- [ ] T042 [US2] Add the recipe `test-core` to `Justfile`:
+- [X] T042 [US2] Add the recipe `test-core` to `Justfile`:
   `scripts/isolated-run` with a plain `cs-image-system` (no extras)
   and `cs-image-system-system[testing]`, on the `tests` directories of
   `packages/contract`, `packages/base`, `packages/engine`,
@@ -390,11 +405,11 @@ Serves FR-005 to FR-008. Decisions: research R4, R5, R17.
   `packages/posix-identity-plugin`. Any file there that still imports
   `harness` or `golden` from `tests/` fails the run: port it, or move
   it to `tests/`.
-- [ ] T043 [US2] Make `test` in `Justfile` run `test-core`, add the
+- [X] T043 [US2] Make `test` in `Justfile` run `test-core`, add the
   job `core-alone` to `.github/workflows/ci.yml` running
   `just test-core`, and update `tests/test_ci_workflow.py` and
   `tests/test_justfile_contract.py`.
-- [ ] T044 [US2] Checkpoint: `just test-core` passes with no skip and
+- [X] T044 [US2] Checkpoint: `just test-core` passes with no skip and
   lists no provider; `just test` passes; the shared golden is unmoved.
 
 **Checkpoint**: Stories 1 and 2 each pass on their own.
@@ -419,7 +434,7 @@ research R7 to R11.
 
 ### Surfaces and the import check
 
-- [ ] T045 [US3] Create
+- [X] T045 [US3] Create
   `packages/base/src/cs_image_system/base/surface.py` with the
   declaration's structure (per module, the names a plugin may import;
   per class, the underscore-prefixed hooks a subclass may override or
@@ -428,11 +443,11 @@ research R7 to R11.
   imports from `cs_image_system.base` today and from the kit's
   underscore members they override or call (`_get_context` and
   `_model` among them), then read it and trim it by hand.
-- [ ] T046 [P] [US3] Create
+- [X] T046 [P] [US3] Create
   `packages/hashicorp-utils/src/cs_image_system/hashicorp_utils/surface.py`
   with that library's declaration, seeded the same way. It must import
   nothing of the kit: this library depends on the contract alone.
-- [ ] T047 [P] [US3] Create
+- [X] T047 [P] [US3] Create
   `packages/tofu-roots/src/cs_image_system/tofu_roots/surface.py` with
   that library's declaration, naming as hooks every underscore member
   the roots plugins override or call (`_provider_name`,
@@ -442,7 +457,7 @@ research R7 to R11.
   `_runtime_builder`, `_image_var`, `_launch_template_variables`,
   `_storage_builder_name`, `_storage_outputs_reference`, and any other
   the seed finds).
-- [ ] T048 [US3] Implement the import check in
+- [X] T048 [US3] Implement the import check in
   `packages/base/src/cs_image_system/base/surface.py`, runnable as
   `python -m cs_image_system.base.surface check <source directory>`
   and with `--tests`, and callable returning a list of findings. It
@@ -453,20 +468,20 @@ research R7 to R11.
   `specs/001-standalone-docker-provider/contracts/sdk-surface.md`.
   `--tests` also allows `cs_image_system.system.testing` and the
   plugin's own `testing` module.
-- [ ] T049 [US3] Test the check in
+- [X] T049 [US3] Test the check in
   `packages/base/tests/test_surface_check.py` on small source trees
   written by the test: a listed name passes; an unlisted kit name
   fails with "not on the surface"; an unlisted underscore member fails
   with "private to"; an engine import fails; another plugin's import
   fails; the plugin's own modules pass; and `--tests` allows the test
   kit.
-- [ ] T050 [US3] Replace `tests/test_plugin_imports.py` with
+- [X] T050 [US3] Replace `tests/test_plugin_imports.py` with
   `tests/test_plugins_keep_to_the_surface.py`: every plugin under
   `packages/*/src` and both Terraform libraries pass the check. Delete
   the old file, and delete the assertion in
   `tests/test_import_closure.py` (lines 84 to 94) that a plugin
   reaches every kit module.
-- [ ] T051 [US3] Run the check with `--tests` on
+- [X] T051 [US3] Run the check with `--tests` on
   `packages/docker-plugin/tests` from
   `packages/docker-plugin/tests/unit/test_keeps_to_the_surface.py`,
   and on `packages/docker-plugin/src` from the same file, so the
@@ -474,7 +489,7 @@ research R7 to R11.
 
 ### Baselines and the two version lines
 
-- [ ] T052 [US3] Add the surface record to
+- [X] T052 [US3] Add the surface record to
   `packages/base/src/cs_image_system/base/surface.py`: for each
   declared entry, what
   `specs/001-standalone-docker-provider/data-model.md` lists under
@@ -486,7 +501,7 @@ research R7 to R11.
   `packages/hashicorp-utils/surface-baseline.txt` and
   `packages/tofu-roots/surface-baseline.txt`, each headed by its
   middle number.
-- [ ] T053 [US3] Add the baseline check as a test in each library's
+- [X] T053 [US3] Add the baseline check as a test in each library's
   own suite (`packages/base/tests/test_surface_baseline.py`,
   `packages/hashicorp-utils/tests/test_surface_baseline.py`,
   `packages/tofu-roots/tests/test_surface_baseline.py`) with the three
@@ -497,10 +512,10 @@ research R7 to R11.
   a removed entry fails naming it; a changed parameter, default,
   annotation, model field and constant value each fail naming the
   entry and both forms; a higher middle number asks for a re-record.
-- [ ] T054 [US3] Add the recipe `surface-record` to `Justfile`,
+- [X] T054 [US3] Add the recipe `surface-record` to `Justfile`,
   rewriting the three baselines and refusing when the middle number
   equals the baseline's and an entry would be removed or changed.
-- [ ] T055 [US3] Open the two version lines. Set `version = "0.2.0"`
+- [X] T055 [US3] Open the two version lines. Set `version = "0.2.0"`
   in `packages/base/pyproject.toml`,
   `packages/hashicorp-utils/pyproject.toml` and
   `packages/tofu-roots/pyproject.toml`. Rewrite every exact pin on
@@ -511,29 +526,29 @@ research R7 to R11.
   on them even when the two numbers happen to be equal. Create
   `.bumpversion-kit.toml` and `.bumpversion-terraform.toml`. Run
   `uv lock`.
-- [ ] T056 [US3] Add the recipe `sdk-bump` to `Justfile`, taking
+- [X] T056 [US3] Add the recipe `sdk-bump` to `Justfile`, taking
   `kit` or `terraform` and `last` or `middle`, behaving as
   `specs/001-standalone-docker-provider/contracts/commands.md` says.
-- [ ] T057 [US3] Put docker on ranges in
+- [X] T057 [US3] Put docker on ranges in
   `packages/docker-plugin/pyproject.toml`:
   `cs-image-system-base>=0.2,<0.3`,
   `cs-image-system-hashicorp-utils>=0.2,<0.3`,
   `cs-image-system-tofu-roots>=0.2,<0.3`. Run `uv lock`.
-- [ ] T058 [US3] Update the tests that assert one shared version and
+- [X] T058 [US3] Update the tests that assert one shared version and
   exact pins: `tests/test_package_metadata.py` (lines 215 to 239 and
   349 to 377) and `tests/test_contract_version.py` (lines 96 and 100).
   The new rule they hold: a package listed under `glob_exclude` has
   its own version; every pin on an SDK member is exact, at its line's
   version, except a provider's, which is a range covering one middle
   number.
-- [ ] T059 [US3] Confirm the release scripts treat the three as they
+- [X] T059 [US3] Confirm the release scripts treat the three as they
   treat the contract, and correct the comments that name the contract
   as the only such package: `scripts/own-versions-current`,
   `scripts/publish-target-ready`, `scripts/dev-pin-resolves`. Extend
   `tests/test_own_version_builds_match_the_index.py` and
   `tests/test_publish_target.py` where they list own-versioned
   packages.
-- [ ] T060 [US3] Make the release refusal say why: in
+- [X] T060 [US3] Make the release refusal say why: in
   `scripts/release.py`, beside `own_versions_or_refuse` (near line
   537), run the three baseline checks before anything is built and
   refuse naming the library and the entry. Test it in
@@ -541,7 +556,7 @@ research R7 to R11.
 
 ### Both ends of the range
 
-- [ ] T061 [US3] Teach `scripts/isolated-run` the two ends: read the
+- [X] T061 [US3] Teach `scripts/isolated-run` the two ends: read the
   ranges from the family's manifest; for the low end install the
   lowest version of each SDK line and run only the named unit paths
   and the import check; for the high end install the highest and run
@@ -551,9 +566,9 @@ research R7 to R11.
   `<library> <version> from this repository's build (development
   install)`. When the two ends are the same version, say so and still
   run the low-end tests. Extend `tests/test_isolated_run.py`.
-- [ ] T062 [US3] Add the low-end run to the `test-docker-alone` recipe
+- [X] T062 [US3] Add the low-end run to the `test-docker-alone` recipe
   in `Justfile`, on `packages/docker-plugin/tests/unit`.
-- [ ] T063 [US3] Checkpoint: `just test-docker-alone` prints the
+- [X] T063 [US3] Checkpoint: `just test-docker-alone` prints the
   source of each SDK library for three runs and passes; `just test`
   passes; the shared golden is unmoved.
 
@@ -571,28 +586,28 @@ skipped (quickstart step 4), and the reverse-direction test passes.
 
 Depends on Phases 2 and 5. Decision: research R22.
 
-- [ ] T064 Pin the kit by a range in
+- [X] T064 Pin the kit by a range in
   `packages/tofu-roots/pyproject.toml`
   (`cs-image-system-base>=0.2,<0.3`), keep its pin on
   `cs-image-system-hashicorp-utils` exact at the Terraform line's
   version, and run `uv lock`.
-- [ ] T065 Make `packages/tofu-roots/src` pass the import check with
+- [X] T065 Make `packages/tofu-roots/src` pass the import check with
   no exception: each kit member it uses is either on the kit's surface
   in `packages/base/src/cs_image_system/base/surface.py` (as a named
   hook, for `_get_context`) or no longer used.
-- [ ] T066 [P] Port, or move,
+- [X] T066 [P] Port, or move,
   `packages/hashicorp-utils/tests/test_terraform_collector.py` off
   `tests/harness.py`. Record which.
-- [ ] T067 [P] Port, or move,
+- [X] T067 [P] Port, or move,
   `packages/hashicorp-utils/tests/test_packer_collector.py` off
   `tests/harness.py`. Record which.
-- [ ] T068 [P] Port, or move, `packages/tofu-roots/tests/test_roots.py`
+- [X] T068 [P] Port, or move, `packages/tofu-roots/tests/test_roots.py`
   off `tests/harness.py`. Record which.
-- [ ] T069 Hold the reverse direction in `tests/test_contract.py`: no
+- [X] T069 Hold the reverse direction in `tests/test_contract.py`: no
   module under `packages/contract/src`, `packages/base/src`,
   `packages/engine/src`, `packages/system/src` or `src` imports
   `cs_image_system.hashicorp_utils` or `cs_image_system.tofu_roots`.
-- [ ] T070 Add the recipe `test-terraform-alone` to `Justfile`:
+- [X] T070 Add the recipe `test-terraform-alone` to `Justfile`:
   `scripts/isolated-run` with the two libraries and their declared
   dependencies only, at both ends of the kit range that `tofu-roots`
   declares, the whole of both packages' tests at the high end and
@@ -600,7 +615,7 @@ Depends on Phases 2 and 5. Decision: research R22.
   run it, add the job `terraform-alone` to
   `.github/workflows/ci.yml`, and update `tests/test_ci_workflow.py`
   and `tests/test_justfile_contract.py`.
-- [ ] T071 Checkpoint: `just test-terraform-alone` passes with no
+- [X] T071 Checkpoint: `just test-terraform-alone` passes with no
   skip and lists as installed only the two libraries, the kit, the
   contract and third-party packages; `just test` passes.
 

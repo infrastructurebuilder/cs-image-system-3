@@ -2,13 +2,17 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""The docker family's own suite.
+"""The docker family's pipeline tests: what needs a whole run.
 
-``unit/`` needs the contract, the kit, the two terraform libraries and this
-package, and nothing else. ``pipeline/`` drives a whole stubbed run over the
-family's own fixture (``fixture/``) through the published test kit, with
-this package's own stubs standing in for the daemon, and compares what the
-run emits with the family's own golden (``golden/``).
+The family's suite has two halves. ``unit/`` needs the contract, the SDK
+(the kit and the two terraform libraries) and this package, and nothing
+else: it is what runs at the LOW end of the SDK range the package declares,
+in an environment that holds no command line and no test kit, so nothing
+that half needs may live in a conftest above it. ``pipeline/`` (this
+directory) drives a whole stubbed run over the family's own fixture
+(``../fixture``) through the published test kit, with this package's own
+stubs standing in for the daemon, and compares what the run emits with the
+family's own golden (``../golden``).
 
 Nothing here imports another provider or a helper kept outside this
 package's directory: the suite passes with only this package, what it
@@ -23,11 +27,17 @@ import pytest
 
 from cs_image_system.docker_runtime import testing as docker_testing
 from cs_image_system.system import testing as kit
+from cs_image_system.system.testing import isolation
 from cs_image_system.tofu_roots import testing as roots_testing
 
-HERE = Path(__file__).resolve().parent
-FIXTURE = HERE / "fixture"
-GOLDEN = HERE / "golden"
+# every pipeline test finds the root logger as the session started it,
+# wherever the suite runs from: its isolated run starts in this package's
+# directory and sees no conftest above it
+root_logger_restored = pytest.fixture(autouse=True)(isolation.root_logger_restored)
+
+TESTS = Path(__file__).resolve().parents[1]
+FIXTURE = TESTS / "fixture"
+GOLDEN = TESTS / "golden"
 #: what stands in for the outside world in a stubbed run of the fixture: the
 #: daemon (this package's stubs) and the storage roots' read of live state
 STUBS = (docker_testing.stub, roots_testing.stub)

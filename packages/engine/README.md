@@ -13,7 +13,7 @@ the base classes, the models and what they import, which is what a
 plugin is written against. The direction is one way, contract <- kit <-
 engine. The engine imports the [contract](../contract/README.md) and the
 kit; the kit imports nothing of the engine, and no plugin imports the
-engine (`tests/test_contract.py`, `tests/test_plugin_imports.py`). The
+engine (`tests/test_contract.py`, `tests/test_plugins_keep_to_the_surface.py`). The
 line between the two is measured: `tests/test_import_closure.py`
 computes the closure of what the plugins and the terraform roots import
 from the core, over every edge (top-level, function-local and

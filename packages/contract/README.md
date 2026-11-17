@@ -116,15 +116,16 @@ vocabulary modules import nothing from the package.
 [tests/test_contract.py](../../tests/test_contract.py) holds that
 direction, holds the package to importing nothing from the core, and runs
 `assert_conforms` over every base class and every built-in plugin's models
-and builders; [tests/test_plugin_imports.py](../../tests/test_plugin_imports.py)
-holds what a plugin may import of the core (the base classes, the models,
-the two metadata abstractions) against a committed list of exceptions,
-which can only shrink and is empty today.
+and builders; [tests/test_plugins_keep_to_the_surface.py](../../tests/test_plugins_keep_to_the_surface.py)
+holds every plugin to what the kit declares a plugin may use of it (the
+kit's `surface` module: the names a plugin may import and the hooks it may
+override), with the kit's own check, the one a plugin outside this
+repository runs against itself.
 
 ### Version
 
 The contract carries a semantic version of its own, independent of the
-workspace's: `0.4.2` now, and 0.x until the operator decides otherwise
+workspace's: `0.4.3` now, and 0.x until the operator decides otherwise
 (the decision of 2026-11-05). What a bump means: a PATCH is a change no
 plugin can observe (a docstring, a test helper); a MINOR, while the
 version is 0.x, is a change a plugin can observe, so a protocol member
@@ -156,6 +157,7 @@ The versions so far:
 | `0.3.0` | A module added: `modules`, holding `MODULES_ENTRY_POINT_GROUP` (`cs_image_system.modules`), the entry-point group a plugin declares its terraform modules directory in, with the value `<package>:<dirname>`; the modules themselves are package data inside the plugin that owns them. A module added is something a plugin can observe, so while the contract is 0.x it is a MINOR step, and every dependent's range moved from `>=0.2,<0.3` ([the stage index](../../docs/CHANGES.md#s126)). |
 | `0.4.0` | Two members removed from `LaunchServiceProtocol`: `hostname_problems` and `register_enrollment_kind`, both pure contract functions a plugin reaches without a run (`launch_vocabulary.hostname_problems`, `enrollment.register_enrollment_kind`) and none reached through the service; the core's adapter loses them too. A member removed is something a plugin can observe, so while the contract is 0.x it is a MINOR step, and every dependent's range moved from `>=0.3,<0.4` ([the stage index](../../docs/CHANGES.md#s130)). |
 | `0.4.2` | Documents and the package's own import-direction test name the engine (`cs_image_system.engine`), the core's second package beside the kit; nothing a plugin can observe changed, so it is a PATCH ([the stage index](../../docs/CHANGES.md#s113)). |
+| `0.4.3` | This document names the test and the declaration that now hold what a plugin may import of the kit (the kit's `surface` module and `tests/test_plugins_keep_to_the_surface.py`, in place of `tests/test_plugin_imports.py`); nothing a plugin can observe changed, so it is a PATCH |
 
 ## Writing a plugin
 
@@ -265,8 +267,8 @@ bootstrap vocabulary and `FactsProtocol` are
 [`bootstrap`](src/cs_image_system/contract/bootstrap.py), and the
 enrollment-kind registry is
 [`enrollment`](src/cs_image_system/contract/enrollment.py); a plugin
-imports from the core only the kit's base classes, its models and the two
-metadata abstractions (`tests/test_plugin_imports.py` holds the rule).
+imports from the core only what the kit's surface declares
+(`tests/test_plugins_keep_to_the_surface.py` holds the rule).
 
 ## Prerequisites and integration
 

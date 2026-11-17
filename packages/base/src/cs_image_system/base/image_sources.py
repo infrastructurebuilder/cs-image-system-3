@@ -187,17 +187,43 @@ def packaged_default_entries(classes: Mapping[str, type]) -> list[ImageSource]:
     return merge_entries(_runtime_entries(classes))
 
 
-def stand_in_runtime_type(classes: Mapping[str, type]) -> str | None:
-    """The runtime type whose catalog block the local modification tests
-    read: the ``csis_name()`` of the first runtime builder class in
-    ``classes`` (a registry's ``runtime_builder_classes()``, by name) whose
-    ``local_test_target()`` is not None; None when none offers a local
-    target."""
-    for _name, cls in sorted(classes.items()):
+class StandInChoiceError(ValueError):
+    """The local stand-in cannot be settled: more than one installed runtime
+    can serve and none was named, or the one named cannot serve. The message
+    is the one line a command prints."""
+
+
+def stand_in_types(classes: Mapping[str, type]) -> list[str]:
+    """The runtime types that have declared themselves a local stand-in,
+    sorted: the ``csis_name()`` of every runtime builder class in
+    ``classes`` (a registry's ``runtime_builder_classes()``) whose
+    ``local_test_target()`` is not None. Returning a target factory from
+    that hook is the declaration; nothing else makes a runtime a stand-in."""
+    offered = set()
+    for cls in classes.values():
         hook = getattr(cls, "local_test_target", None)
         if callable(hook) and hook() is not None:
-            return str(cls.csis_name())
-    return None
+            offered.add(str(cls.csis_name()))
+    return sorted(offered)
+
+
+def stand_in_runtime_type(classes: Mapping[str, type], named: str | None = None) -> str | None:
+    """The runtime type whose catalog block the local modification tests
+    read and whose target they run on. With exactly one stand-in among
+    ``classes`` it is that one. With two or more, ``named`` says which,
+    and none named is a :class:`StandInChoiceError`: the choice is never
+    made by name or by order. ``named`` that cannot serve is the same
+    error. None when no installed runtime offers a local target."""
+    offered = stand_in_types(classes)
+    if named:
+        if named not in offered:
+            raise StandInChoiceError(
+                f"stand-in: {named} cannot serve; "
+                + (f"those that can: {', '.join(offered)}" if offered else "no installed plugin can"))
+        return named
+    if len(offered) > 1:
+        raise StandInChoiceError(f"stand-in: {', '.join(offered)} can both serve; name one with --stand-in")
+    return offered[0] if offered else None
 
 
 class ImageSourceCatalog:
@@ -212,6 +238,9 @@ class ImageSourceCatalog:
         self._reg = reg
         self._default: list[ImageSource] | None = None
         self._tree: list[ImageSource] = []
+        #: the stand-in the caller named for this run, when more than one
+        #: installed runtime can serve (:func:`stand_in_runtime_type`)
+        self.named_stand_in: str | None = None
 
     # A catalog is an identity object, like the registry it reads: a model
     # copy keeps its handle to the run's catalog and never clones it.
@@ -281,8 +310,9 @@ class ImageSourceCatalog:
         runtime type that offers the local test target
         (``stand_in_runtime_type``): the family's own, else the family it
         IS (a custom family with no container of its own is tested as what
-        it is). None when no installed runtime offers a local target."""
-        runtime_type = stand_in_runtime_type(self._classes())
+        it is). None when no installed runtime offers a local target; a
+        :class:`StandInChoiceError` when several do and none is named."""
+        runtime_type = stand_in_runtime_type(self._classes(), self.named_stand_in)
         if runtime_type is None:
             return None
         own = self.block(family, version, runtime_type)

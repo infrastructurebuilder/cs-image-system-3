@@ -1,0 +1,16 @@
+# The core's own fixture: one OS builder.
+# It declares no provider: its one runtime is the test kit's test-double
+# (cs_image_system.system.testing.double), which exists only inside a test run.
+os_builders:
+- name: base-10
+  is_default: true
+  identity_types:
+  - posix
+  storage_types: []
+  type: rhel
+  family: alma-linux
+  family_version: 10
+  runtimes:
+  - name: here-10
+    image_builder: pckr
+    ssh_username: root

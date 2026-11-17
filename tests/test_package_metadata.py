@@ -212,29 +212,67 @@ def contract_range(contract_version: str) -> str:
     return f"<0.{minor + 1},>=0.{minor}" if major == 0 else f"<{major + 1},>={major}"
 
 
-def test_every_sibling_pin_is_exactly_the_shared_version():
-    """41.2: the packages release together from one tag, so `>=` would let versions
-    mix and `~=` buys nothing; every version line and every pin is the one
-    version, and bump-my-version's current_version is it too. The contract is
-    the exception: its version is its own and every dependent
-    pins the range of its compatible series."""
+#: The packages that pin an SDK version line (the kit's; the two terraform
+#: libraries') by the range of its compatible series instead of exactly: the
+#: ones proven to stand alone at both ends of that range
+#: (`just test-docker-alone`, `just test-terraform-alone`).
+SDK_BY_RANGE = {"cs-image-system-docker-plugin", "cs-image-system-tofu-roots"}
+#: the SDK's two version lines; members of one line pin each other exactly
+SDK_VERSION_LINES = ({"cs-image-system-base"}, {"cs-image-system-hashicorp-utils", "cs-image-system-tofu-roots"})
+
+
+def own_versions(root: Path = REPO) -> dict[str, str]:
+    """The packages with a version of their own, with it: every manifest the
+    workspace's bump leaves alone (`glob_exclude`): the contract, and the SDK
+    on its two version lines (the kit; the two terraform libraries)."""
+    config = tomllib.loads((root / "pyproject.toml").read_text())["tool"]["bumpversion"]
+    out: dict[str, str] = {}
+    for entry in config["files"]:
+        for excluded in entry.get("glob_exclude", []):
+            project = _project(root / excluded)
+            out[canonicalize_name(project["name"])] = project["version"]
+    return out
+
+
+def expected_pin(owner: str, dependency: str, workspace: str, own: dict[str, str]) -> str:
+    """What ``owner`` must pin ``dependency`` as: the contract by the range of
+    its compatible series, always; an SDK member exactly at ITS version, or by
+    the range of its series from a package in SDK_BY_RANGE that is not on the
+    same version line; every other sibling exactly at the workspace's version."""
+    if dependency == CONTRACT:
+        return contract_range(own[CONTRACT])
+    if dependency in own:
+        same_line = any(owner in line and dependency in line for line in SDK_VERSION_LINES)
+        return contract_range(own[dependency]) if owner in SDK_BY_RANGE and not same_line else f"=={own[dependency]}"
+    return f"=={workspace}"
+
+
+def test_every_sibling_pin_is_the_version_its_rule_gives():
+    """41.2: the packages that release together from one tag pin each other
+    exactly at the workspace's version (`>=` would let versions mix), and
+    bump-my-version's current_version is it too. The packages with a version
+    of their own are the exceptions (``own_versions``): the contract, which
+    every dependent pins by the range of its compatible series, and the SDK's
+    members, pinned exactly at their own line's version by everything that
+    releases with them and by range from a provider that stands alone."""
     root = tomllib.loads(ROOT.read_text())
     version = root["project"]["version"]
     assert root["tool"]["bumpversion"]["current_version"] == version
     assert re.fullmatch(r"\d+\.\d+\.\d+(\.dev\d+)?", version), version
-    contract = _project(REPO / "packages/contract/pyproject.toml")["version"]
+    own = own_versions()
+    assert CONTRACT in own and {"cs-image-system-base", "cs-image-system-hashicorp-utils",
+                                "cs-image-system-tofu-roots"} <= set(own)
+    assert own["cs-image-system-hashicorp-utils"] == own["cs-image-system-tofu-roots"], "one line, two libraries"
     for path in [ROOT, *(p / "pyproject.toml" for p in PACKAGES)]:
         project = _project(path)
-        if canonicalize_name(project["name"]) == CONTRACT:
-            assert project["version"] == contract
-        else:
-            assert project["version"] == version, path
+        owner = canonicalize_name(project["name"])
+        assert project["version"] == own.get(owner, version), path
         pins = dict(_requirements(project)[0])
         for extra, reqs in _extras(project).items():         # the root's extras pin like its dependencies
             pins.update({f"{name} ({extra})": req for name, req in reqs.items()})
-        for name, req in pins.items():
-            expected = contract_range(contract) if name == CONTRACT else f"=={version}"
-            assert str(req.specifier) == expected, f"{project['name']} pins {name} as {req.specifier or 'unpinned'}"
+        for label, req in pins.items():
+            expected = expected_pin(owner, label.split(" ")[0], version, own)
+            assert str(req.specifier) == expected, f"{project['name']} pins {label} as {req.specifier or 'unpinned'}"
     for name, req in _dev_group(root).items():               # and so does the dev group
         assert str(req.specifier) == f"=={version}", f"the dev group pins {name} as {req.specifier or 'unpinned'}"
 
@@ -350,9 +388,10 @@ def test_a_bump_moves_every_version_line_and_every_pin_at_once(tree: Path):
     """41.4: one `bump-my-version bump patch` over a copy of the tree leaves no
     trace of the old version, and every version line and pin -- the root's
     dependencies, its extras and its dev group included -- is the new one;
-    the contract's own version and the range its dependents pin are untouched."""
+    the versions of the packages that keep their own (the contract, the SDK's
+    members) and every pin on them are untouched."""
     old = tomllib.loads(ROOT.read_text())["project"]["version"]
-    contract = _project(REPO / "packages/contract/pyproject.toml")["version"]
+    own = own_versions()
     r = _bump(tree, "bump", "patch")
     assert r.returncode == 0, r.stdout + r.stderr
     new = tomllib.loads((tree / "pyproject.toml").read_text())["tool"]["bumpversion"]["current_version"]
@@ -362,16 +401,13 @@ def test_a_bump_moves_every_version_line_and_every_pin_at_once(tree: Path):
         lines = [ln for ln in text.splitlines() if not ln.lstrip().startswith("#")]     # a comment may show an example
         assert not any(old in ln for ln in lines), f"{path.relative_to(tree)} still carries {old}"
         project = tomllib.loads(text)["project"]
-        if canonicalize_name(project["name"]) == CONTRACT:
-            assert project["version"] == contract, "the bump moved the contract's own version"
-        else:
-            assert project["version"] == new, path
+        owner = canonicalize_name(project["name"])
+        assert project["version"] == own.get(owner, new), f"{path}: the bump moved a version that is its own"
         pins = dict(_requirements(project)[0])
         for reqs in _extras(project).values():
             pins.update(reqs)
         for name, req in pins.items():
-            expected = contract_range(contract) if name == CONTRACT else f"=={new}"
-            assert str(req.specifier) == expected, (path, name)
+            assert str(req.specifier) == expected_pin(owner, name, new, own), (path, name)
     root_after = tomllib.loads((tree / "pyproject.toml").read_text())
     assert {str(r.specifier) for r in _dev_group(root_after).values()} == {f"=={new}"}
     assert {str(r.specifier) for r in _extras(root_after["project"])["all"].values()} == {f"=={new}"}
@@ -436,3 +472,36 @@ def test_the_index_probe_reads_versions_from_json_and_html_and_exits_by_knowledg
     out = capsys.readouterr()
     assert "knows cs-image-system 0.1.1.dev1" in out.out and "never seen never-seen" in out.out
     assert os.access(REPO / "scripts" / "index-knows", os.X_OK)
+
+
+SDK_LINES: dict[str, set[str]] = dict(zip(("kit", "terraform"), SDK_VERSION_LINES, strict=True))
+
+
+@pytest.mark.parametrize(("line", "part", "new"), [("kit", "last", "0.2.1"), ("kit", "middle", "0.3.0"),
+                                                   ("terraform", "last", "0.2.1"), ("terraform", "middle", "0.3.0")])
+def test_an_sdk_line_moves_alone_with_every_exact_pin_on_it_and_no_range(tree: Path, line: str, part: str, new: str):
+    """`just sdk-bump <line> <part>`, over a copy of the tree: the line's members take the new version and so
+    does every exact pin on them; the workspace's version, the contract, the other line and every range (a
+    provider's on the SDK, every dependent's on the contract) are untouched."""
+    config = f".bumpversion-{line}.toml"
+    shutil.copy(REPO / config, tree / config)
+    before = {p: tomllib.loads(p.read_text())["project"] for p in tree.rglob("pyproject.toml")}
+    old = own_versions(tree)
+    assert {old[m] for m in SDK_LINES[line]} == {"0.2.0"}, "the case is written for a line at 0.2.0"
+    r = _bump(tree, "bump", "--config-file", config, part)
+    assert r.returncode == 0, r.stdout + r.stderr
+    moved = SDK_LINES[line]
+    for path, was in before.items():
+        now = tomllib.loads(path.read_text())["project"]
+        owner = canonicalize_name(now["name"])
+        assert now["version"] == (new if owner in moved else was["version"]), path
+        was_pins, now_pins = dict(_requirements(was)[0]), dict(_requirements(now)[0])
+        for extra, reqs in _extras(now).items():
+            now_pins.update({f"{n} ({extra})": q for n, q in reqs.items()})
+            was_pins.update({f"{n} ({extra})": q for n, q in _extras(was)[extra].items()})
+        for label, req in now_pins.items():
+            exact_on_the_line = label.split(" ")[0] in moved and str(was_pins[label].specifier).startswith("==")
+            assert str(req.specifier) == (f"=={new}" if exact_on_the_line else str(was_pins[label].specifier)), (path, label)
+    docker = tomllib.loads((tree / "packages/docker-plugin/pyproject.toml").read_text())["project"]
+    assert all(str(q.specifier) == "<0.3,>=0.2" for n, q in _requirements(docker)[0].items()
+               if n in set().union(*SDK_LINES.values()))

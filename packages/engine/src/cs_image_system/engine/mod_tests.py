@@ -109,11 +109,13 @@ class LocalTarget(Protocol):
 TargetFactory = Callable[..., "LocalTarget | None"]
 
 
-def stand_in_target_factory(classes: Mapping[str, type]) -> tuple[str, TargetFactory] | None:
-    """The runtime type that offers the local test target and its factory,
-    read from the runtime builder classes in ``classes`` (the run's:
-    ``ctx.reg.runtime_builder_classes()``); None when none offers one."""
-    runtime_type = stand_in_runtime_type(classes)
+def stand_in_target_factory(classes: Mapping[str, type], named: str | None = None) -> tuple[str, TargetFactory] | None:
+    """The runtime type that serves as the local stand-in and its target
+    factory, read from the runtime builder classes in ``classes`` (the
+    run's: ``ctx.reg.runtime_builder_classes()``): the only one that offers
+    a target, or the one ``named`` when several do (none named is a
+    ``StandInChoiceError``); None when none offers one."""
+    runtime_type = stand_in_runtime_type(classes, named)
     if runtime_type is None:
         return None
     factory = classes[runtime_type].local_test_target()
@@ -268,9 +270,13 @@ def test_mod(ctx: "RunContext", image: Any, mod: Any, record: dict[str, Any],
 
 
 def run_mod_tests(ctx: "RunContext", images: list[str] | None = None,
-                  make_target=None, force: bool = False) -> list[ModTestResult]:
+                  make_target=None, force: bool = False, stand_in: str | None = None) -> list[ModTestResult]:
     """Test every modification of every (selected) instance image. Results
-    keyed by content hash are cached in meta-state; ``force`` re-tests."""
+    keyed by content hash are cached in meta-state; ``force`` re-tests.
+    ``stand_in`` names the runtime type that serves as the local stand-in
+    when more than one installed runtime can; with several and none named
+    a ``StandInChoiceError`` is raised before anything is tested."""
+    ctx.image_sources.named_stand_in = stand_in
     ms = ctx.meta_state
     previous = ms.read(MOD_TESTS_FILE).setdefault("results", {})
     results: list[ModTestResult] = []
@@ -295,7 +301,7 @@ def run_mod_tests(ctx: "RunContext", images: list[str] | None = None,
             # it; the tree's executables (cfg/executables.yml) tell its factory
             # which CLI to run
             if offered is None:
-                offered = stand_in_target_factory(ctx.reg.runtime_builder_classes())
+                offered = stand_in_target_factory(ctx.reg.runtime_builder_classes(), stand_in)
             if offered is None:
                 for mod, rec in zip(mods, records, strict=False):
                     results.append(ModTestResult(image=image.get_name(), mod=mod.get_name(), type=mod.get_type(),

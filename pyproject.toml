@@ -20,17 +20,17 @@ requires-python = ">=3.13"
 # The contract has a version of its own and is pinned to its compatible series.
 dependencies = [
     "cs-image-system-ansible-plugin==0.1.10",
-    "cs-image-system-base==0.1.10",
+    "cs-image-system-base==0.2.0",
     "cs-image-system-bash-mod-plugin==0.1.10",
     "cs-image-system-default-os-plugin==0.1.10",
     "cs-image-system-contract>=0.4,<0.5",
     "cs-image-system-engine==0.1.10",
-    "cs-image-system-hashicorp-utils==0.1.10",
+    "cs-image-system-hashicorp-utils==0.2.0",
     "cs-image-system-local-state-plugin==0.1.10",
     "cs-image-system-packer-plugin==0.1.10",
     "cs-image-system-posix-identity-plugin==0.1.10",
     "cs-image-system-system==0.1.10",
-    "cs-image-system-tofu-roots==0.1.10",
+    "cs-image-system-tofu-roots==0.2.0",
 ]
 
 # The extras: a provider's runtime plugin with its terraform-root and state-backend
@@ -169,7 +169,16 @@ replace = "=={new_version}\""
 
 [[tool.bumpversion.files]]
 glob = "packages/*/pyproject.toml"
-glob_exclude = ["packages/contract/pyproject.toml"]     # the contract's version is its own; its dependents pin a range
+# The packages with a version of their own: the contract (its dependents pin a range), and the SDK on its two
+# version lines -- the kit, and the two terraform libraries together (.bumpversion-kit.toml,
+# .bumpversion-terraform.toml; `just sdk-bump`). Every pin on an SDK member is at ITS line's version, which this
+# bump's `==<workspace version>` search never matches.
+glob_exclude = [
+    "packages/contract/pyproject.toml",
+    "packages/base/pyproject.toml",
+    "packages/hashicorp-utils/pyproject.toml",
+    "packages/tofu-roots/pyproject.toml",
+]
 search = "version = \"{current_version}\""
 replace = "version = \"{new_version}\""
 

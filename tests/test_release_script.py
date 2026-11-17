@@ -1170,3 +1170,24 @@ def test_the_recipes_are_wrappers_over_the_script():
         plan = _plan(*args)
         assert len(plan) == 1, (args, plan)                                    # a wrapper, not a program
         assert plan[0].startswith("uv run --no-sync --project ") and script + call in plan[0], (args, plan)
+
+
+SURFACE_CHECK = "just surface-check"
+SURFACE_LINE = "cs_image_system.base: cs_image_system.base.models.thing:Thing was removed from the surface"
+
+
+def test_a_surface_changed_without_its_version_number_is_refused_before_the_gate(tmp_path: Path):
+    """`just surface-check` failing is an entry of a declared surface removed or altered while the library's
+    middle number stands still. The release stops at the probes, with the entry said: no gate, no bump, no
+    tag, the tree as it was. Passing, the probe says nothing."""
+    root = _system_repo(tmp_path)
+    sibling = _sibling_repo(tmp_path)
+    shell = FakeShell([(SURFACE_CHECK, R.Done(1, SURFACE_LINE + "\n")), (OWN, R.Done(0, OWN_LINE + "\n")), *_answers(root)])
+    said: list[str] = []
+    with pytest.raises(R.Refused) as e:
+        _family(root, shell, sibling, env={"TEST_PYPI_TOKEN": "t"}, said=said).release("patch", "test")
+    assert e.value.code == 1 and e.value.message == f"release: {R.SURFACE}" and SURFACE_LINE in said
+    assert shell.first(OWN) < shell.first(SURFACE_CHECK)
+    for never in ("just test", "bump-my-version bump", "uv lock", "publish-dist"):
+        assert shell.count(never) == 0, never
+    assert _git(root, "status", "--porcelain") == "" and _git(root, "tag", "-l") == ""

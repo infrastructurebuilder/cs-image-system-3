@@ -1,0 +1,14 @@
+# The core's own fixture: the one group, a POSIX group, and so the tree's root group.
+# It declares no provider: its one runtime is the test kit's test-double
+# (cs_image_system.system.testing.double), which exists only inside a test run.
+groups:
+- name: pxgroup
+  type: posix-local
+  gid: 3101
+  description: '{{ group.name }} group'
+  members:
+  - taylor_tango
+  - unity_uniform
+  admins:
+  - taylor_tango
+  is_root: true

@@ -654,12 +654,14 @@ backend or the location record. `state-locations.yaml` is read by
 `validate`'s move guard and by `state-migration begin`.
 
 **Tests that pin the behaviour.**
-[test_terraform_collector.py](../hashicorp-utils/tests/test_terraform_collector.py)
+[tests/test_terraform_collector.py](../../tests/test_terraform_collector.py)
 (the partial block, the file contents, the gate, default resolution,
 duplicate registration, the chain, rebinding, collisions, cross-backend
 reads, the backend record);
-[test_roots.py](../tofu-roots/tests/test_roots.py) (the `init`
-arguments in dry and real runs, the runner's init, the backend file path);
+[tests/test_roots_with_a_state_backend.py](../../tests/test_roots_with_a_state_backend.py)
+(the `init` arguments in dry and real runs, the runner's init) and the roots
+library's own [test_roots.py](../tofu-roots/tests/test_roots.py) (the backend
+file path);
 [tests/test_state_locations.py](../../tests/test_state_locations.py)
 (every root resolves and is recorded, the runtime rung, collisions and
 undeclared names refused, the move guard with and without deployed
@@ -724,8 +726,8 @@ arrive from tofu; the rest are the load's and `validate`'s refusals.
   sources; the core hands it the registrations at load.
 - [hashicorp-utils roots.py](../tofu-roots/src/cs_image_system/tofu_roots/roots.py):
   `TerraformRootMixin`, the `init` argument rules and the deferred sequence.
-- [hashicorp-utils tests/test_terraform_collector.py](../hashicorp-utils/tests/test_terraform_collector.py)
-  and [tests/test_roots.py](../tofu-roots/tests/test_roots.py): the unit
+- [tests/test_terraform_collector.py](../../tests/test_terraform_collector.py)
+  and [tests/test_roots_with_a_state_backend.py](../../tests/test_roots_with_a_state_backend.py): the unit
   tests that pin the backend block, the partial configuration and the init
   arguments.
 - [tests/test_state_encryption.py](../../tests/test_state_encryption.py):

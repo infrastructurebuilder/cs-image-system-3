@@ -1,0 +1,20 @@
+# The core's own fixture: one instance image, with a shell and an ansible modification.
+# It declares no provider: its one runtime is the test kit's test-double
+# (cs_image_system.system.testing.double), which exists only inside a test run.
+images:
+- name: imgfile-core
+  group: pxgroup
+  source_image: base-10
+  description: An image the core bakes by itself
+  type: pckr
+  runtimes:
+  - image_builder: pckr
+  modifications:
+  - name: core-shell
+    type: bash-remote
+    script:
+    - echo hello
+  - name: core-ansible
+    type: ansible-default
+    playbooks:
+    - setup_dask.yml

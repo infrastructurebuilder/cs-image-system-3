@@ -37,6 +37,7 @@ from cs_image_system.base.encryption import (
     reset_decrypted_plaintexts,
     rotate_text,
 )
+from cs_image_system.base.image_sources import StandInChoiceError, stand_in_runtime_type
 from cs_image_system.base.lifecycles import all_lifecycles, parse_lifecycles
 from cs_image_system.base.network_facts import NetworkFactsError
 from cs_image_system.base.utils import apply_flag_allows, in_directory, is_base
@@ -861,22 +862,46 @@ def test_mods_command(
     ctx: typer.Context,
     image: Annotated[list[str] | None, typer.Option("--image", help="Only these instance images")] = None,
     force: Annotated[bool, typer.Option("--force", help="Re-test mods that already passed")] = False,
-    strict: Annotated[bool, typer.Option("--strict", help="Exit nonzero when tests are skipped (no container daemon)")] = False,
+    strict: Annotated[bool, typer.Option("--strict", help="Exit nonzero when any test did not run for any reason (an OS family with no local test image included)")] = False,
+    stand_in: Annotated[str | None, typer.Option("--stand-in", help="The runtime type that supplies the local container, when more than one installed plugin can")] = None,
+    allow_not_run: Annotated[bool, typer.Option("--allow-not-run", help="Record tests that could not run (no stand-in installed, or its daemon did not answer) as excluded, and exit 0")] = False,
 ) -> None:
     """Run every modification against a throwaway local container, twice
-    (apply + idempotence); results in meta-state/mod-tests.yaml (EXPLORE)."""
-    results = run_mod_tests(_loaded(ctx), images=image, force=force)
+    (apply + idempotence); results in meta-state/mod-tests.yaml (EXPLORE).
+
+    The container comes from the local stand-in: the one installed runtime
+    that declares it can supply one, or the one --stand-in names when
+    several can. Tests that could not run are a failure, never a pass,
+    unless --allow-not-run asks for the exclusion."""
+    loaded = _loaded(ctx)
+    try:
+        chosen = stand_in_runtime_type(loaded.reg.runtime_builder_classes(), stand_in)
+    except StandInChoiceError as e:
+        typer.secho(str(e), fg=typer.colors.RED, err=True)
+        raise typer.Exit(code=1) from None
+    if chosen is not None:
+        typer.secho(f"stand-in: {chosen} ({'named with --stand-in' if stand_in else 'the only one installed'})", err=True)
+    results = run_mod_tests(loaded, images=image, force=force, stand_in=stand_in)
     typer.echo(json.dumps([r.to_dict() for r in results], indent=2, sort_keys=True))
     failed = [r for r in results if r.status == "fail" or r.idempotent is False]
     skipped = [r for r in results if r.status in ("skipped", "unsupported")]
+    # what could not run for want of a stand-in: its daemon did not answer, or
+    # (with none installed) there was no container to name at all
+    not_run = [r for r in results if r.status == "skipped" or (chosen is None and r.status == "unsupported")]
     unstarted = [r for r in results if r.status == "unstarted"]
+    if not_run:
+        why = (f"{chosen} did not answer ({not_run[0].detail})" if chosen is not None
+               else "no installed plugin can serve")
+        typer.secho(f"stand-in: {why}; the modification tests did not run"
+                    + (" (excluded: --allow-not-run)" if allow_not_run else ""),
+                    fg=typer.colors.YELLOW if allow_not_run else typer.colors.RED, err=True)
     for r in failed:
         typer.secho(f"FAIL {r.image}/{r.mod}: rc={r.first_run_rc}/{r.second_run_rc} idempotent={r.idempotent} "
                     f"{r.changes_on_rerun or r.detail[:200]}", fg=typer.colors.RED, err=True)
     for r in unstarted:
         # nothing about the modification was tested; the daemon's words, not a traceback
         typer.secho(f"CANNOT START {r.image}/{r.mod}: {r.detail}", fg=typer.colors.RED, err=True)
-    if failed or unstarted or (strict and skipped):
+    if failed or unstarted or (strict and skipped) or (not_run and not allow_not_run):
         raise typer.Exit(code=1)
     typer.secho(f"mod tests: {len(results) - len(skipped)} tested, {len(skipped)} skipped, 0 failed",
                 fg=typer.colors.GREEN)

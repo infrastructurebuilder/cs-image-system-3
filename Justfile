@@ -51,11 +51,13 @@ build:
 	@uv build --all-packages
 
 # The fast suite, every check blocking: lint (ruff), type-check (pyright), the
-# unit tests (the golden emission included), and the docker family's own suite
-# in an environment that holds only that package (`test-docker-alone`). The
-# local acceptance bar; `verify` is its alias.
-[doc("The fast suite, all blocking: lint (ruff), type-check (pyright), the unit tests, the docker family alone; `verify` is its alias")]
-test: lint typecheck pytest test-docker-alone
+# unit tests (the golden emission included), the core's own suite with no
+# provider installed (`test-core`), the two terraform libraries' own suites
+# with nothing but themselves (`test-terraform-alone`) and the docker family's
+# own suite in an environment that holds only that package
+# (`test-docker-alone`). The local acceptance bar; `verify` is its alias.
+[doc("The fast suite, all blocking: lint (ruff), type-check (pyright), the unit tests, then the core, the terraform libraries and the docker family each alone; `verify` is its alias")]
+test: lint typecheck pytest test-core test-terraform-alone test-docker-alone
 
 # Everything `test` does plus the slow and external legs: the
 # modification tests under docker (`test-mods --strict`), and -- only when
@@ -276,18 +278,98 @@ typecheck:
 pytest:
 	@uv run pytest
 
+# Move one of the SDK's two version lines: LINE is `kit` (cs-image-system-base) or `terraform`
+# (cs-image-system-hashicorp-utils and cs-image-system-tofu-roots together); PART is `last` (any change that
+# removes or alters nothing on a declared surface) or `middle` (a declared name or hook removed or altered).
+# The member's own version and every exact pin on it move; the workspace's version, the contract, the other
+# line and every range do not. After `middle`: move the ranges that name the line by hand, and run
+# `just surface-record`.
+[doc("Move one SDK version line: `kit` or `terraform`, by `last` or `middle`; ranges are yours to move after `middle`")]
+sdk-bump line part:
+	#!/usr/bin/env bash
+	set -euo pipefail
+	case "{{line}}" in kit|terraform) ;; *) echo "sdk-bump: '{{line}}' is not a version line; say kit or terraform" >&2; exit 2 ;; esac
+	case "{{part}}" in last|middle) ;; *) echo "sdk-bump: '{{part}}' is not a part; say last or middle" >&2; exit 2 ;; esac
+	uv run --no-sync bump-my-version bump --config-file ".bumpversion-{{line}}.toml" "{{part}}"
+	uv lock
+	echo "sdk-bump: the {{line}} line is now $(uv run --no-sync bump-my-version show --config-file ".bumpversion-{{line}}.toml" current_version)"
+	if [ "{{part}}" = middle ]; then echo "sdk-bump: move every range that names this line, then run: just surface-record"; fi
+
+# Does each SDK library keep its version rule? Its surface as a plugin sees it (every declared name, member,
+# field and hook, with its shape) is compared with the baseline committed beside it
+# (packages/<library>/surface-baseline.txt). An entry removed or changed while the middle number of the
+# library's version is unchanged fails, naming the entry; so does a baseline of an earlier line. Silent when
+# every library keeps to its baseline. The same comparison is a test in each library's own suite, and the
+# release's probes run this recipe before anything is built.
+[doc("Compare each SDK library's surface with its committed baseline; fails naming an entry removed or changed without a new middle number")]
+surface-check:
+	#!/usr/bin/env bash
+	set -uo pipefail
+	status=0
+	uv run --no-sync python -m cs_image_system.base.surface baseline cs_image_system.base packages/base/surface-baseline.txt || status=1
+	uv run --no-sync python -m cs_image_system.base.surface baseline cs_image_system.hashicorp_utils packages/hashicorp-utils/surface-baseline.txt || status=1
+	uv run --no-sync python -m cs_image_system.base.surface baseline cs_image_system.tofu_roots packages/tofu-roots/surface-baseline.txt || status=1
+	exit $status
+
+# Write each SDK library's baseline from its code: done once per middle number, in the change that raises it
+# (`just sdk-bump <line> middle`). Refused for a library whose middle number is still its baseline's while an
+# entry would be removed or changed: that change needs the new middle number first. Read the diff.
+[doc("Rewrite each SDK library's surface baseline (after `just sdk-bump <line> middle`); refused when an entry would change under the same middle number")]
+surface-record:
+	#!/usr/bin/env bash
+	set -uo pipefail
+	status=0
+	uv run --no-sync python -m cs_image_system.base.surface record cs_image_system.base packages/base/surface-baseline.txt || status=1
+	uv run --no-sync python -m cs_image_system.base.surface record cs_image_system.hashicorp_utils packages/hashicorp-utils/surface-baseline.txt || status=1
+	uv run --no-sync python -m cs_image_system.base.surface record cs_image_system.tofu_roots packages/tofu-roots/surface-baseline.txt || status=1
+	exit $status
+
+# The core's own suite where no provider can help it: the workspace's wheels
+# are built, an empty environment outside the workspace gets a plain
+# `cs-image-system` (no extras: no docker, AWS, Google Cloud or Okta plugin),
+# each distribution from its wheel, and the tests of the core's packages run
+# there under the system package's pytest settings. The core is the contract,
+# the kit, the engine, the command line and the always-installed plugins; its
+# fixture and golden are packages/system/tests/fixture and golden. A run fails
+# when no test was collected, any was skipped, or any failed.
+[doc("The core's own tests in an empty environment holding a plain install with no extras (no provider); a skipped test fails")]
+test-core:
+	@uv run --no-sync python scripts/isolated-run --subject core --require "cs-image-system" --root packages --pytest-config packages/system/pyproject.toml --tests contract/tests base/tests engine/tests system/tests ansible-plugin/tests bash-mod-plugin/tests default-os-plugin/tests packer-plugin/tests local-state-plugin/tests posix-identity-plugin/tests
+
+# The two shared terraform libraries (the HCL and collector library, the OpenTofu roots) where nothing else of
+# this repository can help them: the workspace's wheels are built, and an empty environment outside the
+# workspace gets the roots library and only what it declares -- its sibling library, the kit and the contract --
+# each from its wheel. Each library's own tests run there from its own directory, with its own pytest settings.
+# Three runs: both libraries at the HIGH end of the kit range the roots library declares, and the roots library
+# again at the LOW end. Each run says whether the kit came from the index or from this repository's build. A
+# run fails when no test was collected, any was skipped, or any failed. It is what shows the two libraries can
+# be taken out of this repository.
+[doc("The two terraform libraries' own tests in an empty environment holding only them and what they declare, at both ends of the kit range; a skipped test fails")]
+test-terraform-alone:
+	@uv run --no-sync python scripts/isolated-run --subject "terraform libraries: the roots, high end" --require "cs-image-system-tofu-roots" --root packages/tofu-roots --sdk-end high
+	@uv run --no-sync python scripts/isolated-run --subject "terraform libraries: the collectors, high end" --require "cs-image-system-tofu-roots" --root packages/hashicorp-utils --sdk-end high
+	@uv run --no-sync python scripts/isolated-run --subject "terraform libraries: the roots, low end" --require "cs-image-system-tofu-roots" --root packages/tofu-roots --sdk-end low
+
 # The docker family's own suite (packages/docker-plugin/tests) where nothing
 # else of this repository can help it: the workspace's wheels are built, an
 # empty environment outside the workspace gets the docker package and only what
 # it declares (its dependencies and its `test` extra), each from its wheel, and
-# the suite runs there with the package's own pytest settings. Twice: in place,
-# and from a copy of the package's directory outside the workspace. A run
-# fails when no test was collected, any was skipped, or any failed. No
-# container daemon is needed: the suite's runs are stubbed.
-[doc("The docker family's own tests in an empty environment holding only that package and what it declares: in place, and from a copy outside the workspace; a skipped test fails")]
+# the suite runs there with the package's own pytest settings. Three runs, at
+# the two ends of the SDK range the package declares (the kit and the two
+# terraform libraries, each `>=0.2,<0.3`): at the HIGH end the whole suite, in
+# place and again from a copy of the package's directory outside the
+# workspace; at the LOW end the unit tests and the surface check, with the
+# package and the SDK alone (no command line, no test kit: the engine pins
+# the kit exactly, so a whole run belongs to the high end). Each run says, for
+# each SDK library, whether it came from the index or from this repository's
+# build. A run fails when no test was collected, any was skipped, or any
+# failed. No container daemon is needed: the suite's runs are stubbed. The
+# index is asked which SDK versions it holds.
+[doc("The docker family's own tests in an empty environment holding only that package and what it declares, at both ends of its SDK range: in place, from a copy outside the workspace, and the unit tests at the low end; a skipped test fails")]
 test-docker-alone:
-	@uv run --no-sync python scripts/isolated-run --subject docker --require "cs-image-system-docker-plugin[test]" --root packages/docker-plugin
-	@uv run --no-sync python scripts/isolated-run --subject "docker (copy outside the workspace)" --require "cs-image-system-docker-plugin[test]" --root packages/docker-plugin --copy-outside
+	@uv run --no-sync python scripts/isolated-run --subject "docker, high end" --require "cs-image-system-docker-plugin[test]" --root packages/docker-plugin --sdk-end high
+	@uv run --no-sync python scripts/isolated-run --subject "docker, high end, copy outside the workspace" --require "cs-image-system-docker-plugin[test]" --root packages/docker-plugin --sdk-end high --copy-outside
+	@uv run --no-sync python scripts/isolated-run --subject "docker, low end" --require "cs-image-system-docker-plugin" --root packages/docker-plugin --sdk-end low --tests tests/unit
 
 # One file, or any pytest expression, for iterating on a single change.
 # NOT the acceptance bar -- `just test` is, and a change is not done until
@@ -416,16 +498,18 @@ preflight: config-guard
 
 # Regenerate a golden (a pinned emission) after an INTENTIONAL emission
 # change; read the rewritten files one by one before committing. SUITE is
-# `shared` (tests/fixtures/golden, every provider's emission; the default) or
-# `docker` (packages/docker-plugin/tests/golden, the docker family's own).
-[doc("Regenerate a golden after an INTENTIONAL emission change: `shared` (tests/fixtures/golden, the default) or `docker` (the docker family's own); read the diff before committing")]
+# `shared` (tests/fixtures/golden, every provider's emission; the default),
+# `core` (packages/system/tests/golden, what the core emits with no provider)
+# or `docker` (packages/docker-plugin/tests/golden, the docker family's own).
+[doc("Regenerate a golden after an INTENTIONAL emission change: `shared` (tests/fixtures/golden, the default), `core` (the core's own) or `docker` (the docker family's own); read the diff before committing")]
 golden-regen suite="shared":
 	#!/usr/bin/env bash
 	set -euo pipefail
 	case "{{suite}}" in
 		shared) uv run python tests/golden.py ;;
+		core) uv run python packages/system/tests/regen_core_golden.py ;;
 		docker) uv run python packages/docker-plugin/tests/regen_golden.py ;;
-		*) echo "golden-regen: '{{suite}}' is not a golden; say shared or docker" >&2; exit 2 ;;
+		*) echo "golden-regen: '{{suite}}' is not a golden; say shared, core or docker" >&2; exit 2 ;;
 	esac
 
 # Public-safe by construction: scan what a commit could publish -- tracked files and

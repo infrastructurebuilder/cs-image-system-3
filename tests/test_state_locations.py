@@ -301,3 +301,29 @@ def test_the_gcs_backend_is_declared_bound_to_nothing_and_its_commented_twin_loa
     assert not [line for line in (root / "cfg" / "state-gcm.yml").read_text().splitlines() if not line.startswith("#")]
     live = FixtureRun(tmp_path / "live-shape", monkeypatch, config_root=root)
     assert terraform_collector(live.ctx).resolve_backend("gcs-east1") is None
+
+
+def test_the_same_name_under_two_types_is_not_a_collision_but_two_roots_on_one_directory_are():
+    from cs_image_system.hashicorp_utils.collector import BackendRegistration, TerraformCollector
+    from cs_image_system.local_state_plugin.local_state_models import LOCAL_KIND
+    from cs_image_system.tf_s3_state_plugin.tf_s3_state_models import S3_KIND
+    col = TerraformCollector()
+    col.reset()
+    try:
+        col.register_backend(BackendRegistration(
+            name="s3-east2", type="s3", kind=S3_KIND, is_default=True,
+            settings={"bucket": "b", "region": "us-east-2", "key_prefix": "state/", "encrypt": False,
+                      "use_lockfile": True, "profile": None}))
+        col.register_backend(BackendRegistration(name="local-dev", type="local", kind=LOCAL_KIND,
+                                                 settings={"path": "state"}))
+        col.set_backend("ws", "s3-east2")
+        col.set_backend("ws-local", "local-dev")
+        locations = col.state_locations()
+        assert str(locations["ws"]) == "s3://b/state/ws.tfstate" and str(locations["ws-local"]) == "local://state/ws_local.tfstate"
+        col.set_backend("other", "local-dev")
+        col.validate_state_locations()                                   # different files: fine
+        col.set_backend("ws_local", "local-dev")                         # collapses to ws_local.tfstate
+        assert col.state_collisions(col.state_locations()) == [
+            "workspaces ws-local, ws_local would share the state object local://state/ws_local.tfstate"]
+    finally:
+        col.reset()

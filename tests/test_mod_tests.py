@@ -162,11 +162,11 @@ def test_the_target_comes_from_the_runtime_that_offers_one(fixture_run, monkeypa
     def factory(image, executables=None):
         seen.append((image, executables))
         return FakeTarget(image)
-    monkeypatch.setattr(mod_tests, "stand_in_target_factory", lambda classes: ("fake", factory))
+    monkeypatch.setattr(mod_tests, "stand_in_target_factory", lambda classes, named=None: ("fake", factory))
     results = mod_tests.run_mod_tests(fixture_run.ctx, images=["imgfile-basic-dask"])
     assert [r.status for r in results] == ["pass"]
     assert seen == [("almalinux:10", fixture_run.ctx.executables)]
-    monkeypatch.setattr(mod_tests, "stand_in_target_factory", lambda classes: None)
+    monkeypatch.setattr(mod_tests, "stand_in_target_factory", lambda classes, named=None: None)
     results = mod_tests.run_mod_tests(fixture_run.ctx, images=["imgfile-basic-dask"], force=True)
     assert [r.status for r in results] == ["skipped"]
     assert "local test target" in results[0].detail

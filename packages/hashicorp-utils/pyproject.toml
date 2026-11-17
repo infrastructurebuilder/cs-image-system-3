@@ -4,7 +4,7 @@
 
 [project]
 name = "cs-image-system-hashicorp-utils"
-version = "0.1.10"
+version = "0.2.0"
 description = "A library, not a plugin, on the contract alone: HCL rendering and the per-run terraform and packer collectors for the plugins that emit OpenTofu roots and Packer templates"
 readme = "README.md"
 authors = [{ name = "Mykel Alvis", email = "mykelalvis@infrastructurebuilder.org" }]
@@ -30,3 +30,9 @@ build-backend = "hatchling.build"
 [tool.hatch.build.targets.wheel]
 packages = ["src/cs_image_system"]
 exclude = ["*.code-workspace"]
+
+# The library's own suite runs from this directory alone (`just test-terraform-alone` does so in an
+# environment holding only the two terraform libraries and what they declare).
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "--import-mode=importlib"

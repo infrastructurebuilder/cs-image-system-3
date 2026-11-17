@@ -31,14 +31,13 @@ from pathlib import Path
 from typing import Any
 
 from cs_image_system.docker_runtime import testing as docker_testing
+from cs_image_system.hashicorp_utils.testing import BareRun, bare_run
 from cs_image_system.system import testing as kit
 from cs_image_system.system.testing import (
     FIXED_CHECKED_AT,
     FIXED_NOW,
     FIXED_RUN_ID,
     FIXED_TIMESTAMP,
-    BareRun,
-    bare_run,
     cli_context,
     command_lines,
     drive_lifecycles,

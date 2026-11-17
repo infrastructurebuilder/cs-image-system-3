@@ -1,0 +1,8 @@
+# The core's own fixture: the local state backend.
+# It declares no provider: its one runtime is the test kit's test-double
+# (cs_image_system.system.testing.double), which exists only inside a test run.
+state_backends:
+- name: local-dev
+  type: local
+  path: state
+  is_default: true
