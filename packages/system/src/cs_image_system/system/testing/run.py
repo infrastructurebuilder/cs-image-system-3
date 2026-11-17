@@ -39,6 +39,7 @@ from cs_image_system.base import lifecycles as lifecycles_module
 from cs_image_system.base.models.executable import ExecutableModel
 from cs_image_system.contract.constants import SYSTEM_CLI
 from cs_image_system.engine import config_loader, in_process, loader, modules
+from cs_image_system.engine import mod_tests as _mod_tests
 from cs_image_system.engine.commands import run_lifecycles as _run_lifecycles
 from cs_image_system.engine.commands import validate as _validate
 
@@ -53,6 +54,8 @@ FIXED_CHECKED_AT = "2026-01-01T00:00:00+00:00"
 
 #: the name of the test identity every fixture carries at its root
 IDENTITY_FILE = ".age-identity"
+#: the file, beside it, that names the recipient a fixture's values are encrypted to
+RECIPIENT_FILE = ".age-recipient"
 
 #: A stub function: takes the test's ``monkeypatch``, replaces one
 #: provider's (or one library's) calls to the outside world.
@@ -205,6 +208,25 @@ def validation_errors(ctx) -> list[str]:
     Under :func:`stub_core` the check of the executables on this machine is
     off, so the answer is the configuration's alone."""
     return [str(e) for e in _validate.collect_validation_errors(ctx)]
+
+
+def encrypted(config_root: Path, plaintext: str) -> str:
+    """``plaintext`` as an ``ENC[age:...]`` marker that the fixture's own
+    test identity opens: encrypted to the recipient the fixture names in
+    ``.age-recipient``, for a test that declares a secret value."""
+    return encryption.encrypt_value(plaintext, [(config_root / RECIPIENT_FILE).read_text().strip()])
+
+
+def run_mod_tests(ctx, images: list[str] | None = None, *, force: bool = False,
+                  stand_in: str | None = None) -> list[Any]:
+    """Run the modification tests of the loaded context ``ctx`` on the
+    local stand-in an installed runtime offers, as ``test-mods`` does:
+    every modification of the selected images, twice. Each result carries
+    ``image``, ``mod``, ``status`` (``pass``, ``fail``, ``skipped``,
+    ``unsupported`` or ``unstarted``), ``idempotent``, ``changes_on_rerun``
+    and ``detail``. This reaches a real target: a provider uses it in a
+    test of its own stand-in, which needs what the stand-in needs."""
+    return _mod_tests.run_mod_tests(ctx, images=images, force=force, stand_in=stand_in)
 
 
 def cli_context(ctx) -> Any:

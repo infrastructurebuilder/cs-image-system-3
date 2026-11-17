@@ -142,6 +142,7 @@ directory. Docker's:
 | --- | --- |
 | [tests/unit/](../packages/docker-plugin/tests/unit) | Tests that need the contract, the SDK and the package, and nothing else. They are what runs at the low end of the range, so nothing they need may sit in a `conftest.py` above them. |
 | [tests/pipeline/](../packages/docker-plugin/tests/pipeline) | Tests that drive a whole run through the test kit. |
+| [tests/live/](../packages/docker-plugin/tests/live) | Tests that need the real thing (here, a container daemon). They are in no default path and no isolated run; they are run on purpose, and fail without it. |
 | [tests/fixture/](../packages/docker-plugin/tests/fixture) | A configuration that declares this provider and no other. |
 | [tests/golden/](../packages/docker-plugin/tests/golden) | What a run over the fixture emits, pinned byte for byte. |
 | [tests/regen_golden.py](../packages/docker-plugin/tests/regen_golden.py) | Rewrites the golden, on purpose (`just golden-regen docker`). |
@@ -176,6 +177,12 @@ the emission, regenerate it and read the rewritten files one by one;
 a golden regenerated to make a test pass is how a defect becomes the
 expected output.
 
+**What stays outside.** A provider's suite tests the provider. What the
+core or another plugin does with it beside other providers (an identity
+plugin's objection to a container runtime, the preflight's line for each
+session) needs more than the provider installed, and is tested in the
+repository's own `tests/`, where every provider is.
+
 ## What the test kit gives it
 
 `cs_image_system.system.testing` drives a whole run over a fixture
@@ -188,6 +195,8 @@ imports none.
 | `copy_fixture`, `stub_core`, `load_context`, `drive_lifecycles` | The same in separate steps, for a test that needs to stand between them. |
 | `emitted(generated, meta_state)`, `assert_matches(golden, emitted, ...)` | Comparing what a run emitted with a golden, with a unified diff per file on a difference. |
 | `validation_errors(ctx)` | What `validate` would print for a loaded configuration; empty when it is valid. |
+| `encrypted(config_root, plaintext)` | A value as an `ENC[age:...]` marker the fixture's test identity opens, for a test that declares a secret. |
+| `run_mod_tests(ctx, images=...)` | The modification tests on the stand-in an installed runtime offers, as `test-mods` runs them. It reaches a real target, so it belongs in a provider's `tests/live`. |
 | `broken_neighbour(monkeypatch)` | A plugin that fails to import, installed beside the one under test for the length of one test. |
 | `isolation.process_unchanged()` | A context manager that fails, naming what changed, if a block leaves the environment, the working directory, `sys.path` or the root logger other than it found them. |
 | `isolation.root_logger_restored` | A fixture's body that puts the root logger back after each test; a suite applies it in its `conftest.py`. |

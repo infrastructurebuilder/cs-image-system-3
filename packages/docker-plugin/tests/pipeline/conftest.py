@@ -70,3 +70,19 @@ def family_run(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator[Call
     yield make
     for run in made:
         run.restore_cwd()
+
+
+@pytest.fixture
+def family_stubs(monkeypatch: pytest.MonkeyPatch) -> list[str]:
+    """The stubs alone, for a test that loads a tree itself (one it has
+    edited, or one that must refuse to load): the core's and this
+    package's, installed for the length of the test. The command journal
+    is returned."""
+    return kit.stub_core(monkeypatch, FIXTURE / kit.IDENTITY_FILE, STUBS)
+
+
+@pytest.fixture
+def family_root(tmp_path: Path) -> Path:
+    """A private copy of the family's fixture, for a test to edit before
+    it loads it."""
+    return kit.copy_fixture(FIXTURE, tmp_path)

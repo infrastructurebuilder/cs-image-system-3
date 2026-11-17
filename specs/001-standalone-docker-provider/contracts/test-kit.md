@@ -33,6 +33,13 @@ A provider ships its stub function in its own package (for docker,
 `cs_image_system.docker_runtime.testing`), so both the provider's own
 suite and the every-provider suite can use it.
 
+Two more operations serve a provider's own tests. **Encrypt a value**
+returns a marker that the fixture's test identity opens, for a test
+that declares a secret value. **Run the modification tests** runs them
+on the stand-in an installed runtime offers, as the `test-mods` command
+does; it reaches a real target, so a provider calls it only from a test
+it runs on purpose.
+
 ## Golden
 
 | Operation | Does |

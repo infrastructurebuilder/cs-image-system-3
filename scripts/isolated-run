@@ -27,7 +27,11 @@ not start is reported as not run, and that is a failure too.
 (``cs-image-system-docker-plugin[test]``). ``--root`` is the directory the
 tests live under, a package's own or the repository's; ``--tests`` are
 paths inside it (the ``testpaths`` its pytest settings declare when none is
-given). The pytest settings are the root's own ``pyproject.toml`` unless
+given, read here and handed to pytest by name: pytest applies
+``testpaths`` itself only when it is started in the directory it takes for
+its root, and a copy under a temporary directory reached through a
+symbolic link is not that, so a suite's other directories -- tests that
+need a daemon, say -- would be collected). The pytest settings are the root's own ``pyproject.toml`` unless
 ``--pytest-config`` names another file: a run over several packages names
 one package's, so the workspace's settings (which put every package's
 sources on the path) never apply. ``--copy-outside`` copies the root out of
@@ -72,6 +76,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import tomllib
 import urllib.error
 import urllib.request
 import xml.etree.ElementTree as ET
@@ -255,6 +260,15 @@ def closure(requirement: Requirement, wheels: dict[str, Path]) -> dict[str, set[
     return found
 
 
+def declared_testpaths(config: Path) -> list[str]:
+    """The ``testpaths`` a pytest settings file declares (a
+    ``pyproject.toml``); none when the file is absent or declares none."""
+    if not config.is_file():
+        return []
+    settings = tomllib.loads(config.read_text()).get("tool", {}).get("pytest", {}).get("ini_options", {})
+    return [str(path) for path in settings.get("testpaths", [])]
+
+
 def install_lines(found: dict[str, set[str]], wheels: dict[str, Path]) -> list[str]:
     """One requirement per workspace distribution in ``found``, each naming
     its wheel by file."""
@@ -340,10 +354,13 @@ def run(subject: str, requirement: str, root: Path, tests: Sequence[str], *, cop
             f"{stray or listed.out.strip()[-500:]}; the tests did not run")
         return 1
     junit = work / "junit.xml"
-    ran = shell([str(python), "-P", "-m", "pytest", "-c", str(pytest_config or root / "pyproject.toml"),
+    config = pytest_config or root / "pyproject.toml"
+    # the paths are always named: the ones asked for, else the ones the settings declare (see the module docstring)
+    paths = list(tests) or declared_testpaths(config)
+    ran = shell([str(python), "-P", "-m", "pytest", "-c", str(config),
                  "--rootdir", str(root), "--confcutdir", str(root),      # a conftest at the root applies, none above it
                  "-p", "no:cacheprovider", "-q", "-rs", f"--junitxml={junit}",
-                 *(str(root / t) for t in tests)], root)
+                 *(str(root / t) for t in paths)], root)
     counts = read_counts(junit)
     ok, why = verdict(counts)
     if not ok:

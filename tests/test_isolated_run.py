@@ -145,6 +145,28 @@ def test_a_clean_run_passes_and_installs_each_workspace_distribution_from_its_wh
     assert "pythonpath" not in " ".join(pytest_call) and "-c" in pytest_call  # the package's own settings alone
 
 
+def test_the_declared_test_paths_are_handed_to_pytest_by_name(tmp_path: Path):
+    """A suite's default paths are its settings' ``testpaths``. They are
+    named on the command line and never left to pytest, which applies them
+    only when started in its own root: a copy of the package would
+    otherwise have every directory under it collected, the ones that need
+    a daemon included."""
+    root = tmp_path / "pkg"
+    root.mkdir()
+    (root / "pyproject.toml").write_text('[tool.pytest.ini_options]\ntestpaths = ["tests/unit", "tests/pipeline"]\n')
+    shell = _Shell(tmp_path, junit=_junit(tests=4))
+    rc, _said = _run(tmp_path, shell)
+    assert rc == 0
+    call = next(c for c in shell.calls if "pytest" in c)
+    assert call[-2:] == [str(root / "tests/unit"), str(root / "tests/pipeline")]
+    # paths asked for by name take their place
+    shell = _Shell(tmp_path, junit=_junit(tests=4))
+    said: list[str] = []
+    assert I.run("thing", "cs-image-system-thing-plugin", root, ["tests/unit"], copy_outside=False, shell=shell,
+                 say=said.append, work=tmp_path / "work") == 0
+    assert next(c for c in shell.calls if "pytest" in c)[-1] == str(root / "tests/unit")
+
+
 @pytest.mark.parametrize("junit", [_junit(tests=0), _junit(tests=4, skipped=1), _junit(tests=4, failures=1), None])
 def test_no_tests_a_skip_a_failure_or_no_report_each_fail_the_run(tmp_path: Path, junit):
     rc, said = _run(tmp_path, _Shell(tmp_path, junit=junit))

@@ -6,7 +6,7 @@
 
 **Created**: 2026-11-16
 
-**Status**: Implemented on the feature branch, 2026-11-17; not merged. Results and departures are in [tasks.md](tasks.md), under Records. Open: tasks T024 to T026 (four docker test files that still live in the every-provider suite).
+**Status**: Implemented on the feature branch, 2026-11-17; not merged. Results and departures are in [tasks.md](tasks.md), under Records.
 
 **Input**: User description: "One provider family (docker first) builds, tests and versions with only its own declared dependencies, so it can live outside this repository. The docker family is isolated inside this repository; no repository move yet. The kit is the SDK a plugin is written against: it gets a declared public surface and its own version, and a provider pins a range of it."
 

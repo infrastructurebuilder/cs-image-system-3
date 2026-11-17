@@ -2,12 +2,19 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""The container-host section of the bootstrap -- contributed
-by the docker runtime plugin through the entry-point group; read from the raw
-``cfg/``, never printing an address (a ``host`` may be an ENC marker); one
-question, whether CI can reach the daemon; the GitHub section stops assuming a
-cloud (its default runtime is no longer an AWS one by name, and its guard
-defaults to a runtime CI cannot reach).
+"""The container-host section of the bootstrap among every provider's:
+contributed by the docker runtime plugin through the entry-point group and
+found beside the others; read from the raw ``cfg/`` of the starters; what
+the core's facts say CI can reach; the GitHub section no longer assuming a
+cloud (its default runtime is not an AWS one by name, and its guard
+defaults to a runtime CI cannot reach); the generated root for a docker
+tree; and the guide that names the section.
+
+The section by itself (when it is wanted, what it proposes, that its
+render never prints an address) is tested in the docker package:
+packages/docker-plugin/tests/unit/test_bootstrap_section.py. What is here
+drives the engine's interview and generator over the starters and reads
+every provider's section, which a provider's own suite may not.
 """
 from __future__ import annotations
 
@@ -108,22 +115,6 @@ def test_a_daemon_ci_cannot_reach_is_the_guard_by_default(tmp_path: Path):
     # in the complete tree (aws default, a tcp docker host) it is the guard
     complete = bs.gather(EXAMPLES / "complete", git=False, gh=False)
     assert guard.default_for(complete, {"perform_runtime": first_runtime_name(complete)}) == "docker-host"
-
-
-def test_the_render_says_what_remains_and_never_prints_an_address(tmp_path: Path):
-    for host, reaches in (("ssh://docker-host.example", True), (MARKER, False), ("tcp://docker-host.example:2376", False)):
-        root = _tree(tmp_path / host.split(":")[0].replace("[", "_"), host=host)
-        facts = bs.gather(root, git=False, gh=False)
-        rendered = _section().render({"wanted": True, "runtime": "docker-main", "ci_reaches": reaches}, facts)
-        text = "\n".join([*rendered.by_hand, *rendered.notes, *(f"{r} {w}" for r, _, w in rendered.coverage)])
-        assert "root on that host" in text or "root on that host" in " ".join(rendered.by_hand)
-        assert "docker-host.example" not in text and MARKER not in text
-        assert rendered.module is None and rendered.secrets == ()
-        if reaches:
-            assert "DOCKER_HOST_SSH_KEY" in text and "GUARD_RUNTIME" not in text
-        else:
-            assert "GUARD_RUNTIME" in text and "cannot reach" in text
-        assert {status for _, status, _ in rendered.coverage} <= {"BY HAND", "READ"}
 
 
 def test_the_generated_root_for_a_docker_tree_names_the_secrets_and_the_audit(tmp_path: Path):

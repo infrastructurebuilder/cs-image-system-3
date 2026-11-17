@@ -4,15 +4,17 @@
 
 """A modification test whose container cannot start says so, as `unstarted`.
 
-The pull is retried and docker's own words survive into the error; a
-container that cannot start is `unstarted` and never a failed modification,
-is never cached as a pass, and the command says CANNOT START and exits 1.
+A container that cannot start is `unstarted` and never a failed
+modification, is never cached as a pass, and the command says CANNOT START
+and exits 1. This is the core's harness and the command, driven with a
+target the test supplies. How the docker runtime's own target retries a
+pull and keeps docker's words is the docker package's to test:
+packages/docker-plugin/tests/unit/test_local_target.py.
 
 history: bundle XII item 26.
 """
 from __future__ import annotations
 
-import stat
 from pathlib import Path
 
 import pytest
@@ -31,49 +33,6 @@ def _invoke(root: Path, *args: str, catch: bool = False):
 def cli_root(tmp_path, monkeypatch):
     stub_environment(monkeypatch)
     return copy_config(tmp_path)
-
-
-def _fake_docker(tmp_path: Path, pull_fails: int, run_rc: int = 0) -> Path:
-    """A `docker` whose `image inspect` says absent, whose `pull` fails
-    `pull_fails` times with the registry's words, and whose `run` exits
-    `run_rc`."""
-    tmp_path.mkdir(parents=True, exist_ok=True)
-    counter = tmp_path / "pulls"
-    script = tmp_path / "docker"
-    script.write_text(f"""#!/bin/sh
-case "$1 $2" in
-  "image inspect") exit 1 ;;
-  "pull "*) n=$(cat "{counter}" 2>/dev/null || echo 0); n=$((n+1)); echo $n > "{counter}"
-            if [ $n -le {pull_fails} ]; then
-              echo "Error response from daemon: Get \"https://registry-1.docker.io/v2/\": context deadline exceeded" >&2; exit 1
-            fi; echo "Status: Downloaded newer image"; exit 0 ;;
-  "run -d") if [ {run_rc} -ne 0 ]; then echo "docker: Error response from daemon: no such image" >&2; exit {run_rc}; fi
-            echo c0ffee ;;
-  "rm -f") exit 0 ;;
-esac
-exit 0
-""")
-    script.chmod(script.stat().st_mode | stat.S_IEXEC)
-    return script
-
-
-def test_a_pull_is_retried_and_dockers_own_words_survive(tmp_path, caplog):
-    from cs_image_system.docker_runtime.local_target import DockerTarget
-    from cs_image_system.engine.mod_tests import ContainerStartError
-    waits: list[int] = []
-    docker = _fake_docker(tmp_path / "flaky", pull_fails=2)
-    t = DockerTarget("almalinux:10", docker=str(docker), sleep=waits.append)
-    assert t.name == "c0ffee" and waits == [5, 20]                    # two failures, then the pull succeeded
-    assert any("attempt 1 of 3" in r.message for r in caplog.records)
-    docker = _fake_docker(tmp_path / "down", pull_fails=99)
-    with pytest.raises(ContainerStartError) as e:
-        DockerTarget("almalinux:10", docker=str(docker), attempts=2, sleep=lambda s: None)
-    assert e.value.image == "almalinux:10" and e.value.rc == 1 and "2 attempts" in e.value.stage
-    assert "context deadline exceeded" in e.value.words, "docker's own last line survives"
-    docker = _fake_docker(tmp_path / "norun", pull_fails=0, run_rc=125)
-    with pytest.raises(ContainerStartError) as e:
-        DockerTarget("almalinux:10", docker=str(docker), sleep=lambda s: None)
-    assert e.value.rc == 125 and "no such image" in e.value.words
 
 
 def test_a_container_that_cannot_start_is_unstarted_not_a_failed_modification(tmp_path, monkeypatch, caplog):

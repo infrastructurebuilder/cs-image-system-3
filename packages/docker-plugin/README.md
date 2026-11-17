@@ -670,12 +670,22 @@ of these.
   the hint to start it or fix the address. The class also declares
   `DOCKER_*` as its credential prefix (set-but-empty is refused) and
   classifies `DockerUnreachable` into the one-line load failure below.
-- The unit tests ([tests/](tests/)) pin the names module (tags, repository
-  names, movable tags), the query translation, the model's environment and
-  the packer source and post-processor shapes without a daemon; the
-  system's [tests/test_container_runtime.py](../../tests/test_container_runtime.py)
-  drives a dry `run --all` over an overlay of the frozen fixture and
-  checks the emitted docker sources.
+- The unit tests ([tests/unit/](tests/unit)) pin the names module (tags,
+  repository names, movable tags), the query translation, the model's
+  environment, the packer source and post-processor shapes, and the local
+  target's CLI and its retried pull, without a daemon.
+  [tests/pipeline/test_container_runtime.py](tests/pipeline/test_container_runtime.py)
+  drives a dry `run --all` over this package's own fixture and checks the
+  emitted docker sources, what validation refuses, the builder's answer
+  for an unreachable daemon and its session hook. What the core and the
+  other plugins do with a docker runtime beside every other provider (an
+  identity plugin's objection, the preflight's line per session) is the
+  system's [tests/test_container_runtime.py](../../tests/test_container_runtime.py).
+- [tests/live/](tests/live) holds the one test that needs a real daemon:
+  the modification tests of the fixture on this package's own stand-in.
+  It is in no default path and no isolated run; `just test-one
+  packages/docker-plugin/tests/live` runs it on purpose, and without a
+  daemon it fails.
 - `just test-docker-bake`, a leg of `just full-test`, bakes an AlmaLinux 10
   and a Debian 12 base image and an instance image on the local daemon,
   checks the lineage and the tags, disposes them, and skips loudly without
@@ -693,11 +703,14 @@ of these.
   a pinned and a deferred provider-specific image; the machine type's
   limits; the memory and cpus spellings; the volume's module arguments and
   labels; the launch-script template on a volume mount.
-- `tests/test_container_runtime.py`: a dry run over an overlay of the
-  frozen fixture emits both roots, the module calls, the uploaded launch
-  script, the environment prefix on every tofu line and the gated apply
-  sequence; the hooks' answers over a stubbed daemon; the fixture and the
-  golden do not change.
+- [tests/pipeline/test_container_runtime.py](tests/pipeline/test_container_runtime.py):
+  a dry run over this package's own fixture emits both roots, the module
+  calls, the uploaded launch script and the environment prefix on every
+  tofu line; an encrypted host stays a marker in the script; the launch
+  parameters record the delivery and the platform mount; the hooks'
+  answers over a stubbed daemon. The delivery of the launch script by the
+  core's hook is the system's
+  [tests/test_container_runtime.py](../../tests/test_container_runtime.py).
 - `tests/test_docker_cycle_live.py` (`just test-docker-cycle`, a leg of
   `just full-test`): the cycle on the local daemon from nothing to nothing:
   bake, launch two containers on one volume, verify, reconcile accounts,
