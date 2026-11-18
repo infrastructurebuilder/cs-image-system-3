@@ -9,13 +9,17 @@ key to an object, render a Jinja template, structure a deferred list, ...).  The
 kind is derived from field metadata: an explicit ``FIELD_KIND`` key wins, otherwise
 it is inferred from the legacy boolean flags the field factories stamp.
 
-This registry is an **extension point**: a plugin may ``register_field_kind`` with a
-new name + :class:`FieldKindHandler` and declare fields carrying that
-``FIELD_KIND`` to add a late-binding method the base system does not know about.
-No kind is hard-coded into the dispatch sites; they all go through this registry.
-The registry lives here alone, so a plugin registers a kind without importing
-the core: the core's resolver registers its own handlers in this same registry
-and dispatches through it, and no module of the core re-exports it.
+This registry is an **extension point**: a plugin declares a new name and its
+:class:`FieldKindHandler` in its metadata (``PluginMetadata.field_kinds``) and
+declares fields carrying that ``FIELD_KIND`` to add a late-binding method the
+base system does not know about; the system enters the kind here once the plugin
+is accepted, and never for one it skips. The names in :data:`SYSTEM_FIELD_KINDS`
+are the system's own and no plugin's. No kind is hard-coded into the dispatch
+sites; they all go through this registry. The registry lives here alone, so a
+plugin reads it without importing the core: the core's resolver enters its own
+handlers in this same registry and dispatches through it, and no module of the
+core re-exports it. Entering a kind is the system's (``_install``), not a
+plugin's.
 """
 from __future__ import annotations
 
@@ -32,6 +36,9 @@ FK = "fk"
 TEMPLATED = "templated"
 DEFERRED_LIST = "deferred_list"
 DEFERRED_LIST_FK = "deferred_list_fk"
+
+#: The system's own field kinds: never a plugin's to declare.
+SYSTEM_FIELD_KINDS = frozenset({FK, TEMPLATED, DEFERRED_LIST, DEFERRED_LIST_FK})
 
 # Legacy boolean flag -> kind, in precedence order (mirrors the historical
 # ``if IS_REPLACE: ... elif IS_FK: ...`` ordering in SmartContext).
@@ -88,11 +95,11 @@ class FieldKindHandler:
 _HANDLERS: dict[str, FieldKindHandler] = {}
 
 
-def register_field_kind(name: str, handler: FieldKindHandler) -> None:
-    """Register (or replace) the handler for a field kind. The extension
-    seam. The loader reports a kind that a plugin replaced as a collision:
-    a plugin that takes another plugin's kind, or one of the system's own,
-    is not used."""
+def _install(name: str, handler: FieldKindHandler) -> None:
+    """Enter one field kind in the registry. The system's own call: the
+    resolver enters the system's kinds, and the loader the kinds a plugin it
+    accepted declares. Not for a plugin, which declares its kinds in its
+    metadata."""
     _HANDLERS[name] = handler
 
 

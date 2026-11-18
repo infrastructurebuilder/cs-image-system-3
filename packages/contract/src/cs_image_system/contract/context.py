@@ -128,7 +128,7 @@ class LaunchServiceProtocol(Protocol):
     group, and the ephemeral failure policy. The hostname rule and the
     enrollment kinds are the contract's own, reached without a run
     (:func:`~cs_image_system.contract.launch_vocabulary.hostname_problems`,
-    :func:`~cs_image_system.contract.enrollment.register_enrollment_kind`),
+    :func:`~cs_image_system.contract.enrollment.enrollment_kind_for`),
     so the service does not carry them."""
 
     def compute_launch_params(self, instance: Any) -> dict[str, Any]: ...

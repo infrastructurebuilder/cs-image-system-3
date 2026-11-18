@@ -28,7 +28,7 @@ One module per kind of builder, over a shared core:
 | [`modules`](src/cs_image_system/contract/modules.py) | `MODULES_ENTRY_POINT_GROUP` (`cs_image_system.modules`): the entry-point group a plugin declares its terraform modules directory in, one entry point whose value is `<package>:<dirname>`; the modules are package data inside the plugin, one directory per module, and the core lists and materialises them without importing the plugin. |
 | [`constants`](src/cs_image_system/contract/constants.py) | `VCT` (the classifications), the sentinels (`DEFAULT`, `SELF`, `NONE`, `OOPS_DEFAULTS`), the field metadata keys, `PLUGIN_TYPES` (the entry-point groups), the collection names, the file names a run writes. |
 | [`model_config`](src/cs_image_system/contract/model_config.py) | `CSIS_MODEL_CONFIG`, the one pydantic configuration every model is declared under (unknown keys are refused). |
-| [`fields`](src/cs_image_system/contract/fields.py), [`field_kinds`](src/cs_image_system/contract/field_kinds.py) | `fk_field`, `templated_field`, `deferred_list_field`, `deferred_list_fk_field`, `parent_field`; the open registry of field kinds a plugin may extend. |
+| [`fields`](src/cs_image_system/contract/fields.py), [`field_kinds`](src/cs_image_system/contract/field_kinds.py) | `fk_field`, `templated_field`, `deferred_list_field`, `deferred_list_fk_field`, `parent_field`; the open registry of field kinds, which a plugin extends by declaring a kind in its metadata (`PluginMetadata.field_kinds`); the system's own four (`SYSTEM_FIELD_KINDS`) are no plugin's. |
 | [`lifecycle`](src/cs_image_system/contract/lifecycle.py), [`lifecycles`](src/cs_image_system/contract/lifecycles.py) | `ExecutionLifecyclePhase`; `Lifecycle`, `LifecycleSpec` and the phases and builder classifications each built-in lifecycle owns. |
 | [`assets`](src/cs_image_system/contract/assets.py), [`executables`](src/cs_image_system/contract/executables.py) | `Asset`, `AssetSet` (what `generate_items_*` returns); `ExecutableProtocol`, `CFExecutables` (what `get_commands_to_run_*` returns). |
 | [`names`](src/cs_image_system/contract/names.py), [`hcl`](src/cs_image_system/contract/hcl.py) | `safe_name`, `super_safe_name`; `HclRaw`, `hcl_expr`, `render_module_call`. |
@@ -38,7 +38,7 @@ One module per kind of builder, over a shared core:
 | [`bootstrap`](src/cs_image_system/contract/bootstrap.py) | The bootstrap interview's question model a plugin's section is built from (`Question`, `Section`, `Rendered`, `Secret`, `Variable`, `Raw`, `Refused`, `Answers`, the coverage words `MADE`, `READ`, `ADOPTED`, `BY_HAND`) and `ENTRY_POINT_GROUP`, the group a section is registered in. The checkout's facts a default reads are the core's and reach the callables untyped. |
 | [`errors`](src/cs_image_system/contract/errors.py) | `ContainerStartError`, the exception a local test target raises and the core catches by type. |
 | [`hooks`](src/cs_image_system/contract/hooks.py) | The hook plugin's surface: `HOOK_ENTRY_POINT_GROUP`, `HookSet` and the four hook signatures (validators, lifecycle, summary, state bindings), typed on `RunContextProtocol`; a hook plugin imports nothing of the core for it. |
-| [`enrollment`](src/cs_image_system/contract/enrollment.py) | The enrollment-kind registry an identity plugin registers its launch-time enrollment with (`register_enrollment_kind`, `enrollment_kind_for`, the script-line and task shapes). |
+| [`enrollment`](src/cs_image_system/contract/enrollment.py) | The enrollment-kind registry that holds an identity plugin's launch-time enrollment (`EnrollmentKind`, `enrollment_kind_for`, `registered_kinds`, the script-line and task shapes). A plugin declares its kinds in its metadata (`PluginMetadata.enrollment_kinds`); the system enters them once the plugin is accepted, and a plugin can no longer enter one by a call. |
 | [`image_sources`](src/cs_image_system/contract/image_sources.py) | The release-owned image-source catalog's words: the packaged catalog file name, the YAML key, and `container_reference(query)`; a runtime declares `image_source_package` and the core reads its catalog. |
 | [`context`](src/cs_image_system/contract/context.py) | `RunContextProtocol`, `MetaStateProtocol`, the service protocols and `ServicesProtocol`: the run context as a plugin reads it, and the services it reaches through it. |
 | [`testing`](src/cs_image_system/contract/testing.py) | `assert_conforms(cls, protocol)` and `conformance_problems`. |
@@ -130,14 +130,14 @@ repository runs against itself.
 ### Version
 
 The contract carries a semantic version of its own, independent of the
-workspace's: `0.4.4` now, and 0.x until the operator decides otherwise
+workspace's: `0.5.0` now, and 0.x until the operator decides otherwise
 (the decision of 2026-11-05). What a bump means: a PATCH is a change no
 plugin can observe (a docstring, a test helper); a MINOR, while the
 version is 0.x, is a change a plugin can observe, so a protocol member
 added, renamed or removed, a constant's value changed, a module added or
 removed, and it is the breaking step; from 1.0 a MINOR adds without
 breaking and a MAJOR breaks. Every package that depends on the contract
-pins the compatible series, `cs-image-system-contract>=0.4,<0.5`, and
+pins the compatible series, `cs-image-system-contract>=0.5,<0.6`, and
 `just release`, which moves the workspace's version, leaves the
 contract's where it is (as it leaves the SDK's two version lines, the
 kit's and the terraform libraries') (`bump-my-version` excludes its
@@ -165,6 +165,7 @@ The versions so far:
 | `0.4.2` | Documents and the package's own import-direction test name the engine (`cs_image_system.engine`), the core's second package beside the kit; nothing a plugin can observe changed, so it is a PATCH ([the stage index](../../docs/CHANGES.md#s113)). |
 | `0.4.3` | This document names the test and the declaration that now hold what a plugin may import of the kit (the kit's `surface` module and `tests/test_plugins_keep_to_the_surface.py`, in place of `tests/test_plugin_imports.py`); nothing a plugin can observe changed, so it is a PATCH |
 | `0.4.4` | This document and three docstrings say what is now so: a plugin is written against the contract and the SDK's declared surface, with one guide for it; a plugin that is refused is skipped and named, not the end of every command; and a second registration of an enrollment kind or a field kind by another plugin is reported as a collision by the loader. No function, protocol or constant changed, so it is a PATCH |
+| `0.5.0` | A plugin declares its kinds instead of registering them when it is imported: `PluginMetadata` and `PluginMetadataProtocol` gain `enrollment_kinds` and `field_kinds` (both empty by default), and `register_enrollment_kind` and `register_field_kind` leave the contract's public names; `field_kinds.SYSTEM_FIELD_KINDS` names the system's own four. The loader registers the declared kinds of the plugins it accepts, so a skipped plugin's kinds are never registered and a collision over a kind is found like any other. Members added and two functions removed are something a plugin can observe, so while the contract is 0.x it is a MINOR step, and every dependent's range moved from `>=0.4,<0.5` ([spec 004](../../specs/004-kinds-in-metadata/spec.md)). |
 
 ## Writing a plugin
 
@@ -180,7 +181,7 @@ fits, and skips it; it may register more than its kind, and a plugin of no named
 (a version checker alone, an injected model) declares `other`.
 
 1. **Depend on the contract, by the range of its series**:
-   `"cs-image-system-contract>=0.4,<0.5"`. A plugin that subclasses the
+   `"cs-image-system-contract>=0.5,<0.6"`. A plugin that subclasses the
    kit's base classes (every built-in plugin does; it is the convenient
    way, not the required one) or uses the terraform libraries names
    those by a range too, and imports only what each declares.
@@ -275,7 +276,9 @@ reads the directory as package data), the
 bootstrap vocabulary and `FactsProtocol` are
 [`bootstrap`](src/cs_image_system/contract/bootstrap.py), and the
 enrollment-kind registry is
-[`enrollment`](src/cs_image_system/contract/enrollment.py); a plugin
+[`enrollment`](src/cs_image_system/contract/enrollment.py) (a plugin
+declares its enrollment kinds and field kinds in its metadata, and the
+system registers them once it accepts the plugin); a plugin
 imports from the core only what the kit's surface declares
 (`tests/test_plugins_keep_to_the_surface.py` holds the rule).
 

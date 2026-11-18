@@ -3,6 +3,8 @@
 # middle: 2
 cs_image_system.base.basic.abstract_plugin_metadata:AbstractPluginMetadata = class (cs_image_system.contract.core.PluginMetadataProtocol)
 cs_image_system.base.basic.abstract_plugin_metadata:AbstractPluginMetadata.builders_for_models = property
+cs_image_system.base.basic.abstract_plugin_metadata:AbstractPluginMetadata.enrollment_kinds = property
+cs_image_system.base.basic.abstract_plugin_metadata:AbstractPluginMetadata.field_kinds = property
 cs_image_system.base.basic.abstract_plugin_metadata:AbstractPluginMetadata.injected_models = property
 cs_image_system.base.basic.abstract_plugin_metadata:AbstractPluginMetadata.is_injected_models_default = property
 cs_image_system.base.basic.abstract_plugin_metadata:AbstractPluginMetadata.namespace = property

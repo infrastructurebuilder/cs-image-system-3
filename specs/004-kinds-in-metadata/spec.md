@@ -6,7 +6,7 @@
 
 **Created**: 2026-11-18
 
-**Status**: Draft
+**Status**: Implemented on `feature/004-kinds-in-metadata`, not yet merged
 
 ## Clarifications
 

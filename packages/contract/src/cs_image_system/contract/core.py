@@ -30,7 +30,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from pathlib import Path
-from typing import Any, Protocol, runtime_checkable
+from typing import TYPE_CHECKING, Any, Protocol, runtime_checkable
 
 from packaging.specifiers import SpecifierSet
 
@@ -39,6 +39,10 @@ from .constants import VCT
 from .executables import CFExecutables
 from .lifecycle import ExecutionLifecyclePhase
 from .session import LoadFailureReport
+
+if TYPE_CHECKING:
+    from .enrollment import EnrollmentKind
+    from .field_kinds import FieldKindHandler
 
 
 @runtime_checkable
@@ -122,6 +126,19 @@ class PluginMetadataProtocol(Protocol):
         """ The namespace the registry qualifies this plugin's registrations
         with (``<namespace>/<name>``); ``None`` leaves it to the loader,
         which derives it from the plugin's distribution name. """
+        ...
+
+    @property
+    def enrollment_kinds(self) -> tuple[EnrollmentKind, ...]:
+        """ The enrollment kinds this plugin provides. The loader registers
+        them when, and only when, it accepts the plugin; a plugin never
+        registers a kind itself. """
+        ...
+
+    @property
+    def field_kinds(self) -> Mapping[str, FieldKindHandler]:
+        """ The field kinds this plugin provides, by name. Registered as
+        the enrollment kinds are. """
         ...
 
 

@@ -9,14 +9,17 @@ A group builder's ``launch_parameters(group)`` returns an ``enrollment``
 kind (a name the plugin chooses), and the kind travels in the instance's
 recorded launch parameters. Both of the core's launch renderers -- the
 cloud-init script and its ansible equivalent -- look the kind up here and
-append what the plugin registered for it. The launch parameters themselves
+append what the plugin declared for it. The launch parameters themselves
 are unchanged by this: they are the machine's recorded, immutable snapshot,
 and the script's hash is recorded beside them, so what a plugin renders
 must be exactly what the core rendered before it moved.
 
-The registry is a plain table over two callables and needs no run: a plugin
-registers its kind when its module loads, which is why it lives in the
-contract rather than behind the run context. A kind that no installed
+The registry is a plain table over two callables and needs no run, which is
+why it lives in the contract rather than behind the run context. A plugin
+declares its kinds in its metadata (``PluginMetadata.enrollment_kinds``); the
+system enters them here once, when the plugins are discovered, and only for a
+plugin it accepts. Entering a kind is the system's (``_install``), not a
+plugin's. A kind that no installed
 plugin renders is refused, never skipped: a machine launched without its
 enrollment step would never become reachable, and nothing would say why.
 """
@@ -48,13 +51,11 @@ class EnrollmentKind:
 _KINDS: dict[str, EnrollmentKind] = {}
 
 
-def register_enrollment_kind(kind: str, *, script_lines: ScriptLines, ansible_tasks: AnsibleTasks) -> None:
-    """Called by the identity plugin that issues ``kind``, when it loads.
-    Registering a kind again replaces it here (a plugin module reloaded);
-    the loader, which reads this registry before and after each plugin
-    loads, reports a kind that a second plugin replaced as a collision and
-    uses neither plugin."""
-    _KINDS[kind] = EnrollmentKind(kind, script_lines, ansible_tasks)
+def _install(kind: EnrollmentKind) -> None:
+    """Enter one enrollment kind in the registry. The system's own call:
+    the loader enters the kinds a plugin it accepted declares. Not for a
+    plugin, which declares its kinds in its metadata."""
+    _KINDS[kind.kind] = kind
 
 
 def registered_kinds() -> list[str]:

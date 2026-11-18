@@ -1090,5 +1090,6 @@ class _TemplatedFieldHandler(field_kinds.FieldKindHandler):
         setattr(obj, field.name, fk_id)
 
 
-field_kinds.register_field_kind(field_kinds.FK, _FkFieldHandler())
-field_kinds.register_field_kind(field_kinds.TEMPLATED, _TemplatedFieldHandler())
+# the system's own field kinds, entered by the system itself (a plugin declares its kinds; the loader enters them)
+field_kinds._install(field_kinds.FK, _FkFieldHandler())
+field_kinds._install(field_kinds.TEMPLATED, _TemplatedFieldHandler())

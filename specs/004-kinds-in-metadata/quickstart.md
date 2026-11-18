@@ -21,8 +21,8 @@ repository root, on the branch `feature/004-kinds-in-metadata`.
 Under a minute.
 
 ```sh
-# step 1 -- box 1 of 1 -- v1
-just test-one packages/engine/tests/test_unusable_plugins.py tests/test_posix_identity.py -q
+# step 1 -- box 1 of 1 -- v2
+just test-one packages/engine/tests/test_declared_kinds.py packages/engine/tests/test_unusable_plugins.py tests/test_posix_identity.py -q
 ```
 
 Expect every test to pass, among them one per case recorded in spec

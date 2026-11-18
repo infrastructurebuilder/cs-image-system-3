@@ -81,14 +81,15 @@ Complexity Tracking (a breaking contract step).
 
 Measured on `develop` at `46917a66`.
 
-| Measure | Today | Expected | Reason for any growth |
-| --- | --- | --- | --- |
-| Loader (`engine/loader.py`) lines | 774 | −100 to −140 | The nine inference functions (97 lines) and their state leave; the declared-kind key and the registration after settling add about 30 |
-| Source lines (`packages/*/src`, `src`) | measured at T001 | −80 to −130 | The loader's net fall, the kit's two re-exports, Okta's registration call; the contract gains two record fields and two protocol members |
-| Test lines | measured at T001 | −100 to +50 | The kind sections of `test_unusable_plugins.py` (from line 216, the library and claimant tests) leave; the four recorded cases arrive, each over every order |
-| Workspace packages | 22 | 22 | None added or removed |
-| Contract protocol members | — | +2 | `enrollment_kinds`, `field_kinds` on `PluginMetadataProtocol` |
-| Golden files | 222 | 222 | No emission moves |
+| Measure | Today | Expected | Actual (T034) | Reason for any growth, or for a figure outside its range |
+| --- | --- | --- | --- | --- |
+| Loader (`engine/loader.py`) lines | 774 | −100 to −140 | 699 (−75) | The nine inference functions and their state left as planned (172 lines out); what replaced them was underestimated at about 30 lines and is 97: the refusal of a system field kind or a kind declared twice, with its error class; the equality rule; the collision finder beside the other four; the registration once per process. Each is what a declared kind needs and nothing else; none of it was cut to meet the figure |
+| Source lines (`packages/*/src`, `src`) | 57,221 | −80 to −130 | 57,214 (−7) | The loader's smaller fall (above); the contract's two record fields, two protocol members and two installers, and the kit's two properties, came with the docstrings that say who fills them and when (about 60 lines); the surface check's new rule (8) |
+| Test lines | 48,049 | −100 to +50 | 48,141 (+92) | The kind tests of `test_unusable_plugins.py` left (255 lines); the new `test_declared_kinds.py` (319) holds the stories and the four recorded cases, each run over every order of discovery, and the resolver reached through a declared kind; two surface-check tests |
+| Tests | 2,085 | — | 2,093 (+8) | Ten tests of kinds registered by a call left; sixteen of declared kinds and two of the surface rule came |
+| Workspace packages | 22 | 22 | 22 | None added or removed |
+| Contract protocol members | — | +2 | +2 | `enrollment_kinds`, `field_kinds` on `PluginMetadataProtocol` |
+| Golden files | 222 | 222 | 222 | No emission moves |
 
 ### Statements this change makes false (Principle X)
 

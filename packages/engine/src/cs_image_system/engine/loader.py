@@ -2,7 +2,6 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-import functools
 import logging
 from collections.abc import Callable, Mapping
 from functools import cache
@@ -13,6 +12,7 @@ from cs_image_system.base import registry
 from cs_image_system.contract import enrollment, field_kinds
 from cs_image_system.contract.constants import PLUGIN_TYPES, VCT
 from cs_image_system.contract.core import PluginArtifactProtocol, PluginMetadataProtocol
+from cs_image_system.contract.enrollment import EnrollmentKind
 from cs_image_system.contract.testing import conformance_problems, protocol_for
 
 log = logging.getLogger(__name__)
@@ -167,6 +167,64 @@ def check_group(pname: str, plugin_type: str, metadata: list[Any]) -> None:
            "a plugin of no named kind declares cs_image_system.plugins.other"))
 
 
+#: what a collision over a declared kind calls it
+ENROLLMENT_KIND = "enrollment kind"
+FIELD_KIND = "field kind"
+
+
+class PluginKindError(ValueError):
+    """A plugin whose declared kinds cannot be accepted: one of the
+    system's own field kinds, or one kind declared twice. Refused when the
+    plugin is discovered, with the kind named."""
+
+
+def _declared_kinds(metadata: list[Any]) -> list[tuple[tuple[str, str], Any]]:
+    """The kinds one plugin declares, in its records' order, each as
+    ((what, name), definition): an enrollment kind's definition is its
+    ``EnrollmentKind``, a field kind's its handler."""
+    out: list[tuple[tuple[str, str], Any]] = []
+    for md in metadata:
+        if not isinstance(md, PluginMetadataProtocol):
+            continue
+        for kind in tuple(getattr(md, "enrollment_kinds", ()) or ()):
+            out.append(((ENROLLMENT_KIND, str(kind.kind)), kind))
+        for name, handler in dict(getattr(md, "field_kinds", {}) or {}).items():
+            out.append(((FIELD_KIND, str(name)), handler))
+    return out
+
+
+def check_kinds(pname: str, metadata: list[Any]) -> None:
+    """Hold one plugin's declared kinds to what the system accepts: no
+    field kind of the system's own (``field_kinds.SYSTEM_FIELD_KINDS``), and
+    no kind declared twice."""
+    seen: set[tuple[str, str]] = set()
+    for (what, name), _definition in _declared_kinds(metadata):
+        if what == FIELD_KIND and name in field_kinds.SYSTEM_FIELD_KINDS:
+            raise PluginKindError(f"Plugin {pname} is refused: field kind {name!r} is the system's own")
+        if (what, name) in seen:
+            raise PluginKindError(f"Plugin {pname} is refused: it declares {what} {name!r} twice")
+        seen.add((what, name))
+
+
+def _same_definition(one: Any, other: Any) -> bool:
+    """Whether two declarations of one kind are one: the same object, or
+    two enrollment kinds with the same name and the same renderers."""
+    return one is other or (isinstance(one, EnrollmentKind) and one == other)
+
+
+def register_declared_kinds(found: tuple["DiscoveredPlugin", ...]) -> None:
+    """Enter the declared kinds of the plugins ``found`` (the usable ones,
+    once their collisions are settled) in the contract's two registries.
+    Done once per process, after discovery (:func:`_discovery`): a kind is
+    never entered for a plugin that is skipped, so none is ever taken back."""
+    for plugin in found:
+        for (what, name), definition in _declared_kinds(_metadata_of(plugin.initializer)):
+            if what == ENROLLMENT_KIND:
+                enrollment._install(definition)
+            else:
+                field_kinds._install(name, definition)
+
+
 class DiscoveredPlugin(NamedTuple):
     """One installed plugin as discovery leaves it: its type and entry-point
     name, the namespace derived from its distribution (``None`` when the
@@ -249,98 +307,6 @@ def _registrations(pname: str, derived: str | None, metadata: list[Any]) -> dict
 
 #: the classifications a runtime type is registered under
 RUNTIME_CLASSIFICATIONS = frozenset({VCT.RUNTIME_BUILDER, VCT.CLOUD_BUILDER, VCT.CONTAINER_BUILDER})
-#: who else may own something a plugin replaced
-THE_SYSTEM = "the system itself"
-
-
-def _shared_kinds() -> dict[str, dict[str, Any]]:
-    """The two registries of the contract that a plugin fills by a call of
-    its own, not through its metadata, and that every run in the process
-    shares: the enrollment kinds and the field kinds, by what a collision
-    over one is called."""
-    return {"enrollment kind": cast(dict[str, Any], enrollment._KINDS),
-            "field kind": cast(dict[str, Any], field_kinds._HANDLERS)}
-
-
-def _replaced(before: dict[str, dict[str, Any]]) -> list[tuple[str, str]]:
-    """Every (registry, key) that held something in ``before`` and holds
-    something else now: what the plugin that just loaded replaced. The
-    same value registered again (a module loaded twice) is no replacement."""
-    out: list[tuple[str, str]] = []
-    for what, now in _shared_kinds().items():
-        for key, was in before[what].items():
-            if key in now and now[key] is not was and now[key] != was:
-                out.append((what, key))
-    return sorted(out)
-
-
-def _restore(before: dict[str, dict[str, Any]], package: str) -> None:
-    """Put the two shared registries back as ``before`` has them, for what
-    the plugin whose own package is ``package`` did: a kind it replaced
-    gets its earlier value back, and a kind it added is removed when its
-    code is the plugin's own (:func:`_defined_in`). A kind added by a
-    module outside the plugin's package -- a library the plugin imports,
-    which another plugin may import too and which will not run again -- is
-    the library's, and stays."""
-    for what, now in _shared_kinds().items():
-        added = {key: value for key, value in now.items()
-                 if key not in before[what] and _a_librarys(_defined_in(what, value), package)}
-        now.clear()
-        now.update(before[what])
-        now.update(added)
-
-
-def _defined_in(what: str, value: Any) -> str:
-    """The module that defines a kind's code: an enrollment kind's
-    renderer (the function a ``functools.partial`` wraps, for one), a field
-    kind's handler class.
-
-    The rule stops here, by decision (research R13): a kind a plugin builds
-    from a library's code -- a renderer a library's factory returns, an
-    instance of a library's handler class -- reads as the library's, and
-    is kept when the plugin is skipped. A library's module runs once per
-    process, so what it registered cannot be told apart from what another
-    plugin that imports it relies on; keeping it is the side that cannot
-    break a usable plugin."""
-    if what == "enrollment kind":
-        renderer: Any = getattr(value, "script_lines", None)
-        while isinstance(renderer, functools.partial):
-            renderer = renderer.func
-        return str(getattr(renderer, "__module__", "") or "")
-    return str(type(value).__module__ or "")
-
-
-def _own_package(entry: Any) -> str:
-    """The package a plugin's entry point lives in, which holds its own
-    code: under this system's root the package below it
-    (``cs_image_system.<name>_plugin``), else the top-level package. For
-    an entry point a test builds in process, with no value to read, the
-    module its ``load`` is defined in."""
-    value = str(getattr(entry, "value", "") or "")
-    if value:
-        parts = value.split(":", 1)[0].split(".")
-        return ".".join(parts[:2]) if parts[0] == "cs_image_system" and len(parts) > 1 else parts[0]
-    return str(getattr(getattr(entry, "load", None), "__module__", "") or "")
-
-
-def _inside(module: str, package: str) -> bool:
-    return bool(package) and (module == package or module.startswith(package + "."))
-
-
-#: what defines the base classes a kind may be an instance of: a kind whose code is only these is the
-#: registering plugin's, not a library's
-_CONTRACT = "cs_image_system.contract"
-
-
-def _a_librarys(module: str, package: str) -> bool:
-    """Whether a kind whose code is in ``module`` belongs to a library
-    rather than to the plugin whose own package is ``package``: it is
-    defined outside the plugin's package, and not merely by the contract's
-    base classes (a handler that is an instance of the contract's own
-    class is the plugin's that registered it)."""
-    return bool(module) and not _inside(module, package) and not _inside(module, _CONTRACT)
-
-
 def _runtime_types(metadata: list[Any]) -> set[str]:
     """The runtime types one plugin registers."""
     return {s.csis_name() for md in metadata if isinstance(md, PluginMetadataProtocol)
@@ -406,13 +372,6 @@ class _Discovering:
         self.unusable: list[Unusable] = []
         # collisions among the candidates, by the candidate's index: the other party and the claim
         self.colliding: dict[int, tuple[str, str]] = {}
-        # who registered each enrollment kind and field kind in this reading, by candidate index: the CLAIMANT,
-        # whatever defines the kind's code, is who a collision over it names; the OWNER, recorded only when the
-        # code is the plugin's own, is who loses it when skipped (a library's kind stays for its other users)
-        self.kind_claimant: dict[tuple[str, str], int] = {}
-        self.kind_owner: dict[tuple[str, str], int] = {}
-        # the kinds two plugins already collided over, with everyone who claimed them: nobody's from then on
-        self.collided_kinds: dict[tuple[str, str], list[str]] = {}
         # the runtime types each candidate's image-source catalog carries a block for, by candidate index
         self.blocks: dict[int, set[str]] = {}
 
@@ -438,16 +397,13 @@ class _Discovering:
 
     def load(self, plugin_type: str, pname: str, entry: Any, dist_name: str) -> None:
         """Load one plugin and hold it to the contract; a candidate when
-        it passes, else skipped with whatever it registered on the way
-        taken back."""
+        it passes, else skipped. Nothing of it is registered yet, so a skip
+        has nothing to take back."""
         derived = namespace_of_distribution(dist_name) if dist_name else None
-        before = {what: dict(held) for what, held in _shared_kinds().items()}
-        package = _own_package(entry)
         try:
             initializer = entry.load()
             metadata = _metadata_of(initializer)
         except Exception as e:
-            _restore(before, package)
             self.skip(Unusable(pname, dist_name, plugin_type, FAILED_TO_IMPORT, f"{type(e).__name__}: {e}"))
             return
         try:
@@ -456,8 +412,8 @@ class _Discovering:
                     namespace_for(pname, md, derived)
                     check_conformance(pname, md)
             check_group(pname, plugin_type, metadata)
-        except (PluginNamespaceError, PluginConformanceError, PluginGroupError) as e:
-            _restore(before, package)
+            check_kinds(pname, metadata)
+        except (PluginNamespaceError, PluginConformanceError, PluginGroupError, PluginKindError) as e:
             self.skip(Unusable(pname, dist_name, plugin_type, REFUSED, str(e), _words_of(metadata)))
             return
         try:
@@ -466,59 +422,12 @@ class _Discovering:
             blocks = _image_source_blocks(metadata)
             _register(registry.Registry(), pname, derived, metadata)
         except Exception as e:
-            _restore(before, package)
             self.skip(Unusable(pname, dist_name, plugin_type, REFUSED,
                                f"Plugin {pname} is refused: what it registers cannot be loaded: "
                                f"{type(e).__name__}: {e}", _words_of(metadata)))
             return
-        me = Unusable(pname, dist_name, plugin_type, COLLIDES, "", _words_of(metadata))
-        replaced = _replaced(before)
-        if replaced:
-            self.replaced_a_kind(me, replaced[0], before, package)
-            return
-        added = [(what, key) for what, held in _shared_kinds().items() for key in held if key not in before[what]]
-        contested = [kind for kind in added if kind in self.collided_kinds]
-        if contested:
-            # a kind two plugins already collided over is nobody's: a later claimant is skipped too, so the
-            # outcome is the same whichever of them was found first
-            what, key = contested[0]
-            claim = f"{what} {key!r}"
-            others = self.collided_kinds[(what, key)]
-            _restore(before, package)
-            self.unusable.append(me._replace(detail=claim, claim=claim, other=" and ".join(others)))
-            log.error(f"Plugin {me.named()} is skipped: {COLLIDES}: {claim} is also registered by "
-                      f"{' and '.join(others)}, and is nobody's")
-            others.append(me.named())
-            return
-        # a kind is this plugin's when its code is: one a shared library registered is the library's, and
-        # skipping this plugin later must not take it from another plugin that imports the same library
-        held = _shared_kinds()
-        for kind in added:
-            self.kind_claimant[kind] = len(self.candidates)
-            if not _a_librarys(_defined_in(kind[0], held[kind[0]][kind[1]]), package):
-                self.kind_owner[kind] = len(self.candidates)
         self.blocks[len(self.candidates)] = blocks
         self.candidates.append((DiscoveredPlugin(plugin_type, pname, derived, initializer), metadata, dist_name))
-
-    def replaced_a_kind(self, plugin: Unusable, kind: tuple[str, str], before: dict[str, dict[str, Any]],
-                        package: str) -> None:
-        """An enrollment kind or a field kind that was already registered
-        now holds this plugin's: this one is skipped and the registries are
-        put back; when another plugin of this reading owned the kind that
-        one is skipped too, and the kind is neither's."""
-        what, key = kind
-        claim = f"{what} {key!r}"
-        _restore(before, package)
-        owner = self.kind_claimant.get((what, key))
-        me = plugin._replace(detail=claim, claim=claim, other=THE_SYSTEM if owner is None else self.named(owner))
-        self.unusable.append(me)
-        if owner is None:
-            log.error(f"Plugin {me.named()} is skipped: it registers {claim}, which is {THE_SYSTEM}'s")
-            return
-        del _shared_kinds()[what][key]
-        self.collided_kinds[(what, key)] = [self.named(owner), me.named()]
-        self.colliding.setdefault(owner, (me.named(), claim))
-        log.error(f"Plugins {self.named(owner)} and {me.named()} are both skipped: both register {claim}")
 
     def _one_key_two_classes(self) -> dict[frozenset[int], str]:
         """Two candidates that would register DIFFERENT classes under one
@@ -554,6 +463,22 @@ class _Discovering:
                 owner = runtime_owner.get(runtime_type)
                 if owner is not None and owner != index:
                     pairs.setdefault(frozenset((index, owner)), f"image-source block {runtime_type!r}")
+        return pairs
+
+    def _one_kind_two_definitions(self) -> dict[frozenset[int], str]:
+        """Two candidates that declare one kind with DIFFERENT definitions
+        (an equal one from several plugins is one registration), by pair,
+        each claimant beside one whose definition differs, with the kind."""
+        claims: dict[tuple[str, str], list[tuple[int, Any]]] = {}
+        for index, (_found, metadata, _dist) in enumerate(self.candidates):
+            for key, definition in _declared_kinds(metadata):
+                claims.setdefault(key, []).append((index, definition))
+        pairs: dict[frozenset[int], str] = {}
+        for (what, name), claimed in sorted(claims.items()):
+            for i, mine in claimed:
+                other = next((j for j, theirs in claimed if j != i and not _same_definition(theirs, mine)), None)
+                if other is not None:
+                    pairs.setdefault(frozenset((i, other)), f"{what} {name!r}")
         return pairs
 
     def _one_model_two_builders(self) -> dict[frozenset[int], str]:
@@ -629,7 +554,7 @@ class _Discovering:
         among the candidates are found: both sides of each are skipped."""
         pairs = self._one_key_two_classes()
         for more in (self._one_model_two_builders(), self._one_classification_two_defaults(),
-                     self._a_block_for_anothers_runtime()):
+                     self._one_kind_two_definitions(), self._a_block_for_anothers_runtime()):
             for pair, claim in more.items():
                 pairs.setdefault(pair, claim)
         for pair, claim in sorted(pairs.items(), key=lambda item: sorted(item[0])):
@@ -642,18 +567,7 @@ class _Discovering:
             self.unusable.append(Unusable(found.name, dist_name, found.plugin_type, COLLIDES, claim,
                                           _words_of(metadata), other, claim))
         together = self._loadable_together([i for i in range(len(self.candidates)) if i not in self.colliding])
-        self._take_back_kinds(set(range(len(self.candidates))) - set(together))
         return tuple(self.candidates[i][0] for i in together), tuple(self.unusable)
-
-    def _take_back_kinds(self, skipped: set[int]) -> None:
-        """Remove from the contract's two shared registries every enrollment
-        kind and field kind that a candidate skipped at settling registered
-        when it was imported: nothing of a skipped plugin stays registered.
-        (A plugin skipped while it loads was put back then.)"""
-        shared = _shared_kinds()
-        for (what, key), owner in self.kind_owner.items():
-            if owner in skipped:
-                shared[what].pop(key, None)
 
 
 def discover() -> tuple[tuple[DiscoveredPlugin, ...], tuple[Unusable, ...]]:
@@ -665,16 +579,17 @@ def discover() -> tuple[tuple[DiscoveredPlugin, ...], tuple[Unusable, ...]]:
     class its metadata registers is checked against the protocol of its
     classification, as shipped (:func:`check_conformance`); the entry-point
     group it was found under is held to what it registers
-    (:func:`check_group`); and its namespace is settled
+    (:func:`check_group`); the kinds it declares are held to what the
+    system accepts (:func:`check_kinds`); and its namespace is settled
     (:func:`namespace_of_distribution`, :func:`namespace_for`).
 
     A plugin that cannot be used is never a reason to stop: it is an
     absence. That is so whether its entry point fails to import, its
-    ``initialize`` raises, it is refused by one of the three checks above,
+    ``initialize`` raises, it is refused by one of the checks above,
     or it collides with another plugin: two entry points of one name in
     one group; two plugins registering different classes under one key;
-    one plugin replacing an enrollment kind or a field kind another
-    registered; or one plugin shipping an image-source block for a runtime
+    two plugins declaring one enrollment kind or field kind
+    differently; or one plugin shipping an image-source block for a runtime
     type another registers. One ERROR line names the plugin and the cause
     -- for a collision both plugins, and neither is used, so the outcome
     never depends on the order they were found in -- and the rest load. A
@@ -700,10 +615,20 @@ def discover() -> tuple[tuple[DiscoveredPlugin, ...], tuple[Unusable, ...]]:
     return found.settled()
 
 
-# shared by every run in the process: the installed plugins, which each run replays into a registry of its own
+def _discover_and_register() -> tuple[tuple[DiscoveredPlugin, ...], tuple[Unusable, ...]]:
+    """Discovery as a process does it once: the plugins read and settled
+    (:func:`discover`), then the usable plugins' declared kinds entered
+    (:func:`register_declared_kinds`)."""
+    usable, unusable = discover()
+    register_declared_kinds(usable)
+    return usable, unusable
+
+
+# shared by every run in the process: the installed plugins, which each run replays into a registry of its own,
+# and their declared kinds, entered once
 @cache
 def _discovery() -> tuple[tuple[DiscoveredPlugin, ...], tuple[Unusable, ...]]:
-    return discover()
+    return _discover_and_register()
 
 
 def _discovered_plugins() -> tuple[DiscoveredPlugin, ...]:

@@ -36,6 +36,20 @@ to. One distribution may hold several import packages. Docker's holds
 two, the runtime (`cs_image_system.docker_runtime`) and the roots
 (`cs_image_system.tf_docker_plugin`), and they release together.
 
+**Kinds.** A plugin that brings an enrollment kind (what a machine
+does at first boot to enroll with an identity agent) or a field kind
+(a late-binding behaviour for configuration fields) declares it in its
+metadata, beside its classes: `enrollment_kinds`, a sequence of the
+contract's `EnrollmentKind`, and `field_kinds`, a mapping from a kind's
+name to its `FieldKindHandler`. On the kit's metadata base class these
+are two properties a subclass overrides; both are empty by default. The
+system registers the declared kinds once, after the plugins are
+discovered, and only for a plugin it accepts, so a plugin that is
+skipped leaves no kind behind. A plugin cannot register a kind by a
+call, and the four field kinds of the system's own (`fk`, `templated`,
+`deferred_list`, `deferred_list_fk`) are no plugin's to declare. The
+Okta plugin's `OktaTypes` is the example in this repository.
+
 Everything a provider needs at run time ships in its own
 distribution, the Terraform modules included. A provider never relies
 on a file that lives in another package.
@@ -306,13 +320,16 @@ A plugin is skipped when:
 - its entry point does not import, or its `initialize` raises;
 - it is **refused**: a class it registers does not satisfy the
   contract's protocol for its kind, it sits in an entry-point group
-  whose kind it does not register, or it has no namespace;
+  whose kind it does not register, it has no namespace, it declares a
+  field kind of the system's own, or it declares one kind twice;
 - it **collides** with another plugin. Two plugins that claim one
   thing are both skipped, so the outcome never depends on which was
   found first. The things that can collide are a registered class
   under one namespace and name, an entry-point name within a group, a
-  command, a setup section, an enrollment kind, a field kind, and an
-  image-source block for a runtime type another plugin registers.
+  command, a setup section, an enrollment kind or a field kind that
+  two plugins declare differently (one declared alike by both is one
+  registration, and both load), and an image-source block for a
+  runtime type another plugin registers.
 
 A configuration that needs a skipped plugin fails validation, and the
 message says the plugin is installed and why it could not be used. It

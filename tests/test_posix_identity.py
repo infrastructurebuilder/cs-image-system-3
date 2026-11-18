@@ -6,7 +6,7 @@
 
 Step 2, the decoupling: the core's launch renderers and its login proof
 name no identity agent. The group builder's enrollment KIND (recorded in the
-launch parameters) is rendered by whichever plugin registered it, and a kind
+launch parameters) is rendered by whichever plugin declared it, and a kind
 no plugin renders is refused, never skipped; the login proof asks the
 group's builder for its checks. OPA's steps moved to the Okta plugin
 unchanged to the byte -- the golden is that proof, since every machine's
@@ -22,7 +22,9 @@ import yaml
 
 from cs_image_system.base import launch_enrollment, launch_params
 from cs_image_system.base.basic.builder_base_group import GroupBuilderBase
-from cs_image_system.engine import ansible_launch
+from cs_image_system.contract import enrollment
+from cs_image_system.contract.enrollment import EnrollmentKind
+from cs_image_system.engine import ansible_launch, loader
 from cs_image_system.engine.commands import login_proof
 
 
@@ -33,14 +35,14 @@ def _params(kind: str | None) -> dict:
 
 @pytest.fixture
 def kinds():
-    """The registry as it stands, restored afterwards (the Okta plugin's kind
-    is registered at import and must survive)."""
-    saved = dict(launch_enrollment._KINDS)
+    """The registry as it stands, restored afterwards (the kinds discovery
+    registered for the process must survive)."""
+    saved = dict(enrollment._KINDS)
     try:
-        yield launch_enrollment._KINDS
+        yield enrollment._KINDS
     finally:
-        launch_enrollment._KINDS.clear()
-        launch_enrollment._KINDS.update(saved)
+        enrollment._KINDS.clear()
+        enrollment._KINDS.update(saved)
 
 
 # ------------------------------------------------------------- step 2: the seams
@@ -55,16 +57,23 @@ def test_the_core_renderers_and_login_proof_name_no_agent():
             assert word not in code, f"{module.__name__} still names {word!r}"
 
 
-def test_the_okta_builder_brings_the_renderer_of_the_kind_it_issues():
+def test_the_okta_plugin_declares_the_renderer_of_the_kind_its_builder_issues(kinds):
     from cs_image_system.okta_opa_plugin import okta_opa_tf_group_builder as builder
-    assert builder.SFTD_TOKEN == "sftd-token" and "sftd-token" in launch_enrollment.registered_kinds()
+    from cs_image_system.okta_opa_plugin.main import OktaTypes
+    assert builder.SFTD_TOKEN == "sftd-token"
+    assert [k.kind for k in OktaTypes().enrollment_kinds] == [builder.SFTD_TOKEN]
+    kinds.pop(builder.SFTD_TOKEN, None)
+    usable, _ = loader.discover()
+    loader.register_declared_kinds(usable)
+    assert builder.SFTD_TOKEN in launch_enrollment.registered_kinds()
 
 
 def test_a_registered_kind_is_rendered_into_both_launch_forms(kinds):
-    launch_enrollment.register_enrollment_kind(
+    # a test may enter a kind directly; a plugin declares it in its metadata
+    enrollment._install(EnrollmentKind(
         "test-kind",
         script_lines=lambda p: [f"echo enrolling {p['hostname']}"],
-        ansible_tasks=lambda p: [{"name": "enroll", "ansible.builtin.command": "true"}])
+        ansible_tasks=lambda p: [{"name": "enroll", "ansible.builtin.command": "true"}]))
     script = launch_params.user_data_template(_params("test-kind"))
     assert "echo enrolling box-001" in script
     lines = script.splitlines()

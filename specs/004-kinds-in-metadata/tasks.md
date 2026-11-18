@@ -46,8 +46,17 @@ Filled in as tasks complete.
 
 | Task | Record |
 | --- | --- |
-| T001 | `just test` before any change: |
-| T002 | Budget before any change (source lines, test lines, loader lines): |
+| T001 | `just test` before any change: taken from develop's proof, not run again, since the branch differs from `46917a66` only in the six spec documents. On `46917a66` both CI workflows passed on 2026-11-18 (run 44317912573, the bare runner: 2,705 passed and 28 skipped; `test-core` 361, `test-terraform-alone` 6, 37 and 6, `test-docker-alone` 62, 62 and 38, each 0 skipped), as did the last local `just test` on the same code |
+| T002 | Budget before any change, measured 2026-11-18: source lines 57,221; test lines 48,049; tests 2,085; `engine/loader.py` 774 lines |
+| T008 | Phase 2 checkpoint, 2026-11-18: `just test` passed: lint clean, type check 0 errors, 2,705 passed and 28 skipped; `test-core` 361, `test-terraform-alone` 6, 37 and 6, `test-docker-alone` 62, 62 and 38, each with 0 skipped; shared fixture and golden untouched |
+| T014 | 2026-11-18: the three golden tests passed (6) and `git status --short tests/fixtures` printed nothing: the Okta plugin's kind, now declared, renders the same bytes |
+| T017 | Confirmed: `register_declared_kinds` is given only what `discover()` returns, which is what `_Discovering.settled()` leaves after the collisions and `_loadable_together`; T015 and T016 pass without a change |
+| T022 | 2026-11-18: `just test-one packages/engine/tests tests/test_broken_plugin_is_skipped.py tests/test_registration_namespaces.py` passed, 166 |
+| T028 | 2026-11-18: the surface tests (T023) pass; nothing calls a removed name (quickstart steps 2 and 3 print only `searched`); `just test-one tests/test_plugins_keep_to_the_surface.py packages/engine/tests packages/base/tests packages/contract/tests tests/test_posix_identity.py` passed, 383; lint clean, type check 0 errors; `just surface-check` exit 0. The loader is 699 lines, 75 below T002's 774, **not** the 100 this checkpoint asked for: what replaced the inference is larger than the plan estimated, and nothing was cut to meet the figure; the reason is in the plan's Budget table (T034) |
+| T034 | 2026-11-18, T002's method: source lines 57,214 (−7), test lines 48,141 (+92), tests 2,093 (+8), loader 699 (−75); all four written beside the expected figures in the plan's Budget table, three of them outside their range, each with its reason |
+| T036 | 2026-11-18, against the reference configuration at its `develop` (`e9104ec`): `just cli config-drift` exit **0**, 4m46s; the committed emission is current with the configuration, with the one vendor-image line spec 001 also saw (`almalinux-10-v20261110` to `almalinux-10-v20261116`), which is not a change of the tree's; the reference's working tree is clean afterwards. A first attempt stopped on an expired AWS SSO token (environmental) and passed once the token was renewed |
+| T035 | Quickstart walked 2026-11-18. Step 1 named the wrong file, since the four recorded cases live in `test_declared_kinds.py`, so its box is now v2 and names it: 94 passed. Steps 2 and 3 each printed only `searched`. Step 4, `just test`: lint clean, type check 0 errors, 2,712 passed and 28 skipped, and one failure, `tests/test_bootstrap.py::test_the_generated_root_validates_with_tofu`, whose `tofu init` timed out reaching registry.opentofu.org (environmental); run again it passed (20). The isolated recipes, not reached by the failed run, then passed: `test-core` 369, `test-terraform-alone` 6, 37 and 6, `test-docker-alone` 62, 62 and 38, each with 0 skipped; `git status --short tests/fixtures` printed nothing |
+| T037 | The spec's status line and its row in `specs/README.md` say it is implemented on its branch and not yet merged |
 
 ---
 
@@ -55,8 +64,8 @@ Filled in as tasks complete.
 
 **Purpose**: the before-state the budget and the proofs compare with.
 
-- [ ] T001 Run `just test` on `feature/004-kinds-in-metadata` before any change and record the counts (passed, skipped, each isolated run) in the Records table of `specs/004-kinds-in-metadata/tasks.md`
-- [ ] T002 [P] Measure, with the method of spec 001's T101 (lines of `*.py` under `packages/*/src` and `src`; under `tests` and `packages/*/tests`, fixtures and goldens left out; `packages/engine/src/cs_image_system/engine/loader.py` alone), and record the three figures in the Records table of `specs/004-kinds-in-metadata/tasks.md`
+- [X] T001 Run `just test` on `feature/004-kinds-in-metadata` before any change and record the counts (passed, skipped, each isolated run) in the Records table of `specs/004-kinds-in-metadata/tasks.md`
+- [X] T002 [P] Measure, with the method of spec 001's T101 (lines of `*.py` under `packages/*/src` and `src`; under `tests` and `packages/*/tests`, fixtures and goldens left out; `packages/engine/src/cs_image_system/engine/loader.py` alone), and record the three figures in the Records table of `specs/004-kinds-in-metadata/tasks.md`
 
 ---
 
@@ -65,12 +74,12 @@ Filled in as tasks complete.
 **Purpose**: the contract and the kit can carry declared kinds; nothing
 uses them yet, and nothing is removed yet, so every test still passes.
 
-- [ ] T003 Add `enrollment_kinds: tuple[EnrollmentKind, ...] = ()` and `field_kinds: Mapping[str, FieldKindHandler]` (empty by default) to `PluginMetadata` in `packages/contract/src/cs_image_system/contract/metadata.py`, and the two read-only members to `PluginMetadataProtocol` in `packages/contract/src/cs_image_system/contract/core.py`, with docstrings saying a plugin declares its kinds here and the loader registers them for an accepted plugin (data-model.md: an enrollment kind's `kind` is "Required, non-empty; unique within one plugin's declaration")
-- [ ] T004 Add a private installer to `packages/contract/src/cs_image_system/contract/enrollment.py` (`_install(kind: EnrollmentKind)`) and to `packages/contract/src/cs_image_system/contract/field_kinds.py` (`_install(name, handler)`), each writing into its module's table, and add `SYSTEM_FIELD_KINDS = frozenset({FK, TEMPLATED, DEFERRED_LIST, DEFERRED_LIST_FK})` to `field_kinds.py`; keep the public `register_*` functions for now, as thin calls of `_install`
-- [ ] T005 Make the resolver register the system's own field kinds through `field_kinds._install` in `packages/engine/src/cs_image_system/engine/orchestrator.py` (lines 1093 to 1094)
-- [ ] T006 [P] Add the properties `enrollment_kinds` (returning `()`) and `field_kinds` (returning `{}`) to `AbstractPluginMetadata` in `packages/base/src/cs_image_system/base/basic/abstract_plugin_metadata.py`, documented as the ones a subclass overrides; then run `just surface-record` and confirm the only change to `packages/base/surface-baseline.txt` is the two added entries
-- [ ] T007 Raise the contract to 0.5.0 in `packages/contract/pyproject.toml` and move every `cs-image-system-contract>=0.4,<0.5` to `>=0.5,<0.6` in the 21 manifests that carry it (find them with `grep -rln 'cs-image-system-contract>=0.4,<0.5' --include=pyproject.toml packages pyproject.toml`); refresh `uv.lock` with `uv lock`, run `just init`, and run `just test-one tests/test_contract_version.py tests/test_package_metadata.py packages/contract/tests`
-- [ ] T008 Checkpoint: `just test` passes and the shared golden is unmoved; record it
+- [X] T003 Add `enrollment_kinds: tuple[EnrollmentKind, ...] = ()` and `field_kinds: Mapping[str, FieldKindHandler]` (empty by default) to `PluginMetadata` in `packages/contract/src/cs_image_system/contract/metadata.py`, and the two read-only members to `PluginMetadataProtocol` in `packages/contract/src/cs_image_system/contract/core.py`, with docstrings saying a plugin declares its kinds here and the loader registers them for an accepted plugin (data-model.md: an enrollment kind's `kind` is "Required, non-empty; unique within one plugin's declaration")
+- [X] T004 Add a private installer to `packages/contract/src/cs_image_system/contract/enrollment.py` (`_install(kind: EnrollmentKind)`) and to `packages/contract/src/cs_image_system/contract/field_kinds.py` (`_install(name, handler)`), each writing into its module's table, and add `SYSTEM_FIELD_KINDS = frozenset({FK, TEMPLATED, DEFERRED_LIST, DEFERRED_LIST_FK})` to `field_kinds.py`; keep the public `register_*` functions for now, as thin calls of `_install`
+- [X] T005 Make the resolver register the system's own field kinds through `field_kinds._install` in `packages/engine/src/cs_image_system/engine/orchestrator.py` (lines 1093 to 1094)
+- [X] T006 [P] Add the properties `enrollment_kinds` (returning `()`) and `field_kinds` (returning `{}`) to `AbstractPluginMetadata` in `packages/base/src/cs_image_system/base/basic/abstract_plugin_metadata.py`, documented as the ones a subclass overrides; then run `just surface-record` and confirm the only change to `packages/base/surface-baseline.txt` is the two added entries
+- [X] T007 Raise the contract to 0.5.0 in `packages/contract/pyproject.toml` and move every `cs-image-system-contract>=0.4,<0.5` to `>=0.5,<0.6` in the 21 manifests that carry it (find them with `grep -rln 'cs-image-system-contract>=0.4,<0.5' --include=pyproject.toml packages pyproject.toml`); refresh `uv.lock` with `uv lock`, run `just init`, and run `just test-one tests/test_contract_version.py tests/test_package_metadata.py packages/contract/tests`
+- [X] T008 Checkpoint: `just test` passes and the shared golden is unmoved; record it
 
 **Checkpoint**: the contract and the kit can carry declared kinds.
 
@@ -88,15 +97,15 @@ and emits what the kinds render.
 
 ### Tests for User Story 1
 
-- [ ] T009 [P] [US1] In `packages/engine/tests/test_declared_kinds.py` (new; `git add -N`), with in-process entry points: an accepted plugin's declared enrollment kind is in `enrollment.registered_kinds()` after discovery and `enrollment_kind_for` returns it; its declared field kind is returned by `field_kinds.get_field_kind_handler`; a plugin declaring none changes neither registry; and both registries hold the same after a second `discover()` in the process (FR-013)
-- [ ] T010 [P] [US1] In `packages/engine/tests/test_declared_kinds.py`: a configuration field of a declared field kind is read through the kind's handler by the resolver (the pattern of `packages/engine/tests/test_field_kinds.py`, with the kind declared, not registered)
+- [X] T009 [P] [US1] In `packages/engine/tests/test_declared_kinds.py` (new; `git add -N`), with in-process entry points: an accepted plugin's declared enrollment kind is in `enrollment.registered_kinds()` after discovery and `enrollment_kind_for` returns it; its declared field kind is returned by `field_kinds.get_field_kind_handler`; a plugin declaring none changes neither registry; and both registries hold the same after a second `discover()` in the process (FR-013)
+- [X] T010 [P] [US1] In `packages/engine/tests/test_declared_kinds.py`: a configuration field of a declared field kind is read through the kind's handler by the resolver (the pattern of `packages/engine/tests/test_field_kinds.py`, with the kind declared, not registered)
 
 ### Implementation for User Story 1
 
-- [ ] T011 [US1] In `packages/engine/src/cs_image_system/engine/loader.py`, after `_Discovering.settled()` has decided the usable plugins, register the declared kinds of the usable plugins only, through the two `_install` functions, once per process (in the cached `_discovery()`, not in `load_plugins`); read each plugin's kinds from its metadata as `_register` reads its classes
-- [ ] T012 [US1] Make the Okta plugin declare its kind: `OktaTypes` in `packages/okta-opa-plugin/src/cs_image_system/okta_opa_plugin/main.py` overrides `enrollment_kinds` to return `(EnrollmentKind(SFTD_TOKEN, script_lines, ansible_tasks),)` from `sftd_launch`; remove the `register_enrollment_kind(...)` call at the end of `packages/okta-opa-plugin/src/cs_image_system/okta_opa_plugin/sftd_launch.py` and correct its docstring; correct the comment at line 30 of `packages/okta-opa-plugin/src/cs_image_system/okta_opa_plugin/okta_opa_tf_group_builder.py`
-- [ ] T013 [US1] Make `tests/test_posix_identity.py` stop relying on the import side effect (lines 38 to 64): it discovers the plugins, or declares the kind it needs on a plugin of its own, before rendering; keep what it asserts
-- [ ] T014 [US1] Checkpoint: T009 and T010 pass; `just test-one tests/test_golden.py packages/docker-plugin/tests/pipeline/test_golden.py packages/system/tests/test_core_golden.py` passes and `git status --short tests/fixtures` prints nothing (FR-003, SC-004)
+- [X] T011 [US1] In `packages/engine/src/cs_image_system/engine/loader.py`, after `_Discovering.settled()` has decided the usable plugins, register the declared kinds of the usable plugins only, through the two `_install` functions, once per process (in the cached `_discovery()`, not in `load_plugins`); read each plugin's kinds from its metadata as `_register` reads its classes
+- [X] T012 [US1] Make the Okta plugin declare its kind: `OktaTypes` in `packages/okta-opa-plugin/src/cs_image_system/okta_opa_plugin/main.py` overrides `enrollment_kinds` to return `(EnrollmentKind(SFTD_TOKEN, script_lines, ansible_tasks),)` from `sftd_launch`; remove the `register_enrollment_kind(...)` call at the end of `packages/okta-opa-plugin/src/cs_image_system/okta_opa_plugin/sftd_launch.py` and correct its docstring; correct the comment at line 30 of `packages/okta-opa-plugin/src/cs_image_system/okta_opa_plugin/okta_opa_tf_group_builder.py`
+- [X] T013 [US1] Make `tests/test_posix_identity.py` stop relying on the import side effect (lines 38 to 64): it discovers the plugins, or declares the kind it needs on a plugin of its own, before rendering; keep what it asserts
+- [X] T014 [US1] Checkpoint: T009 and T010 pass; `just test-one tests/test_golden.py packages/docker-plugin/tests/pipeline/test_golden.py packages/system/tests/test_core_golden.py` passes and `git status --short tests/fixtures` prints nothing (FR-003, SC-004)
 
 **Checkpoint**: declared kinds work, and the Okta plugin uses them.
 
@@ -113,12 +122,12 @@ library's kind object, one skipped, the other keeps it.
 
 ### Tests for User Story 2
 
-- [ ] T015 [P] [US2] In `packages/engine/tests/test_declared_kinds.py`: a plugin that declares a kind and fails while its metadata is read registers none; a plugin skipped at settling for a collision over a builder type registers none of its declared kinds; a bystander's declared kinds stay (SC-002)
-- [ ] T016 [P] [US2] In `packages/engine/tests/test_declared_kinds.py`: two plugins whose declarations hold one shared library's `EnrollmentKind` object (equal definitions), one of them skipped for an unrelated collision; the other is usable and the kind is registered (SC-003)
+- [X] T015 [P] [US2] In `packages/engine/tests/test_declared_kinds.py`: a plugin that declares a kind and fails while its metadata is read registers none; a plugin skipped at settling for a collision over a builder type registers none of its declared kinds; a bystander's declared kinds stay (SC-002)
+- [X] T016 [P] [US2] In `packages/engine/tests/test_declared_kinds.py`: two plugins whose declarations hold one shared library's `EnrollmentKind` object (equal definitions), one of them skipped for an unrelated collision; the other is usable and the kind is registered (SC-003)
 
 ### Implementation for User Story 2
 
-- [ ] T017 [US2] Confirm in `packages/engine/src/cs_image_system/engine/loader.py` that T011 registers kinds for usable plugins only and after every skip at settling (including `_loadable_together`); correct it if T015 or T016 fails
+- [X] T017 [US2] Confirm in `packages/engine/src/cs_image_system/engine/loader.py` that T011 registers kinds for usable plugins only and after every skip at settling (including `_loadable_together`); correct it if T015 or T016 fails
 
 **Checkpoint**: Stories 1 and 2 pass on their own.
 
@@ -135,14 +144,14 @@ in every order and gives the same outcome (SC-001).
 
 ### Tests for User Story 3
 
-- [ ] T018 [P] [US3] In `packages/engine/tests/test_declared_kinds.py`, in every order: two plugins declaring one enrollment kind differently are both skipped, one line names both and the kind, and the kind is not registered; the same for a field kind; two declaring an equal definition both load and the kind is registered once (data-model.md: "equal when they are the same object or carry the same name and the same two renderers")
-- [ ] T019 [P] [US3] In `packages/engine/tests/test_declared_kinds.py`, in every order: three plugins declaring one kind, two of them alike, are all skipped and every line names two that differ; a plugin declaring a field kind named in `SYSTEM_FIELD_KINDS` is skipped alone, its line saying the kind is the system's, and the system's handler is unchanged; a plugin declaring one kind twice is refused, naming the kind
-- [ ] T020 [US3] In `packages/engine/tests/test_declared_kinds.py`, the four cases of spec 001 research R13 (tasks T140 to T143) as declared kinds, each in every order, each asserting the same accepted plugins, the same skipped and named plugins and the same registered kinds: (1) a plugin that fails while loading beside a usable plugin declaring the same kind; (2) two plugins colliding over a kind, with a third colliding with one of them over a builder type; (3) two entry points of one package declaring one equal kind, one of them skipped for another reason; (4) two plugins sharing a library's kind object, with a third declaring the kind differently (FR-010)
+- [X] T018 [P] [US3] In `packages/engine/tests/test_declared_kinds.py`, in every order: two plugins declaring one enrollment kind differently are both skipped, one line names both and the kind, and the kind is not registered; the same for a field kind; two declaring an equal definition both load and the kind is registered once (data-model.md: "equal when they are the same object or carry the same name and the same two renderers")
+- [X] T019 [P] [US3] In `packages/engine/tests/test_declared_kinds.py`, in every order: three plugins declaring one kind, two of them alike, are all skipped and every line names two that differ; a plugin declaring a field kind named in `SYSTEM_FIELD_KINDS` is skipped alone, its line saying the kind is the system's, and the system's handler is unchanged; a plugin declaring one kind twice is refused, naming the kind
+- [X] T020 [US3] In `packages/engine/tests/test_declared_kinds.py`, the four cases of spec 001 research R13 (tasks T140 to T143) as declared kinds, each in every order, each asserting the same accepted plugins, the same skipped and named plugins and the same registered kinds: (1) a plugin that fails while loading beside a usable plugin declaring the same kind; (2) two plugins colliding over a kind, with a third colliding with one of them over a builder type; (3) two entry points of one package declaring one equal kind, one of them skipped for another reason; (4) two plugins sharing a library's kind object, with a third declaring the kind differently (FR-010)
 
 ### Implementation for User Story 3
 
-- [ ] T021 [US3] In `packages/engine/src/cs_image_system/engine/loader.py`, make each declared kind a registration key in `_Discovering._registrations` (or a sibling the settling reads), as `("enrollment kind", "", name)` and `("field kind", "", name)`, compared for equality as data-model.md defines; refuse in `_Discovering.load` a plugin that declares a field kind in `SYSTEM_FIELD_KINDS` or one kind twice; the messages in the forms of `specs/004-kinds-in-metadata/contracts/plugin-metadata.md`
-- [ ] T022 [US3] Checkpoint: T018 to T020 pass; `just test-one packages/engine/tests tests/test_broken_plugin_is_skipped.py tests/test_registration_namespaces.py` passes
+- [X] T021 [US3] In `packages/engine/src/cs_image_system/engine/loader.py`, make each declared kind a registration key in `_Discovering._registrations` (or a sibling the settling reads), as `("enrollment kind", "", name)` and `("field kind", "", name)`, compared for equality as data-model.md defines; refuse in `_Discovering.load` a plugin that declares a field kind in `SYSTEM_FIELD_KINDS` or one kind twice; the messages in the forms of `specs/004-kinds-in-metadata/contracts/plugin-metadata.md`
+- [X] T022 [US3] Checkpoint: T018 to T020 pass; `just test-one packages/engine/tests tests/test_broken_plugin_is_skipped.py tests/test_registration_namespaces.py` passes
 
 **Checkpoint**: Stories 1 to 3 pass on their own.
 
@@ -157,15 +166,15 @@ is gone, and no plugin can register a kind by a call.
 
 ### Tests for User Story 4
 
-- [ ] T023 [P] [US4] In `packages/base/tests/test_surface_check.py`: `from cs_image_system.contract.enrollment import _install` (and any underscore name from the contract) inside a plugin is a finding "private to the contract"; a public contract name still passes
+- [X] T023 [P] [US4] In `packages/base/tests/test_surface_check.py`: `from cs_image_system.contract.enrollment import _install` (and any underscore name from the contract) inside a plugin is a finding "private to the contract"; a public contract name still passes
 
 ### Implementation for User Story 4
 
-- [ ] T024 [US4] Remove from `packages/engine/src/cs_image_system/engine/loader.py` the functions `_shared_kinds`, `_replaced`, `_restore`, `_defined_in`, `_own_package`, `_inside`, `_a_librarys`, `replaced_a_kind`, `_take_back_kinds`, and from `_Discovering` the snapshot taken around each import, `kind_owner`, `kind_claimant`, `collided_kinds` and the `contested` check, with the imports of `enrollment`, `field_kinds` and `functools` they alone needed; quickstart step 3 prints only `searched` (FR-009)
-- [ ] T025 [US4] Remove from `packages/engine/tests/test_unusable_plugins.py` the tests of kinds registered by a call (the sections from the comment "kinds a plugin registers by a call of its own", "what is left behind, and who is named" as far as it tests kinds, and "a library two plugins share", with the `kinds`, `shared_library` and `two_libraries` fixtures and their helpers); T018 to T020 hold the behaviour now
-- [ ] T026 [US4] Remove `register_enrollment_kind` from `packages/contract/src/cs_image_system/contract/enrollment.py` and `register_field_kind` from `packages/contract/src/cs_image_system/contract/field_kinds.py`; remove the re-exports of `register_enrollment_kind` and `_KINDS` from `packages/base/src/cs_image_system/base/launch_enrollment.py`; make `packages/engine/tests/test_field_kinds.py` (line 36) declare its kind on a plugin or install it through `field_kinds._install` with a comment that a test may; quickstart step 2 prints only `searched` (FR-002)
-- [ ] T027 [US4] Add the rule to `packages/base/src/cs_image_system/base/surface/check.py`: an underscore-prefixed name imported from `cs_image_system.contract` is a finding whose reason is `private to the contract`; describe it in the module docstring; run `just surface-check`
-- [ ] T028 [US4] Checkpoint: T023 passes; every test that used the removed functions is changed; `just test-one tests/test_plugins_keep_to_the_surface.py packages/engine/tests packages/base/tests` passes; the loader's line count is below T002's by at least 100 (SC-005)
+- [X] T024 [US4] Remove from `packages/engine/src/cs_image_system/engine/loader.py` the functions `_shared_kinds`, `_replaced`, `_restore`, `_defined_in`, `_own_package`, `_inside`, `_a_librarys`, `replaced_a_kind`, `_take_back_kinds`, and from `_Discovering` the snapshot taken around each import, `kind_owner`, `kind_claimant`, `collided_kinds` and the `contested` check, with the imports of `enrollment`, `field_kinds` and `functools` they alone needed; quickstart step 3 prints only `searched` (FR-009)
+- [X] T025 [US4] Remove from `packages/engine/tests/test_unusable_plugins.py` the tests of kinds registered by a call (the sections from the comment "kinds a plugin registers by a call of its own", "what is left behind, and who is named" as far as it tests kinds, and "a library two plugins share", with the `kinds`, `shared_library` and `two_libraries` fixtures and their helpers); T018 to T020 hold the behaviour now
+- [X] T026 [US4] Remove `register_enrollment_kind` from `packages/contract/src/cs_image_system/contract/enrollment.py` and `register_field_kind` from `packages/contract/src/cs_image_system/contract/field_kinds.py`; remove the re-exports of `register_enrollment_kind` and `_KINDS` from `packages/base/src/cs_image_system/base/launch_enrollment.py`; make `packages/engine/tests/test_field_kinds.py` (line 36) declare its kind on a plugin or install it through `field_kinds._install` with a comment that a test may; quickstart step 2 prints only `searched` (FR-002)
+- [X] T027 [US4] Add the rule to `packages/base/src/cs_image_system/base/surface/check.py`: an underscore-prefixed name imported from `cs_image_system.contract` is a finding whose reason is `private to the contract`; describe it in the module docstring; run `just surface-check`
+- [X] T028 [US4] Checkpoint: T023 passes; every test that used the removed functions is changed; `just test-one tests/test_plugins_keep_to_the_surface.py packages/engine/tests packages/base/tests` passes; the loader's line count is below T002's by at least 100 (SC-005)
 
 **Checkpoint**: all four stories pass on their own.
 
@@ -175,15 +184,15 @@ is gone, and no plugin can register a kind by a call.
 
 **Purpose**: the documents, spec 001's record, the budget and the bar.
 
-- [ ] T029 [P] Correct `packages/contract/README.md`: the `enrollment` and `field_kinds` rows of the module table (lines 31, 41), the range in the version rule (lines 140, 183) to `>=0.5,<0.6`, and a version-table row for 0.5.0 saying what changed and why it is the middle number
-- [ ] T030 [P] Correct the contract's docstrings that this feature makes false: the module docstrings of `packages/contract/src/cs_image_system/contract/enrollment.py` and `field_kinds.py`, and line 131 of `packages/contract/src/cs_image_system/contract/context.py`
-- [ ] T031 [P] Correct `packages/base/README.md` (line 488, field kinds by `register_field_kind`; line 1317, the contract's range) and the docstring of `packages/base/src/cs_image_system/base/launch_enrollment.py`
-- [ ] T032 [P] Add to `docs/WRITING_A_PROVIDER.md` one place that says how a plugin brings an enrollment kind or a field kind (declared in its metadata, registered by the system for an accepted plugin), and correct the collision list near line 314 (SC-006)
-- [ ] T033 Mark spec 001's limit superseded, without rewriting it: a note at the end of research R13's "Where this spec stops" paragraph in `specs/001-standalone-docker-provider/research.md`, a note on its row in the Complexity Tracking of `specs/001-standalone-docker-provider/plan.md`, and a note under the "is nobody's" line form in `specs/001-standalone-docker-provider/contracts/commands.md`, each pointing to `specs/004-kinds-in-metadata` (FR-012)
-- [ ] T034 Measure the budget again with T002's method and write the actual figures beside the expected ones in the Budget table of `specs/004-kinds-in-metadata/plan.md`, with a reason for any figure outside its range
-- [ ] T035 Walk `specs/004-kinds-in-metadata/quickstart.md` steps 1 to 4 and record each result in the Records table
-- [ ] T036 Run `just cli config-drift` against the reference configuration and confirm exit 0 with no change of the tree's own (SC-004); record it
-- [ ] T037 Bring the specification's files up to date: the status line of `specs/004-kinds-in-metadata/spec.md`, and the row for 004 in `specs/README.md`
+- [X] T029 [P] Correct `packages/contract/README.md`: the `enrollment` and `field_kinds` rows of the module table (lines 31, 41), the range in the version rule (lines 140, 183) to `>=0.5,<0.6`, and a version-table row for 0.5.0 saying what changed and why it is the middle number
+- [X] T030 [P] Correct the contract's docstrings that this feature makes false: the module docstrings of `packages/contract/src/cs_image_system/contract/enrollment.py` and `field_kinds.py`, and line 131 of `packages/contract/src/cs_image_system/contract/context.py`
+- [X] T031 [P] Correct `packages/base/README.md` (line 488, field kinds by `register_field_kind`; line 1317, the contract's range) and the docstring of `packages/base/src/cs_image_system/base/launch_enrollment.py`
+- [X] T032 [P] Add to `docs/WRITING_A_PROVIDER.md` one place that says how a plugin brings an enrollment kind or a field kind (declared in its metadata, registered by the system for an accepted plugin), and correct the collision list near line 314 (SC-006)
+- [X] T033 Mark spec 001's limit superseded, without rewriting it: a note at the end of research R13's "Where this spec stops" paragraph in `specs/001-standalone-docker-provider/research.md`, a note on its row in the Complexity Tracking of `specs/001-standalone-docker-provider/plan.md`, and a note under the "is nobody's" line form in `specs/001-standalone-docker-provider/contracts/commands.md`, each pointing to `specs/004-kinds-in-metadata` (FR-012)
+- [X] T034 Measure the budget again with T002's method and write the actual figures beside the expected ones in the Budget table of `specs/004-kinds-in-metadata/plan.md`, with a reason for any figure outside its range
+- [X] T035 Walk `specs/004-kinds-in-metadata/quickstart.md` steps 1 to 4 and record each result in the Records table
+- [X] T036 Run `just cli config-drift` against the reference configuration and confirm exit 0 with no change of the tree's own (SC-004); record it
+- [X] T037 Bring the specification's files up to date: the status line of `specs/004-kinds-in-metadata/spec.md`, and the row for 004 in `specs/README.md`
 
 ---
 

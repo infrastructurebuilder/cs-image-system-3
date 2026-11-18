@@ -25,7 +25,7 @@ dependencies = [
     "cs-image-system-base==0.2.0",
     "cs-image-system-bash-mod-plugin==0.1.10",
     "cs-image-system-default-os-plugin==0.1.10",
-    "cs-image-system-contract>=0.4,<0.5",
+    "cs-image-system-contract>=0.5,<0.6",
     "cs-image-system-engine==0.1.10",
     "cs-image-system-hashicorp-utils==0.2.0",
     "cs-image-system-local-state-plugin==0.1.10",
