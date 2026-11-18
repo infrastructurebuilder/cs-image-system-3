@@ -14,7 +14,7 @@ import json
 import logging
 import os
 import sys
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from importlib.metadata import entry_points
 from pathlib import Path
 from typing import TYPE_CHECKING, Annotated, Any
@@ -1645,6 +1645,13 @@ def plugin_commands() -> list[tuple[str, list[CommandMount]]]:
             log.error(f"Plugin {owner} is skipped: refused: its commands entry point returned {strangers[0]!r}, "
                       "not a CommandMount")
             continue
+        # a kit command this command line does not have (the plugin was built against a later contract that names
+        # more): nothing to mount, and the plugin is skipped whole
+        unknown = [m.kit_command for m in mounts if m.kit_command is not None and m.kit_command not in KIT_COMMAND_CALLBACKS]
+        if unknown:
+            log.error(f"Plugin {owner} is skipped: refused: it mounts the kit command {unknown[0]!r}, which this "
+                      f"command line does not have (it has: {', '.join(sorted(KIT_COMMAND_CALLBACKS))})")
+            continue
         found.append((owner, mounts))
     claims: dict[str, list[tuple[int, object]]] = {}
     for index, (_owner, mounts) in enumerate(found):
@@ -1679,12 +1686,17 @@ def _callback_of(mount: CommandMount):
     return mount.callback
 
 
-def _sub_app(root: typer.Typer, path: tuple[str, ...]) -> typer.Typer:
-    """The sub-app ``path`` names, outermost first; the root for ``()``."""
+def _sub_app(root: typer.Typer, path: tuple[str, ...],
+             pending: Mapping[str, typer.Typer] | None = None) -> typer.Typer:
+    """The sub-app ``path`` names, outermost first; the root for ``()``.
+    ``pending`` are sub-apps about to be mounted on the root, by name: a
+    path may start with one of them."""
     current = root
-    for name in path:
+    for depth, name in enumerate(path):
         found = next((g.typer_instance for g in current.registered_groups if g.name == name and g.typer_instance),
                      None)
+        if found is None and depth == 0 and pending is not None:
+            found = pending.get(name)
         if found is None:
             raise ValueError(f"no sub-app {name!r} under {'/'.join(path[:path.index(name)]) or 'the root'}")
         current = found
@@ -1693,24 +1705,29 @@ def _sub_app(root: typer.Typer, path: tuple[str, ...]) -> typer.Typer:
 
 def _mount_refusal(root: typer.Typer, mounts: list[CommandMount]) -> str | None:
     """Why one plugin's mounts cannot all go on ``root``, read without
-    mounting anything: a path that names no sub-app (one this plugin mounts
-    itself counts), or a name a built-in command or an earlier plugin
-    took for something else. None when they all can."""
-    own_apps = {m.name for m in mounts if m.is_app and not m.path}
+    mounting anything and in the order they will be mounted: a path that
+    names no sub-app (one this plugin has mounted EARLIER in its list
+    counts, one it mounts later does not), or a name a built-in command, an
+    earlier plugin or an earlier mount of this one took for something else.
+    None when they all can."""
+    pending: dict[str, typer.Typer] = {}
+    taken_here: dict[tuple[tuple[str, ...], str], object] = {}
     for mount in mounts:
         where = "/".join((*mount.path, mount.name))
         try:
-            parent = _sub_app(root, mount.path)
+            parent = _sub_app(root, mount.path, pending)
         except ValueError as e:
-            if mount.path and mount.path[0] in own_apps:
-                continue
             return f"command {where!r}: {e}"
         groups = {g.name: g.typer_instance for g in parent.registered_groups}
         commands = {c.name: c.callback for c in parent.registered_commands}
-        same = groups.get(mount.name) is mount.app if mount.is_app else \
-            commands.get(mount.name) is _callback_of(mount)
-        if (mount.name in groups or mount.name in commands) and not same:
+        thing = _mounted_thing(mount)
+        mine = taken_here.get((mount.path, mount.name))
+        same = (groups.get(mount.name) is thing if mount.is_app else commands.get(mount.name) is thing) or mine is thing
+        if (mount.name in groups or mount.name in commands or mine is not None) and not same:
             return f"command {where!r} is already mounted, by the system itself or an earlier plugin"
+        taken_here[(mount.path, mount.name)] = thing
+        if mount.is_app and mount.app is not None:
+            pending.setdefault(mount.name, mount.app)
     return None
 
 
@@ -1738,7 +1755,13 @@ def mount_plugin_commands(root: typer.Typer, mounts: list[CommandMount] | None =
         if refusal is not None:
             log.error(f"Plugin {owner} is skipped: refused: {refusal}")
             continue
-        mounted += _mount_all(root, theirs)
+        try:
+            mounted += _mount_all(root, theirs)
+        except Exception as e:
+            # the judgement above reads the mounts as they will be mounted, so this is not expected; were it
+            # ever wrong, a plugin's commands must still not stop the command line from starting
+            log.error(f"Plugin {owner} is skipped: refused: its commands could not be mounted: "
+                      f"{type(e).__name__}: {e}")
     return mounted
 
 

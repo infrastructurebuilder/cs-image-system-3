@@ -136,8 +136,9 @@ gives every family one (`almalinux:{version}`, `debian:{version}`, ...);
 those blocks are this plugin's, shipped as package data in
 [`data/image-sources.yml`](src/cs_image_system/docker_runtime/data/image-sources.yml)
 and read by `DockerContainerBuilder.image_source_entries()`, so the
-release catalog a tree sees carries a `docker` block exactly when this
-plugin is installed. The query PULLS the reference and records its digest reference
+release catalog a tree sees carries a `docker` block when the tree
+declares a docker runtime (and, for the local modification tests alone,
+when this plugin is the installed stand-in). The query PULLS the reference and records its digest reference
 (`<repository>@sha256:...`) as the identifier, so a vendor moving a tag shows
 as a move. An entry's `image_id` pins a digest reference; a tag is refused
 there, because a tag moves.
@@ -683,9 +684,8 @@ of these.
   system's [tests/test_container_runtime.py](../../tests/test_container_runtime.py).
 - [tests/live/](tests/live) holds the one test that needs a real daemon:
   the modification tests of the fixture on this package's own stand-in.
-  It is in no default path and no isolated run; `just test-one
-  packages/docker-plugin/tests/live` runs it on purpose, and without a
-  daemon it fails.
+  It is in no default path and no isolated run; `just test-docker-live`
+  runs it, as a leg of `just full-test`, and without a daemon it fails.
 - `just test-docker-bake`, a leg of `just full-test`, bakes an AlmaLinux 10
   and a Debian 12 base image and an instance image on the local daemon,
   checks the lineage and the tags, disposes them, and skips loudly without

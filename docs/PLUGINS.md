@@ -144,15 +144,20 @@ runtime declares only what it has.
 - `image_source_entries()`: the runtime's part of the release-owned
   image-source catalog (CONFIGURATION 5a), the blocks keyed by its own
   type, read from the plugin's package data (`data/image-sources.yml`
-  beside its code). The core merges what every installed runtime answers,
-  by family; a runtime that ships none answers an empty list.
+  beside its code). The core merges, by family, what the runtimes a tree
+  declares answer (a runtime installed and not declared has no say); a
+  runtime that ships none answers an empty list.
 - `local_test_target()`: a factory `factory(image, executables)` for the
   throwaway target the local modification tests run on, or `None` for a
-  runtime that offers none. The core takes the factory of the first
-  registered runtime, by name, that offers one, reads the tests' stand-in
-  block from the catalog under that runtime's type, and hands the factory
-  the tree's executables so the plugin can find its CLI. The docker
-  runtime plugin is the one that offers a target today.
+  runtime that offers none. Offering one is what makes a runtime a
+  stand-in. With one installed the modification tests use it and say so;
+  with two or more they need one named (`test-mods --stand-in <type>`)
+  and fail until it is; with none they did not run, which is a failure
+  unless the caller asked for the exclusion (`--allow-not-run`). The core
+  reads the tests' stand-in block from the catalog under the chosen
+  runtime's type and hands the factory the tree's executables so the
+  plugin can find its CLI. The docker runtime plugin is the one that
+  offers a target today.
 - `session_status(settings, executables)`: the session the runtime will
   use, read from its caches and never a credential value: a
   `SessionStatus` saying what was read, a fixed expiry when one is

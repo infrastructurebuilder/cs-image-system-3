@@ -848,8 +848,10 @@ where a vendor image comes from, per family and runtime
 type, written in the SYSTEM's own query vocabulary, which each runtime
 translates to its own. The release's catalog is split by runtime: each
 runtime plugin ships its own part as package data, the blocks keyed by
-its type, and the core merges the parts of every INSTALLED runtime by
-family (the `aws` blocks in
+its type, and the core merges, by family, the parts of the runtimes the
+tree DECLARES (a provider that is installed and not declared has no say
+in what a family is; a command run with no tree loaded reads every
+installed runtime's) (the `aws` blocks in
 [the aws plugin's `image-sources.yml`](../packages/aws-runtime-plugin/src/cs_image_system/aws_runtime/data/image-sources.yml),
 the `gcloud` blocks in
 [the gcloud plugin's](../packages/gcloud-runtime-plugin/src/cs_image_system/gcloud_runtime/data/image-sources.yml),

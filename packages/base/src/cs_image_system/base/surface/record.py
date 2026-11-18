@@ -21,7 +21,11 @@ library as it is now with its baseline:
   number is unchanged, breaks the rule: the middle number must rise;
 * a middle number higher than the baseline's means the baseline is of an
   earlier line and must be re-recorded (``just surface-record``);
-* an entry the baseline does not have is an addition, and is no problem.
+* an entry the baseline does not have is an addition. It keeps the rule,
+  and it must be recorded in the baseline when it is made
+  (``just surface-record``, which may add without a new middle number):
+  an addition left unrecorded could later be removed or altered without
+  anything noticing, since the baseline is what the rule is held against.
 """
 from __future__ import annotations
 
@@ -186,6 +190,18 @@ def problems(library: str, baseline: Path) -> list[str]:
     if now_middle != was_middle:
         return [f"{library}: its version's middle number is {now_middle} and the baseline is of the 0.{was_middle} "
                 "line; re-record the baseline (`just surface-record`)"]
+    out = _broken(library, was, now)
+    unrecorded = sorted(key for key in now if key not in was)
+    if unrecorded:
+        out.append(f"{library}: {len(unrecorded)} entr{'y' if len(unrecorded) == 1 else 'ies'} added to the surface "
+                   f"and not yet in the baseline ({', '.join(unrecorded[:5])}{', ...' if len(unrecorded) > 5 else ''}); "
+                   "an addition keeps the rule, record it now so it is held from now on (`just surface-record`)")
+    return out
+
+
+def _broken(library: str, was: dict[str, str], now: dict[str, str]) -> list[str]:
+    """The entries of the baseline that are gone from the surface, or differ:
+    what breaks the rule while the middle number stands still."""
     out = []
     for key, shape in was.items():
         if key not in now:
@@ -201,9 +217,11 @@ def write(library: str, baseline: Path) -> list[str]:
     """Record ``library``'s surface to ``baseline``. Refused, with the
     reasons, when the middle number is the baseline's and an entry would be
     removed or changed: that needs a new middle number first."""
-    if baseline.is_file() and read(baseline)[0] == middle_of(library):
-        broken = problems(library, baseline)
-        if broken:
-            return broken
+    if baseline.is_file():
+        was_middle, was = read(baseline)
+        if was_middle == middle_of(library):
+            broken = _broken(library, was, entries(library))      # an addition alone may be recorded
+            if broken:
+                return broken
     baseline.write_text(render(library, middle_of(library), entries(library)))
     return []

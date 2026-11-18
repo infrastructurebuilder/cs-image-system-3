@@ -57,8 +57,13 @@ the dependencies they declare (FR-026):
 
 | Run | Environment | Tests |
 | --- | --- | --- |
-| High end | Both libraries, the kit at the highest version of `tofu-roots`' range | Both packages' whole suites and the import check |
-| Low end | Both libraries, the kit at the lowest version of that range | Their unit tests and the import check |
+| The roots, high end | Both libraries, the kit at the highest version of `tofu-roots`' range | The roots library's whole suite, its import check among it |
+| The collectors, high end | The same environment | The collectors library's whole suite, its import check among it |
+| The roots, low end | Both libraries, the kit at the lowest version of that range | The roots library's whole suite, its import check among it |
+
+Each library's suite carries the import check itself
+(`tests/test_keeps_to_the_surface.py`), so a run reads the surface of
+the kit it is installed with.
 
 - **Needs**: no daemon. The index, as for `test-docker-alone`.
 - **Passes when**: every run collected at least one test, skipped
@@ -80,6 +85,17 @@ an empty environment that holds nothing else, renders the
 - **Option**: `keep=<directory>` leaves the emitted tree there, for
   the before-and-after comparison of FR-022.
 
+### `just test-docker-live`
+
+Runs the docker family's tests that need a container daemon
+(`packages/docker-plugin/tests/live`): the modification tests of the
+family's fixture on the docker runtime's own stand-in. They are in no
+default path and no isolated run.
+
+- **Needs**: a container daemon that answers; the registry.
+- **Passes when**: the tests ran and passed. Without a daemon it fails;
+  it never skips.
+
 ### `just sdk-bump <kit|terraform> <last|middle>`
 
 Moves one version line: the kit's, or the two Terraform libraries'
@@ -99,7 +115,7 @@ removed or changed.
 | Recipe | Change |
 | --- | --- |
 | `just test` | Runs `test-core`, `test-docker-alone` and `test-terraform-alone` after the unit tests. |
-| `just full-test` | Gains `test-docker-install` as a leg that fails, not skips, without a daemon. |
+| `just full-test` | Gains `test-docker-install` and `test-docker-live` as legs that fail, not skip, without a daemon. |
 | `just golden-regen` | Takes which golden to regenerate: the shared one (the default, as today), the core's, or docker's. |
 
 ## CI jobs
@@ -130,10 +146,19 @@ Plugins <a> (<distribution>) and <b> (<distribution>) are both skipped: both reg
 ```
 
 What both register is one of: a registry key (written
-`<classification> <namespace>/<name>`), `command '<path>/<name>'`,
+`<classification> <namespace>/<name>`), `the builder for <model>`,
+`the default <classification>`, `command '<path>/<name>'`,
 `bootstrap section '<name>'`, `entry point '<name>' (<group>)`,
 `enrollment kind '<name>'`, `field kind '<name>'`, or
 `image-source block '<runtime type>'`.
+
+A third plugin that claims an enrollment kind or a field kind two
+others already collided over is skipped too, in one line that says the
+kind is nobody's:
+
+```text
+Plugin <name> (<distribution>) is skipped: collides: <kind> is also registered by <a> and <b>, and is nobody's
+```
 
 A plugin that claims something the system itself already holds (a
 built-in command, the system's own bootstrap section, one of its field

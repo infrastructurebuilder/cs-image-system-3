@@ -34,6 +34,7 @@ its copy; a tree that wants to keep the edit names the module in
 from __future__ import annotations
 
 import hashlib
+import logging
 import shutil
 from collections.abc import Iterable
 from dataclasses import dataclass, field
@@ -52,6 +53,8 @@ STAMP_FILE = ".csis-module"
 
 #: Names that are neither module content nor part of the hash.
 _IGNORED_NAMES = frozenset({STAMP_FILE, ".DS_Store", "__pycache__"})
+
+log = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -84,21 +87,38 @@ def installed_modules() -> dict[str, ModuleSource]:
 
     An entry point in :data:`MODULES_ENTRY_POINT_GROUP` has the value
     ``<package>:<dirname>``; the directory is resolved as package data and
-    read, the package itself is never imported for its code. A module
-    name two distributions ship is refused, naming both.
+    read, the package itself is never imported for its code.
+
+    A plugin whose modules cannot be read is skipped, with one ERROR line
+    that names it and the cause, and the others' modules are read: an entry
+    point whose value is not ``<package>:<dirname>``, one with no
+    distribution to derive a namespace from, one whose package cannot be
+    found. A broken plugin must not stop the commands that write modules
+    for every tree. A module name two distributions ship is another thing,
+    and is refused naming both: neither may replace the other, and a tree
+    cannot be given one of the two by guess.
     """
     found: dict[str, ModuleSource] = {}
     for ep in sorted(entry_points(group=MODULES_ENTRY_POINT_GROUP), key=lambda e: (e.value, e.name)):
-        if ":" not in ep.value:
-            raise ValueError(
-                f"modules entry point {ep.name!r} has the value {ep.value!r}; expected <package>:<dirname>")
-        package, _, dirname = ep.value.partition(":")
         dist = ep.dist
+        owner = f"{ep.name} ({dist.name})" if dist is not None else ep.name
+        if ":" not in ep.value:
+            log.error(f"Plugin {owner} is skipped: refused: its modules entry point has the value {ep.value!r}; "
+                      "expected <package>:<dirname>")
+            continue
+        package, _, dirname = ep.value.partition(":")
         if dist is None:
-            raise ValueError(f"modules entry point {ep.name!r} ({ep.value}) has no distribution to derive a "
-                             "namespace from")
-        root = Path(str(files(package) / dirname))
-        for d in _module_dirs(root):
+            log.error(f"Plugin {owner} is skipped: refused: its modules entry point ({ep.value}) has no "
+                      "distribution to derive a namespace from")
+            continue
+        try:
+            root = Path(str(files(package) / dirname))
+            directories = _module_dirs(root)
+        except Exception as e:
+            log.error(f"Plugin {owner} is skipped: failed to import: its terraform modules ({ep.value}): "
+                      f"{type(e).__name__}: {e}")
+            continue
+        for d in directories:
             other = found.get(d.name)
             if other is not None:
                 raise ValueError(

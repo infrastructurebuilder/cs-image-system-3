@@ -4,8 +4,9 @@
 
 """The version rule, as the comparison with a baseline applies it.
 
-Held on records the test writes: an entry added to the surface passes; an
-entry removed or changed while the middle number stands still is named,
+Held on records the test writes: an entry added to the surface keeps the
+rule and is reported until it is recorded, which needs no new middle
+number; an entry removed or changed while the middle number stands still is named,
 with both forms of a change; a middle number above the baseline's asks for
 the baseline to be re-recorded; and a baseline is not rewritten over a
 broken rule.
@@ -33,12 +34,26 @@ def baseline(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     return path, now
 
 
-def test_an_unchanged_surface_and_an_addition_both_keep_the_rule(baseline):
-    path, now = baseline
+def test_an_unchanged_surface_keeps_the_rule(baseline):
+    path, _now = baseline
     assert record.read(path) == (2, WAS)
     assert record.problems(LIB, path) == []
+
+
+def test_an_addition_is_recorded_under_the_same_middle_number_and_is_held_from_then_on(baseline):
+    """An addition keeps the rule, but an addition the baseline does not
+    hold could later be removed with nothing noticing: it is reported until
+    recorded, it may be recorded without a new middle number, and once
+    recorded, removing it is refused like any other entry."""
+    path, now = baseline
     now["entries"]["m:Thing.more"] = "method (self) -> 'None'"
+    [unrecorded] = record.problems(LIB, path)
+    assert "m:Thing.more" in unrecorded and "surface-record" in unrecorded
+    assert record.write(LIB, path) == [] and record.read(path) == (2, now["entries"])
     assert record.problems(LIB, path) == []
+    del now["entries"]["m:Thing.more"]
+    [removed] = record.problems(LIB, path)
+    assert "m:Thing.more" in removed and "sdk-bump" in removed
 
 
 def test_a_removed_entry_is_named(baseline):

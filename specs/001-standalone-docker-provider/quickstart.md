@@ -101,10 +101,11 @@ About 2 minutes.
 just test-terraform-alone
 ```
 
-Expect two runs (high end, low end of the kit range that `tofu-roots`
-declares), each listing as installed only the two libraries, the kit,
-the contract and third-party packages, and each ending in a count with
-`0 skipped`.
+Expect three runs (the roots library and the collectors library at the
+high end of the kit range that `tofu-roots` declares, and the roots
+library again at the low end), each listing as installed only the two
+libraries, the kit, the contract and third-party packages, and each
+ending in a count with `0 skipped`.
 
 The other half of FR-026, that no module of the contract, the kit, the
 engine or the command line imports either library, is a test that

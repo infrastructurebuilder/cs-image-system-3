@@ -531,13 +531,20 @@ runtime plugin ships its own part as package data
 (`data/image-sources.yml` beside its code, the blocks keyed by its
 runtime type) and answers it from its builder class's
 `image_source_entries()`; `packaged_default_entries(classes)` here asks
-every runtime builder class it is given (a registry's
-`runtime_builder_classes()`) and merges the parts by family
+every runtime builder class it is given and merges the parts by family
 (`sources` is the union by runtime type; `description`, `is` and
 `versions` take the first non-empty value, a disagreement logged at
-WARNING). The catalog therefore depends on which runtime plugins are
-installed, never on which a tree declares, and this module names no
-runtime. The tree's `image_sources:` entries land on the merged result
+WARNING). A runtime type's block that two parts give differently is a
+collision: neither is used, and one error line names both parts; and
+when one plugin ships a block for a runtime type another plugin
+registers, discovery skips both plugins. The classes asked are those of
+the runtimes a configuration DECLARES, once the loader has said which
+(`ImageSourceCatalog.set_declared`): a provider installed beside them
+has no say in what a family is or in its blocks. Before a configuration
+is loaded they are every installed runtime's. The one reader that looks
+past the declared runtimes is the stand-in for the local modification
+tests, an installed runtime by its nature, whose own block is read
+beside them. This module names no runtime. The tree's `image_sources:` entries land on the merged result
 by family and version (`ImageSourceCatalog(reg)`, one per run like the
 registry: the loader makes it over the run's registry and carries it as
 `ctx.image_sources`; an OS model holds the one of the run that

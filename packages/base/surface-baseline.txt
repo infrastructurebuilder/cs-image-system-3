@@ -1636,4 +1636,6 @@ cs_image_system.base.surface.check:Finding#reason = field str required
 cs_image_system.base.surface.check:Finding#what = field str required
 cs_image_system.base.surface.check:findings = function (directory: 'Path', *, own: 'Iterable[str] | None' = None, family: 'Iterable[str] | None' = None, tests: 'bool' = False) -> 'list[Finding]'
 cs_image_system.base.surface.cli:main = function (argv: 'Sequence[str] | None' = None) -> 'int'
+cs_image_system.base.surface.record:problems = function (library: 'str', baseline: 'Path') -> 'list[str]'
 cs_image_system.base.surface:check = module
+cs_image_system.base.surface:record = module

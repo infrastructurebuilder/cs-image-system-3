@@ -114,11 +114,11 @@ violated.
 
 | Measure | Today | Expected | Actual, 2026-11-17 | Reason for any growth |
 | --- | --- | --- | --- | --- |
-| Source lines (`packages/*/src`, `src`) | 54,482 | +700 to +1,300 | 56,818 (+2,336) | About 400 are the harness's neutral part moving from `tests/` into the system package. New: three surface declarations, the import check, the baseline record and check, collision and skip reporting, the test-double runtime. |
-| Test lines | 45,127 | −300 to +300 | 47,352 (+2,225) | The harness's neutral part leaves; new tests arrive. |
+| Source lines (`packages/*/src`, `src`) | 54,482 | +700 to +1,300 | 57,119 (+2,637) | About 400 are the harness's neutral part moving from `tests/` into the system package. New: three surface declarations, the import check, the baseline record and check, collision and skip reporting, the test-double runtime. |
+| Test lines | 45,127 | −300 to +300 | 47,804 (+2,677) | The harness's neutral part leaves; new tests arrive. |
 | Workspace packages | 23 | 22 | 22 | Docker's two packages become one. No package is added. |
 | Contract protocol members | unchanged | 0 | 0 (unchanged) | The stand-in capability already exists (`local_test_target`). |
-| Tests | 1,939 | +25 to +55 | 2,049 (+110) | New: surface and baseline, each collision and skip case, the stand-in cases, the isolation assertion, two goldens. Removed: the old import-rule file. |
+| Tests | 1,939 | +25 to +55 | 2,076 (+137) | New: surface and baseline, each collision and skip case, the stand-in cases, the isolation assertion, two goldens. Removed: the old import-rule file. |
 | Golden files | 148 | +35 to +50 | 222 (+74) | The docker family's golden (about 26 files that duplicate the shared golden's docker subtrees, by the operator's decision of 2026-11-16) and the core's. |
 | Repository-wide checks | n/a | 2 removed, 2 added | 2 removed, 2 added | Removed: the import-rule test, the assertion that a plugin reaches every kit module. (The cap on the import edge between docker's two halves stays: the analyser counts by import package, and those two names did not change.) Added: every workspace plugin and both Terraform libraries pass the surface check; no core module imports a Terraform library (FR-026). |
 
@@ -130,9 +130,11 @@ in the Today column) and on the working tree: lines of `*.py` under
 files under `packages/`; functions named `test_`; files under every
 golden directory.
 
-**Four figures are outside their expected range.** The reasons:
+**Four figures are outside their expected range.** The reasons (the
+figures re-measured after the two convergence phases, 11 and 12, whose
+fixes added a guard or a test for each gap they closed):
 
-- **Source lines, +2,336 against +700 to +1,300.** The test kit is about
+- **Source lines, +2,637 against +700 to +1,300.** The test kit is about
   790 lines, not the 400 that moved: it gained the test-double runtime, the
   golden comparison, the isolation assertion and the broken neighbour.
   The kit's surface package is 663 lines (the declaration, the import
@@ -142,7 +144,7 @@ golden directory.
   code). The engine grew by 390 for skip-and-name discovery, the
   collisions and the stand-in rule. Nothing was added that a
   requirement did not ask for; the estimate was low.
-- **Test lines, +2,225 against −300 to +300.** The estimate assumed the
+- **Test lines, +2,677 against −300 to +300.** The estimate assumed the
   four docker test files would leave `tests/` whole. They were split
   instead (T024 to T026): 30 of their 47 tests test what the core or
   another plugin does with a docker runtime, and stay where every
@@ -150,7 +152,7 @@ golden directory.
   What arrived: the family's suite, the core's suite, the surface and
   baseline tests for three libraries, the isolated-run tests, and a
   test for every skip and collision.
-- **Tests, +110 against +25 to +55.** The same cause: every skip and
+- **Tests, +137 against +25 to +55.** The same cause: every skip and
   collision case, each end of each SDK range and each failure of the
   isolated runs has a test of its own, and the docker family gained
   tests at its own seams that it did not have.
@@ -367,7 +369,7 @@ Phase F depends on B only.
 
 ## Complexity Tracking
 
-No constitution principle is violated. Two places where the plan
+No constitution principle is violated. Three places where the plan
 delivers less than the spec's words, and two costs, are recorded here
 so they can be rejected.
 
@@ -375,5 +377,6 @@ so they can be rejected.
 | --- | --- | --- |
 | FR-013 at the low end runs the family's unit tests and the import check, not its pipeline tests or golden (R11) | The engine pins the kit exactly, so an environment with the oldest kit has an older engine; that engine's emission is not this change's | Running everything against an older published core fails whenever the core's own part of the emission changed, for reasons the family cannot fix |
 | FR-020 has one exception: the kit's opened-secret store stays shared by every run in the process, and docker adds to it when given an encrypted host (R16) | It is shared by a recorded safety decision: another run's entries can only make a run hide more | A store per run moves every reader into the safety path (Constitution V) for no guard gained |
+| FR-016 and FR-020: a kind a skipped plugin built from a library's code stays registered (R13) | A library's module runs once per process; what it registered cannot be told apart from what another plugin that imports it relies on | Taking such kinds back can break a usable plugin that needs a kind it never registers itself, which is worse than leaving one unused kind behind |
 | The docker family's emission is pinned in two goldens | FR-025 keeps the shared golden whole; FR-001 gives the family its own | Removing docker from the shared golden moves the frozen golden; decided against in clarification |
 | The core, docker and Terraform-library isolated runs happen twice in CI (R12) | The local bar must predict CI, and Story 1 asks for a named job | Leaving them out of `just test` makes a local pass weaker than a CI pass |

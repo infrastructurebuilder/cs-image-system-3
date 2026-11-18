@@ -108,3 +108,25 @@ def test_the_command_prints_each_finding_and_exits_1_or_says_it_keeps_and_exits_
     assert cli.main(["check", str(bad)]) == 1
     out = capsys.readouterr().out
     assert "cs_image_system/mine/main.py:1: from cs_image_system.engine import loader" in out
+
+
+@pytest.mark.parametrize("line, reason", [
+    ("from ..engine import loader", check.ENGINE),                          # one namespace: this reaches the engine
+    ("from ..someone_else.models import Theirs", check.ANOTHER),
+    ("import importlib\nimportlib.import_module('cs_image_system.engine.loader')", check.ENGINE),
+    ("__import__('cs_image_system.someone_else')", check.ANOTHER),
+])
+def test_a_relative_import_and_a_module_named_by_a_string_are_read_as_what_they_reach(tmp_path: Path, line: str,
+                                                                                       reason: str):
+    assert [r for _, r in _reasons(_plugin(tmp_path, line + "\n"))] == [reason]
+
+
+def test_a_relative_import_of_an_unlisted_kit_name_is_found(tmp_path: Path):
+    found = check.findings(_plugin(tmp_path, f"from ..{KIT.split('.', 1)[1]}.models.thing import hidden\n"))
+    assert [(f.what, f.reason.split(' 0.')[0]) for f in found] == [
+        (f"from {KIT}.models.thing import hidden", f"{check.NOT_LISTED} {KIT}")]
+
+
+def test_a_relative_import_inside_the_plugin_itself_passes(tmp_path: Path):
+    src = _plugin(tmp_path, "from .other import helper\nfrom . import sibling\n")
+    assert check.findings(src) == []

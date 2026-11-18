@@ -14,9 +14,12 @@ name: CI
 # over the FROZEN FIXTURE, read-only; `publish` uploads a pushed `v*` tag to
 # the index (TestPyPI always, PyPI for a final version). The
 # reference configuration (cs-image-system-testconfig) is driven, recorded and
-# performed by its OWN workflow, from the release; nothing here reads it. Each
-# job is gated on the secrets the operator provides -- until they exist every
-# leg reports SKIPPED and the job passes.
+# performed by its OWN workflow, from the release; nothing here reads it. The
+# jobs that reach a cloud (`live`) are gated on the secrets the operator
+# provides -- until they exist every such leg reports SKIPPED and the job
+# passes. The jobs that prove a part alone, and the install check, have no
+# gate and no condition: they need no secret, and each fails unless its
+# tests or steps ran.
 on:
   push:
   pull_request:
@@ -272,8 +275,10 @@ jobs:
     # uploaded twice; one published from CI alone is uploaded here. The tag
     # must name the version in the tree it points at. Each index's token is a
     # repository secret until the package names are stable enough for trusted
-    # publishing (one pending publisher per project name).
-    needs: verify
+    # publishing (one pending publisher per project name). Nothing is uploaded
+    # unless the parts proved themselves alone and the docker extra installed
+    # alone validated and dry-ran its starter, on the same commit.
+    needs: [verify, core-alone, terraform-alone, docker-alone, docker-install]
     if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-24.04
     container:

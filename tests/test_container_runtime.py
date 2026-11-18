@@ -399,7 +399,14 @@ def test_the_plugin_is_a_member_of_the_workspace():
     assert any(d.startswith("cs-image-system-docker-plugin==") for d in docker_extra)   # the docker extra carries it
     assert not any(d.startswith("cs-image-system-docker-plugin") for d in root["project"]["dependencies"])
     assert "cs-image-system-docker-plugin" in root["tool"]["uv"]["sources"]
-    assert "packages/docker-plugin/tests" in root["tool"]["pytest"]["ini_options"]["testpaths"]
+    # the bar runs the family's default paths and never its tests/live, which needs a daemon: no default
+    # path of the workspace is, or holds, a `live` directory
+    paths = root["tool"]["pytest"]["ini_options"]["testpaths"]
+    assert {"packages/docker-plugin/tests/unit", "packages/docker-plugin/tests/pipeline"} <= set(paths)
+    family = tomllib.loads((REPO / "packages/docker-plugin/pyproject.toml").read_text())
+    assert family["tool"]["pytest"]["ini_options"]["testpaths"] == ["tests/unit", "tests/pipeline"]
+    for path in paths:
+        assert Path(path).name != "live" and not any(d.is_dir() for d in (REPO / path).rglob("live")), path
     from cs_image_system.tf_docker_plugin.main import initialize
     meta = initialize()
     assert meta is not None

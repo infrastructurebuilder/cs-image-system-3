@@ -78,3 +78,58 @@ def test_the_collectors_are_kept_under_the_librarys_own_namespace():
     assert collector.terraform_collector(run) is collector.terraform_collector(run)
     with pytest.raises(ValueError, match="names no namespace"):
         run.plugin_state("terraform-collector", dict)
+
+
+# ------------------------------------------------------------ state locations, scoped the same way
+
+class _OneFilePerPrefix:
+    """A backend kind for these tests: a workspace's state is the object
+    ``<prefix>.tfstate`` in the backend's container, whatever the workspace
+    is called, so two workspaces bound to one backend share a location."""
+
+    def location(self, settings, workspace):
+        from cs_image_system.contract.state import StateLocation
+        return StateLocation("sample", str(settings["container"]), f"{settings['prefix']}.tfstate")
+
+    def backend_settings(self, settings, workspace):
+        return {"path": f"{settings['prefix']}.tfstate"}
+
+    def remote_state_settings(self, settings, workspace):
+        return {"path": f"{settings['prefix']}.tfstate"}
+
+
+def _backend(name: str, prefix: str):
+    from cs_image_system.contract.state import BackendRegistration
+    return BackendRegistration(name=name, type="sample", settings={"container": "c", "prefix": prefix},
+                               kind=_OneFilePerPrefix())
+
+
+@pytest.fixture
+def located() -> TerraformCollector:
+    """Two roots bound to one state object, and a third bound to its own."""
+    col = TerraformCollector()
+    col.register_backend(_backend("shared", "shared"))
+    col.register_backend(_backend("apart", "apart"))
+    col.set_backend("one", "shared")
+    col.set_backend("two", "shared")
+    col.set_backend("third", "apart")
+    return col
+
+
+def test_a_root_that_shares_no_state_object_emits_while_two_others_collide(located: TerraformCollector):
+    located.generate_terraform_block("third")
+    located.generate_variable_blocks("third")
+
+
+@pytest.mark.parametrize("workspace", ["one", "two"])
+def test_each_root_whose_state_object_is_shared_is_refused_and_both_are_named(located: TerraformCollector, workspace: str):
+    with pytest.raises(HclConfigConflictError) as refused:
+        located.generate_terraform_block(workspace)
+    assert "one, two" in str(refused.value) and "shared.tfstate" in str(refused.value)
+
+
+def test_the_run_wide_check_still_sees_every_shared_state_object(located: TerraformCollector):
+    with pytest.raises(HclConfigConflictError):
+        located.validate_all()
+    with pytest.raises(HclConfigConflictError):
+        located.validate_state_locations()

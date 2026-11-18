@@ -823,7 +823,7 @@ workspace's `.venv`. Whoever runs a generated runner script, and terraform
 itself when it runs `decrypt --json` or `identity export-gids`, needs
 `cs-image-system` on `PATH`: `just` and `uv run` provide that; a hand
 `tofu plan` in a generated root needs the venv on the path. The base
-library is pinned to the same version in
+library is pinned exactly, at its own line's version, in
 [`pyproject.toml`](pyproject.toml); `typer`, `rich`, `PyYAML` and
 `packaging` are the only other declared dependencies.
 

@@ -529,4 +529,15 @@ def test_the_core_imports_nothing_of_the_terraform_libraries():
                            [a.name for a in node.names] if isinstance(node, ast.Import) else [])
                 reaching += [f"{source.relative_to(REPO)}:{getattr(node, 'lineno', 0)}: {m}" for m in modules
                              if any(m == lib or m.startswith(lib + ".") for lib in libraries)]
+            # nor by a module named in a string handed to an import call (the kit's surface check finds the
+            # SDK's other libraries by the entry point each declares instead)
+            for node in ast.walk(ast.parse(source.read_text())):
+                if isinstance(node, ast.Call) and node.args and isinstance(node.args[0], ast.Constant) \
+                        and isinstance(node.args[0].value, str):
+                    called = node.func.attr if isinstance(node.func, ast.Attribute) else \
+                        node.func.id if isinstance(node.func, ast.Name) else ""
+                    named = node.args[0].value
+                    if called in ("import_module", "__import__", "find_spec") and \
+                            any(named == lib or named.startswith(lib + ".") for lib in libraries):
+                        reaching.append(f"{source.relative_to(REPO)}:{node.lineno}: {called}({named!r})")
     assert reaching == [], "\n".join(reaching)

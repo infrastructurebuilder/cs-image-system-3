@@ -1767,9 +1767,10 @@ Everything `test` does plus the slow and external legs:
 1. the docker extra installed alone (`just test-docker-install`):
    `cs-image-system[docker]` from the built wheels in an empty
    environment, the standard-docker starter rendered, validated and
-   dry-run. This leg is never skipped: without a container daemon it
-   fails, because the usual install has to deliver a docker provider
-   that runs;
+   dry-run, and then the docker family's live tests
+   (`just test-docker-live`). These two legs are never skipped: without a
+   container daemon they fail, because the usual install has to deliver a
+   docker provider that runs;
 2. the modification tests under docker (`just test-mods --strict`), when
    `docker info` succeeds;
 3. only when the reference configuration is present AND `just preflight`
@@ -2117,7 +2118,9 @@ order:
    `preflight` judges too) is refused, naming `aws sso login`. A refusal
    names its remedy and changes nothing;
    then the gate: for TestPyPI the bar
-   (`just test`); for PyPI `just full-test`, the modification-test
+   (`just test`) and the install check (`just test-docker-install`, which
+   needs a container daemon); for PyPI `just full-test`, whose legs hold
+   the install check, the modification-test
    evidence at `<config_root>/meta-state/mod-tests.yaml` (written by
    `full-test` with docker in the LIVE configuration) and a live checkout
    clean apart from it; then the index is asked AGAIN, since the bar
@@ -2686,6 +2689,7 @@ repository's, which the release ships.
 | `test-terraform-alone` | the two shared terraform libraries' own tests (`packages/hashicorp-utils/tests`, `packages/tofu-roots/tests`) in an empty environment that holds only the two libraries and what they declare (the kit and the contract), at both ends of the kit range the roots library declares. Fails when no test was collected or any was skipped | nothing; the package index, for third-party packages and to ask which kit versions it holds |
 | `test-docker-alone` | the docker family's own tests ([packages/docker-plugin/tests](../packages/docker-plugin/tests)) in an empty environment that holds only the docker package and what it declares, installed from built wheels, at both ends of the SDK range it declares: at the high end the whole suite, in place and from a copy of the package's directory outside the workspace; at the low end the unit tests and the surface check with the package and the SDK alone. Says for each SDK library whether it came from the index or from this repository's build. Fails when no test was collected or any was skipped | nothing (no daemon: its runs are stubbed); the package index, for third-party packages and to ask which SDK versions it holds |
 | `test-docker-install` | what a person who installs the docker extra gets: `cs-image-system[docker]` installed from the built wheels into an empty environment that holds nothing else, the [standard-docker](examples/standard-docker) starter rendered with the installed command, then the installed `validate` and a dry `run --all` on it. Reports the install, the validation and the dry run each as ran and succeeded, ran and failed, or did not run, and passes only when all three ran and succeeded. `keep=<directory>` leaves the emitted `generated` tree there | `docker`, `packer`, `ansible-playbook`, `bash` and `tofu`; a container daemon that answers; the registry (a dry run resolves the base image with a pull); the package index, for third-party packages |
+| `test-docker-live` | the docker family's tests that need a container daemon ([packages/docker-plugin/tests/live](../packages/docker-plugin/tests/live)): the modification tests of the family's fixture on the docker runtime's own stand-in, a throwaway container on the local daemon. In no default path and no isolated run; a leg of `full-test`. Fails, and never skips, without a daemon | a container daemon that answers; the registry (the container's image is pulled) |
 | `test-one *ARGS` | one pytest expression, each word passed to pytest whole (`-k "a or b"` is one expression) | nothing |
 | `test-mods *ARGS` | the modification tests in a container over the reference configuration | docker, reference configuration |
 | `test-posix-accounts *ARGS` | the posix accounts script on AlmaLinux 10 and Debian 12 under docker, run twice: against an equal and a differing pre-existing group, a member with no account yet, sudo through visudo; a leg of `full-test`, skipped under `just test` | docker |
@@ -2696,8 +2700,8 @@ repository's, which the release ships.
 | `test-podman-cycle *ARGS` | the cycle above against PODMAN'S API SERVICE instead of the environment's docker daemon; `CSIS_PODMAN_HOST` is the `DOCKER_HOST` URL of a running service (`podman system service`, a `podman machine`, or an `ssh://` URL to a host that has one) -- unset, the leg is SKIPPED, said so, and exits 0; it refuses to pass on a daemon that does not say it is Podman; what differs from docker is recorded under "Container hosts" | `CSIS_PODMAN_HOST` |
 | `test-podman-desktop-cycle *ARGS` | `test-podman-cycle` against Podman Desktop's machine on macOS, its address read from `podman machine` rather than typed (`CSIS_PODMAN_MACHINE` names one of several); the leg never creates, starts or stops the machine -- with no podman, no machine, a stopped or an ambiguous one it is SKIPPED with the reason and exits 0; on an Intel host it proves Podman 5.8 (Podman 6 dropped them) until June 2027 | a running Podman Desktop machine |
 | `preflight` | the reference configuration's runtime sessions from the caches over the loaded tree -- the load reaches no cloud (0 / 2) | reference configuration, its age identity |
-| `surface-check` | compare each SDK library's surface (every declared name, member, field and hook, with its shape) with the baseline committed beside it; fails naming an entry removed or changed while the library's middle number is unchanged | nothing |
-| `surface-record` | rewrite each SDK library's baseline from its code, once per middle number; refused when an entry would be removed or changed under the same middle number | nothing; read the diff |
+| `surface-check` | compare each SDK library's surface (every declared name, member, field and hook, with its shape) with the baseline committed beside it; fails naming an entry removed or changed while the library's middle number is unchanged, and an entry added and not yet recorded (`surface-record` records it) | nothing |
+| `surface-record` | rewrite each SDK library's baseline from its code: when its middle number rises, and whenever an entry is added to its surface; refused when an entry would be removed or changed under the same middle number | nothing; read the diff |
 | `sdk-bump` | move one of the SDK's two version lines: `kit` (`cs-image-system-base`) or `terraform` (`cs-image-system-hashicorp-utils` and `cs-image-system-tofu-roots` together), by `last` or `middle`; the members' versions and every exact pin on them move, ranges do not | nothing; after `middle`, move the ranges by hand and run `just surface-record` |
 | `golden-regen` | rewrite a golden from its fixture: `shared` (`tests/fixtures/golden`, the default), `core` (the core's own, `packages/system/tests/golden`) or `docker` (the docker family's own, `packages/docker-plugin/tests/golden`) | nothing; read the diff file by file |
 | `public-safe *ARGS` | scan this checkout with the fixture's allow list | nothing |

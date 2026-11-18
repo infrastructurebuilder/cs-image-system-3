@@ -5,7 +5,8 @@
 """The probes a release asks first.
 
 ``just release ... pypi`` runs ``full-test``, whose legs need docker answering and every runtime
-session of the live configuration present, and every recipe runs ``uv run --no-sync`` so a venv
+session of the live configuration present; ``just release ... test`` runs the install check, which
+needs docker answering too; and every recipe runs ``uv run --no-sync`` so a venv
 behind the checkout answers with stale metadata. The release used to find all three out
 twenty minutes in. ``_release-probes`` asks them first, one line each, and the dry form of
 ``release`` prints the same verdicts. Here docker and ``uv sync`` are stubs on PATH, and the live
@@ -58,11 +59,17 @@ def _probes(tmp_path: Path, index: str, *, docker_ok: bool = True, synced: bool 
     return subprocess.run(["just", "_release-probes", index, who], cwd=REPO, capture_output=True, text=True, env=env, timeout=300)
 
 
-def test_a_test_index_asks_the_venv_and_the_own_versions_alone(tmp_path: Path):
-    done = _probes(tmp_path, "test", docker_ok=False)                  # docker is not needed for a development release
+def test_a_test_index_asks_the_venv_the_own_versions_and_the_daemon(tmp_path: Path):
+    """A development release's gate runs the install check, which needs
+    the daemon: it is asked before anything changes, and nothing of the
+    live configuration is."""
+    done = _probes(tmp_path, "test")
     assert done.returncode == 0, done.stdout + done.stderr
     lines = done.stdout.strip().splitlines()
-    assert len(lines) == 2 and lines[0].startswith("release:") and "in step" in lines[0] and lines[1].startswith(OWN)
+    assert len(lines) == 3 and lines[0].startswith("release:") and "in step" in lines[0] and lines[1].startswith(OWN)
+    assert lines[2] == "release: docker answers"
+    refused = _probes(tmp_path, "test", docker_ok=False)
+    assert refused.returncode == 1 and "test-docker-install" in refused.stdout and "nothing was changed" in refused.stdout
 
 
 @pytest.mark.parametrize(("own", "code"), [(1, 1), (2, 2)])

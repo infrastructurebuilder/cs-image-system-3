@@ -104,7 +104,9 @@ when:
 | A baseline entry differs from the code, MIDDLE unchanged | the entry, both forms, and that MIDDLE must rise |
 | MIDDLE is higher than the baseline's | that the baseline must be re-recorded (`just surface-record`) |
 
-Adding an entry does not fail this check.
+An entry the code has and the baseline lacks is an addition. It keeps the rule, and it fails this check until
+it is recorded (`just surface-record`, which may add under the same MIDDLE): an addition left out of the
+baseline could later be removed or altered with nothing to notice it.
 
 ## What refuses a release
 

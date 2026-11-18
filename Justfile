@@ -65,8 +65,8 @@ test: lint typecheck pytest test-core test-terraform-alone test-docker-alone
 # `run --all` over a private copy of the fixture followed by
 # `state query --strict`. A leg whose prerequisite is absent reports SKIPPED
 # loudly with its reason and does not fail the run; a leg that runs and fails
-# does. One leg is never skipped: `test-docker-install`, which fails when the
-# container daemon does not answer. Identity credentials (OKTA_API_*, TF_VAR_<team>_*) are not gated: a
+# does. Two legs are never skipped: `test-docker-install` and
+# `test-docker-live`, which fail when the container daemon does not answer. Identity credentials (OKTA_API_*, TF_VAR_<team>_*) are not gated: a
 # dry run without them warns and skips the identity roots' plan.
 [doc("`test` plus the docker-backed modification tests and, when the runtime sessions are present, a headless dry run --all with state query --strict")]
 full-test: test
@@ -87,7 +87,8 @@ full-test: test
 # first development release, 0.1.0 -> 0.1.1.dev1; `dev` is the next development release
 # of the same version; `stage` finalises it, 0.1.1.dev2 -> 0.1.1) or an explicit version.
 # INDEX is `test` (TestPyPI, the default) or `pypi`: a development release to TestPyPI is
-# gated on `test`, the bar; a PyPI release on `full-test`, the modification-test evidence
+# gated on `test`, the bar, and `test-docker-install` (it needs a container daemon); a PyPI
+# release on `full-test` (which holds the install check), the modification-test evidence
 # in the live configuration and a clean live checkout. A refusal before the bump returns
 # the checkout to the branch it started on. After the tag: `git push origin main
 # v<version>` (main and its own tag by name, so no other local tag travels: GitHub starts
@@ -195,9 +196,12 @@ full-test-legs:
 	echo "full-test: a development pin resolves with the starters' install line (dev-pin-resolves)"
 	uv run --no-sync python scripts/dev-pin-resolves || { echo "full-test: FAILED dev-pin-resolves"; status=1; }
 	# not gated on the daemon: the usual install must deliver a docker provider that runs, so a daemon
-	# that does not answer FAILS this leg (it is the one leg here that never reports SKIPPED)
+	# that does not answer FAILS this leg (it and test-docker-live, below, are the legs here that never report SKIPPED)
 	echo "full-test: cs-image-system[docker] installed alone validates and dry-runs the docker starter (test-docker-install)"
 	just test-docker-install || { echo "full-test: FAILED test-docker-install"; status=1; }
+	# the same rule: the docker family's own live tests fail, and never skip, without a daemon
+	echo "full-test: the docker family's live tests, its stand-in on the local daemon (test-docker-live)"
+	just test-docker-live -q || { echo "full-test: FAILED test-docker-live"; status=1; }
 	if docker info >/dev/null 2>&1; then
 		echo "full-test: modification tests under docker (test-mods --strict)"
 		just test-mods --strict || { echo "full-test: FAILED test-mods"; status=1; }
@@ -303,10 +307,11 @@ sdk-bump line part:
 # Does each SDK library keep its version rule? Its surface as a plugin sees it (every declared name, member,
 # field and hook, with its shape) is compared with the baseline committed beside it
 # (packages/<library>/surface-baseline.txt). An entry removed or changed while the middle number of the
-# library's version is unchanged fails, naming the entry; so does a baseline of an earlier line. Silent when
+# library's version is unchanged fails, naming the entry; so does a baseline of an earlier line, and an
+# entry added and not yet recorded (`just surface-record` records it under the same middle). Silent when
 # every library keeps to its baseline. The same comparison is a test in each library's own suite, and the
 # release's probes run this recipe before anything is built.
-[doc("Compare each SDK library's surface with its committed baseline; fails naming an entry removed or changed without a new middle number")]
+[doc("Compare each SDK library's surface with its committed baseline; fails naming an entry removed or changed without a new middle number, or one added and not yet recorded")]
 surface-check:
 	#!/usr/bin/env bash
 	set -uo pipefail
@@ -316,10 +321,11 @@ surface-check:
 	uv run --no-sync python -m cs_image_system.base.surface baseline cs_image_system.tofu_roots packages/tofu-roots/surface-baseline.txt || status=1
 	exit $status
 
-# Write each SDK library's baseline from its code: done once per middle number, in the change that raises it
-# (`just sdk-bump <line> middle`). Refused for a library whose middle number is still its baseline's while an
-# entry would be removed or changed: that change needs the new middle number first. Read the diff.
-[doc("Rewrite each SDK library's surface baseline (after `just sdk-bump <line> middle`); refused when an entry would change under the same middle number")]
+# Write each SDK library's baseline from its code: in the change that raises its middle number (`just
+# sdk-bump <line> middle`), and in any change that adds to its surface, which keeps the middle number.
+# Refused for a library whose middle number is still its baseline's while an entry would be removed or
+# changed: that change needs the new middle number first. Read the diff.
+[doc("Rewrite each SDK library's surface baseline (after `just sdk-bump <line> middle`, or after an addition); refused when an entry would change under the same middle number")]
 surface-record:
 	#!/usr/bin/env bash
 	set -uo pipefail
@@ -389,6 +395,17 @@ test-docker-alone:
 [doc("`cs-image-system[docker]` installed alone from the built wheels, the standard-docker starter rendered with the installed command, then `validate` and a dry `run --all` on it; all three must run and succeed (needs a container daemon)")]
 test-docker-install keep="":
 	@uv run --no-sync python scripts/isolated-run --install-check --subject "docker install" --require "cs-image-system[docker]" --starter standard-docker {{ if keep != "" { "--keep " + quote(trim_start_match(keep, "keep=")) } else { "" } }}
+
+# The docker family's tests that need the real thing: the modification tests
+# of the family's fixture on the docker runtime's own stand-in, a throwaway
+# container on the local daemon (packages/docker-plugin/tests/live). In no
+# default path and no isolated run. Without a daemon that answers it FAILS,
+# it never skips: where it is required (a leg of `full-test`), a missing
+# daemon is a failure.
+[doc("The docker family's tests that need a container daemon (packages/docker-plugin/tests/live): the modification tests on its own stand-in; fails, never skips, without a daemon")]
+[positional-arguments]
+test-docker-live *ARGS:
+	@uv run pytest packages/docker-plugin/tests/live -p no:cacheprovider "$@"
 
 # One file, or any pytest expression, for iterating on a single change.
 # NOT the acceptance bar -- `just test` is, and a change is not done until

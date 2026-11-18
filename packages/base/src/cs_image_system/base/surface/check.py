@@ -21,6 +21,12 @@ allows is read from the declaration the INSTALLED library ships
 (``<library>.surface``), so running the check against the oldest SDK a
 plugin claims to work with names exactly what that version lacks.
 
+Every form of import is read: ``import``, ``from ... import``, a relative
+``from .. import``, resolved against the file's own package (the system's
+packages share one namespace, so ``from ..engine import loader`` inside a
+plugin reaches the engine), and a module named by a literal string to
+``importlib.import_module`` or ``__import__``.
+
 A finding is one of:
 
 * a name imported from an SDK library that the library does not list;
@@ -52,12 +58,24 @@ from pathlib import Path
 
 #: the root every package of this system lives under
 ROOT = "cs_image_system"
-#: the SDK's libraries: import package -> distribution
-SDK = {
-    f"{ROOT}.base": "cs-image-system-base",
-    f"{ROOT}.hashicorp_utils": "cs-image-system-hashicorp-utils",
-    f"{ROOT}.tofu_roots": "cs-image-system-tofu-roots",
-}
+#: the entry-point group a library of the SDK declares itself in: the entry
+#: point's name is the library's import package, its value the library's
+#: ``surface`` module. Read, never loaded: the kit names no library but itself.
+SDK_ENTRY_POINT_GROUP = "cs_image_system.sdk"
+
+
+def sdk_libraries() -> dict[str, str]:
+    """The installed libraries of the SDK, import package -> distribution,
+    as each declares itself (:data:`SDK_ENTRY_POINT_GROUP`). The kit is one
+    of them; the others are whatever else is installed and says it is."""
+    out: dict[str, str] = {}
+    for point in importlib.metadata.entry_points(group=SDK_ENTRY_POINT_GROUP):
+        out[point.name] = str(getattr(getattr(point, "dist", None), "name", "") or "")
+    return dict(sorted(out.items()))
+
+
+#: the SDK's libraries installed in this process: import package -> distribution
+SDK = sdk_libraries()
 #: everything public in the contract may be imported
 OPEN = (f"{ROOT}.contract",)
 #: what no plugin's sources may import
@@ -254,6 +272,50 @@ def _member_findings(rel: str, tree: ast.AST, *, mine: frozenset[str],
     return out
 
 
+def _package_of(directory: Path, source: Path) -> list[str]:
+    """The dotted package ``source`` is a module of, from the directory the
+    check reads: its parts from the system's root down (``src/cs_image_system/
+    mine/sub/x.py`` -> ``cs_image_system.mine.sub``). Empty when the file is
+    not under the system's root (a test file beside a package)."""
+    parts = list(source.relative_to(directory).parent.parts)
+    return parts[parts.index(ROOT):] if ROOT in parts else []
+
+
+def _resolved(package: list[str], level: int, module: str | None) -> str | None:
+    """The absolute module a relative import names: ``level`` dots up from
+    ``package``, then ``module``. None when it climbs above the root."""
+    if level - 1 > len(package) or not package:
+        return None
+    base = package[:len(package) - (level - 1)]
+    return ".".join([*base, *(module.split(".") if module else [])])
+
+
+_DYNAMIC = ("import_module", "__import__")
+
+
+def _imports(directory: Path, source: Path, tree: ast.AST) -> list[tuple[int, str, str | None]]:
+    """Every import the tree makes, as (line, module, name or None):
+    absolute and relative ``from`` imports (a relative one resolved against
+    the file's package), plain imports, and a literal module name handed to
+    ``importlib.import_module`` or ``__import__``."""
+    package = _package_of(directory, source)
+    out: list[tuple[int, str, str | None]] = []
+    for node in ast.walk(tree):
+        if isinstance(node, ast.ImportFrom):
+            module = node.module if node.level == 0 else _resolved(package, node.level, node.module)
+            if module:
+                out += [(node.lineno, module, alias.name) for alias in node.names]
+        elif isinstance(node, ast.Import):
+            out += [(node.lineno, alias.name, None) for alias in node.names]
+        elif isinstance(node, ast.Call) and node.args and isinstance(node.args[0], ast.Constant) \
+                and isinstance(node.args[0].value, str):
+            called = node.func.attr if isinstance(node.func, ast.Attribute) else \
+                node.func.id if isinstance(node.func, ast.Name) else ""
+            if called in _DYNAMIC:
+                out.append((node.lineno, node.args[0].value, None))
+    return out
+
+
 def findings(directory: Path, *, own: Iterable[str] | None = None, family: Iterable[str] | None = None,
              tests: bool = False) -> list[Finding]:
     """Every place the Python sources under ``directory`` reach past the
@@ -270,13 +332,7 @@ def findings(directory: Path, *, own: Iterable[str] | None = None, family: Itera
             continue
         rel = str(source.relative_to(directory))
         tree = ast.parse(source.read_text())
-        imports: list[tuple[int, str, str | None]] = []
-        for node in ast.walk(tree):
-            if isinstance(node, ast.ImportFrom) and node.module and node.level == 0:
-                imports += [(node.lineno, node.module, alias.name) for alias in node.names]
-            elif isinstance(node, ast.Import):
-                imports += [(node.lineno, alias.name, None) for alias in node.names]
-        for line, module, name in imports:
+        for line, module, name in _imports(directory, source, tree):
             found = _import_finding(rel, line, module, name, mine=mine, tests=tests, surfaces=surfaces)
             if found is not None:
                 out.append(found)

@@ -29,6 +29,11 @@ Documentation = "https://github.com/infrastructurebuilder/cs-image-system-3/blob
 [project.entry-points."cs_image_system.plugins.hooks"]
 tofu_roots = "cs_image_system.tofu_roots.hooks:initialize"
 
+# this library is one of the SDK's: it declares itself, and the kit's check reads its declared surface from
+# the module named here (the kit names no library of the SDK but itself)
+[project.entry-points."cs_image_system.sdk"]
+"cs_image_system.tofu_roots" = "cs_image_system.tofu_roots.surface"
+
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"

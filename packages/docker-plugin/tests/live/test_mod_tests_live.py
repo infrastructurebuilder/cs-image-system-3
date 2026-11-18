@@ -10,10 +10,10 @@ image's base, the modification applied twice, the second application
 changing nothing.
 
 This needs a container daemon that answers and the registry, so it is not
-in the suite's default paths and no isolated run collects it. Run it on
-purpose::
+in the suite's default paths and no isolated run collects it. It runs as a
+leg of ``just full-test``, or on its own::
 
-    just test-one packages/docker-plugin/tests/live
+    just test-docker-live
 
 Without a daemon it fails; it never skips.
 """

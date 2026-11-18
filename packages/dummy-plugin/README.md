@@ -299,7 +299,7 @@ need:
   index refuses, and the release tooling leaves it out, so a consumer of
   a release does not have it. Its own requirements ([pyproject.toml](pyproject.toml)) are
   Python 3.13 or newer, `cs-image-system-contract` and
-  `cs-image-system-base` at the same version (never the CLI host,
+  `cs-image-system-base`, each pinned as [WRITING_A_PROVIDER.md](../../docs/WRITING_A_PROVIDER.md#how-it-depends-on-the-sdk) describes: the contract by the range of its series, the SDK's libraries at their own line's version (never the CLI host,
   `cs-image-system-system`) and `pydantic` 2.13 or newer.
 - **Two environment variables**, both optional, both read by
   [hooks.py](src/cs_image_system/dummy_plugin/hooks.py) straight from

@@ -89,8 +89,10 @@ NAMES: dict[str, tuple[str, ...]] = {
     ),
     "cs_image_system.base.models.user": ("User",),
     "cs_image_system.base.models.user_builder": ("UserBuilderModel",),
-    "cs_image_system.base.surface": ("check",),
+    # the check a plugin runs against itself, and the record a library of the SDK holds its version rule with
+    "cs_image_system.base.surface": ("check", "record"),
     "cs_image_system.base.surface.check": ("Finding", "findings"),
+    "cs_image_system.base.surface.record": ("problems",),
     "cs_image_system.base.surface.cli": ("main",),
 }
 

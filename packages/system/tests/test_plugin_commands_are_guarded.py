@@ -124,3 +124,51 @@ def test_a_plugin_may_mount_commands_under_a_sub_app_it_mounts_itself(monkeypatc
     root, mounted, lines = _mount(monkeypatch, caplog, _point("sound", [CommandMount(name="tools", app=tools)]))
     assert mounted == ["tools"] and lines == []
     assert runner.invoke(root, ["tools", "list"]).output.strip() == "tools listed"
+
+
+def test_a_command_listed_before_the_sub_app_it_goes_under_skips_the_plugin_and_nothing_raises(monkeypatch, caplog):
+    """A plugin's mounts are judged in the order they will be mounted: a
+    command under a sub-app the plugin mounts LATER has nowhere to go yet.
+    The plugin is skipped whole, in one line, and the command line starts."""
+    tools = typer.Typer()
+    backwards = _point("backwards", [CommandMount(name="list", path=("tools",), callback=_says("listed")),
+                                     CommandMount(name="tools", app=tools)])
+    sound = _point("sound", [CommandMount(name="hello", path=("verify",), callback=_says("hello"))])
+    root, mounted, lines = _mount(monkeypatch, caplog, backwards, sound)
+    assert mounted == ["verify/hello"] and _help_answers(root)
+    assert runner.invoke(root, ["tools", "list"]).exit_code != 0             # nothing of the plugin was mounted
+    assert len(lines) == 1 and "backwards (cs-image-system-backwards-plugin)" in lines[0] and "tools/list" in lines[0]
+
+
+def test_a_command_under_a_nested_sub_app_that_does_not_exist_skips_the_plugin(monkeypatch, caplog):
+    tools = typer.Typer()
+    lost = _point("lost", [CommandMount(name="tools", app=tools),
+                           CommandMount(name="deep", path=("tools", "nowhere"), callback=_says("deep"))])
+    root, mounted, lines = _mount(monkeypatch, caplog, lost)
+    assert mounted == [] and _help_answers(root)
+    assert "tools" not in {g.name for g in root.registered_groups}          # not even its sub-app: skipped whole
+    assert len(lines) == 1 and "lost (cs-image-system-lost-plugin)" in lines[0]
+
+
+def test_a_command_under_a_sub_app_the_plugin_mounted_first_is_mounted(monkeypatch, caplog):
+    tools = typer.Typer()
+    forwards = _point("forwards", [CommandMount(name="tools", app=tools),
+                                   CommandMount(name="list", path=("tools",), callback=_says("listed"))])
+    root, mounted, lines = _mount(monkeypatch, caplog, forwards)
+    assert mounted == ["tools", "tools/list"] and lines == []
+    assert runner.invoke(root, ["tools", "list"]).output.strip() == "listed"
+
+
+def test_a_plugin_mounting_a_kit_command_this_command_line_lacks_is_skipped_and_nothing_raises(monkeypatch, caplog):
+    """A plugin built against a later contract may name a kit command this
+    command line does not carry. Nothing can be mounted for it: the plugin
+    is skipped whole, in one line, and the command line starts."""
+    from cs_image_system.contract import commands as contract_commands
+    monkeypatch.setattr(contract_commands, "KIT_COMMANDS", (*contract_commands.KIT_COMMANDS, "a-newer-kit-command"))
+    newer = _point("newer", [CommandMount(name="extra", path=("verify",), callback=_says("extra")),
+                             CommandMount(name="later", path=("verify",), kit_command="a-newer-kit-command")])
+    sound = _point("sound", [CommandMount(name="hello", path=("verify",), callback=_says("hello"))])
+    root, mounted, lines = _mount(monkeypatch, caplog, newer, sound)
+    assert mounted == ["verify/hello"] and _help_answers(root)
+    assert runner.invoke(root, ["verify", "extra"]).exit_code != 0             # nothing of the plugin was mounted
+    assert len(lines) == 1 and "newer (cs-image-system-newer-plugin)" in lines[0] and "a-newer-kit-command" in lines[0]

@@ -98,27 +98,33 @@ that what is found there will still be there.
 ## How it depends on the SDK
 
 A provider declares the contract and each SDK library it uses **by a
-range**, never by an exact version:
+range** covering one middle number, never by an exact version. The form,
+with `M` the middle number it is written against and `M+1` the next:
 
 ```toml
 dependencies = [
-    "cs-image-system-contract>=0.4,<0.5",
-    "cs-image-system-base>=0.2,<0.3",
-    "cs-image-system-hashicorp-utils>=0.2,<0.3",
-    "cs-image-system-tofu-roots>=0.2,<0.3",
+    "cs-image-system-contract>=0.M,<0.M+1",
+    "cs-image-system-base>=0.M,<0.M+1",
+    "cs-image-system-hashicorp-utils>=0.M,<0.M+1",
+    "cs-image-system-tofu-roots>=0.M,<0.M+1",
 ]
 ```
+
+The docker provider's own lines, with the values in force today, are in
+its [pyproject.toml](../packages/docker-plugin/pyproject.toml); each
+library's current version is in its own manifest.
 
 The range means something because the SDK's libraries keep one rule
 about their versions:
 
 - **Removing or altering anything on a declared surface raises the
-  middle number** (0.2.x to 0.3.0).
-- **Anything else raises the last number** (0.2.0 to 0.2.1): an
+  middle number** (`0.M.x` to `0.M+1.0`).
+- **Anything else raises the last number** (`0.M.x` to `0.M.x+1`): an
   addition to a surface, a fix, a change behind it.
 
-So a provider that passes its tests against 0.2.0 works with every
-later 0.2 release, and `>=0.2,<0.3` says exactly that. The kit is on
+So a provider that passes its tests against the first release of a
+middle number works with every later release of it, and a range of
+`>=0.M,<0.M+1` says exactly that. The kit is on
 one version line; the two Terraform libraries share another. Neither
 follows the version of the system as a whole.
 
@@ -142,7 +148,7 @@ directory. Docker's:
 | --- | --- |
 | [tests/unit/](../packages/docker-plugin/tests/unit) | Tests that need the contract, the SDK and the package, and nothing else. They are what runs at the low end of the range, so nothing they need may sit in a `conftest.py` above them. |
 | [tests/pipeline/](../packages/docker-plugin/tests/pipeline) | Tests that drive a whole run through the test kit. |
-| [tests/live/](../packages/docker-plugin/tests/live) | Tests that need the real thing (here, a container daemon). They are in no default path and no isolated run; they are run on purpose, and fail without it. |
+| [tests/live/](../packages/docker-plugin/tests/live) | Tests that need the real thing (here, a container daemon). They are in no default path and no isolated run; a recipe of their own runs them (`just test-docker-live`), as a leg of `full-test`, and they fail without it. |
 | [tests/fixture/](../packages/docker-plugin/tests/fixture) | A configuration that declares this provider and no other. |
 | [tests/golden/](../packages/docker-plugin/tests/golden) | What a run over the fixture emits, pinned byte for byte. |
 | [tests/regen_golden.py](../packages/docker-plugin/tests/regen_golden.py) | Rewrites the golden, on purpose (`just golden-regen docker`). |
@@ -252,8 +258,8 @@ when any failed. For each SDK library it says where the version came
 from, in one of two forms:
 
 ```text
-cs-image-system-base 0.2.0 from the index
-cs-image-system-base 0.2.0 from this repository's build (development install)
+cs-image-system-base <version> from the index
+cs-image-system-base <version> from this repository's build (development install)
 ```
 
 The second form is a development install, and is never to be read as

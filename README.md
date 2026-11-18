@@ -36,7 +36,7 @@ names are reserved, in lifecycle order:
 | `build`     | Every workspace member as sdist + wheel under `dist/`; no tests                        |
 | `test`      | The fast suite, all blocking: ruff, pyright, the unit tests (the golden included)      |
 | `full-test` | `test` plus the docker-backed modification tests and, when the runtime sessions are present, a headless dry `run --all` with `state query --strict`; an absent prerequisite reports SKIPPED |
-| `release`   | `just release <part\|version> [test\|pypi]`: probe the index and the token, then the bar (TestPyPI) or `full-test` (PyPI), bump every version line and pin, lock, `build`, publish, commit, tag `v<version>` |
+| `release`   | `just release <part\|version> [test\|pypi]`: probe the index, the token and the container daemon, then the bar and the install check (TestPyPI) or `full-test` (PyPI), bump every version line and pin, lock, `build`, publish, commit, tag `v<version>` |
 
 `just` alone lists every recipe, the contract first. `just publish
 [test|pypi]` builds and uploads the version in the tree (TestPyPI by

@@ -124,9 +124,9 @@ UNBUMPED = ("a package whose version the release does not move changed since the
 UNASKED = ("the index could not be asked whether it holds this tree's build of every package whose version the "
            "release does not move, or one could not be built (above); nothing is guessed -- nothing was changed")
 #: the surface probe's refusal, after "<who>: ", below `just surface-check`'s own lines
-SURFACE = ("a declared surface of the SDK changed without the version number its rule asks for (above): an entry "
-           "removed or altered needs a new middle number (`just sdk-bump <line> middle`, then `just surface-record`) "
-           "-- nothing was changed")
+SURFACE = ("a declared surface of the SDK and its baseline disagree (above): an entry removed or altered needs a new "
+           "middle number (`just sdk-bump <line> middle`, then `just surface-record`); an entry added needs only to be "
+           "recorded (`just surface-record`) -- nothing was changed")
 DEVELOP = "develop"
 REMOTE = "origin"
 SYNC = ("uv", "sync", "--all-extras")
@@ -596,12 +596,17 @@ class Family:
         if who == "release":
             self.own_versions_or_refuse(index, who)
             self.surfaces_or_refuse(who)
-        if index != "pypi" or who != "release":
+        if who != "release":
             return
+        # both gates need the daemon: the install check for a release to the test index, full-test's legs for PyPI;
+        # asked here, before anything changes, and not found missing after the bar
         if self.run(["docker", "info"], cwd=self.root).rc != 0:
-            raise Refused(f"{who}: docker is not answering (docker info) -- full-test's legs need it; start the daemon "
+            needs = "full-test's legs need it" if index == "pypi" else "the install check (test-docker-install) needs it"
+            raise Refused(f"{who}: docker is not answering (docker info) -- {needs}; start the daemon "
                           "-- nothing was changed")
         self.say(f"{who}: docker answers")
+        if index != "pypi":
+            return
         root = self.sibling.path
         if not self.sibling.configured:
             raise Refused(f"{who}: no live configuration at {root} (`just config-guard` says why) -- full-test's live "
@@ -637,8 +642,10 @@ class Family:
         return ["pyproject.toml", *members, "uv.lock"]
 
     def gate(self, name: str) -> None:
-        """The bar for a development release to TestPyPI; full-test, the modification-test evidence in the live
-        configuration and a clean live checkout for PyPI."""
+        """The bar and the install check for a development release to TestPyPI; full-test (which holds the
+        install check among its legs), the modification-test evidence in the live configuration and a clean live
+        checkout for PyPI. Nothing reaches either index past a failed install check: what a person installs
+        must validate and dry-run a docker-only configuration first."""
         if name == "pypi":
             done = self.run(["just", "full-test"], cwd=self.root, capture=False)
             if done.rc != 0:
@@ -655,6 +662,9 @@ class Family:
                               + "\n".join(others))
         else:
             done = self.run(["just", "test"], cwd=self.root, capture=False)
+            if done.rc != 0:
+                raise Refused("", done.rc)
+            done = self.run(["just", "test-docker-install"], cwd=self.root, capture=False)
             if done.rc != 0:
                 raise Refused("", done.rc)
 
@@ -767,7 +777,7 @@ class Family:
         self.remote_or_refuse("release")
         self.fetched_or_refuse("release", cut)
         self.tags_behind("release", new)
-        gate = "full-test" if name == "pypi" else "test"
+        gate = "full-test" if name == "pypi" else "test && just test-docker-install"
         if dry == "yes":
             return self.dry(start, cut, index,
                             f"release: dry -- on {cut}, {current} would become {new}: {name} ready and free of it, "

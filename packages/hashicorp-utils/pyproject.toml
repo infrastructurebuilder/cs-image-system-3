@@ -23,6 +23,11 @@ Repository = "https://github.com/infrastructurebuilder/cs-image-system-3"
 Documentation = "https://github.com/infrastructurebuilder/cs-image-system-3/blob/develop/docs/OPERATIONS.md"
 "Package README" = "https://github.com/infrastructurebuilder/cs-image-system-3/blob/develop/packages/hashicorp-utils/README.md"
 
+# this library is one of the SDK's: it declares itself, and the kit's check reads its declared surface from
+# the module named here (the kit names no library of the SDK but itself)
+[project.entry-points."cs_image_system.sdk"]
+"cs_image_system.hashicorp_utils" = "cs_image_system.hashicorp_utils.surface"
+
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"

@@ -335,7 +335,7 @@ no environment variable. What must exist outside the system:
   business (Session Manager on AWS, IAP on GCE), not this plugin's.
 
 Python side: Python 3.13 or later, `pydantic>=2.13`, and
-`cs-image-system-contract` and `cs-image-system-base` at the same version
+`cs-image-system-contract` and `cs-image-system-base`, each pinned as [WRITING_A_PROVIDER.md](../../docs/WRITING_A_PROVIDER.md#how-it-depends-on-the-sdk) describes: the contract by the range of its series, the SDK's libraries at their own line's version
 ([pyproject.toml](pyproject.toml)).
 
 ## Configuration reference

@@ -150,7 +150,10 @@ checks across every workspace of the run **and** `validate_state_locations()`
 owes it: only the providers that workspace declares are compared, against
 every other workspace that declares the same ones, so a disagreement
 between two other roots over a provider this one does not use never stops
-this one's emission. Every generator calls `validate_for` with its own
+this one's emission. State locations are held the same way: a workspace
+is refused when ITS state object would be shared with another, and not
+for a collision between two others, which `validate_all()` and the
+validator still report run-wide. Every generator calls `validate_for` with its own
 workspace first, so a conflict between two
 workspaces surfaces at generation even when each workspace is consistent
 on its own.
@@ -537,9 +540,10 @@ the workspace being generated).**
   satisfiable -- else `HclConfigConflictError` naming the provider, each
   constraint and its requester. The packer collector does the same per
   plugin name (satisfiability run-wide, sources per workspace).
-- Every bound workspace's location is distinct --
-  `HclConfigConflictError("state location collision: workspaces A, B would
-  share the state object <location>")`.
+- The location of the workspace being generated is no other bound
+  workspace's -- `HclConfigConflictError("state location collision:
+  workspaces A, B would share the state object <location>")`, raised for A
+  and for B and not for a third workspace that shares neither.
 - `resolve_backend`: more than one registration marked `is_default` --
   `HclConfigConflictError`.
 - `generate_remote_state_datasources`: a reference whose backend resolves

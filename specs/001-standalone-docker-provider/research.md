@@ -489,6 +489,26 @@ outcome that does not depend on load order.
 dependent; and it is what FR-017 forbids); *refuse every command when
 any collision exists* (contradicts FR-016).
 
+**Kinds a plugin registers by a call of its own** (enrollment kinds,
+field kinds), added in convergence (T128, T137, T138). Two questions are
+answered apart. *Who collides* over a kind is whoever's load added it,
+whatever defines its code, so a collision always names both plugins.
+*What a skipped plugin loses* is only the kinds whose code is defined in
+its own package (the package its entry point names); a kind a library
+registered when the plugin imported it stays, because a library's
+module runs once per process and another plugin that imports it relies
+on what it registered without registering it again.
+
+**A stated limit.** Code is judged by the module that defines it (the
+function a `functools.partial` wraps is followed). A kind a plugin
+builds from a library's code, such as a renderer a library's factory
+returns or an instance of a library's handler class, therefore reads as
+the library's and is kept when the plugin is skipped. Telling the two
+apart would need knowing which plugin a library's registration was meant
+for, which a module that runs once cannot say. Keeping it is the side
+that cannot break a usable plugin. No plugin in this repository builds a
+kind that way.
+
 ### R14. A provider disagreement fails only the roots that share it
 
 **Decision**: the collector's agreement check runs per provider name:

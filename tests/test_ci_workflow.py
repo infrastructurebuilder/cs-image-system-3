@@ -134,7 +134,8 @@ def test_publish_runs_on_a_tag_alone_and_is_the_only_uploader():
     the version in the tree; no other job uploads anything."""
     wf = _workflow()
     job = wf["jobs"]["publish"]
-    assert job["needs"] == "verify"
+    # nothing is uploaded past a part that did not prove itself alone, or past the install check (FR-021)
+    assert set(job["needs"]) == {"verify", "core-alone", "terraform-alone", "docker-alone", "docker-install"}
     assert job["if"].strip() == "startsWith(github.ref, 'refs/tags/v')"
     assert "id-token" not in (job.get("permissions") or {}), "trusted publishing waits until the names are stable"
     gate = next(s for s in job["steps"] if s.get("id") == "gate")

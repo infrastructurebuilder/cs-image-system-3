@@ -111,7 +111,7 @@ and unbound backend (the fixture, the live tree) needs nothing beyond the
 core, and a dry run never reaches the bucket.
 
 - **The core, and the gate.** `cs-image-system-contract` and
-  `cs-image-system-base` at the same version (the package's declared
+  `cs-image-system-base`, each pinned as [WRITING_A_PROVIDER.md](../../docs/WRITING_A_PROVIDER.md#how-it-depends-on-the-sdk) describes: the contract by the range of its series, the SDK's libraries at their own line's version (the package's declared
   dependencies), with `cs-image-system-hashicorp-utils` installed beside
   them for the collector. The whole state-backend mechanism is gated by
   `config.use_state_backends` in `cfg/_config.yml`: when it is false or
