@@ -30,6 +30,10 @@ plugin reaches the engine), and a module named by a literal string to
 A finding is one of:
 
 * a name imported from an SDK library that the library does not list;
+* an underscore-prefixed name imported from the contract, or a name from
+  one of its underscore-prefixed modules: the contract's public names are
+  its surface, and what it keeps private (the two kind registries the
+  system fills from what plugins declare, for one) is the system's;
 * an underscore-prefixed member of an SDK class, overridden or reached,
   that the library does not list as a hook;
 * an import of the engine or of the command line;
@@ -39,8 +43,8 @@ A finding is one of:
   source directory, or named with ``--family``).
 
 With ``--tests`` the directory is a plugin's tests: they may also import
-the test kit, and the rule about underscore members is not applied (a test
-may reach into what it tests).
+the test kit, and neither underscore rule is applied (a test may reach into
+what it tests).
 """
 from __future__ import annotations
 
@@ -88,6 +92,7 @@ PRIVATE = "private to"
 ENGINE = "a plugin may not import the engine"
 ANOTHER = "another plugin"
 NO_SURFACE = "declares no surface"
+CONTRACT_PRIVATE = "private to the contract"
 
 
 @dataclass(frozen=True)
@@ -224,6 +229,9 @@ def _import_finding(rel: str, line: int, module: str, name: str | None, *, mine:
     """What is wrong with one import, if anything."""
     what = f"from {module} import {name}" if name else f"import {module}"
     reached = (module, f"{module}.{name}") if name else (module,)       # `from cs_image_system import <package>`
+    if not tests and _under(module, OPEN[0]) and any(
+            _is_private(part) for part in [*module.split(".")[len(OPEN[0].split(".")):], name or ""]):
+        return Finding(rel, line, what, CONTRACT_PRIVATE)
     allowed = (*OPEN, *mine, *((TEST_KIT,) if tests else ()))
     if not _under(module, ROOT) or any(_under(r, p) for r in reached for p in allowed):
         return None

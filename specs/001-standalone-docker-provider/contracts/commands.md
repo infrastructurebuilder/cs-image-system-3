@@ -160,6 +160,10 @@ kind is nobody's:
 Plugin <name> (<distribution>) is skipped: collides: <kind> is also registered by <a> and <b>, and is nobody's
 ```
 
+*Superseded by [spec 004](../../004-kinds-in-metadata/contracts/plugin-metadata.md):*
+this line is gone; a third plugin declaring a kind is paired with one
+whose declaration differs, in the two-plugin form, as for any key.
+
 A plugin that claims something the system itself already holds (a
 built-in command, the system's own bootstrap section, one of its field
 kinds) is skipped alone, in one line that names the plugin and what it

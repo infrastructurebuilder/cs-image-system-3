@@ -14,6 +14,7 @@ import importlib.util
 import json
 import sys
 from abc import ABC
+from collections.abc import Mapping
 from functools import cache
 from importlib.metadata import distributions
 from pathlib import Path
@@ -24,6 +25,8 @@ from packaging.specifiers import SpecifierSet
 
 from cs_image_system.contract.constants import VCT
 from cs_image_system.contract.core import NameTypedProtocol, PluginArtifactProtocol, PluginMetadataProtocol
+from cs_image_system.contract.enrollment import EnrollmentKind
+from cs_image_system.contract.field_kinds import FieldKindHandler
 from cs_image_system.contract.metadata import python_specifier
 
 
@@ -125,6 +128,18 @@ class AbstractPluginMetadata(ABC, PluginMetadataProtocol):
   @property
   def is_injected_models_default(self) -> bool:
        return self._injected_models_are_defaults
+
+  @property
+  def enrollment_kinds(self) -> tuple[EnrollmentKind, ...]:
+      """The enrollment kinds this plugin provides; none unless a subclass
+      overrides this. The loader registers them for an accepted plugin."""
+      return ()
+
+  @property
+  def field_kinds(self) -> Mapping[str, FieldKindHandler]:
+      """The field kinds this plugin provides, by name; none unless a
+      subclass overrides this."""
+      return {}
 
   @property
   def namespace(self) -> str | None:

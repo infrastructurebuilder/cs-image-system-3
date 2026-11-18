@@ -536,6 +536,11 @@ its kinds in its metadata and the loader registers them, so a skipped
 plugin's kinds are never registered at all. That changes the contract
 and is specified on its own, as `specs/004-kinds-in-metadata`.
 
+*Superseded by [spec 004](../004-kinds-in-metadata/spec.md):* kinds
+are now declared in a plugin's metadata and registered by the system
+for the plugins it accepts; the inference above is removed, and the
+four cases are tested there as declared kinds, each in every order.
+
 ### R14. A provider disagreement fails only the roots that share it
 
 **Decision**: the collector's agreement check runs per provider name:

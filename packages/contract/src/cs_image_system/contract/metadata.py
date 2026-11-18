@@ -13,12 +13,18 @@ same from constructor arguments.
 """
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass, field
+from typing import TYPE_CHECKING
 
 from packaging.specifiers import SpecifierSet
 
 from .constants import VCT
 from .core import NameTypedProtocol, PluginArtifactProtocol
+
+if TYPE_CHECKING:
+    from .enrollment import EnrollmentKind
+    from .field_kinds import FieldKindHandler
 
 
 def python_specifier(spec: str) -> SpecifierSet:
@@ -47,7 +53,12 @@ class PluginMetadata:
     by its qualified form. Left ``None``, the loader derives it from the
     plugin's distribution name with the ``cs-image-system-`` prefix and
     the ``-plugin`` suffix dropped; a record with no distribution behind
-    it (one built in a test) must name it or is refused."""
+    it (one built in a test) must name it or is refused.
+
+    ``enrollment_kinds`` and ``field_kinds`` are the kinds the plugin
+    provides: what it declares, which the loader registers for a plugin it
+    accepts, after every collision among the installed plugins is settled.
+    A plugin does not register a kind itself."""
 
     services: dict[str, list[type[PluginArtifactProtocol]]] = field(default_factory=dict)
     builders_for_models: dict[type[NameTypedProtocol], type] = field(default_factory=dict)
@@ -57,6 +68,8 @@ class PluginMetadata:
     plugin_metadata_version: str = "1"
     python: str = ">=3.13"
     namespace: str | None = None
+    enrollment_kinds: tuple[EnrollmentKind, ...] = ()
+    field_kinds: Mapping[str, FieldKindHandler] = field(default_factory=dict)
 
     @property
     def requires_python(self) -> SpecifierSet:

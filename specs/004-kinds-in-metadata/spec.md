@@ -6,7 +6,7 @@
 
 **Created**: 2026-11-18
 
-**Status**: Draft
+**Status**: Merged into `develop` 2026-11-18 (squash), the feature branch kept. Results and departures are in [tasks.md](tasks.md), under Records.
 
 ## Clarifications
 
