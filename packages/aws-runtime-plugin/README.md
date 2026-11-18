@@ -402,8 +402,9 @@ The `aws` blocks of the release's catalog are this plugin's: it ships them
 as package data,
 [`data/image-sources.yml`](src/cs_image_system/aws_runtime/data/image-sources.yml),
 and `AwsCloudBuilder.image_source_entries()` reads that file. The core
-merges every installed runtime's part by family, so the release catalog a
-tree sees carries an `aws` block exactly when this plugin is installed;
+merges, by family, the parts of the runtimes a tree declares, so the release
+catalog a tree sees carries an `aws` block exactly when the tree declares a
+runtime of this plugin's type;
 a family with no public AMI publisher (`centos-stream`) is absent from the
 file, and a tree that bakes it on EC2 declares its own block.
 
@@ -729,7 +730,7 @@ it.
 - Python: `boto3>=1.43`, `botocore>=1.43`, `python-hcl2>=8.1`,
   `pydantic>=2.13`, and the system's own `cs-image-system-contract`,
   `cs-image-system-base` and `cs-image-system-hashicorp-utils` (the HCL
-  formatter) at the same version ([pyproject.toml](pyproject.toml)).
+  formatter), each pinned as [WRITING_A_PROVIDER.md](../../docs/WRITING_A_PROVIDER.md#how-it-depends-on-the-sdk) describes: the contract by the range of its series, the SDK's libraries at their own line's version ([pyproject.toml](pyproject.toml)).
 
 **Vendor images.** Found through the OS builders' `owners` and `query`
 (fixture: AlmaLinux 10 from owner `764336703387`, the Debian images by

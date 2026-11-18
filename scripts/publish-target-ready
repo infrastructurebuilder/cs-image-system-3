@@ -106,7 +106,9 @@ def own_versioned(root: Path) -> dict[str, str]:
     """The projects whose version is their own, not the workspace's, with
     that version: those the root project depends on by a range rather than
     ``==`` (the contract, ``cs-image-system-contract``, whose dependents pin
-    ``>=0.1,<0.2``). What the index must hold for such a project is its own
+    the range of its series), and those the workspace's bump leaves alone
+    (the SDK's members, which the root pins exactly at their own line's
+    version). What the index must hold for such a project is its own
     version, and holding it is never a re-cut of the workspace's."""
     from packaging.requirements import Requirement
     doc = tomllib.loads((root / "pyproject.toml").read_text())["project"]
@@ -115,6 +117,14 @@ def own_versioned(root: Path) -> dict[str, str]:
         specs += list(extra)
     ranged = {canonicalize_name(Requirement(d).name) for d in specs
               if not str(Requirement(d).specifier).startswith("==")}
+    # ... and those the workspace's bump leaves alone (`glob_exclude`): the SDK's members, which the root pins
+    # exactly but at their own line's version
+    tool = tomllib.loads((root / "pyproject.toml").read_text()).get("tool", {})
+    for entry in tool.get("bumpversion", {}).get("files", []):
+        for excluded in entry.get("glob_exclude", []):
+            manifest = root / excluded
+            if manifest.is_file():
+                ranged.add(canonicalize_name(tomllib.loads(manifest.read_text())["project"]["name"]))
     out: dict[str, str] = {}
     for p in sorted((root / "packages").glob("*/pyproject.toml")):
         project = tomllib.loads(p.read_text())["project"]

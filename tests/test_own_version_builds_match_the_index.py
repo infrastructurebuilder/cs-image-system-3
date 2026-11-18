@@ -148,11 +148,14 @@ def test_the_members_are_the_bumps_exclusions_that_are_published(root: Path):
         S.own_version_members(root)
 
 
-def test_this_repository_compares_the_contract_alone_at_its_own_version():
-    manifest = REPO / "packages" / "contract" / "pyproject.toml"
-    version = tomllib.loads(manifest.read_text())["project"]["version"]
-    assert S.own_version_members(REPO) == [S.Member("cs-image-system-contract", version,
-                                                    Path("packages/contract/pyproject.toml"))]
+def test_this_repository_compares_each_package_that_keeps_its_own_version_at_that_version():
+    """The contract, and the SDK's members (the kit; the two terraform libraries)."""
+    def member(directory: str):
+        manifest = Path("packages") / directory / "pyproject.toml"
+        project = tomllib.loads((REPO / manifest).read_text())["project"]
+        return S.Member(project["name"], project["version"], manifest)
+    assert S.own_version_members(REPO) == sorted((member(d) for d in ("base", "contract", "hashicorp-utils", "tofu-roots")),
+                                                 key=lambda m: m.name)
     assert S.json_api(REPO, "pypi") == "https://pypi.org/pypi"
     assert S.json_api(REPO, "testpypi") == "https://test.pypi.org/pypi"
 

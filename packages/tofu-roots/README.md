@@ -22,7 +22,7 @@ tree with no terraform roots installs the same hooks and they find
 nothing to say. The three provider root plugins of the workspace
 ([tf-ebs-instance-plugin](../tf-ebs-instance-plugin/README.md) for AWS,
 [tf-gcp-plugin](../tf-gcp-plugin/README.md) for Google Cloud,
-[tf-docker-plugin](../tf-docker-plugin/README.md) for a container
+[docker-plugin](../docker-plugin/README.md) for a container
 daemon) subclass the two bases, and the identity roots of
 [okta-opa-plugin](../okta-opa-plugin/README.md) mix in the root mixin.
 
@@ -261,7 +261,7 @@ once, as two provider-neutral bases, and a provider's root plugin
 subclasses a base and answers its hooks. The three root plugins of the
 workspace ([tf-ebs-instance-plugin](../tf-ebs-instance-plugin/README.md)
 for AWS, [tf-gcp-plugin](../tf-gcp-plugin/README.md) for Google Cloud,
-[tf-docker-plugin](../tf-docker-plugin/README.md) for a container
+[docker-plugin](../docker-plugin/README.md) for a container
 daemon) are each such a subclass, and no root plugin depends on another
 provider's root plugin: installing the GCE or the container root
 installs neither the AWS root, nor `aws-runtime-plugin`, nor `boto3`.
@@ -488,10 +488,14 @@ or listed.
 ## Tests
 
 [`tests/test_roots.py`](tests/test_roots.py) pins the root mixin against
-a bare run holder (the workspace suite's `harness.bare_run`, which
-offers what the mixin reads of a context): the dry-run and real-run
-`init` arguments, the runner's own `init`, the backend path, one
-executable copy per command. The terraform roots have no unit test of
+a bare run holder (`cs_image_system.hashicorp_utils.testing.bare_run`,
+which offers what the mixin reads of a context): the `init` arguments
+without a backend, the backend path, one executable copy per command. It
+needs nothing but this library and what it declares, and runs that way in
+`just test-terraform-alone`. The `init` arguments WITH a backend, in dry
+and real runs, and the runner's own `init` need a provider's backend kind
+and are pinned in the workspace's suite,
+[`tests/test_roots_with_a_state_backend.py`](../../tests/test_roots_with_a_state_backend.py). The terraform roots have no unit test of
 their own here: their behaviour is pinned through the root plugins that
 subclass them (their module-call tests), through the golden emission of
 the frozen fixture ([tests/test_golden.py](../../tests/test_golden.py))
@@ -512,7 +516,10 @@ always has it).
 nothing here loads configuration, and no configuration file names this
 package; its one entry point is the hook set above. It is installed as a
 workspace member from the root [pyproject.toml](../../pyproject.toml) by
-`just init`, and every root plugin pins it at the same version. There is
+`just init`. A root plugin that releases with the workspace pins it
+exactly, at the terraform libraries' own version; a provider that stands
+alone, as the docker provider does, names it by a range
+([WRITING_A_PROVIDER.md](../../docs/WRITING_A_PROVIDER.md)). There is
 no account, role, API or credential of its own. What its OUTPUT needs at
 execution time is listed here, because the commands this package emits
 are the ones the operator sees fail.
@@ -560,7 +567,7 @@ are the ones the operator sees fail.
 `TofuVersionChecker`: [tf-ebs-instance-plugin](../tf-ebs-instance-plugin/README.md)
 (AWS, which also depends on `aws-runtime-plugin` for its boto3 session),
 [tf-gcp-plugin](../tf-gcp-plugin/README.md) (Google Cloud) and
-[tf-docker-plugin](../tf-docker-plugin/README.md) (a container daemon).
+[docker-plugin](../docker-plugin/README.md) (a container daemon).
 Each depends on this package and on its own runtime plugin, and on no
 other provider's root plugin. A provider's prerequisites (the account,
 the credentials, the CLI the transition scripts call, the network) are

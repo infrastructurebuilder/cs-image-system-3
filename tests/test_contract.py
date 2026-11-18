@@ -511,3 +511,33 @@ def test_the_collector_pulls_the_declared_backends_from_the_context(tmp_path, mo
     for name in ("local-state-plugin", "tf-s3-state-plugin", "gcs-state-plugin"):
         for source in (REPO / "packages" / name / "src").rglob("*.py"):
             assert "hashicorp_utils" not in source.read_text(), source.relative_to(REPO)
+
+
+def test_the_core_imports_nothing_of_the_terraform_libraries():
+    """The two terraform libraries (the HCL and collector library, the
+    OpenTofu roots) are built ON the core and never the other way: no source
+    of the contract, the kit, the engine, the command line or the top-level
+    package imports either, by any edge, top-level or function-local. It is
+    what lets them be taken out of this repository without the core noticing."""
+    libraries = ("cs_image_system.hashicorp_utils", "cs_image_system.tofu_roots")
+    roots = [REPO / "packages" / p / "src" for p in ("contract", "base", "engine", "system")] + [REPO / "src"]
+    reaching: list[str] = []
+    for root in roots:
+        for source in sorted(root.rglob("*.py")):
+            for node in ast.walk(ast.parse(source.read_text())):
+                modules = ([node.module] if isinstance(node, ast.ImportFrom) and node.module else
+                           [a.name for a in node.names] if isinstance(node, ast.Import) else [])
+                reaching += [f"{source.relative_to(REPO)}:{getattr(node, 'lineno', 0)}: {m}" for m in modules
+                             if any(m == lib or m.startswith(lib + ".") for lib in libraries)]
+            # nor by a module named in a string handed to an import call (the kit's surface check finds the
+            # SDK's other libraries by the entry point each declares instead)
+            for node in ast.walk(ast.parse(source.read_text())):
+                if isinstance(node, ast.Call) and node.args and isinstance(node.args[0], ast.Constant) \
+                        and isinstance(node.args[0].value, str):
+                    called = node.func.attr if isinstance(node.func, ast.Attribute) else \
+                        node.func.id if isinstance(node.func, ast.Name) else ""
+                    named = node.args[0].value
+                    if called in ("import_module", "__import__", "find_spec") and \
+                            any(named == lib or named.startswith(lib + ".") for lib in libraries):
+                        reaching.append(f"{source.relative_to(REPO)}:{node.lineno}: {called}({named!r})")
+    assert reaching == [], "\n".join(reaching)

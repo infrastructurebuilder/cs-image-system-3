@@ -12,13 +12,20 @@ license = "Apache-2.0"
 license-files = ["LICENSE"]
 requires-python = ">=3.13"
 dependencies = [
-    "cs-image-system-base==0.1.10",
+    "cs-image-system-base==0.2.0",
     "cs-image-system-engine==0.1.10",
     "typer>=0.26",
     "rich>=15.0",
     "PyYAML>=6.0",
     "packaging>=26.2",   # hygiene IX item 1: init-config never moves .csis-version backwards
+    "pydantic>=2.13",    # the test kit's test-double runtime declares its model with it
 ]
+
+# The test kit (cs_image_system.system.testing) is handed a test's
+# `monkeypatch`, so whoever uses it runs under pytest; the command line
+# itself never needs it.
+[project.optional-dependencies]
+testing = ["pytest>=8.3"]
 
 [project.urls]
 Repository = "https://github.com/infrastructurebuilder/cs-image-system-3"
@@ -42,3 +49,9 @@ path = "hatch_build.py"
 
 [project.scripts]
 cs-image-system = "cs_image_system.system.cli:app"
+
+# The settings the core's own suite runs under in `just test-core`, where the
+# workspace's settings (which put every package's sources on the path) must
+# not apply.
+[tool.pytest.ini_options]
+addopts = "--import-mode=importlib"

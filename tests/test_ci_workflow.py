@@ -48,7 +48,8 @@ def _run_steps(job: dict) -> list[tuple[str, str]]:
 
 def test_every_command_is_a_just_target_and_nothing_performs_or_commits():
     wf = _workflow()
-    assert set(wf["jobs"]) == {"verify", "live", "publish"}, "recording and performing live in the configuration repository (stage 64)"
+    assert set(wf["jobs"]) == {"verify", "core-alone", "terraform-alone", "docker-alone", "docker-install", "live", "publish"}, \
+        "recording and performing live in the configuration repository (stage 64)"
     for job_name, job in wf["jobs"].items():
         for name, run in _run_steps(job):
             if name.startswith(_PLUMBING):
@@ -133,7 +134,8 @@ def test_publish_runs_on_a_tag_alone_and_is_the_only_uploader():
     the version in the tree; no other job uploads anything."""
     wf = _workflow()
     job = wf["jobs"]["publish"]
-    assert job["needs"] == "verify"
+    # nothing is uploaded past a part that did not prove itself alone, or past the install check (FR-021)
+    assert set(job["needs"]) == {"verify", "core-alone", "terraform-alone", "docker-alone", "docker-install"}
     assert job["if"].strip() == "startsWith(github.ref, 'refs/tags/v')"
     assert "id-token" not in (job.get("permissions") or {}), "trusted publishing waits until the names are stable"
     gate = next(s for s in job["steps"] if s.get("id") == "gate")

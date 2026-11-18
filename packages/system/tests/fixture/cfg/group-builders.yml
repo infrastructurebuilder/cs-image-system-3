@@ -1,0 +1,11 @@
+# The core's own fixture: POSIX groups and users only.
+# It declares no provider: its one runtime is the test kit's test-double
+# (cs_image_system.system.testing.double), which exists only inside a test run.
+group_builders:
+- name: posix-local
+  type: posix
+  is_default: true
+user_builders:
+- name: posix-users
+  type: posix
+  is_default: true

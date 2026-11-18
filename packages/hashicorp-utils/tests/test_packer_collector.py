@@ -4,9 +4,9 @@
 
 """Pins the PackerCollector: plugin merge/conflict and golden blocks."""
 import pytest
-from harness import bare_run
 
 from cs_image_system.hashicorp_utils.collector import PackerCollector, PackerVariableDecl, packer_collector
+from cs_image_system.hashicorp_utils.testing import bare_run
 from cs_image_system.hashicorp_utils.versions import HclConfigConflictError
 
 

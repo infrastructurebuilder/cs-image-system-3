@@ -33,7 +33,7 @@ turns that block into an image reference a container tool can pull.
 from __future__ import annotations
 
 import logging
-from collections.abc import Mapping
+from collections.abc import Iterable, Mapping
 from dataclasses import field
 from importlib.resources import files
 from typing import TYPE_CHECKING, Annotated, Any
@@ -50,6 +50,9 @@ from cs_image_system.contract.image_sources import (  # noqa: F401 - re-exported
 )
 from cs_image_system.contract.model_config import CSIS_MODEL_CONFIG
 from cs_image_system.contract.names import safe_name
+
+from .registry import NAMESPACE_SEPARATOR as REGISTRY_SEPARATOR
+from .registry import bare_name
 
 if TYPE_CHECKING:
     from .registry import Registry
@@ -150,9 +153,20 @@ def merge_entries(parts: list[tuple[str, list[ImageSource]]]) -> list[ImageSourc
     ``sources`` is the union by runtime type; ``description``, ``is`` and
     ``versions`` are the first non-empty value, a later part that says
     something else logged at WARNING and ignored. Families keep the order
-    in which they were first seen."""
+    in which they were first seen.
+
+    A runtime type's block that two parts give DIFFERENTLY is a collision,
+    and neither wins: the block is left out of the family and one ERROR
+    line names both parts, so what the catalog says never depends on which
+    part was read first. A configuration that needs that block is told the
+    family has no source for the runtime type, as for any block that is
+    absent. (Discovery already skips both plugins when one ships a block
+    for a runtime type the other registers; this is the same rule for
+    whatever reaches the merge.)"""
     merged: dict[tuple[str, tuple[str, ...]], dict[str, Any]] = {}
     owners: dict[tuple[str, tuple[str, ...]], str] = {}
+    block_owner: dict[tuple[tuple[str, tuple[str, ...]], str], str] = {}
+    collided: set[tuple[tuple[str, tuple[str, ...]], str]] = set()
     for name, entries in parts:
         for e in entries:
             key = (e.family, tuple(e.versions))
@@ -161,6 +175,8 @@ def merge_entries(parts: list[tuple[str, list[ImageSource]]]) -> list[ImageSourc
                 merged[key] = {"family": e.family, "versions": list(e.versions), "is": e.is_,
                                "description": e.description, "sources": {k: dict(v) for k, v in e.sources.items()}}
                 owners[key] = name
+                for runtime_type in e.sources:
+                    block_owner[(key, runtime_type)] = name
                 continue
             for attr, mine in (("is", e.is_), ("description", e.description)):
                 if not mine:
@@ -171,33 +187,66 @@ def merge_entries(parts: list[tuple[str, list[ImageSource]]]) -> list[ImageSourc
                     log.warning(f"image sources: family {e.family}: the {name} runtime says {attr}={mine!r}, "
                                 f"the {owners[key]} runtime said {raw[attr]!r}; keeping the first")
             for runtime_type, block in e.sources.items():
-                if runtime_type not in raw["sources"]:
+                slot = (key, runtime_type)
+                if slot in collided:
+                    continue
+                if slot not in block_owner:
                     raw["sources"][runtime_type] = dict(block)
+                    block_owner[slot] = name
                 elif raw["sources"][runtime_type] != dict(block):
-                    log.warning(f"image sources: family {e.family}: the {name} runtime's `{runtime_type}` block "
-                                f"differs from the {owners[key]} runtime's; keeping the first")
+                    log.error(f"image sources: family {e.family}: the {block_owner[slot]} and {name} runtimes both "
+                              f"register image-source block {runtime_type!r}, differently; neither is used")
+                    del raw["sources"][runtime_type]
+                    collided.add(slot)
     return structure_entries(list(merged.values()), where="the release's image-source catalog")
 
 
 def packaged_default_entries(classes: Mapping[str, type]) -> list[ImageSource]:
     """The release-owned catalog: the parts the runtime builder classes in
-    ``classes`` ship (a registry's ``runtime_builder_classes()``: the
-    INSTALLED runtimes', never only those a tree declares), merged by
-    family."""
+    ``classes`` ship, merged by family. The caller says which classes: the
+    run's catalog hands the runtimes a configuration declares, or every
+    installed one's while no configuration is loaded
+    (:meth:`ImageSourceCatalog.set_declared`)."""
     return merge_entries(_runtime_entries(classes))
 
 
-def stand_in_runtime_type(classes: Mapping[str, type]) -> str | None:
-    """The runtime type whose catalog block the local modification tests
-    read: the ``csis_name()`` of the first runtime builder class in
-    ``classes`` (a registry's ``runtime_builder_classes()``, by name) whose
-    ``local_test_target()`` is not None; None when none offers a local
-    target."""
-    for _name, cls in sorted(classes.items()):
+class StandInChoiceError(ValueError):
+    """The local stand-in cannot be settled: more than one installed runtime
+    can serve and none was named, or the one named cannot serve. The message
+    is the one line a command prints."""
+
+
+def stand_in_types(classes: Mapping[str, type]) -> list[str]:
+    """The runtime types that have declared themselves a local stand-in,
+    sorted: the ``csis_name()`` of every runtime builder class in
+    ``classes`` (a registry's ``runtime_builder_classes()``) whose
+    ``local_test_target()`` is not None. Returning a target factory from
+    that hook is the declaration; nothing else makes a runtime a stand-in."""
+    offered = set()
+    for cls in classes.values():
         hook = getattr(cls, "local_test_target", None)
         if callable(hook) and hook() is not None:
-            return str(cls.csis_name())
-    return None
+            offered.add(str(cls.csis_name()))
+    return sorted(offered)
+
+
+def stand_in_runtime_type(classes: Mapping[str, type], named: str | None = None) -> str | None:
+    """The runtime type whose catalog block the local modification tests
+    read and whose target they run on. With exactly one stand-in among
+    ``classes`` it is that one. With two or more, ``named`` says which,
+    and none named is a :class:`StandInChoiceError`: the choice is never
+    made by name or by order. ``named`` that cannot serve is the same
+    error. None when no installed runtime offers a local target."""
+    offered = stand_in_types(classes)
+    if named:
+        if named not in offered:
+            raise StandInChoiceError(
+                f"stand-in: {named} cannot serve; "
+                + (f"those that can: {', '.join(offered)}" if offered else "no installed plugin can"))
+        return named
+    if len(offered) > 1:
+        raise StandInChoiceError(f"stand-in: {', '.join(offered)} can both serve; name one with --stand-in")
+    return offered[0] if offered else None
 
 
 class ImageSourceCatalog:
@@ -206,12 +255,25 @@ class ImageSourceCatalog:
     classes the release layer is read from) and hands it to the run
     context as ``ctx.image_sources`` and, through the run's converter, to
     every OS model it structures; the tree's entries are set on it once
-    the configuration is parsed. The process holds none."""
+    the configuration is parsed. The process holds none.
+
+    The release layer is read from the runtimes a configuration DECLARES,
+    once the loader has said which (:meth:`set_declared`): what a family
+    is, and its blocks, are then the same whichever other providers are
+    installed beside the declared ones. Until it is said -- a command with
+    no configuration loaded -- the layer is every installed runtime's. The
+    one reader that looks past the declared runtimes is the stand-in for
+    the local modification tests (:meth:`stand_in_block`), which is an
+    installed runtime by its nature and adds only its own blocks."""
 
     def __init__(self, reg: Registry) -> None:
         self._reg = reg
-        self._default: list[ImageSource] | None = None
+        self._declared: frozenset[str] | None = None
+        self._releases: dict[frozenset[str], list[ImageSource]] = {}
         self._tree: list[ImageSource] = []
+        #: the stand-in the caller named for this run, when more than one
+        #: installed runtime can serve (:func:`stand_in_runtime_type`)
+        self.named_stand_in: str | None = None
 
     # A catalog is an identity object, like the registry it reads: a model
     # copy keeps its handle to the run's catalog and never clones it.
@@ -225,11 +287,38 @@ class ImageSourceCatalog:
     def _classes(self) -> dict[str, type]:
         return dict(self._reg.runtime_builder_classes())
 
+    def set_declared(self, runtime_types: Iterable[str]) -> None:
+        """Say which runtime types the configuration declares (its
+        ``type:`` words, bare or qualified): the release layer is read
+        from those runtimes' parts alone. A word that names no installed
+        runtime type leaves the layer as it was, every installed
+        runtime's: the load refuses the word itself, in its own words."""
+        installed = set(self._classes())
+        chosen: set[str] = set()
+        for word in (str(w) for w in runtime_types):
+            hits = {name for name in installed if _names_the_same(word, name)}
+            if not hits:
+                self._declared = None
+                return
+            chosen |= hits
+        self._declared = frozenset(chosen) or None
+
+    def _release(self, also: str | None = None) -> list[ImageSource]:
+        """The release layer: the parts of the declared runtimes (every
+        installed one's while none is declared), with the part of the
+        runtime type ``also`` beside them when one is named."""
+        classes = self._classes()
+        if self._declared is not None:
+            classes = {name: cls for name, cls in classes.items()
+                       if name in self._declared or (also is not None and _names_the_same(also, name))}
+        key = frozenset(classes)
+        if key not in self._releases:
+            self._releases[key] = packaged_default_entries(classes)
+        return self._releases[key]
+
     # ------------------------------------------------------------ the layers
     def default_entries(self) -> list[ImageSource]:
-        if self._default is None:
-            self._default = packaged_default_entries(self._classes())
-        return self._default
+        return self._release()
 
     def tree_entries(self) -> list[ImageSource]:
         return list(self._tree)
@@ -239,16 +328,16 @@ class ImageSourceCatalog:
         if self._tree:
             log.info(f"image sources: {len(self._tree)} tree entries over the release's {len(self.default_entries())}")
 
-    def layers(self) -> tuple[tuple[str, list[ImageSource]], ...]:
-        return (("release", self.default_entries()), ("tree", self.tree_entries()))
+    def layers(self, also: str | None = None) -> tuple[tuple[str, list[ImageSource]], ...]:
+        return (("release", self._release(also)), ("tree", self.tree_entries()))
 
     # ------------------------------------------------------------ the lookups
-    def _matching(self, family: str, version: str | None) -> list[tuple[str, ImageSource]]:
+    def _matching(self, family: str, version: str | None, also: str | None = None) -> list[tuple[str, ImageSource]]:
         """Every matching entry, in landing order: the release's generic, the
         release's for this version, the tree's generic, the tree's for this
         version. Later ones land on earlier ones."""
         out: list[tuple[str, ImageSource]] = []
-        for layer, entries in self.layers():
+        for layer, entries in self.layers(also):
             generic = [e for e in entries if e.matches(family, version) and not e.versions]
             specific = [e for e in entries if e.matches(family, version) and e.versions]
             out.extend((layer, e) for e in generic + specific)
@@ -265,11 +354,14 @@ class ImageSourceCatalog:
                 out = entry.is_
         return out
 
-    def block(self, family: str, version: str | None, runtime_type: str) -> ImageQuery | None:
+    def block(self, family: str, version: str | None, runtime_type: str, *,
+              beside_declared: bool = False) -> ImageQuery | None:
         """The catalog's query for ``family`` on a runtime type, the layers
-        merged, ``{version}`` filled; None when no layer has one."""
+        merged, ``{version}`` filled; None when no layer has one.
+        ``beside_declared`` reads the runtime type's own part too when the
+        configuration does not declare it (the stand-in's case)."""
         merged: ImageQuery | None = None
-        for _layer, entry in self._matching(family, version):
+        for _layer, entry in self._matching(family, version, runtime_type if beside_declared else None):
             b = entry.block(runtime_type)
             if b is None:
                 continue
@@ -281,15 +373,17 @@ class ImageSourceCatalog:
         runtime type that offers the local test target
         (``stand_in_runtime_type``): the family's own, else the family it
         IS (a custom family with no container of its own is tested as what
-        it is). None when no installed runtime offers a local target."""
-        runtime_type = stand_in_runtime_type(self._classes())
+        it is). None when no installed runtime offers a local target; a
+        :class:`StandInChoiceError` when several do and none is named."""
+        runtime_type = stand_in_runtime_type(self._classes(), self.named_stand_in)
         if runtime_type is None:
             return None
-        own = self.block(family, version, runtime_type)
+        own = self.block(family, version, runtime_type, beside_declared=True)
         if own is not None:
             return own
         real = self.effective_family(family, version)
-        return self.block(real, version, runtime_type) if real != str(family).strip().lower() else None
+        return self.block(real, version, runtime_type, beside_declared=True) \
+            if real != str(family).strip().lower() else None
 
     def families(self) -> list[str]:
         out: list[str] = []
@@ -298,6 +392,18 @@ class ImageSourceCatalog:
                 if e.family not in out:
                     out.append(e.family)
         return out
+
+
+def _names_the_same(word: str, name: str) -> bool:
+    """Whether a ``type:`` word a tree wrote names the runtime class the
+    registry lists as ``name``. The registry lists a class by its bare word,
+    or by its qualified word where different classes share the bare one: a
+    word matches its own spelling, and a bare word or a bare name matches
+    the other's bare part. Two qualified words match only when equal."""
+    if word == name:
+        return True
+    qualified = REGISTRY_SEPARATOR in word and REGISTRY_SEPARATOR in name
+    return not qualified and bare_name(word) == bare_name(name)
 
 
 def default_os_type(catalog: ImageSourceCatalog, family: str, version: str | None,

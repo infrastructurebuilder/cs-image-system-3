@@ -30,7 +30,7 @@ tabled below; the storage side adds the boto3 lookups and the AWS CLI
 transition scripts. The GCE root (`tofu-gce`, in
 [cs-image-system-tf-gcp-plugin](../tf-gcp-plugin/README.md)) and the
 container root (`tofu-docker`, in
-[cs-image-system-tf-docker-plugin](../tf-docker-plugin/README.md)) are
+[cs-image-system-docker-plugin](../docker-plugin/README.md)) are
 sibling subclasses of the same bases, not subclasses of this package,
 and neither depends on it.
 
@@ -1338,7 +1338,7 @@ Each with the message or symptom, what it means, where to look, what to do.
   [tofu_models.py](../tofu-roots/src/cs_image_system/tofu_roots/tofu_models.py)),
   what the bases own, the full hook table and the version checker.
 - [cs-image-system-tf-gcp-plugin](../tf-gcp-plugin/README.md) and
-  [cs-image-system-tf-docker-plugin](../tf-docker-plugin/README.md): the
+  [cs-image-system-docker-plugin](../docker-plugin/README.md): the
   GCE and container roots, sibling subclasses of the same bases; neither
   depends on this package.
 - [cs-image-system-tf-s3-state-plugin](../tf-s3-state-plugin/README.md): the

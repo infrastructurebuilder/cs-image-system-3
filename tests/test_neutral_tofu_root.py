@@ -30,7 +30,7 @@ import pytest
 REPO = Path(__file__).resolve().parents[1]
 PACKAGES = REPO / "packages"
 
-ROOTS = {"tf-gcp-plugin": "tf_gcp_plugin", "tf-docker-plugin": "tf_docker_plugin",
+ROOTS = {"tf-gcp-plugin": "tf_gcp_plugin", "docker-plugin": "tf_docker_plugin",
          "tf-ebs-instance-plugin": "tf_ebs_instance_plugin"}
 AWS = {"cs_image_system.tf_ebs_instance_plugin", "cs_image_system.aws_runtime", "boto3", "botocore"}
 OTHER_PROVIDERS = {"cs_image_system.gcloud_runtime", "cs_image_system.docker_runtime",
@@ -62,7 +62,7 @@ def _crossing(package: str, forbidden: set[str]) -> list[str]:
 
 def test_the_gce_and_docker_roots_import_nothing_of_aws():
     assert _crossing("tf-gcp-plugin", AWS) == []
-    assert _crossing("tf-docker-plugin", AWS) == []
+    assert _crossing("docker-plugin", AWS) == []
 
 
 def test_the_aws_root_imports_no_other_providers_runtime_or_root():
@@ -87,7 +87,7 @@ def test_every_root_subclasses_the_neutral_bases():
     assert "class TofuInstanceBuilder(TofuInstanceBuilderBase[" in text
 
 
-@pytest.mark.parametrize("package", ["tf-gcp-plugin", "tf-docker-plugin"])
+@pytest.mark.parametrize("package", ["tf-gcp-plugin", "docker-plugin"])
 def test_the_gce_and_docker_pyprojects_name_no_aws_package(package: str):
     deps = tomllib.loads((PACKAGES / package / "pyproject.toml").read_text())["project"]["dependencies"]
     assert not [d for d in deps if "tf-ebs-instance" in d or "aws-runtime" in d or d.startswith("boto")], deps
@@ -133,7 +133,7 @@ def test_the_gce_and_docker_roots_install_and_register_without_the_aws_root(tmp_
     both plugins import, register and build on the neutral bases."""
     env = {**os.environ, "UV_PROJECT_ENVIRONMENT": str(tmp_path / "venv")}
     sync = subprocess.run(["uv", "sync", "--frozen", "--no-dev", "--package", "cs-image-system-tf-gcp-plugin",
-                           "--package", "cs-image-system-tf-docker-plugin"],
+                           "--package", "cs-image-system-docker-plugin"],
                           cwd=REPO, env=env, capture_output=True, text=True)
     assert sync.returncode == 0, sync.stderr[-2000:]
     python = tmp_path / "venv" / ("Scripts/python.exe" if sys.platform == "win32" else "bin/python")

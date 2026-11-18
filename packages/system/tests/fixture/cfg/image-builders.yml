@@ -1,0 +1,13 @@
+# The core's own fixture: the packer image builder, bound to the test-double.
+# It declares no provider: its one runtime is the test kit's test-double
+# (cs_image_system.system.testing.double), which exists only inside a test run.
+image_builders:
+- name: pckr
+  type: packer
+  is_default: true
+  runtime: here
+  executable: packer
+  required_plugins:
+  - name: ansible
+    source: github.com/hashicorp/ansible
+    version: '>= 1.0.0'

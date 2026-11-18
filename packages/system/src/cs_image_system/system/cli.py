@@ -14,7 +14,7 @@ import json
 import logging
 import os
 import sys
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from importlib.metadata import entry_points
 from pathlib import Path
 from typing import TYPE_CHECKING, Annotated, Any
@@ -37,6 +37,7 @@ from cs_image_system.base.encryption import (
     reset_decrypted_plaintexts,
     rotate_text,
 )
+from cs_image_system.base.image_sources import StandInChoiceError, stand_in_runtime_type
 from cs_image_system.base.lifecycles import all_lifecycles, parse_lifecycles
 from cs_image_system.base.network_facts import NetworkFactsError
 from cs_image_system.base.utils import apply_flag_allows, in_directory, is_base
@@ -81,7 +82,7 @@ from cs_image_system.engine.commands.runtime_facts import describe_runtime, empt
 from cs_image_system.engine.commands.state_migration import backup, begin, finish
 from cs_image_system.engine.commands.unmount import read_receipt, unmount_storage
 from cs_image_system.engine.commands.upgrade import upgrade
-from cs_image_system.engine.config_loader import read_config_and_transform
+from cs_image_system.engine.config_loader import DECLARED_TYPES, read_config_and_transform
 from cs_image_system.engine.identity_attributes import (
     AttributeApplyDisabled,
     apply,
@@ -318,7 +319,9 @@ def validate_command(
         # a runtime's online check failed: lapsed credentials get the one line
         # a load-time failure gets, and its exit code; anything else the
         # plugin's own words
-        failure = classify_load_failure(e.__cause__) if e.__cause__ is not None else None
+        # the plugins asked are those of the builders this configuration declares
+        declared = [type(b).csis_name() for b in _loaded(ctx).all_sorted_builders]
+        failure = classify_load_failure(e.__cause__, declared_types=declared) if e.__cause__ is not None else None
         lines, code = (failure.lines, failure.code) if failure is not None else (e.lines, e.code)
         for line in lines:
             typer.secho(line, fg=typer.colors.RED, err=True)
@@ -388,7 +391,10 @@ def preflight_command(
         typer.secho(line, fg=colour)
     # a credential the environment sets but leaves EMPTY is a failure,
     # not an absence -- reported by name, never by value
-    empty = empty_environment_credentials(ctx.reg)
+    # the classes asked are those of the builders THIS configuration declares: a provider installed beside it
+    # and not used by it has no say in what counts as a credential here
+    declared_builders = [type(b) for b in (*ctx.runtime_builders.values(), *ctx.group_builders.values())]
+    empty = empty_environment_credentials(ctx.reg, declared=declared_builders)
     for name in empty:
         typer.secho(f"environment: {name} is set but EMPTY -- a credential that exists with no value "
                     "is a failure, not an absence", fg=typer.colors.RED)
@@ -712,7 +718,12 @@ def bootstrap_command(
         typer.secho(f"bootstrap: {e}", fg=typer.colors.RED, err=True)
         raise typer.Exit(code=2) from None
     write_answers(root / ANSWERS_FILE, result)
-    written = regenerate(root, sections=sections) or []
+    try:
+        written = regenerate(root, sections=sections) or []
+    except Refused as e:
+        # two sections that cannot share one root (one provider declared two ways): the answers are kept
+        typer.secho(f"bootstrap: refused: {e}", fg=typer.colors.RED, err=True)
+        raise typer.Exit(code=2) from None
     wanted = [name for name, a in sorted(result.items()) if a.get("wanted")]
     typer.echo(f"bootstrap: answers in {ANSWERS_FILE}; sections wanted: {', '.join(wanted) or 'none'}")
     for p in written:
@@ -861,22 +872,46 @@ def test_mods_command(
     ctx: typer.Context,
     image: Annotated[list[str] | None, typer.Option("--image", help="Only these instance images")] = None,
     force: Annotated[bool, typer.Option("--force", help="Re-test mods that already passed")] = False,
-    strict: Annotated[bool, typer.Option("--strict", help="Exit nonzero when tests are skipped (no container daemon)")] = False,
+    strict: Annotated[bool, typer.Option("--strict", help="Exit nonzero when any test did not run for any reason (an OS family with no local test image included)")] = False,
+    stand_in: Annotated[str | None, typer.Option("--stand-in", help="The runtime type that supplies the local container, when more than one installed plugin can")] = None,
+    allow_not_run: Annotated[bool, typer.Option("--allow-not-run", help="Record tests that could not run (no stand-in installed, or its daemon did not answer) as excluded, and exit 0")] = False,
 ) -> None:
     """Run every modification against a throwaway local container, twice
-    (apply + idempotence); results in meta-state/mod-tests.yaml (EXPLORE)."""
-    results = run_mod_tests(_loaded(ctx), images=image, force=force)
+    (apply + idempotence); results in meta-state/mod-tests.yaml (EXPLORE).
+
+    The container comes from the local stand-in: the one installed runtime
+    that declares it can supply one, or the one --stand-in names when
+    several can. Tests that could not run are a failure, never a pass,
+    unless --allow-not-run asks for the exclusion."""
+    loaded = _loaded(ctx)
+    try:
+        chosen = stand_in_runtime_type(loaded.reg.runtime_builder_classes(), stand_in)
+    except StandInChoiceError as e:
+        typer.secho(str(e), fg=typer.colors.RED, err=True)
+        raise typer.Exit(code=1) from None
+    if chosen is not None:
+        typer.secho(f"stand-in: {chosen} ({'named with --stand-in' if stand_in else 'the only one installed'})", err=True)
+    results = run_mod_tests(loaded, images=image, force=force, stand_in=stand_in)
     typer.echo(json.dumps([r.to_dict() for r in results], indent=2, sort_keys=True))
     failed = [r for r in results if r.status == "fail" or r.idempotent is False]
     skipped = [r for r in results if r.status in ("skipped", "unsupported")]
+    # what could not run for want of a stand-in: its daemon did not answer, or
+    # (with none installed) there was no container to name at all
+    not_run = [r for r in results if r.status == "skipped" or (chosen is None and r.status == "unsupported")]
     unstarted = [r for r in results if r.status == "unstarted"]
+    if not_run:
+        why = (f"{chosen} did not answer ({not_run[0].detail})" if chosen is not None
+               else "no installed plugin can serve")
+        typer.secho(f"stand-in: {why}; the modification tests did not run"
+                    + (" (excluded: --allow-not-run)" if allow_not_run else ""),
+                    fg=typer.colors.YELLOW if allow_not_run else typer.colors.RED, err=True)
     for r in failed:
         typer.secho(f"FAIL {r.image}/{r.mod}: rc={r.first_run_rc}/{r.second_run_rc} idempotent={r.idempotent} "
                     f"{r.changes_on_rerun or r.detail[:200]}", fg=typer.colors.RED, err=True)
     for r in unstarted:
         # nothing about the modification was tested; the daemon's words, not a traceback
         typer.secho(f"CANNOT START {r.image}/{r.mod}: {r.detail}", fg=typer.colors.RED, err=True)
-    if failed or unstarted or (strict and skipped):
+    if failed or unstarted or (strict and skipped) or (not_run and not allow_not_run):
         raise typer.Exit(code=1)
     typer.secho(f"mod tests: {len(results) - len(skipped)} tested, {len(skipped)} skipped, 0 failed",
                 fg=typer.colors.GREEN)
@@ -1576,18 +1611,66 @@ def deferred_load_commands() -> set[str]:
     return set(_DEFERRED_LOAD_COMMANDS)
 
 
-def plugin_command_mounts() -> list[CommandMount]:
-    """Every mount the installed plugins register in the contract's
-    ``cs_image_system.commands`` entry-point group, in entry-point name order
-    (a plugin's entry point is a callable returning the list)."""
-    out: list[CommandMount] = []
-    for ep in sorted(entry_points(group=COMMANDS_ENTRY_POINT_GROUP), key=lambda e: e.name):
-        mounts = ep.load()()
+def _mounted_thing(mount: CommandMount) -> object:
+    """What a mount puts under its name: the sub-app, or the callback."""
+    return mount.app if mount.is_app else _callback_of(mount)
+
+
+def plugin_commands() -> list[tuple[str, list[CommandMount]]]:
+    """What each installed plugin mounts, by the plugin (``name
+    (distribution)``), in entry-point name order: the contract's
+    ``cs_image_system.commands`` group, where an entry point is a callable
+    returning the list of mounts.
+
+    A plugin whose commands cannot be used is skipped, never a reason for
+    the command line to stop: this runs when the command line is imported,
+    so a failure here would take ``--help`` and every command with it. One
+    ERROR line names the plugin and the cause when its entry point does not
+    load, raises, or returns something that is no ``CommandMount``; and when
+    two plugins mount DIFFERENT things under one name and path both are
+    skipped and one line names both (the same callback or sub-app from
+    several plugins is one command, and allowed)."""
+    found: list[tuple[str, list[CommandMount]]] = []
+    for ep in sorted(entry_points(group=COMMANDS_ENTRY_POINT_GROUP),
+                     key=lambda e: (e.name, str(getattr(getattr(e, "dist", None), "name", "") or ""))):
+        dist_name = str(getattr(getattr(ep, "dist", None), "name", "") or "")
+        owner = f"{ep.name} ({dist_name})" if dist_name else ep.name
+        try:
+            mounts = list(ep.load()())
+        except Exception as e:
+            log.error(f"Plugin {owner} is skipped: failed to import: its commands: {type(e).__name__}: {e}")
+            continue
+        strangers = [m for m in mounts if not isinstance(m, CommandMount)]
+        if strangers:
+            log.error(f"Plugin {owner} is skipped: refused: its commands entry point returned {strangers[0]!r}, "
+                      "not a CommandMount")
+            continue
+        # a kit command this command line does not have (the plugin was built against a later contract that names
+        # more): nothing to mount, and the plugin is skipped whole
+        unknown = [m.kit_command for m in mounts if m.kit_command is not None and m.kit_command not in KIT_COMMAND_CALLBACKS]
+        if unknown:
+            log.error(f"Plugin {owner} is skipped: refused: it mounts the kit command {unknown[0]!r}, which this "
+                      f"command line does not have (it has: {', '.join(sorted(KIT_COMMAND_CALLBACKS))})")
+            continue
+        found.append((owner, mounts))
+    claims: dict[str, list[tuple[int, object]]] = {}
+    for index, (_owner, mounts) in enumerate(found):
         for mount in mounts:
-            if not isinstance(mount, CommandMount):
-                raise TypeError(f"command entry point {ep.name!r} returned {mount!r}, not a CommandMount")
-            out.append(mount)
-    return out
+            claims.setdefault("/".join((*mount.path, mount.name)), []).append((index, _mounted_thing(mount)))
+    skipped: set[int] = set()
+    for where, claimed in sorted(claims.items()):
+        if len({id(thing) for _index, thing in claimed}) > 1:
+            owners = sorted({index for index, _thing in claimed})
+            log.error(f"Plugins {' and '.join(found[i][0] for i in owners)} are both skipped: both register "
+                      f"command {where!r}")
+            skipped.update(owners)
+    return [entry for index, entry in enumerate(found) if index not in skipped]
+
+
+def plugin_command_mounts() -> list[CommandMount]:
+    """Every mount the usable installed plugins register
+    (:func:`plugin_commands`), in entry-point name order."""
+    return [mount for _owner, mounts in plugin_commands() for mount in mounts]
 
 
 #: The core's commands a plugin mounts by name (``CommandMount.kit_command``).
@@ -1603,16 +1686,49 @@ def _callback_of(mount: CommandMount):
     return mount.callback
 
 
-def _sub_app(root: typer.Typer, path: tuple[str, ...]) -> typer.Typer:
-    """The sub-app ``path`` names, outermost first; the root for ``()``."""
+def _sub_app(root: typer.Typer, path: tuple[str, ...],
+             pending: Mapping[str, typer.Typer] | None = None) -> typer.Typer:
+    """The sub-app ``path`` names, outermost first; the root for ``()``.
+    ``pending`` are sub-apps about to be mounted on the root, by name: a
+    path may start with one of them."""
     current = root
-    for name in path:
+    for depth, name in enumerate(path):
         found = next((g.typer_instance for g in current.registered_groups if g.name == name and g.typer_instance),
                      None)
+        if found is None and depth == 0 and pending is not None:
+            found = pending.get(name)
         if found is None:
             raise ValueError(f"no sub-app {name!r} under {'/'.join(path[:path.index(name)]) or 'the root'}")
         current = found
     return current
+
+
+def _mount_refusal(root: typer.Typer, mounts: list[CommandMount]) -> str | None:
+    """Why one plugin's mounts cannot all go on ``root``, read without
+    mounting anything and in the order they will be mounted: a path that
+    names no sub-app (one this plugin has mounted EARLIER in its list
+    counts, one it mounts later does not), or a name a built-in command, an
+    earlier plugin or an earlier mount of this one took for something else.
+    None when they all can."""
+    pending: dict[str, typer.Typer] = {}
+    taken_here: dict[tuple[tuple[str, ...], str], object] = {}
+    for mount in mounts:
+        where = "/".join((*mount.path, mount.name))
+        try:
+            parent = _sub_app(root, mount.path, pending)
+        except ValueError as e:
+            return f"command {where!r}: {e}"
+        groups = {g.name: g.typer_instance for g in parent.registered_groups}
+        commands = {c.name: c.callback for c in parent.registered_commands}
+        thing = _mounted_thing(mount)
+        mine = taken_here.get((mount.path, mount.name))
+        same = (groups.get(mount.name) is thing if mount.is_app else commands.get(mount.name) is thing) or mine is thing
+        if (mount.name in groups or mount.name in commands or mine is not None) and not same:
+            return f"command {where!r} is already mounted, by the system itself or an earlier plugin"
+        taken_here[(mount.path, mount.name)] = thing
+        if mount.is_app and mount.app is not None:
+            pending.setdefault(mount.name, mount.app)
+    return None
 
 
 def mount_plugin_commands(root: typer.Typer, mounts: list[CommandMount] | None = None) -> list[str]:
@@ -1622,11 +1738,36 @@ def mount_plugin_commands(root: typer.Typer, mounts: list[CommandMount] | None =
     callback (by identity) or the same sub-app object mounted again under
     the same name and path is one command, recorded once -- several plugins
     may each mount the core's ``verify login`` -- while a DIFFERENT callback
-    or sub-app under a name a built-in or an earlier mount took is refused:
-    two owners of one command is a packaging error, never a silent
-    replacement."""
+    or sub-app under a name a built-in or an earlier mount took is never a
+    silent replacement.
+
+    Without ``mounts`` the installed plugins' are mounted
+    (:func:`plugin_commands`), plugin by plugin, and a plugin whose mounts
+    cannot all be mounted is skipped whole with one ERROR line that names
+    it: the command line still starts. With ``mounts`` (a caller's own
+    list) the first one that cannot be mounted is refused with a
+    ``ValueError``."""
+    if mounts is not None:
+        return _mount_all(root, mounts)
     mounted: list[str] = []
-    for mount in (plugin_command_mounts() if mounts is None else mounts):
+    for owner, theirs in plugin_commands():
+        refusal = _mount_refusal(root, theirs)
+        if refusal is not None:
+            log.error(f"Plugin {owner} is skipped: refused: {refusal}")
+            continue
+        try:
+            mounted += _mount_all(root, theirs)
+        except Exception as e:
+            # the judgement above reads the mounts as they will be mounted, so this is not expected; were it
+            # ever wrong, a plugin's commands must still not stop the command line from starting
+            log.error(f"Plugin {owner} is skipped: refused: its commands could not be mounted: "
+                      f"{type(e).__name__}: {e}")
+    return mounted
+
+
+def _mount_all(root: typer.Typer, mounts: list[CommandMount]) -> list[str]:
+    mounted: list[str] = []
+    for mount in mounts:
         parent = _sub_app(root, mount.path)
         where = "/".join((*mount.path, mount.name))
         if mount.is_app:
@@ -1827,7 +1968,8 @@ def main(
         # a known load-time failure is one line and an exit code, not a
         # traceback; an unknown one keeps its traceback, and --verbose keeps
         # every traceback
-        failure = classify_load_failure(e)
+        # the plugins asked are those of the types this configuration declares, once the load read them
+        failure = classify_load_failure(e, declared_types=(typer_cntx.obj or {}).get(DECLARED_TYPES))
         if failure is None:
             typer.echo(f"Error reading config file : {e}", err=True)
             raise e

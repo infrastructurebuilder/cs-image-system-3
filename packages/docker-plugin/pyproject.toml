@@ -1,0 +1,78 @@
+# SPDX-FileCopyrightText: 2026 Mykel Alvis <mykelalvis@infrastructurebuilder.org>
+#
+# SPDX-License-Identifier: Apache-2.0
+
+[project]
+name = "cs-image-system-docker-plugin"
+version = "0.1.10"
+description = "The docker provider: the runtime type for a durable host's container daemon, and the OpenTofu roots for containers and volumes on it"
+readme = "README.md"
+authors = [{ name = "Mykel Alvis", email = "mykelalvis@infrastructurebuilder.org" }]
+license = "Apache-2.0"
+license-files = ["LICENSE"]
+requires-python = ">=3.13"
+dependencies = [
+    "cs-image-system-contract>=0.4,<0.5",
+    # The SDK, by range: this package works with any release of the kit's 0.2 line and of the terraform
+    # libraries' 0.2 line (a release there adds; a removal or alteration of their surface starts 0.3).
+    # `just test-docker-alone` tests it at both ends of each range.
+    "cs-image-system-base>=0.2,<0.3",
+    "cs-image-system-hashicorp-utils>=0.2,<0.3",
+    "cs-image-system-tofu-roots>=0.2,<0.3",
+    "python-hcl2>=8.1",
+    "pydantic>=2.13",
+]
+
+# What this package's own tests need beyond the package: the command line
+# with its test kit (cs_image_system.system.testing), which brings the engine
+# a whole stubbed run cannot do without, and the plugins whose `type:` words
+# the package's fixture declares beside its own (the image builder, the two
+# modification builders, the OS family, the local state backend, POSIX
+# identity). The top-level package is not named: it lists this package in its
+# `docker` extra, and a dependency in both directions is a cycle no release
+# can order.
+[project.optional-dependencies]
+test = [
+    "cs-image-system-system[testing]==0.1.10",
+    "cs-image-system-packer-plugin==0.1.10",
+    "cs-image-system-ansible-plugin==0.1.10",
+    "cs-image-system-bash-mod-plugin==0.1.10",
+    "cs-image-system-default-os-plugin==0.1.10",
+    "cs-image-system-local-state-plugin==0.1.10",
+    "cs-image-system-posix-identity-plugin==0.1.10",
+]
+
+[project.urls]
+Repository = "https://github.com/infrastructurebuilder/cs-image-system-3"
+Documentation = "https://github.com/infrastructurebuilder/cs-image-system-3/blob/develop/docs/OPERATIONS.md"
+"Package README" = "https://github.com/infrastructurebuilder/cs-image-system-3/blob/develop/packages/docker-plugin/README.md"
+
+[project.entry-points."cs_image_system.plugins.runtime"]
+docker = "cs_image_system.docker_runtime.main:initialize"
+
+# the instance and storage roots (containers and volumes as module calls)
+[project.entry-points."cs_image_system.plugins.instance"]
+tf-docker-plugin = "cs_image_system.tf_docker_plugin.main:initialize"
+
+# stage 103 item 15: the container-host section of the bootstrap interview
+[project.entry-points."cs_image_system.bootstrap"]
+docker = "cs_image_system.docker_runtime.bootstrap:docker_section"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/cs_image_system"]
+exclude = ["*.code-workspace"]
+
+# the terraform modules this package ships, as package data (the group is the
+# contract's MODULES_ENTRY_POINT_GROUP; the value is <package>:<dirname>)
+[project.entry-points."cs_image_system.modules"]
+modules = "cs_image_system.docker_runtime:tfmodules"
+
+# The package's suite runs from this directory alone (`just test-docker-alone`
+# does so in an environment holding only the package and what it declares).
+[tool.pytest.ini_options]
+testpaths = ["tests/unit", "tests/pipeline"]
+addopts = "--import-mode=importlib"

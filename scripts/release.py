@@ -123,6 +123,10 @@ UNBUMPED = ("a package whose version the release does not move changed since the
             "nothing was changed")
 UNASKED = ("the index could not be asked whether it holds this tree's build of every package whose version the "
            "release does not move, or one could not be built (above); nothing is guessed -- nothing was changed")
+#: the surface probe's refusal, after "<who>: ", below `just surface-check`'s own lines
+SURFACE = ("a declared surface of the SDK and its baseline disagree (above): an entry removed or altered needs a new "
+           "middle number (`just sdk-bump <line> middle`, then `just surface-record`); an entry added needs only to be "
+           "recorded (`just surface-record`) -- nothing was changed")
 DEVELOP = "develop"
 REMOTE = "origin"
 SYNC = ("uv", "sync", "--all-extras")
@@ -536,7 +540,7 @@ class Family:
 
     def own_versions_or_refuse(self, index: str, who: str) -> None:
         """scripts/own-versions-current, its lines said: every package whose version the release does not move
-        (the bump's `glob_exclude`: the contract) is either not on the index (it goes up fresh) or held there as
+        (the bump's `glob_exclude`: the contract and the SDK's members) is either not on the index (it goes up fresh) or held there as
         exactly this tree's build, file for file and byte for byte (the upload skips it). Exit 1 is a package
         that changed under a version the index holds: refused, since the index would refuse its upload after the
         gate. Any other failure is refused as "could not ask" (exit 2), never guessed."""
@@ -553,6 +557,19 @@ class Family:
             if line.strip():
                 self.say(line)
         raise Refused(f"{who}: {UNASKED}", 2)
+
+    def surfaces_or_refuse(self, who: str) -> None:
+        """`just surface-check`: each SDK library (the kit, the two terraform libraries) keeps its version rule
+        against its committed baseline. An entry of a declared surface removed or altered while the library's
+        middle number stands still is refused here, with the entry named, before anything is built: a provider
+        that pins the range of that middle number would otherwise receive a release that breaks it."""
+        done = self.run(["just", "surface-check"], cwd=self.root)
+        if done.rc == 0:
+            return
+        for line in (done.out + done.err).splitlines():
+            if line.strip():
+                self.say(line)
+        raise Refused(f"{who}: {SURFACE}", 1)
 
     def probes(self, index: str, who: str = "release", *, will_sync: bool = False) -> None:
         """What a release needs and full-test only finds out twenty minutes in, asked first and in one line each.
@@ -578,12 +595,18 @@ class Family:
             self.say(f"{who}: {VENV_OK}")
         if who == "release":
             self.own_versions_or_refuse(index, who)
-        if index != "pypi" or who != "release":
+            self.surfaces_or_refuse(who)
+        if who != "release":
             return
+        # both gates need the daemon: the install check for a release to the test index, full-test's legs for PyPI;
+        # asked here, before anything changes, and not found missing after the bar
         if self.run(["docker", "info"], cwd=self.root).rc != 0:
-            raise Refused(f"{who}: docker is not answering (docker info) -- full-test's legs need it; start the daemon "
+            needs = "full-test's legs need it" if index == "pypi" else "the install check (test-docker-install) needs it"
+            raise Refused(f"{who}: docker is not answering (docker info) -- {needs}; start the daemon "
                           "-- nothing was changed")
         self.say(f"{who}: docker answers")
+        if index != "pypi":
+            return
         root = self.sibling.path
         if not self.sibling.configured:
             raise Refused(f"{who}: no live configuration at {root} (`just config-guard` says why) -- full-test's live "
@@ -619,8 +642,10 @@ class Family:
         return ["pyproject.toml", *members, "uv.lock"]
 
     def gate(self, name: str) -> None:
-        """The bar for a development release to TestPyPI; full-test, the modification-test evidence in the live
-        configuration and a clean live checkout for PyPI."""
+        """The bar and the install check for a development release to TestPyPI; full-test (which holds the
+        install check among its legs), the modification-test evidence in the live configuration and a clean live
+        checkout for PyPI. Nothing reaches either index past a failed install check: what a person installs
+        must validate and dry-run a docker-only configuration first."""
         if name == "pypi":
             done = self.run(["just", "full-test"], cwd=self.root, capture=False)
             if done.rc != 0:
@@ -637,6 +662,9 @@ class Family:
                               + "\n".join(others))
         else:
             done = self.run(["just", "test"], cwd=self.root, capture=False)
+            if done.rc != 0:
+                raise Refused("", done.rc)
+            done = self.run(["just", "test-docker-install"], cwd=self.root, capture=False)
             if done.rc != 0:
                 raise Refused("", done.rc)
 
@@ -749,7 +777,7 @@ class Family:
         self.remote_or_refuse("release")
         self.fetched_or_refuse("release", cut)
         self.tags_behind("release", new)
-        gate = "full-test" if name == "pypi" else "test"
+        gate = "full-test" if name == "pypi" else "test && just test-docker-install"
         if dry == "yes":
             return self.dry(start, cut, index,
                             f"release: dry -- on {cut}, {current} would become {new}: {name} ready and free of it, "

@@ -77,10 +77,11 @@ def test_the_injected_models_count_as_registrations():
                                                      namespace="t")])
 
 
-def test_discovery_refuses_a_mis_grouped_plugin(monkeypatch):
+def test_discovery_skips_a_mis_grouped_plugin_and_says_why(monkeypatch):
     """The check runs at discovery, after the conformance check, so a
     shipped plugin under the wrong group never loads (a version checker,
-    which no protocol holds, filed under ``image``)."""
+    which no protocol holds, filed under ``image``): it is skipped, and
+    what could not be used keeps the refusal."""
     class _Points:
         def __init__(self, *points: Any) -> None:
             self._points = {p.name: p for p in points}
@@ -93,5 +94,7 @@ def test_discovery_refuses_a_mis_grouped_plugin(monkeypatch):
     md = _registering(VCT.VERSION_CHECKER)
     point = types.SimpleNamespace(name="misfiled", dist=None, load=lambda: (lambda: md))
     monkeypatch.setattr(loader, "entry_points", lambda group: _Points(point) if group.endswith(".image") else _Points())
-    with pytest.raises(loader.PluginGroupError, match="misfiled"):
-        loader._discovered_plugins.__wrapped__()
+    found, unusable = loader.discover()
+    assert found == ()
+    [refused] = unusable
+    assert (refused.plugin, refused.cause) == ("misfiled", loader.REFUSED) and "misfiled" in refused.detail

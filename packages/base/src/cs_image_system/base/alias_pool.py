@@ -49,7 +49,7 @@ POOL_FILE = ALIASES
 _SPENT_RE = re.compile(r"^\s*#\s*(?P<name>[A-Za-z0-9][A-Za-z0-9-]*)\s+--\s+(?P<record>.+?)\s*$")
 
 #: the key under which a run keeps its draws beside its context
-DRAWS_KEY = "alias-pool.draws"
+DRAWS_KEY = "base/alias-pool.draws"
 
 
 def drawn_this_run(ctx: "RunContext") -> dict[str, str]:

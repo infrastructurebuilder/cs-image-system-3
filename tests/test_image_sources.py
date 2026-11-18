@@ -182,7 +182,10 @@ def test_the_stand_in_runtime_is_the_one_that_offers_a_local_target():
     assert ImageSourceCatalog(installed).stand_in_block("debian", "12") is not None
 
 
-def test_a_conflict_between_two_runtimes_parts_keeps_the_first_and_says_so(caplog):
+def test_a_conflict_between_two_runtimes_parts_is_said_and_a_disputed_block_is_neithers(caplog):
+    """What a family IS keeps the first part's word, with a warning. A
+    runtime type's block that two parts give differently is a collision:
+    neither is used, whichever part was read first, and both are named."""
     from cs_image_system.base.image_sources import ImageSource, merge_entries, structure_entries
     a = structure_entries([{"family": "x", "is": "rhel", "description": "one",
                             "sources": {"alpha": {"name": "a-{version}"}}}], where="alpha")
@@ -191,11 +194,13 @@ def test_a_conflict_between_two_runtimes_parts_keeps_the_first_and_says_so(caplo
     with caplog.at_level(logging.WARNING, logger="cs_image_system.base.image_sources"):
         merged = merge_entries([("alpha", a), ("beta", b)])
     assert len(merged) == 1 and isinstance(merged[0], ImageSource)
-    assert merged[0].is_ == "rhel" and merged[0].runtime_types() == ["alpha", "beta"]
-    assert merged[0].sources["alpha"] == {"name": "a-{version}"}
+    assert merged[0].is_ == "rhel" and merged[0].runtime_types() == ["beta"]
     messages = [r.getMessage() for r in caplog.records]
     assert any("says is='debian'" in m and "keeping the first" in m for m in messages), messages
-    assert any("`alpha` block differs" in m for m in messages), messages
+    errors = [r.getMessage() for r in caplog.records if r.levelno == logging.ERROR]
+    assert len(errors) == 1 and "alpha" in errors[0] and "beta" in errors[0] and "image-source block 'alpha'" in errors[0]
+    # the other order: the same catalog
+    assert merge_entries([("beta", b), ("alpha", a)])[0].runtime_types() == ["beta"]
 
 
 def test_the_tree_layer_lands_on_the_releases_and_a_version_on_the_generic(ctx):
@@ -378,3 +383,76 @@ def test_a_family_nobody_serves_needs_a_declared_type(tmp_path, monkeypatch):
 def test_the_frozen_fixture_carries_the_trees_layer_and_nothing_else_changed():
     doc = yaml.safe_load((FIXTURE_CONFIG / "cfg" / "image-sources.yml").read_text())
     assert [e["family"] for e in doc["image_sources"]] == ["debian", "rhel-from-fixture"]
+
+
+# ------------------------------------------------------------ what is declared, not what is installed
+
+def _part(name: str, family_is: str | None, blocks: tuple[str, ...]) -> type:
+    entry: dict = {"family": "x", "sources": {b: {"name": f"{name}-{{version}}"} for b in blocks}}
+    if family_is:
+        entry["is"] = family_is
+    return type(f"Runtime_{name.replace('-', '_')}", (), {"image_source_entries": classmethod(lambda cls: [entry])})
+
+
+def _catalog(**parts: type):
+    from types import SimpleNamespace
+    from typing import Any, cast
+
+    from cs_image_system.base.image_sources import ImageSourceCatalog
+    return ImageSourceCatalog(cast(Any, SimpleNamespace(runtime_builder_classes=lambda: dict(parts))))
+
+
+def test_what_a_family_is_comes_from_the_declared_runtimes_and_not_from_one_installed_beside_them():
+    """A provider installed beside the declared one has no say: before the
+    loader says what is declared the release layer is every installed
+    runtime's, and after it the declared runtimes' alone."""
+    catalog = _catalog(aaa=_part("aaa", "debian", ("aaa",)), mine=_part("mine", "rhel", ("mine",)))
+    assert catalog.effective_family("x") == "debian"                  # nothing declared: the first part by name
+    catalog.set_declared(["mine"])
+    assert catalog.effective_family("x") == "rhel"                    # the declared runtime's own word
+    assert catalog.block("x", "9", "mine") is not None and catalog.block("x", "9", "aaa") is None
+    alone = _catalog(mine=_part("mine", "rhel", ("mine",)))
+    alone.set_declared(["mine"])
+    assert [e.sources for e in catalog.default_entries()] == [e.sources for e in alone.default_entries()]
+
+
+def test_a_qualified_word_names_its_runtime_and_a_word_that_names_none_changes_nothing():
+    catalog = _catalog(aaa=_part("aaa", "debian", ("aaa",)), mine=_part("mine", "rhel", ("mine",)))
+    catalog.set_declared(["some-namespace/mine"])
+    assert catalog.effective_family("x") == "rhel"
+    catalog.set_declared(["mine", "a-word-nothing-registers"])        # the load refuses the word itself
+    assert catalog.effective_family("x") == "debian"
+
+
+def test_the_stand_in_reads_its_own_block_beside_the_declared_runtimes_and_nothing_else_of_its_part():
+    """The local stand-in is an installed runtime, declared or not: its
+    block is read, and what the family IS stays the declared runtime's."""
+    class _StandIn(_part("standin", "debian", ("standin",))):       # type: ignore[misc]
+        @classmethod
+        def csis_name(cls) -> str:
+            return "standin"
+
+        @classmethod
+        def local_test_target(cls):
+            return lambda image, executables=None: None
+    catalog = _catalog(mine=_part("mine", "rhel", ("mine",)), standin=_StandIn)
+    catalog.set_declared(["mine"])
+    assert catalog.block("x", "9", "standin") is None                 # not declared: not in the run's layer
+    block = catalog.stand_in_block("x", "9")
+    assert block is not None                                          # the stand-in's own block, read beside it
+    assert catalog.effective_family("x") == "rhel"
+
+
+
+def test_where_two_plugins_share_a_runtime_word_the_qualified_word_reads_its_own_part():
+    """The registry lists two classes that share a bare word by their
+    qualified words; a tree that writes one of them reads that runtime's
+    part, and the other's has no say."""
+    catalog = _catalog(**{"theirs/docker": _part("theirs", "debian", ("docker",)),
+                          "mine/docker": _part("mine", "rhel", ("docker",))})
+    catalog.set_declared(["mine/docker"])
+    assert catalog.effective_family("x") == "rhel"
+    block = catalog.block("x", "9", "docker")
+    assert block is not None and "mine" in str(block)
+    catalog.set_declared(["theirs/docker"])
+    assert catalog.effective_family("x") == "debian"

@@ -423,7 +423,18 @@ class RunContext(RunContextProtocol):
         ``key``: made by ``factory`` on the first ask, the same object after,
         and gone when the context is. The core names none of them; this is
         how a collector or a cache lives beside the context without being
-        process-wide state."""
+        process-wide state.
+
+        ``key`` is ``<namespace>/<name>``: the namespace of the plugin or
+        library that keeps the object (the one its registrations carry),
+        then a name of its own choosing. Two plugins that choose one name
+        therefore never hold one object; a key that names no namespace is
+        refused."""
+        namespace, separator, name = key.partition(registry.NAMESPACE_SEPARATOR)
+        if not (namespace and separator and name):
+            raise ValueError(f"plugin_state key {key!r} names no namespace: a key is "
+                             f"'<namespace>{registry.NAMESPACE_SEPARATOR}<name>', the namespace being the plugin's "
+                             "or library's own, so two plugins never meet on one key")
         if key not in self._plugin_state:
             self._plugin_state[key] = factory()
         return self._plugin_state[key]

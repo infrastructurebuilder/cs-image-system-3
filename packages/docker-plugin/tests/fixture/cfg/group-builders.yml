@@ -1,0 +1,12 @@
+# The docker family's own fixture: POSIX groups and users only.
+# Taken from the repository's shared fixture (tests/fixtures/config) with its
+# names unchanged, so the family's golden and the shared golden pin the same
+# docker emission.
+group_builders:
+- name: posix-local
+  type: posix
+  is_default: true
+user_builders:
+- name: posix-users
+  type: posix
+  is_default: true

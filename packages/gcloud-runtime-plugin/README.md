@@ -347,8 +347,9 @@ The `gcloud` blocks of the release's catalog are this plugin's: it ships
 them as package data,
 [`data/image-sources.yml`](src/cs_image_system/gcloud_runtime/data/image-sources.yml),
 and `GCPCloudBuilder.image_source_entries()` reads that file. The core
-merges every installed runtime's part by family, so the release catalog a
-tree sees carries a `gcloud` block exactly when this plugin is installed.
+merges, by family, the parts of the runtimes a tree declares, so the release
+catalog a tree sees carries a `gcloud` block exactly when the tree declares a
+runtime of this plugin's type.
 Two families the other runtimes know are absent from the file on purpose:
 Compute Engine has no public Fedora family, and its Ubuntu families are
 named by release (`ubuntu-2404-lts-amd64`), not by major version, so a
@@ -680,7 +681,7 @@ GCP fully authenticated). See
 `google-cloud-compute>=1.49`, `google-api-core>=2.31`, `google-auth>=2.55`,
 `python-hcl2>=8.1`, `pydantic>=2.13`, and the system's own
 `cs-image-system-contract`, `cs-image-system-base` and
-`cs-image-system-hashicorp-utils` at the same version. Python 3.13 or
+`cs-image-system-hashicorp-utils`, each pinned as [WRITING_A_PROVIDER.md](../../docs/WRITING_A_PROVIDER.md#how-it-depends-on-the-sdk) describes: the contract by the range of its series, the SDK's libraries at their own line's version. Python 3.13 or
 later.
 
 Environment variables the plugin or its checks read: `GOOGLE_APPLICATION_CREDENTIALS`

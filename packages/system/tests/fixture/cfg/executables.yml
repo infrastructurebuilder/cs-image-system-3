@@ -1,0 +1,13 @@
+# The core's own fixture: the tools a bake names.
+# It declares no provider: its one runtime is the test kit's test-double
+# (cs_image_system.system.testing.double), which exists only inside a test run.
+executables:
+- name: packer
+  version: '>=1.14'
+  binary: /usr/local/bin/packer
+- name: ansible-playbook
+  binary: /usr/local/bin/ansible-playbook
+  version: '>=2.16'
+- name: bash
+  binary: /usr/local/bin/bash
+  version: '>=5'

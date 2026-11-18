@@ -1,0 +1,25 @@
+# The docker family's own fixture: the one OS builder, the container base.
+# Taken from the repository's shared fixture (tests/fixtures/config) with its
+# names unchanged, so the family's golden and the shared golden pin the same
+# docker emission.
+os_builders:
+- name: rh10-container
+  identity_types:
+  - posix
+  storage_types:
+  - volume
+  type: rhel
+  family: alma-linux
+  family_version: 10
+  update:
+    policy: security
+    exclude:
+    - kernel*
+  tests:
+    commands:
+    - run: id -u csisadmin
+  runtimes:
+  - name: docker-rh10
+    image_builder: pckr-docker
+    ssh_username: root
+  is_default: true

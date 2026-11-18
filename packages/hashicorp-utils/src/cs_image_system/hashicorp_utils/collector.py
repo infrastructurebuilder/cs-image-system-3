@@ -386,16 +386,31 @@ class TerraformCollector:
         the same bucket and normalised prefix under two backend
         names, two workspace names that collapse under super_safe_name, or a
         doubled slash against a single one."""
+        return [message for _names, message in TerraformCollector._shared_locations(locations)]
+
+    @staticmethod
+    def _shared_locations(locations: dict[str, StateLocation]) -> list[tuple[list[str], str]]:
+        """Each location two or more workspaces would share: the workspaces,
+        sorted, and the message that names them and the location."""
         by_location: dict[StateLocation, list[str]] = {}
         for workspace, location in locations.items():
             by_location.setdefault(location, []).append(workspace)
-        return [f"workspaces {', '.join(sorted(names))} would share the state object {location}"
+        return [(sorted(names), f"workspaces {', '.join(sorted(names))} would share the state object {location}")
                 for location, names in sorted(by_location.items(), key=lambda kv: str(kv[0]))
                 if len(names) > 1]
 
     def validate_state_locations(self) -> None:
         """Refuse the run when two bound workspaces resolve to one state object."""
         collisions = self.state_collisions(self.state_locations())
+        if collisions:
+            raise HclConfigConflictError("state location collision: " + "; ".join(collisions))
+
+    def _assert_own_state_location(self, workspace: str) -> None:
+        """Refuse a workspace whose state object another workspace would
+        share. A collision between two OTHER workspaces is theirs: it stops
+        their emission, and the run-wide check, not this workspace's."""
+        collisions = [message for names, message in self._shared_locations(self.state_locations())
+                      if workspace in names]
         if collisions:
             raise HclConfigConflictError("state location collision: " + "; ".join(collisions))
 
@@ -427,20 +442,36 @@ class TerraformCollector:
 
     def validate_all(self) -> None:
         """Run-wide check: combined constraints for each provider name across
-        ALL workspaces must be satisfiable (catches config drift early)."""
+        ALL workspaces must be satisfiable (catches config drift early), and
+        no two workspaces may resolve to one state object."""
+        self._assert_agreement(None)
+        self.validate_state_locations()
+
+    def validate_for(self, workspace: str) -> None:
+        """The check as one workspace owes it: only the providers IT
+        declares are compared, against every other workspace that declares
+        the same ones. A disagreement between two other workspaces over a
+        provider this one does not use is theirs, and does not stop this
+        one's emission: one provider's roots never fail for another
+        provider's declarations."""
+        self._assert_agreement({req.name for req in self._providers.get(workspace, [])})
+        # the same for state locations: refused when ITS state object would be shared, not for two others'
+        self._assert_own_state_location(workspace)
+
+    def _assert_agreement(self, mine: set[str] | None) -> None:
         by_name: dict[str, list[ProviderRequirement]] = {}
         for reqs in self._providers.values():
             for req in reqs:
-                by_name.setdefault(req.name, []).append(req)
+                if mine is None or req.name in mine:
+                    by_name.setdefault(req.name, []).append(req)
         for name, reqs in by_name.items():
             self._agree_source(name, reqs)
             assert_satisfiable(name, [(r.version, r.requested_by) for r in reqs])
-        self.validate_state_locations()
 
     # --- generation (in-memory only) ----------------------------------------
     def generate_terraform_block(self, workspace: str) -> list[str]:
         """``terraform { required_providers {...} [backend "..." {...}] }``"""
-        self.validate_all()
+        self.validate_for(workspace)
         doc = Builder()
         tf = doc.block("terraform")
         provs = self.merged_providers(workspace)
@@ -491,7 +522,7 @@ class TerraformCollector:
                 **reg.backend_settings(workspace)}
 
     def generate_provider_blocks(self, workspace: str) -> list[str]:
-        self.validate_all()
+        self.validate_for(workspace)
         lines: list[str] = []
         for pc in self._provider_configs.get(workspace, []):
             doc = Builder()
@@ -503,7 +534,7 @@ class TerraformCollector:
         return lines
 
     def generate_variable_blocks(self, workspace: str) -> list[str]:
-        self.validate_all()
+        self.validate_for(workspace)
         variables = self._variables.get(workspace, {})
         if not variables:
             return []
@@ -546,7 +577,7 @@ class TerraformCollector:
     def generate_remote_state_datasources(self, workspace: str) -> list[str]:
         """``data "terraform_remote_state" "<label>" { backend, config {...} }``
         per registered reference; empty unless backends are enabled."""
-        self.validate_all()
+        self.validate_for(workspace)
         if not self.backends_enabled():
             return []
         lines: list[str] = []
@@ -634,16 +665,25 @@ class PackerCollector:
         return merged
 
     def validate_all(self) -> None:
+        self._assert_agreement(None)
+
+    def validate_for(self, workspace: str) -> None:
+        """As the terraform collector's: only the plugins this workspace
+        requires are compared across workspaces."""
+        self._assert_agreement({req.name for req in self._plugins.get(workspace, [])})
+
+    def _assert_agreement(self, mine: set[str] | None) -> None:
         by_name: dict[str, list[PackerPluginRequirement]] = {}
         for reqs in self._plugins.values():
             for req in reqs:
-                by_name.setdefault(req.name, []).append(req)
+                if mine is None or req.name in mine:
+                    by_name.setdefault(req.name, []).append(req)
         for name, reqs in by_name.items():
             assert_satisfiable(name, [(r.version, r.requested_by) for r in reqs])
 
     def generate_packer_block(self, workspace: str) -> list[str]:
         """``packer { required_plugins { <name> { version, source } } }``"""
-        self.validate_all()
+        self.validate_for(workspace)
         doc = Builder()
         packer = doc.block("packer")
         plugins = self.merged_plugins(workspace)
@@ -659,7 +699,7 @@ class PackerCollector:
         return hcl2.dumps(doc.build(), formatter_options=FO).splitlines()
 
     def generate_variable_blocks(self, workspace: str) -> list[str]:
-        self.validate_all()
+        self.validate_for(workspace)
         variables = self._variables.get(workspace, {})
         if not variables:
             return []
@@ -690,8 +730,8 @@ class CollectorContext(Protocol):
     def plugin_state(self, key: str, factory: Callable[[], Any]) -> Any: ...
 
 
-TERRAFORM_COLLECTOR_KEY = "hashicorp-utils.terraform-collector"
-PACKER_COLLECTOR_KEY = "hashicorp-utils.packer-collector"
+TERRAFORM_COLLECTOR_KEY = "hashicorp-utils/terraform-collector"
+PACKER_COLLECTOR_KEY = "hashicorp-utils/packer-collector"
 
 
 def terraform_collector(ctx: CollectorContext) -> TerraformCollector:

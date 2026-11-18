@@ -16,7 +16,7 @@ members = [
     "cs-image-system-contract",
     "cs-image-system-contract-example-plugin",
     "cs-image-system-default-os-plugin",
-    "cs-image-system-docker-runtime-plugin",
+    "cs-image-system-docker-plugin",
     "cs-image-system-dummy-plugin",
     "cs-image-system-engine",
     "cs-image-system-gcloud-runtime-plugin",
@@ -27,7 +27,6 @@ members = [
     "cs-image-system-packer-plugin",
     "cs-image-system-posix-identity-plugin",
     "cs-image-system-system",
-    "cs-image-system-tf-docker-plugin",
     "cs-image-system-tf-ebs-instance-plugin",
     "cs-image-system-tf-gcp-plugin",
     "cs-image-system-tf-s3-state-plugin",
@@ -478,11 +477,10 @@ dependencies = [
 [package.optional-dependencies]
 all = [
     { name = "cs-image-system-aws-runtime-plugin" },
-    { name = "cs-image-system-docker-runtime-plugin" },
+    { name = "cs-image-system-docker-plugin" },
     { name = "cs-image-system-gcloud-runtime-plugin" },
     { name = "cs-image-system-gcs-state-plugin" },
     { name = "cs-image-system-okta-opa-plugin" },
-    { name = "cs-image-system-tf-docker-plugin" },
     { name = "cs-image-system-tf-ebs-instance-plugin" },
     { name = "cs-image-system-tf-gcp-plugin" },
     { name = "cs-image-system-tf-s3-state-plugin" },
@@ -493,8 +491,7 @@ aws = [
     { name = "cs-image-system-tf-s3-state-plugin" },
 ]
 docker = [
-    { name = "cs-image-system-docker-runtime-plugin" },
-    { name = "cs-image-system-tf-docker-plugin" },
+    { name = "cs-image-system-docker-plugin" },
 ]
 gcloud = [
     { name = "cs-image-system-gcloud-runtime-plugin" },
@@ -526,8 +523,8 @@ requires-dist = [
     { name = "cs-image-system-bash-mod-plugin", editable = "packages/bash-mod-plugin" },
     { name = "cs-image-system-contract", editable = "packages/contract" },
     { name = "cs-image-system-default-os-plugin", editable = "packages/default-os-plugin" },
-    { name = "cs-image-system-docker-runtime-plugin", marker = "extra == 'all'", editable = "packages/docker-runtime-plugin" },
-    { name = "cs-image-system-docker-runtime-plugin", marker = "extra == 'docker'", editable = "packages/docker-runtime-plugin" },
+    { name = "cs-image-system-docker-plugin", marker = "extra == 'all'", editable = "packages/docker-plugin" },
+    { name = "cs-image-system-docker-plugin", marker = "extra == 'docker'", editable = "packages/docker-plugin" },
     { name = "cs-image-system-engine", editable = "packages/engine" },
     { name = "cs-image-system-gcloud-runtime-plugin", marker = "extra == 'all'", editable = "packages/gcloud-runtime-plugin" },
     { name = "cs-image-system-gcloud-runtime-plugin", marker = "extra == 'gcloud'", editable = "packages/gcloud-runtime-plugin" },
@@ -540,8 +537,6 @@ requires-dist = [
     { name = "cs-image-system-packer-plugin", editable = "packages/packer-plugin" },
     { name = "cs-image-system-posix-identity-plugin", editable = "packages/posix-identity-plugin" },
     { name = "cs-image-system-system", editable = "packages/system" },
-    { name = "cs-image-system-tf-docker-plugin", marker = "extra == 'all'", editable = "packages/tf-docker-plugin" },
-    { name = "cs-image-system-tf-docker-plugin", marker = "extra == 'docker'", editable = "packages/tf-docker-plugin" },
     { name = "cs-image-system-tf-ebs-instance-plugin", marker = "extra == 'all'", editable = "packages/tf-ebs-instance-plugin" },
     { name = "cs-image-system-tf-ebs-instance-plugin", marker = "extra == 'aws'", editable = "packages/tf-ebs-instance-plugin" },
     { name = "cs-image-system-tf-gcp-plugin", marker = "extra == 'all'", editable = "packages/tf-gcp-plugin" },
@@ -608,7 +603,7 @@ requires-dist = [
 
 [[package]]
 name = "cs-image-system-base"
-version = "0.1.10"
+version = "0.2.0"
 source = { editable = "packages/base" }
 dependencies = [
     { name = "age" },
@@ -648,7 +643,7 @@ requires-dist = [
 
 [[package]]
 name = "cs-image-system-contract"
-version = "0.4.2"
+version = "0.4.4"
 source = { editable = "packages/contract" }
 dependencies = [
     { name = "packaging" },
@@ -694,25 +689,46 @@ requires-dist = [
 ]
 
 [[package]]
-name = "cs-image-system-docker-runtime-plugin"
+name = "cs-image-system-docker-plugin"
 version = "0.1.10"
-source = { editable = "packages/docker-runtime-plugin" }
+source = { editable = "packages/docker-plugin" }
 dependencies = [
     { name = "cs-image-system-base" },
     { name = "cs-image-system-contract" },
     { name = "cs-image-system-hashicorp-utils" },
+    { name = "cs-image-system-tofu-roots" },
     { name = "pydantic" },
     { name = "python-hcl2" },
 ]
 
+[package.optional-dependencies]
+test = [
+    { name = "cs-image-system-ansible-plugin" },
+    { name = "cs-image-system-bash-mod-plugin" },
+    { name = "cs-image-system-default-os-plugin" },
+    { name = "cs-image-system-local-state-plugin" },
+    { name = "cs-image-system-packer-plugin" },
+    { name = "cs-image-system-posix-identity-plugin" },
+    { name = "cs-image-system-system", extra = ["testing"] },
+]
+
 [package.metadata]
 requires-dist = [
+    { name = "cs-image-system-ansible-plugin", marker = "extra == 'test'", editable = "packages/ansible-plugin" },
     { name = "cs-image-system-base", editable = "packages/base" },
+    { name = "cs-image-system-bash-mod-plugin", marker = "extra == 'test'", editable = "packages/bash-mod-plugin" },
     { name = "cs-image-system-contract", editable = "packages/contract" },
+    { name = "cs-image-system-default-os-plugin", marker = "extra == 'test'", editable = "packages/default-os-plugin" },
     { name = "cs-image-system-hashicorp-utils", editable = "packages/hashicorp-utils" },
+    { name = "cs-image-system-local-state-plugin", marker = "extra == 'test'", editable = "packages/local-state-plugin" },
+    { name = "cs-image-system-packer-plugin", marker = "extra == 'test'", editable = "packages/packer-plugin" },
+    { name = "cs-image-system-posix-identity-plugin", marker = "extra == 'test'", editable = "packages/posix-identity-plugin" },
+    { name = "cs-image-system-system", extras = ["testing"], marker = "extra == 'test'", editable = "packages/system" },
+    { name = "cs-image-system-tofu-roots", editable = "packages/tofu-roots" },
     { name = "pydantic", specifier = ">=2.13" },
     { name = "python-hcl2", specifier = ">=8.1" },
 ]
+provides-extras = ["test"]
 
 [[package]]
 name = "cs-image-system-dummy-plugin"
@@ -802,7 +818,7 @@ requires-dist = [
 
 [[package]]
 name = "cs-image-system-hashicorp-utils"
-version = "0.1.10"
+version = "0.2.0"
 source = { editable = "packages/hashicorp-utils" }
 dependencies = [
     { name = "cs-image-system-contract" },
@@ -911,9 +927,15 @@ dependencies = [
     { name = "cs-image-system-base" },
     { name = "cs-image-system-engine" },
     { name = "packaging" },
+    { name = "pydantic" },
     { name = "pyyaml" },
     { name = "rich" },
     { name = "typer" },
+]
+
+[package.optional-dependencies]
+testing = [
+    { name = "pytest" },
 ]
 
 [package.metadata]
@@ -921,33 +943,13 @@ requires-dist = [
     { name = "cs-image-system-base", editable = "packages/base" },
     { name = "cs-image-system-engine", editable = "packages/engine" },
     { name = "packaging", specifier = ">=26.2" },
+    { name = "pydantic", specifier = ">=2.13" },
+    { name = "pytest", marker = "extra == 'testing'", specifier = ">=8.3" },
     { name = "pyyaml", specifier = ">=6.0" },
     { name = "rich", specifier = ">=15.0" },
     { name = "typer", specifier = ">=0.26" },
 ]
-
-[[package]]
-name = "cs-image-system-tf-docker-plugin"
-version = "0.1.10"
-source = { editable = "packages/tf-docker-plugin" }
-dependencies = [
-    { name = "cs-image-system-base" },
-    { name = "cs-image-system-contract" },
-    { name = "cs-image-system-docker-runtime-plugin" },
-    { name = "cs-image-system-hashicorp-utils" },
-    { name = "cs-image-system-tofu-roots" },
-    { name = "pydantic" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "cs-image-system-base", editable = "packages/base" },
-    { name = "cs-image-system-contract", editable = "packages/contract" },
-    { name = "cs-image-system-docker-runtime-plugin", editable = "packages/docker-runtime-plugin" },
-    { name = "cs-image-system-hashicorp-utils", editable = "packages/hashicorp-utils" },
-    { name = "cs-image-system-tofu-roots", editable = "packages/tofu-roots" },
-    { name = "pydantic", specifier = ">=2.13" },
-]
+provides-extras = ["testing"]
 
 [[package]]
 name = "cs-image-system-tf-ebs-instance-plugin"
@@ -1016,7 +1018,7 @@ requires-dist = [
 
 [[package]]
 name = "cs-image-system-tofu-roots"
-version = "0.1.10"
+version = "0.2.0"
 source = { editable = "packages/tofu-roots" }
 dependencies = [
     { name = "cs-image-system-base" },

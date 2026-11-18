@@ -18,8 +18,9 @@ either fails; 2 when the line or a version cannot be found, or the indexes
 could not be asked.
 
 A package the version bump leaves alone (`glob_exclude` under
-`[tool.bumpversion.files]` in the root `pyproject.toml`: the contract) has a
-version of its own, which its dependents pin as a range. It must still come
+`[tool.bumpversion.files]` in the root `pyproject.toml`: the contract, and the
+SDK's members) has a version of its own, which its dependents pin as a range
+(the contract; the SDK from a provider) or exactly at that version. It must still come
 from TestPyPI; the version it resolves at is its own line's, never VERSION.
 
 Born from a failed take: once 0.1.1 was on PyPI, uv's default index strategy

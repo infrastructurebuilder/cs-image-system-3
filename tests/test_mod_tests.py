@@ -6,17 +6,17 @@
 against a throwaway local target; run 1 must succeed, run 2 must change
 nothing.
 
-The harness is exercised with a FAKE target (no container tool); one
-docker-backed test runs only with CSIS_DOCKER_TESTS=1. The real target
-comes from the docker runtime plugin (``local_test_target()``); the core's
-harness names no runtime.
+This is the core's harness, exercised with a FAKE target (no container
+tool) over the frozen fixture. The real target comes from a runtime plugin
+(``local_test_target()``); the core's harness names no runtime. The docker
+runtime's target is tested in the docker package: without a daemon in
+packages/docker-plugin/tests/unit/test_local_target.py, and on a real one
+in packages/docker-plugin/tests/live/test_mod_tests_live.py.
 
 History: EXPLORE "Automated Testing for Modifications".
 """
 from __future__ import annotations
 
-import os
-import subprocess
 from pathlib import Path
 
 import pytest
@@ -151,36 +151,18 @@ def test_the_target_comes_from_the_runtime_that_offers_one(fixture_run, monkeypa
     """The harness asks the registry, never a name of its own: with no
     runtime offering a local target every modification is skipped, and the
     factory it does find is handed the tree's executables."""
-    from cs_image_system.docker_runtime.local_target import docker_binary
     from cs_image_system.engine import mod_tests
     _only_bash(fixture_run.ctx)
-    assert docker_binary(fixture_run.ctx.executables) == "/usr/local/bin/docker"           # the fixture's declared CLI
-    assert docker_binary({}) == "docker" and docker_binary(None) == "docker"
-    assert docker_binary({"docker": {"name": "docker"}}) == "docker"
     seen: list[tuple[str, object]] = []
 
     def factory(image, executables=None):
         seen.append((image, executables))
         return FakeTarget(image)
-    monkeypatch.setattr(mod_tests, "stand_in_target_factory", lambda classes: ("fake", factory))
+    monkeypatch.setattr(mod_tests, "stand_in_target_factory", lambda classes, named=None: ("fake", factory))
     results = mod_tests.run_mod_tests(fixture_run.ctx, images=["imgfile-basic-dask"])
     assert [r.status for r in results] == ["pass"]
     assert seen == [("almalinux:10", fixture_run.ctx.executables)]
-    monkeypatch.setattr(mod_tests, "stand_in_target_factory", lambda classes: None)
+    monkeypatch.setattr(mod_tests, "stand_in_target_factory", lambda classes, named=None: None)
     results = mod_tests.run_mod_tests(fixture_run.ctx, images=["imgfile-basic-dask"], force=True)
     assert [r.status for r in results] == ["skipped"]
     assert "local test target" in results[0].detail
-
-
-@pytest.mark.skipif(not os.environ.get("CSIS_DOCKER_TESTS"), reason="set CSIS_DOCKER_TESTS=1 to run against docker")
-def test_live_docker_bash_mod(fixture_run):
-    from cs_image_system.docker_runtime.local_target import docker_available
-    from cs_image_system.engine.mod_tests import run_mod_tests
-    if not docker_available():
-        pytest.skip("docker not available")
-    _only_bash(fixture_run.ctx)
-    results = run_mod_tests(fixture_run.ctx, images=["imgfile-basic-dask"], force=True)
-    r = results[0]
-    assert r.status == "pass", r.detail
-    assert r.idempotent is True, r.changes_on_rerun
-    subprocess.run(["docker", "image", "inspect", "almalinux:10"], check=True, capture_output=True)

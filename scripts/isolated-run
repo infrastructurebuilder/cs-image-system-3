@@ -1,0 +1,491 @@
+#!/usr/bin/env python3
+# SPDX-FileCopyrightText: 2026 Mykel Alvis <mykelalvis@infrastructurebuilder.org>
+#
+# SPDX-License-Identifier: Apache-2.0
+
+"""Run one package's tests in an environment that holds only that package
+and what it declares.
+
+The workspace's own environment cannot prove that a package stands alone:
+every package's sources are on its path and every plugin is installed. This
+script builds the workspace's wheels, makes an empty virtual environment
+outside the workspace, installs the named requirement from the built wheels
+(every workspace distribution it reaches is installed from its wheel, by
+file, so nothing of this repository comes from an index; third-party
+packages come from the index), and runs pytest there on the package's own
+directory, with the package's own pytest settings and none of the
+workspace's.
+
+The verdict is strict: the run fails when no test was collected, when any
+test was skipped, or when any test failed or errored. A step that could
+not start is reported as not run, and that is a failure too.
+
+    isolated-run --subject NAME --require REQ --root DIR [--tests PATH ...]
+                 [--pytest-config FILE] [--copy-outside]
+
+``REQ`` is a requirement on a workspace distribution, with any extras
+(``cs-image-system-docker-plugin[test]``). ``--root`` is the directory the
+tests live under, a package's own or the repository's; ``--tests`` are
+paths inside it (the ``testpaths`` its pytest settings declare when none is
+given, read here and handed to pytest by name: pytest applies
+``testpaths`` itself only when it is started in the directory it takes for
+its root, and a copy under a temporary directory reached through a
+symbolic link is not that, so a suite's other directories -- tests that
+need a daemon, say -- would be collected). The pytest settings are the root's own ``pyproject.toml`` unless
+``--pytest-config`` names another file: a run over several packages names
+one package's, so the workspace's settings (which put every package's
+sources on the path) never apply. ``--copy-outside`` copies the root out of
+the workspace first, builds its wheel from the copy and runs the tests from
+the copy, so nothing of the workspace is beside them.
+
+The interpreter is started with ``-P``, so the directory the run starts in
+is never on the import path: a test can import only what is installed.
+
+``--sdk-end low|high`` is for a provider that pins the SDK (the kit and the
+two terraform libraries) by a range: the run takes each SDK library at the
+lowest or the highest version of the provider's range, counting both what
+the index has published and what this repository builds. A version the
+index holds is installed FROM the index; one it does not hold is installed
+from this repository's build, and the run says which, by name: a
+development install is never mistaken for a release. The index is asked;
+if it cannot be asked the run fails, since it would otherwise have to
+guess.
+
+The install check is a second mode, for what a person installs rather than
+what a package's tests need:
+
+    isolated-run --install-check --subject NAME --require REQ --starter NAME
+                 [--keep DIR]
+
+It builds the wheels, installs ``REQ`` (``cs-image-system[docker]``) from
+them into an empty environment that holds nothing else, renders the named
+starter with the INSTALLED command (``init-config <dir> --from NAME``),
+then runs the installed ``validate`` and a dry ``run --all`` on it. Three
+steps are reported, each as ``ran and succeeded``, ``ran and failed`` or
+``did not run``: the install (with the render), the validation and the dry
+run. The check passes only when all three ran and succeeded; a step that
+did not run is a failure, never a pass. ``--keep DIR`` leaves the emitted
+``generated`` tree in ``DIR`` (which must not hold one already).
+"""
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import shutil
+import subprocess
+import sys
+import tempfile
+import tomllib
+import urllib.error
+import urllib.request
+import xml.etree.ElementTree as ET
+import zipfile
+from collections.abc import Callable, Sequence
+from dataclasses import dataclass
+from pathlib import Path
+
+from packaging.requirements import Requirement
+from packaging.specifiers import SpecifierSet
+from packaging.utils import canonicalize_name
+from packaging.version import InvalidVersion, Version
+
+REPO = Path(__file__).resolve().parents[1]
+OURS = "cs-image-system"
+#: the SDK's libraries: what a provider may pin by a range
+SDK = ("cs-image-system-base", "cs-image-system-hashicorp-utils", "cs-image-system-tofu-roots")
+INDEX_JSON = "https://pypi.org/pypi/{name}/json"
+FROM_INDEX = "from the index"
+FROM_BUILD = "from this repository's build (development install)"
+
+
+class IndexUnasked(RuntimeError):
+    """The index could not be asked which versions of a library it holds."""
+
+
+Published = Callable[[str], set[Version]]
+
+
+def published_versions(name: str) -> set[Version]:
+    """The versions of ``name`` the index holds (none when it has never
+    heard of it); :class:`IndexUnasked` when it cannot be asked."""
+    try:
+        with urllib.request.urlopen(INDEX_JSON.format(name=name), timeout=30) as answer:
+            releases = json.load(answer).get("releases", {})
+    except urllib.error.HTTPError as e:
+        if e.code == 404:
+            return set()
+        raise IndexUnasked(f"{name}: the index answered {e.code}") from e
+    except (urllib.error.URLError, TimeoutError, ValueError) as e:
+        raise IndexUnasked(f"{name}: {e}") from e
+    out: set[Version] = set()
+    for text, files in releases.items():
+        try:
+            if files:
+                out.add(Version(text))
+        except InvalidVersion:
+            continue
+    return out
+
+
+def wheel_version(wheel: Path) -> Version:
+    return Version(wheel.name.split("-")[1])
+
+
+@dataclass(frozen=True)
+class SdkChoice:
+    """One SDK library at one end of a provider's range."""
+    name: str
+    version: Version
+    from_index: bool
+
+    def said(self) -> str:
+        return f"{self.name} {self.version} {FROM_INDEX if self.from_index else FROM_BUILD}"
+
+
+def sdk_choices(wanted: Requirement, wheels: dict[str, Path], end: str, published: Published) -> list[SdkChoice]:
+    """Each SDK library the provider declares, at the ``low`` or ``high``
+    end of the range it declares it by: the lowest or highest version in
+    that range among what the index holds and what this repository builds.
+    ``ValueError`` when a range holds neither."""
+    ranges: dict[str, SpecifierSet] = {}
+    for dep in wheel_requirements(wheels[canonicalize_name(wanted.name)]):
+        if canonicalize_name(dep.name) in SDK and dep.marker is None:
+            ranges[canonicalize_name(dep.name)] = dep.specifier
+    out: list[SdkChoice] = []
+    for name in sorted(ranges):
+        held = {v for v in published(name) if ranges[name].contains(v, prereleases=True)}
+        built = wheel_version(wheels[name])
+        candidates = held | ({built} if ranges[name].contains(built, prereleases=True) else set())
+        if not candidates:
+            raise ValueError(f"{wanted.name} declares {name}{ranges[name]}, which neither the index nor this "
+                             f"repository's build ({built}) satisfies")
+        version = min(candidates) if end == "low" else max(candidates)
+        out.append(SdkChoice(name, version, version in held))
+    return out
+
+
+@dataclass(frozen=True)
+class Done:
+    """What one command returned."""
+    rc: int
+    out: str = ""
+
+
+Shell = Callable[[Sequence[str], Path], Done]
+
+
+def real_shell(cmd: Sequence[str], cwd: Path) -> Done:
+    try:
+        res = subprocess.run(list(cmd), cwd=cwd, capture_output=True, text=True, check=False)
+    except OSError as e:
+        return Done(127, f"{cmd[0]}: {e}")
+    return Done(res.returncode, (res.stdout or "") + (res.stderr or ""))
+
+
+@dataclass(frozen=True)
+class Counts:
+    """What a pytest run reported."""
+    collected: int
+    skipped: int
+    failed: int
+
+    @property
+    def passed(self) -> int:
+        return self.collected - self.skipped - self.failed
+
+
+def verdict(counts: Counts | None) -> tuple[bool, str]:
+    """Whether a run passes, and the one line that says why. ``None``: the
+    tests did not run at all."""
+    if counts is None:
+        return False, "the tests did not run"
+    if counts.collected == 0:
+        return False, "no test was collected"
+    if counts.failed:
+        return False, f"{counts.failed} of {counts.collected} failed"
+    if counts.skipped:
+        return False, f"{counts.skipped} of {counts.collected} were skipped (a skipped test is a test that did not run)"
+    return True, f"{counts.passed} passed, 0 skipped"
+
+
+def read_counts(junit: Path) -> Counts | None:
+    """The totals of a junit report, or ``None`` when pytest wrote none."""
+    if not junit.is_file():
+        return None
+    root = ET.parse(junit).getroot()
+    suites = [root] if root.tag == "testsuite" else list(root.iter("testsuite"))
+    total = sum(int(s.get("tests", 0)) for s in suites)
+    skipped = sum(int(s.get("skipped", 0)) for s in suites)
+    failed = sum(int(s.get("failures", 0)) + int(s.get("errors", 0)) for s in suites)
+    return Counts(total, skipped, failed)
+
+
+def wheel_requirements(wheel: Path) -> list[Requirement]:
+    """The ``Requires-Dist`` lines of a wheel."""
+    with zipfile.ZipFile(wheel) as z:
+        name = next(n for n in z.namelist() if n.endswith(".dist-info/METADATA"))
+        lines = z.read(name).decode().splitlines()
+    return [Requirement(line.split(":", 1)[1].strip()) for line in lines if line.startswith("Requires-Dist:")]
+
+
+def wheels_by_name(directory: Path) -> dict[str, Path]:
+    """The wheels under ``directory`` by canonical distribution name."""
+    out: dict[str, Path] = {}
+    for wheel in sorted(directory.glob("*.whl")):
+        out[canonicalize_name(wheel.name.split("-")[0])] = wheel
+    return out
+
+
+def closure(requirement: Requirement, wheels: dict[str, Path]) -> dict[str, set[str]]:
+    """Every workspace distribution ``requirement`` reaches through declared
+    dependencies, with the extras asked of each: the distributions that are
+    installed from their built wheels. A requirement on a distribution this
+    workspace does not build is third-party and is left to the index."""
+    found: dict[str, set[str]] = {}
+    todo: list[tuple[str, frozenset[str]]] = [(canonicalize_name(requirement.name), frozenset(requirement.extras))]
+    while todo:
+        name, extras = todo.pop()
+        if name not in wheels:
+            continue
+        seen = found.setdefault(name, set())
+        new = (set(extras) | {""}) - seen
+        if not new:
+            continue
+        seen |= new
+        for dep in wheel_requirements(wheels[name]):
+            wanted = any(dep.marker is None or dep.marker.evaluate({"extra": extra}) for extra in new)
+            if wanted:
+                todo.append((canonicalize_name(dep.name), frozenset(dep.extras)))
+    return found
+
+
+def declared_testpaths(config: Path) -> list[str]:
+    """The ``testpaths`` a pytest settings file declares (a
+    ``pyproject.toml``); none when the file is absent or declares none."""
+    if not config.is_file():
+        return []
+    settings = tomllib.loads(config.read_text()).get("tool", {}).get("pytest", {}).get("ini_options", {})
+    return [str(path) for path in settings.get("testpaths", [])]
+
+
+def install_lines(found: dict[str, set[str]], wheels: dict[str, Path]) -> list[str]:
+    """One requirement per workspace distribution in ``found``, each naming
+    its wheel by file."""
+    out = []
+    for name in sorted(found):
+        extras = sorted(e for e in found[name] if e)
+        out.append(f"{name}{'[' + ','.join(extras) + ']' if extras else ''} @ {wheels[name].resolve().as_uri()}")
+    return out
+
+
+def run(subject: str, requirement: str, root: Path, tests: Sequence[str], *, copy_outside: bool,
+        pytest_config: Path | None = None, sdk_end: str | None = None, published: Published = published_versions,
+        shell: Shell = real_shell, say: Callable[[str], None] = print, work: Path | None = None) -> int:
+    """The whole isolated run; 0 when it passes. ``work`` is a directory to
+    work in (a temporary one is made and removed when none is given)."""
+    if work is None:
+        with tempfile.TemporaryDirectory(prefix="csis-isolated-") as td:
+            return run(subject, requirement, root, tests, copy_outside=copy_outside, pytest_config=pytest_config,
+                       sdk_end=sdk_end, published=published, shell=shell, say=say, work=Path(td))
+    who = f"isolated-run [{subject}]"
+    wheel_dir = work / "wheels"
+
+    def fail(step: str, done: Done) -> int:
+        say(done.out.strip()[-4000:])
+        say(f"{who}: FAILED -- {step} did not succeed (exit {done.rc}); the tests did not run")
+        return 1
+
+    built = shell(["uv", "build", "--all-packages", "--wheel", "--out-dir", str(wheel_dir)], REPO)
+    if built.rc != 0:
+        return fail("building the workspace's wheels", built)
+    wanted = Requirement(requirement)
+    if copy_outside:
+        copy = work / "outside" / root.name
+        shutil.copytree(root, copy, ignore=shutil.ignore_patterns("__pycache__", ".pytest_cache", "*.egg-info"))
+        rebuilt = shell(["uv", "build", "--wheel", "--out-dir", str(work / "outside-wheel"), str(copy)], work)
+        if rebuilt.rc != 0:
+            return fail("building the package from its copy outside the workspace", rebuilt)
+        for wheel in (work / "outside-wheel").glob("*.whl"):       # the copy's wheel takes the place of the workspace's
+            shutil.copy(wheel, wheel_dir / wheel.name)
+        root = copy
+        say(f"{who}: the package's directory was copied to {copy} and built there")
+    wheels = wheels_by_name(wheel_dir)
+    if canonicalize_name(wanted.name) not in wheels:
+        say(f"{who}: FAILED -- {wanted.name} is not a distribution this workspace builds; the tests did not run")
+        return 1
+    found = closure(wanted, wheels)
+    lines = install_lines(found, wheels)
+    if sdk_end is not None:
+        try:
+            chosen = sdk_choices(wanted, wheels, sdk_end, published)
+        except (IndexUnasked, ValueError) as e:
+            say(f"{who}: FAILED -- {e}; the tests did not run")
+            return 1
+        versions = sorted({str(c.version) for c in chosen})
+        say(f"{who}: the {sdk_end} end of the SDK range" + (f" ({', '.join(versions)})" if versions else ""))
+        for choice in chosen:
+            say(f"{who}:   {choice.said()}")
+            if choice.from_index:                    # the published version, by name, in place of the built wheel
+                found.pop(choice.name, None)
+                lines = [ln for ln in lines if not ln.startswith(choice.name + " @ ")
+                         and not ln.startswith(choice.name + "[")] + [f"{choice.name}=={choice.version}"]
+            elif choice.version != wheel_version(wheels[choice.name]):
+                say(f"{who}: FAILED -- {choice.name} {choice.version} is neither on the index nor this "
+                    "repository's build; the tests did not run")
+                return 1
+    venv = work / "venv"
+    made = shell(["uv", "venv", "--quiet", "--python", f"{sys.version_info.major}.{sys.version_info.minor}", str(venv)], work)
+    if made.rc != 0:
+        return fail("creating the empty environment", made)
+    python = venv / "bin" / "python"
+    installed = shell(["uv", "pip", "install", "--quiet", "--python", str(python), "pytest>=8.3", *lines], work)
+    if installed.rc != 0:
+        return fail("installing the package and what it declares", installed)
+    ours = sorted(found)
+    say(f"{who}: installed from this repository's build ({len(ours)}): {', '.join(ours)}")
+    listed = shell(["uv", "pip", "list", "--python", str(python), "--format", "freeze"], work)
+    known = set(found) | set(SDK if sdk_end is not None else ())
+    stray = sorted(line.split("==")[0] for line in listed.out.splitlines()
+                   if canonicalize_name(line.split("==")[0]).startswith(OURS)
+                   and canonicalize_name(line.split("==")[0]) not in known)
+    if listed.rc != 0 or stray:
+        say(f"{who}: FAILED -- the environment holds distributions of this repository that were not declared: "
+            f"{stray or listed.out.strip()[-500:]}; the tests did not run")
+        return 1
+    junit = work / "junit.xml"
+    config = pytest_config or root / "pyproject.toml"
+    # the paths are always named: the ones asked for, else the ones the settings declare (see the module docstring)
+    paths = list(tests) or declared_testpaths(config)
+    ran = shell([str(python), "-P", "-m", "pytest", "-c", str(config),
+                 "--rootdir", str(root), "--confcutdir", str(root),      # a conftest at the root applies, none above it
+                 "-p", "no:cacheprovider", "-q", "-rs", f"--junitxml={junit}",
+                 *(str(root / t) for t in paths)], root)
+    counts = read_counts(junit)
+    ok, why = verdict(counts)
+    if not ok:
+        say(ran.out.strip()[-6000:])
+    say(f"{who}: {'passed' if ok else 'FAILED'} -- {why}")
+    return 0 if ok else 1
+
+
+SUCCEEDED, FAILED_STEP, NOT_RUN = "ran and succeeded", "ran and failed", "did not run"
+INSTALL, VALIDATION, DRY_RUN = "the install", "the validation", "the dry run"
+COMMAND = "cs-image-system"
+IDENTITY_FILE = ".age-identity"
+
+
+def install_check(subject: str, requirement: str, starter: str, *, keep: Path | None = None,
+                  shell: Shell = real_shell, say: Callable[[str], None] = print, work: Path | None = None,
+                  user: str = "csis") -> int:
+    """The install check; 0 when the install, the validation and the dry
+    run each ran and succeeded. ``work`` is a directory to work in (a
+    temporary one is made and removed when none is given)."""
+    if work is None:
+        with tempfile.TemporaryDirectory(prefix="csis-install-") as td:
+            return install_check(subject, requirement, starter, keep=keep, shell=shell, say=say, work=Path(td),
+                                 user=user)
+    who = f"isolated-run [{subject}]"
+    results = {INSTALL: NOT_RUN, VALIDATION: NOT_RUN, DRY_RUN: NOT_RUN}
+
+    def report() -> int:
+        for step, result in results.items():
+            say(f"{who}: {step}: {result}")
+        ok = all(result == SUCCEEDED for result in results.values())
+        say(f"{who}: {'passed' if ok else 'FAILED'} -- "
+            + ("the install, the validation and the dry run each ran and succeeded" if ok else
+               "; ".join(f"{step} {result}" for step, result in results.items() if result != SUCCEEDED)))
+        return 0 if ok else 1
+
+    def stopped(step: str, what: str, done: Done | None = None) -> int:
+        if done is not None:
+            say(done.out.strip()[-6000:])
+        say(f"{who}: {what}" + (f" (exit {done.rc})" if done is not None else ""))
+        results[step] = FAILED_STEP if done is not None else NOT_RUN
+        return report()
+
+    if keep is not None and (keep / "generated").exists():
+        return stopped(INSTALL, f"{keep / 'generated'} already exists; --keep writes the emitted tree there and "
+                                "replaces nothing")
+    wheel_dir = work / "wheels"
+    built = shell(["uv", "build", "--all-packages", "--wheel", "--out-dir", str(wheel_dir)], REPO)
+    if built.rc != 0:
+        say(built.out.strip()[-4000:])
+        return stopped(INSTALL, f"building the workspace's wheels did not succeed (exit {built.rc})")
+    wanted = Requirement(requirement)
+    wheels = wheels_by_name(wheel_dir)
+    if canonicalize_name(wanted.name) not in wheels:
+        return stopped(INSTALL, f"{wanted.name} is not a distribution this workspace builds")
+    found = closure(wanted, wheels)
+    venv = work / "venv"
+    made = shell(["uv", "venv", "--quiet", "--python", f"{sys.version_info.major}.{sys.version_info.minor}", str(venv)], work)
+    if made.rc != 0:
+        return stopped(INSTALL, "creating the empty environment did not succeed", made)
+    python = venv / "bin" / "python"
+    installed = shell(["uv", "pip", "install", "--quiet", "--python", str(python), *install_lines(found, wheels)], work)
+    if installed.rc != 0:
+        return stopped(INSTALL, f"installing {requirement} did not succeed", installed)
+    listed = shell(["uv", "pip", "list", "--python", str(python), "--format", "freeze"], work)
+    stray = sorted(line.split("==")[0] for line in listed.out.splitlines()
+                   if canonicalize_name(line.split("==")[0]).startswith(OURS)
+                   and canonicalize_name(line.split("==")[0]) not in found)
+    if listed.rc != 0 or stray:
+        return stopped(INSTALL, "the environment holds distributions of this repository that the requirement does "
+                                f"not reach: {stray or listed.out.strip()[-500:]}", listed if listed.rc != 0 else Done(1))
+    say(f"{who}: installed {requirement} from this repository's build ({len(found)}): {', '.join(sorted(found))}")
+    command = str(venv / "bin" / COMMAND)
+    config = work / "config"
+    rendered = shell([command, "init-config", str(config), "--from", starter], work)
+    if rendered.rc != 0:
+        return stopped(INSTALL, f"rendering the {starter} starter with the installed command did not succeed", rendered)
+    results[INSTALL] = SUCCEEDED
+    # the starter's own test identity opens its encrypted values, as its README says
+    env = ["env", f"CSIS_CONFIG_IDENTITY={config / IDENTITY_FILE}", f"USER={user}"]
+    validated = shell([*env, command, "--root-dir", str(config), "validate"], config)
+    if validated.rc != 0:
+        return stopped(VALIDATION, "`validate` on the rendered starter did not succeed", validated)
+    results[VALIDATION] = SUCCEEDED
+    dry = shell([*env, command, "--root-dir", str(config), "--dry-run", "run", "--all"], config)
+    if dry.rc != 0:
+        return stopped(DRY_RUN, "a dry `run --all` on the rendered starter did not succeed", dry)
+    results[DRY_RUN] = SUCCEEDED
+    if keep is not None:
+        keep.mkdir(parents=True, exist_ok=True)
+        shutil.copytree(config / "generated", keep / "generated")
+        say(f"{who}: the emitted tree is kept in {keep / 'generated'}")
+    return report()
+
+
+def main(argv: Sequence[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description=(__doc__ or "").split("\n\n")[0])
+    parser.add_argument("--subject", required=True, help="what the run is called in its report")
+    parser.add_argument("--require", required=True, help="the requirement to install, with any extras")
+    parser.add_argument("--root", type=Path, default=None, help="the package's directory")
+    parser.add_argument("--tests", nargs="*", default=[], help="test paths inside the root (its testpaths when none)")
+    parser.add_argument("--pytest-config", type=Path, default=None,
+                        help="the pytest settings file, when not the root's own pyproject.toml")
+    parser.add_argument("--sdk-end", choices=("low", "high"), default=None,
+                        help="take each SDK library at the lowest or highest version of the provider's range")
+    parser.add_argument("--copy-outside", action="store_true",
+                        help="copy the package's directory out of the workspace, build and test it there")
+    parser.add_argument("--install-check", action="store_true",
+                        help="install the requirement alone, render --starter with the installed command, then "
+                             "validate and dry-run it")
+    parser.add_argument("--starter", default=None, help="the starter the install check renders")
+    parser.add_argument("--keep", type=Path, default=None,
+                        help="with --install-check: leave the emitted `generated` tree in this directory")
+    args = parser.parse_args(argv)
+    if args.install_check:
+        if not args.starter:
+            parser.error("--install-check needs --starter")
+        return install_check(args.subject, args.require, args.starter, user=os.environ.get("USER") or "csis",
+                             keep=(Path.cwd() / args.keep).resolve() if args.keep else None)
+    if args.root is None:
+        parser.error("--root is required")
+    return run(args.subject, args.require, (REPO / args.root).resolve(), args.tests, copy_outside=args.copy_outside,
+               pytest_config=(REPO / args.pytest_config).resolve() if args.pytest_config else None,
+               sdk_end=args.sdk_end)
+
+
+if __name__ == "__main__":
+    sys.exit(main())

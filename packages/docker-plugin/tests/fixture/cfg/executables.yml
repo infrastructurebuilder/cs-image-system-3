@@ -1,0 +1,21 @@
+# The docker family's own fixture: the tools a docker tree declares.
+# Taken from the repository's shared fixture (tests/fixtures/config) with its
+# names unchanged, so the family's golden and the shared golden pin the same
+# docker emission.
+executables:
+- name: packer
+  version: '>=1.14'
+  binary: /usr/local/bin/packer
+- name: ansible-playbook
+  binary: /usr/local/bin/ansible-playbook
+  version: '>=2.16'
+- name: bash
+  binary: /usr/local/bin/bash
+  version: '>=5'
+- name: docker
+  binary: /usr/local/bin/docker
+  version: '>=24'
+- name: open-tofu-1
+  type: tofu
+  binary: /usr/local/bin/tofu
+  version: '>1,<2'

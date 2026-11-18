@@ -5,14 +5,21 @@
 name: CI
 
 # Every command is a `just` target, so CI and a developer's shell run the same
-# thing. Three jobs: `verify` is the acceptance bar and needs neither
-# configuration nor credentials; `live` proves the system against real clouds
+# thing. `verify` is the acceptance bar and needs neither
+# configuration nor credentials; `core-alone` runs the core's own tests with
+# no provider installed, `terraform-alone` the two terraform libraries' own
+# tests with nothing but themselves and `docker-alone` the docker family's own
+# tests in an environment that holds only that package; `docker-install`
+# installs the docker extra alone and validates and dry-runs its starter; `live` proves the system against real clouds
 # over the FROZEN FIXTURE, read-only; `publish` uploads a pushed `v*` tag to
 # the index (TestPyPI always, PyPI for a final version). The
 # reference configuration (cs-image-system-testconfig) is driven, recorded and
-# performed by its OWN workflow, from the release; nothing here reads it. Each
-# job is gated on the secrets the operator provides -- until they exist every
-# leg reports SKIPPED and the job passes.
+# performed by its OWN workflow, from the release; nothing here reads it. The
+# jobs that reach a cloud (`live`) are gated on the secrets the operator
+# provides -- until they exist every such leg reports SKIPPED and the job
+# passes. The jobs that prove a part alone, and the install check, have no
+# gate and no condition: they need no secret, and each fails unless its
+# tests or steps ran.
 on:
   push:
   pull_request:
@@ -54,6 +61,98 @@ jobs:
       - name: Public-safe
         # nothing in the checkout may be material that must never be public
         run: just public-safe
+
+  core-alone:
+    # The core proves itself with no provider: the tests of the contract, the
+    # kit, the engine, the command line and the always-installed plugins, in an
+    # empty environment that holds a plain install with no extras. Every push
+    # and PR; no condition, no credentials, no daemon. The recipe fails when no
+    # test was collected or any was skipped.
+    runs-on: ubuntu-24.04
+    container:
+      image: ${{ vars.CSIS_RUNNER_IMAGE || 'ghcr.io/infrastructurebuilder/csis-ci:alma10-20261016.4' }}
+      credentials:
+        username: ${{ vars.CSIS_RUNNER_IMAGE_USERNAME || github.actor }}
+        password: ${{ secrets.CSIS_RUNNER_IMAGE_PASSWORD || github.token }}
+      options: -v /var/run/docker.sock:/var/run/docker.sock
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Install dependencies
+        run: just init
+
+      - name: The core alone
+        run: just test-core
+
+  terraform-alone:
+    # The two shared terraform libraries prove themselves alone: their own
+    # tests in an empty environment that holds only the two libraries and what
+    # they declare (the kit and the contract), at both ends of the kit range.
+    # Every push and PR; no condition, no credentials, no daemon. The recipe
+    # fails when no test was collected or any was skipped.
+    runs-on: ubuntu-24.04
+    container:
+      image: ${{ vars.CSIS_RUNNER_IMAGE || 'ghcr.io/infrastructurebuilder/csis-ci:alma10-20261016.4' }}
+      credentials:
+        username: ${{ vars.CSIS_RUNNER_IMAGE_USERNAME || github.actor }}
+        password: ${{ secrets.CSIS_RUNNER_IMAGE_PASSWORD || github.token }}
+      options: -v /var/run/docker.sock:/var/run/docker.sock
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Install dependencies
+        run: just init
+
+      - name: The terraform libraries alone
+        run: just test-terraform-alone
+
+  docker-alone:
+    # The docker family proves itself alone: its own tests, fixture and golden
+    # in an empty environment that holds only the docker package and what it
+    # declares, in place and from a copy outside the workspace. Every push and
+    # PR; no condition, no credentials, no daemon (its runs are stubbed). The
+    # recipe fails when no test was collected or any was skipped, so this job
+    # cannot pass without having run them.
+    runs-on: ubuntu-24.04
+    container:
+      image: ${{ vars.CSIS_RUNNER_IMAGE || 'ghcr.io/infrastructurebuilder/csis-ci:alma10-20261016.4' }}
+      credentials:
+        username: ${{ vars.CSIS_RUNNER_IMAGE_USERNAME || github.actor }}
+        password: ${{ secrets.CSIS_RUNNER_IMAGE_PASSWORD || github.token }}
+      options: -v /var/run/docker.sock:/var/run/docker.sock
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Install dependencies
+        run: just init
+
+      - name: The docker family alone
+        run: just test-docker-alone
+
+  docker-install:
+    # What a person who installs the docker extra gets: `cs-image-system[docker]`
+    # from the built wheels, alone in an empty environment, renders the
+    # standard-docker starter with the installed command, validates it and
+    # dry-runs every lifecycle. Every push and PR; no condition and no
+    # credentials. It needs the daemon (the socket mounted below) and the
+    # registry: a dry run resolves the base image with a pull. The recipe
+    # fails unless the install, the validation and the dry run each ran and
+    # succeeded, so this job cannot pass without having run them.
+    runs-on: ubuntu-24.04
+    container:
+      image: ${{ vars.CSIS_RUNNER_IMAGE || 'ghcr.io/infrastructurebuilder/csis-ci:alma10-20261016.4' }}
+      credentials:
+        username: ${{ vars.CSIS_RUNNER_IMAGE_USERNAME || github.actor }}
+        password: ${{ secrets.CSIS_RUNNER_IMAGE_PASSWORD || github.token }}
+      options: -v /var/run/docker.sock:/var/run/docker.sock
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Install dependencies
+        run: just init
+
+      - name: The docker extra, installed alone
+        run: just test-docker-install
 
   live:
     # The system's live proof over the frozen fixture: the fixture
@@ -176,8 +275,10 @@ jobs:
     # uploaded twice; one published from CI alone is uploaded here. The tag
     # must name the version in the tree it points at. Each index's token is a
     # repository secret until the package names are stable enough for trusted
-    # publishing (one pending publisher per project name).
-    needs: verify
+    # publishing (one pending publisher per project name). Nothing is uploaded
+    # unless the parts proved themselves alone and the docker extra installed
+    # alone validated and dry-ran its starter, on the same commit.
+    needs: [verify, core-alone, terraform-alone, docker-alone, docker-install]
     if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-24.04
     container:

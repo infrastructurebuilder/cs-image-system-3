@@ -4,7 +4,7 @@
 
 [project]
 name = "cs-image-system-base"
-version = "0.1.10"
+version = "0.2.0"
 description = "The kit of cs-image-system: the base classes, the models, the registry and the run context a plugin is written against"
 readme = "README.md"
 authors = [{ name = "Mykel Alvis", email = "mykelalvis@infrastructurebuilder.org" }]
@@ -24,6 +24,11 @@ dependencies = [
 Repository = "https://github.com/infrastructurebuilder/cs-image-system-3"
 Documentation = "https://github.com/infrastructurebuilder/cs-image-system-3/blob/develop/docs/OPERATIONS.md"
 "Package README" = "https://github.com/infrastructurebuilder/cs-image-system-3/blob/develop/packages/base/README.md"
+
+# this library is one of the SDK's: it declares itself, and the kit's check reads its declared surface from
+# the module named here (the kit names no library of the SDK but itself)
+[project.entry-points."cs_image_system.sdk"]
+"cs_image_system.base" = "cs_image_system.base.surface"
 
 [build-system]
 requires = ["hatchling"]

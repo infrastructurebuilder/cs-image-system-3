@@ -1,14 +1,20 @@
 # cs-image-system-base
 
-The kit of cs-image-system: what a plugin is written against beyond the
-plugin contract ([contract](../contract/README.md)). It implements the
+The kit of cs-image-system: the first library of the SDK a plugin is
+written against, beside the plugin contract
+([contract](../contract/README.md)). It declares what a plugin may use
+of it (its `surface` module) and keeps a version of its own, whose
+middle number rises only when something on that surface is removed or
+altered ([WRITING_A_PROVIDER.md](../../docs/WRITING_A_PROVIDER.md)). It implements the
 contract with its base models (`models/`) and builder bases (`basic/`),
 and holds what those import: the registry, the run context, the
 lifecycles and phases, value encryption, lineage, generations, launch
 parameters, capabilities, the power states and the meta-state record
-types. A plugin imports the base classes, the models and the two
-metadata abstractions of this package and nothing else of the core
-(`tests/test_plugin_imports.py`).
+types. A plugin imports what this package's `surface` module declares
+and nothing else of it; the check is this package's own
+(`python -m cs_image_system.base.surface check <source directory>`), and
+`tests/test_plugins_keep_to_the_surface.py` runs it over every plugin of
+the workspace.
 
 The engine is the other half of the core, a package of its own
 ([engine](../engine/README.md)): the plugin loader, the configuration
@@ -16,8 +22,7 @@ reader, the resolver, the lifecycle runner and its commands, meta-state
 on disk, the state query, releases, retention and the bootstrap. The
 direction is one way, contract <- kit <- engine: no module here imports
 the engine, by any edge (`tests/test_contract.py`,
-`tests/test_import_closure.py`, which also holds this package to
-exactly the modules the plugins reach).
+`tests/test_import_closure.py`).
 
 This README describes the kit: the plugin contract as the kit
 implements it, the configuration tree and the models it structures
@@ -130,7 +135,8 @@ that group's classification (`runtime`: a cloud or container builder
 model or a runtime builder; `state`: a state backend; `storage`, `group`,
 `user`, `image`, `os`, `instance`, `modification`: the builder or its
 model), else it is refused with a `PluginGroupError` naming the group it
-chose, what it registers and the group that fits. A plugin may register
+chose, what it registers and the group that fits; a refused plugin is
+skipped, with one error line, and the others load. A plugin may register
 more than its group's kind (the terraform root plugins declare `instance`
 and register their storage roots; the identity plugins declare `group` and
 register their user builders); `other` is for a plugin that registers none
@@ -289,7 +295,8 @@ prefix and the `-plugin` suffix dropped (`aws-runtime`, `tf-ebs-instance`,
 `okta-opa`, `contract-example`; the core's own registrations through its
 `base` entry point, the generic version checker and the storage mapping,
 carry `base`), unless the plugin's metadata names a `namespace` of its
-own; a plugin with no distribution and no field is refused at discovery.
+own; a plugin with no distribution and no field is refused at discovery
+and skipped.
 The reasoning is in [the stage index](../../docs/CHANGES.md#s131).
 
 The instance-level table (what the tree declared: built builders and
@@ -524,13 +531,20 @@ runtime plugin ships its own part as package data
 (`data/image-sources.yml` beside its code, the blocks keyed by its
 runtime type) and answers it from its builder class's
 `image_source_entries()`; `packaged_default_entries(classes)` here asks
-every runtime builder class it is given (a registry's
-`runtime_builder_classes()`) and merges the parts by family
+every runtime builder class it is given and merges the parts by family
 (`sources` is the union by runtime type; `description`, `is` and
 `versions` take the first non-empty value, a disagreement logged at
-WARNING). The catalog therefore depends on which runtime plugins are
-installed, never on which a tree declares, and this module names no
-runtime. The tree's `image_sources:` entries land on the merged result
+WARNING). A runtime type's block that two parts give differently is a
+collision: neither is used, and one error line names both parts; and
+when one plugin ships a block for a runtime type another plugin
+registers, discovery skips both plugins. The classes asked are those of
+the runtimes a configuration DECLARES, once the loader has said which
+(`ImageSourceCatalog.set_declared`): a provider installed beside them
+has no say in what a family is or in its blocks. Before a configuration
+is loaded they are every installed runtime's. The one reader that looks
+past the declared runtimes is the stand-in for the local modification
+tests, an installed runtime by its nature, whose own block is read
+beside them. This module names no runtime. The tree's `image_sources:` entries land on the merged result
 by family and version (`ImageSourceCatalog(reg)`, one per run like the
 registry: the loader makes it over the run's registry and carries it as
 `ctx.image_sources`; an OS model holds the one of the run that
@@ -1035,7 +1049,7 @@ What the context exposes:
 | `reg`, `image_sources`, `template_resolver` | The run's registry, image-source catalog and template resolver (with its converter): one of each per load. |
 | `finalizer` | The run's deferred-command queue and executor: `get_finalization_executables_for_phase(phase, lifecycle)`, `finalization_phases_for(lifecycle)`, `final_execution_path`, `write_lifecycle_runner_script(lc, header)`, `write_gating_script()`, `final_execute()`. |
 | `extend_finalization_phase(phase, executables)` | Queue executables for a phase on the run's finalizer (the one finalizer verb the contract's context protocol declares). |
-| `plugin_state(key, factory)` | The one object a library or plugin keeps for this run under `key`: made by `factory` on the first ask, the same object after, gone with the context. |
+| `plugin_state(key, factory)` | The one object a library or plugin keeps for this run under `key`: made by `factory` on the first ask, the same object after, gone with the context. A key is `<namespace>/<name>`, the namespace being the plugin's or library's own (what its registrations carry), so two plugins that choose one name never hold one object; a key that names no namespace is refused. |
 
 ### What a process shares between runs, and what it must not
 
@@ -1329,7 +1343,7 @@ itself needs is short.
   [bash-mod-plugin](../bash-mod-plugin/README.md),
   [contract-example-plugin](../contract-example-plugin/README.md),
   [default-os-plugin](../default-os-plugin/README.md),
-  [docker-runtime-plugin](../docker-runtime-plugin/README.md),
+  [docker-plugin](../docker-plugin/README.md),
   [dummy-plugin](../dummy-plugin/README.md),
   [gcloud-runtime-plugin](../gcloud-runtime-plugin/README.md),
   [gcs-state-plugin](../gcs-state-plugin/README.md),
@@ -1337,7 +1351,6 @@ itself needs is short.
   [okta-opa-plugin](../okta-opa-plugin/README.md),
   [packer-plugin](../packer-plugin/README.md),
   [posix-identity-plugin](../posix-identity-plugin/README.md),
-  [tf-docker-plugin](../tf-docker-plugin/README.md),
   [tf-ebs-instance-plugin](../tf-ebs-instance-plugin/README.md),
   [tf-gcp-plugin](../tf-gcp-plugin/README.md),
   [tf-s3-state-plugin](../tf-s3-state-plugin/README.md).

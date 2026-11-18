@@ -62,7 +62,9 @@ def test_a_package_with_a_version_of_its_own_resolves_at_it_and_still_from_testp
     development pin resolves it at that version, never at the release's."""
     m = _the_check()
     own_line = m.own_version_line(REPO)
-    assert own_line == {"cs-image-system-contract"}
+    assert own_line == {"cs-image-system-contract", "cs-image-system-base", "cs-image-system-hashicorp-utils",
+                        "cs-image-system-tofu-roots"}
+    own_line = {"cs-image-system-contract"}      # the cases below are about one such package and one that is not
     test, pypi = "https://test.pypi.org/simple", "https://pypi.org/simple"
     ours = {"cs-image-system": ("0.1.7.dev2", test), "cs-image-system-base": ("0.1.7.dev2", test),
             "cs-image-system-contract": ("0.3.0", test)}

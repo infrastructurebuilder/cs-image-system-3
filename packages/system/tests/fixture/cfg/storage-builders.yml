@@ -1,0 +1,4 @@
+# The core's own fixture: no storage builder: only a provider registers one.
+# It declares no provider: its one runtime is the test kit's test-double
+# (cs_image_system.system.testing.double), which exists only inside a test run.
+storage_builders: []

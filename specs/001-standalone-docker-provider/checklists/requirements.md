@@ -38,9 +38,11 @@
 - "The kit is the SDK" and "isolated inside this repository" are the
   operator's decisions of 2026-11-16, recorded as scope, not as open
   questions.
-- Two choices are left to planning on purpose and bounded by FR-024:
-  whether the docker family is one package or two, and whether the two
-  shared Terraform libraries are versioned with the kit or separately.
+- Two choices were left to planning on purpose and are settled in
+  [research.md](../research.md): the docker family is one package (R1),
+  and the two shared Terraform libraries keep one version line of their
+  own, apart from the kit's (R8). FR-024 holds the family in this
+  repository and allows the number of workspace packages to change.
 - Constitution check for the reviewer: Principle I (user named: yes),
   Principle II (acceptance executable: Stories 1 to 4 each end in a
   command or CI job; Story 5 ends in a person following the guide,

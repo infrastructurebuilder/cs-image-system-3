@@ -15,27 +15,30 @@ requires-python = ">=3.13"
 # word to the extra that installs its plugin (the core names no provider, so the table is
 # the umbrella's and the core reads it through the entry point below). Its dependencies are the core --
 # the CLI, the engine, the libraries and every plugin that needs no provider account --
-# pinned at == its own version; each provider is an extra below, and a bare install carries
+# each pinned exactly; each provider is an extra below, and a bare install carries
 # no runtime (`validate` names the extra a tree's `type:` words need, base/extras.py).
-# The contract has a version of its own and is pinned to its compatible series.
+# A pin is at the workspace's version, except on what keeps a version of its own: the
+# contract, named by the range of its series, and the SDK's libraries (the kit; the two
+# terraform libraries together), each pinned at its own line's version.
 dependencies = [
     "cs-image-system-ansible-plugin==0.1.10",
-    "cs-image-system-base==0.1.10",
+    "cs-image-system-base==0.2.0",
     "cs-image-system-bash-mod-plugin==0.1.10",
     "cs-image-system-default-os-plugin==0.1.10",
     "cs-image-system-contract>=0.4,<0.5",
     "cs-image-system-engine==0.1.10",
-    "cs-image-system-hashicorp-utils==0.1.10",
+    "cs-image-system-hashicorp-utils==0.2.0",
     "cs-image-system-local-state-plugin==0.1.10",
     "cs-image-system-packer-plugin==0.1.10",
     "cs-image-system-posix-identity-plugin==0.1.10",
     "cs-image-system-system==0.1.10",
-    "cs-image-system-tofu-roots==0.1.10",
+    "cs-image-system-tofu-roots==0.2.0",
 ]
 
 # The extras: a provider's runtime plugin with its terraform-root and state-backend
 # plugins, and `all` for every provider. Every pin is == the workspace version, so a bump moves
-# them with the rest (the `=={current_version}"` rule below reads the whole file). The two
+# them with the rest (the `=={current_version}"` rule below reads the whole file); the
+# docker extra is one package, the runtime and its roots together. The two
 # private plugins (dummy, contract-example) are in the dev group, never here.
 [project.optional-dependencies]
 aws = [
@@ -49,8 +52,7 @@ gcloud = [
     "cs-image-system-gcs-state-plugin==0.1.10",
 ]
 docker = [
-    "cs-image-system-docker-runtime-plugin==0.1.10",
-    "cs-image-system-tf-docker-plugin==0.1.10",
+    "cs-image-system-docker-plugin==0.1.10",
 ]
 okta = [
     "cs-image-system-okta-opa-plugin==0.1.10",
@@ -62,8 +64,7 @@ all = [
     "cs-image-system-gcloud-runtime-plugin==0.1.10",
     "cs-image-system-tf-gcp-plugin==0.1.10",
     "cs-image-system-gcs-state-plugin==0.1.10",
-    "cs-image-system-docker-runtime-plugin==0.1.10",
-    "cs-image-system-tf-docker-plugin==0.1.10",
+    "cs-image-system-docker-plugin==0.1.10",
     "cs-image-system-okta-opa-plugin==0.1.10",
 ]
 
@@ -118,8 +119,7 @@ cs-image-system-hashicorp-utils = { workspace = true }
 cs-image-system-local-state-plugin = { workspace = true }
 cs-image-system-posix-identity-plugin = { workspace = true }
 cs-image-system-gcs-state-plugin = { workspace = true }
-cs-image-system-docker-runtime-plugin = { workspace = true }
-cs-image-system-tf-docker-plugin = { workspace = true }
+cs-image-system-docker-plugin = { workspace = true }
 cs-image-system-tofu-roots = { workspace = true }
 
 # The indexes a release is published to: `uv publish --index <name>` reads the
@@ -172,14 +172,23 @@ replace = "=={new_version}\""
 
 [[tool.bumpversion.files]]
 glob = "packages/*/pyproject.toml"
-glob_exclude = ["packages/contract/pyproject.toml"]     # the contract's version is its own; its dependents pin a range
+# The packages with a version of their own: the contract (its dependents pin a range), and the SDK on its two
+# version lines -- the kit, and the two terraform libraries together (.bumpversion-kit.toml,
+# .bumpversion-terraform.toml; `just sdk-bump`). Every pin on an SDK member is at ITS line's version, which this
+# bump's `==<workspace version>` search never matches.
+glob_exclude = [
+    "packages/contract/pyproject.toml",
+    "packages/base/pyproject.toml",
+    "packages/hashicorp-utils/pyproject.toml",
+    "packages/tofu-roots/pyproject.toml",
+]
 search = "version = \"{current_version}\""
 replace = "version = \"{new_version}\""
 
 [[tool.bumpversion.files]]
 glob = "packages/*/pyproject.toml"
 glob_exclude = ["packages/contract/pyproject.toml"]     # the contract depends on no other package
-ignore_missing_version = true                            # a package that depends on the contract alone has no == pin
+ignore_missing_version = true                            # a package that depends on nothing but the contract has no == pin
 search = "=={current_version}\""
 replace = "=={new_version}\""
 
@@ -201,8 +210,9 @@ testpaths = ["tests",
    "packages/local-state-plugin/tests",
    "packages/posix-identity-plugin/tests",
    "packages/gcs-state-plugin/tests",
-   "packages/docker-runtime-plugin/tests",
-   "packages/tf-docker-plugin/tests",
+   # the docker family's default paths only: its tests/live needs a container daemon and is run on purpose
+   "packages/docker-plugin/tests/unit",
+   "packages/docker-plugin/tests/pipeline",
    "packages/tofu-roots/tests",
    "packages/contract/tests",
    "packages/contract-example-plugin/tests",
@@ -227,8 +237,7 @@ pythonpath = [
     "packages/tf-ebs-instance-plugin/src",
     "packages/tf-gcp-plugin/src",
     "packages/default-os-plugin/src",
-    "packages/docker-runtime-plugin/src",
-    "packages/tf-docker-plugin/src",
+    "packages/docker-plugin/src",
     "packages/gcs-state-plugin/src",
     "packages/hashicorp-utils/src",
     "packages/tofu-roots/src",
@@ -313,7 +322,7 @@ extraPaths = [
     "packages/contract/src",
     "packages/contract-example-plugin/src",
     "packages/default-os-plugin/src",
-    "packages/docker-runtime-plugin/src",
+    "packages/docker-plugin/src",
     "packages/dummy-plugin/src",
     "packages/engine/src",
     "packages/gcloud-runtime-plugin/src",
@@ -324,7 +333,6 @@ extraPaths = [
     "packages/packer-plugin/src",
     "packages/posix-identity-plugin/src",
     "packages/system/src",
-    "packages/tf-docker-plugin/src",
     "packages/tf-ebs-instance-plugin/src",
     "packages/tf-gcp-plugin/src",
     "packages/tf-s3-state-plugin/src",

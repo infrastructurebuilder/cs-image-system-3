@@ -1,0 +1,31 @@
+# The core's own fixture: the configuration's own settings.
+# It declares no provider: its one runtime is the test kit's test-double
+# (cs_image_system.system.testing.double), which exists only inside a test run.
+id: cs-image-core-test
+generation_directory: ./generated/
+sleep_before_finalization: 30
+# Every ENC[age:...] value is encrypted to this recipient; the fixture's
+# identity (.age-identity, a TEST key) opens it in the suite
+encryption:
+  recipients:
+    - age1hl95vsankapyxyyejhdejmywuwc4ddvpjmflj0hf0y8xjtuk3vystd9ang
+public_safe:
+  allow:
+    - "path:.age-identity"           # the fixture's TEST identity, committed on purpose
+gitignore:
+  - ".*"
+  - "!.terraform.lock.hcl"
+  - "!.gitignore"
+  - "**/target/"
+dateformat: "%Y%m%d_%H%M%S"
+config:
+  use_state_backends: true
+  apply_instances: false
+  apply_storage: false
+  apply_identity: false
+  module_source_base: ../tfmodules
+  systemuser: "{{ ENV.USER }}"
+  # the mandatory local admin user's PUBLIC keys, encrypted to prove the path:
+  # the emission carries the ciphertext
+  admin_public_keys:
+    - ENC[age:YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSBrbzlLM25IMlEvdWtkOUxNWVg1cDBxeUJQUEZLZHVjUzh4ZzROdmFpcTBrCitNSGJncm9PTWR4bzBsbGsyUEZTUWFZZ25Ja2JrUEtGcGNyaWMvc0k3SlEKLS0tIHkwbTQ4VFBTS3BGcm9hdG1RNHNVUjlibzJNL0UycGdNbzhWb0trV0s3LzgK0178wSJZ9P74ygZxA7hNhYpJWwT+YLH+rFrEZvk7TbCEsIgvH3OKRYMCtkA9Muf6Lm5uIe6HU4eUhm6rXfcYi5V+W3u5UpfK44dj0Z3UCHsSZuEUyP9H/rYZyt8nr3THNh3r2ZDofOuXH+i1osQJk8I9x0isMnBoxYUeOWZqtzsODENxSQ==]

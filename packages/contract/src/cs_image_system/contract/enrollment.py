@@ -50,7 +50,10 @@ _KINDS: dict[str, EnrollmentKind] = {}
 
 def register_enrollment_kind(kind: str, *, script_lines: ScriptLines, ansible_tasks: AnsibleTasks) -> None:
     """Called by the identity plugin that issues ``kind``, when it loads.
-    Registering a kind again replaces it (a plugin module reloaded)."""
+    Registering a kind again replaces it here (a plugin module reloaded);
+    the loader, which reads this registry before and after each plugin
+    loads, reports a kind that a second plugin replaced as a collision and
+    uses neither plugin."""
     _KINDS[kind] = EnrollmentKind(kind, script_lines, ansible_tasks)
 
 

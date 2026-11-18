@@ -1,0 +1,12 @@
+# The core's own fixture: the image source the test-double answers for (no catalog ships one).
+# It declares no provider: its one runtime is the test kit's test-double
+# (cs_image_system.system.testing.double), which exists only inside a test run.
+image_sources:
+- family: alma-linux
+  is: rhel
+  description: the base the test-double runtime answers for
+  sources:
+    test-double:
+      publisher:
+      - nobody
+      name: test-double-base

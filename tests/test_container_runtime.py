@@ -2,30 +2,32 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""A container runtime (``type: docker``): its bake, its containers and its
-volumes, over an overlay of the frozen fixture. No daemon: the runtime's
-queries and docker calls are stubbed as the clouds' are; the live cycle is
-tests/test_docker_cycle_live.py (``just test-docker-cycle``).
+"""A container runtime (``type: docker``) beside every other provider: what
+the core and the other plugins do with it, over an overlay of the frozen
+fixture. No daemon: the runtime's queries and docker calls are stubbed as
+the clouds' are; the live cycle is tests/test_docker_cycle_live.py (``just
+test-docker-cycle``).
 
-* a dry run emits the docker source, its tags and post-processors; the
-  packer executables carry the daemon address; the deferred image is the
-  floating tag and the build id the image id; validate accepts the overlay
-  and refuses an OPA group on a docker runtime, both addresses, an unknown
-  machine type and a too-long prefix; preflight reads the daemon in one
-  line; an unreachable daemon is a one-line environment failure;
-* the ``tofu-docker`` and ``tf-docker-volume`` roots generate; every tofu
-  line of the docker roots carries the daemon address (an encrypted host
-  stays a marker in the script and opens in the process); the launch
-  parameters record the delivery and the platform mount; power state,
-  identity, boot image and tags are read over a stubbed daemon;
-  verification reads the marker, the mounts and the image by exec; the
-  launch script is delivered once through the session.
+The docker runtime's and its roots' own behaviour (what they emit, what
+validation refuses, what they read from a daemon) is tested in the docker
+package, over its own fixture:
+packages/docker-plugin/tests/pipeline/test_container_runtime.py. What is
+held here needs more than the docker package:
+
+* an identity plugin's objection to a container runtime (the okta group
+  builder's words); the preflight's one line per session, with the state
+  backends' sessions beside the daemon's; an unreachable daemon as the
+  core's one-line load failure; the packer plugin reading a docker
+  build's manifest;
+* the launch script delivered once through the session, by the core's
+  hook, in its place among the hooks;
+* what the contract and the kit declare for a container runtime, and
+  that the documents, the Justfile and the workspace name the plugin.
 
 History: stage 103 branches 1 and 2.
 """
 from __future__ import annotations
 
-import json
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
@@ -102,46 +104,7 @@ def prepared(tmp_path, monkeypatch):
     return root
 
 
-def _texts(generated: Path) -> dict[str, str]:
-    return {str(p.relative_to(generated)): p.read_text() for p in generated.rglob("*.pkr.hcl")}
-
-
 # ------------------------------------------------------------------ the emission
-def test_a_dry_run_emits_the_docker_source_and_its_tags(prepared, monkeypatch):
-    run = FixtureRun(prepared, monkeypatch, config_root=prepared)
-    _stub_daemon(monkeypatch)
-    summary = run.run("all")
-    assert summary.ok, summary.error
-    texts = _texts(run.generated)
-    base_src = next(t for n, t in texts.items() if f"source-{BASE}" in n)
-    assert f'source "docker" "{BASE}"' in base_src
-    assert f'image = "{DIGEST}"' in base_src and "pull = false" in base_src and "commit = true" in base_src
-    assert '"--init"' in base_src and '"--cpus"' in base_src and "tmpfs = [" in base_src and '"/run",' in base_src
-    assert 'LABEL csis_series=\\"docker-deb-12\\"' in base_src and "sleep" in base_src
-    inst_src = next(t for n, t in texts.items() if f"source-{IMAGE}" in n)
-    # the parent is deferred (built by the earlier block): its floating tag
-    assert f'image = "csis/test:{BASE}-{RUNTIME}"' in inst_src
-    assert '"--memory"' in inst_src and '"4g"' in inst_src
-    builds = "\n".join(t for n, t in texts.items() if "build.pkr.hcl" in n and "source.docker." in t)
-    assert builds, sorted(texts)
-    assert 'post-processor "docker-tag"' in builds and 'repository = "csis/test"' in builds
-    assert f'"{BASE}-{RUNTIME}-20260826_120000", "{BASE}-{RUNTIME}"' in builds
-    assert f'"{IMAGE}-{BUILDER}-20260826_120000", "{IMAGE}-{BUILDER}"' in builds
-    assert 'post-processor "manifest"' in builds
-    # the ansible provisioner connects through the daemon, by the container's name
-    assert '"--extra-vars", "ansible_connection=docker ansible_host=csis-bake-docker-local-imgfile-docker"' in builds
-    assert 'user = "root"' in builds
-    # no init system: the enabled-service test does not apply; packages still do
-    assert "services_enabled 'chronyd': not applicable on a container runtime" in builds or \
-        "services_enabled chronyd: not applicable on a container runtime" in builds
-    assert "systemctl is-enabled chronyd" not in builds
-    assert "rpm -q git" in builds
-    # the settle step installs what a vendor container lacks; no cloud-init wait is needed and none harms
-    assert "it may lack sudo and python3" in builds
-    # the clouds' emission is untouched: the amazon sources still carry their names
-    assert any('source "amazon-ebs"' in t for t in texts.values())
-
-
 def test_the_overlay_adds_what_the_fixture_does_not_declare():
     """These tests run over an OVERLAY of the frozen fixture: every name the
     overlay adds is absent from the fixture, so the fixture and the golden
@@ -158,27 +121,12 @@ def test_the_overlay_adds_what_the_fixture_does_not_declare():
     assert not any(IMAGE in f.read_text() for f in (FIXTURE_CONFIG / "images").glob("*.yaml"))
 
 
-def test_the_packer_executables_carry_the_daemon_address(prepared, monkeypatch):
-    run = FixtureRun(prepared, monkeypatch, config_root=prepared)
-    _stub_daemon(monkeypatch)
-    from cs_image_system.contract.lifecycle import ExecutionLifecyclePhase
-    ib = run.ctx.image_builders[BUILDER]
-    cmds = ib.get_commands_to_run_after(ExecutionLifecyclePhase.IMAGE_GENERATION)
-    execs = list(cmds.build_executables) + list(cmds.finalize_executables)
-    assert execs and all(e.environment == {"DOCKER_CONTEXT": "orbstack"} for e in execs)
-    aws = run.ctx.image_builders["pckr-ebs-ans"].get_commands_to_run_after(ExecutionLifecyclePhase.IMAGE_GENERATION)
-    assert all(e.environment == {} for e in list(aws.build_executables) + list(aws.finalize_executables))
-
-
-def test_the_deferred_image_is_the_floating_tag_and_the_build_id_the_image_id(prepared, monkeypatch):
+def test_a_packer_manifest_of_a_docker_build_is_read_as_the_image_id(prepared, monkeypatch):
+    """The packer plugin reads a docker build's artifact through the
+    runtime that made it: the build id is the image id."""
     run = FixtureRun(prepared, monkeypatch, config_root=prepared)
     _stub_daemon(monkeypatch)
     rtb = run.ctx.runtime_builders[RUNTIME]
-    image = run.ctx.images_map[IMAGE]
-    sub = image.get_image_runtime_subconfig_for_runtime(RUNTIME)
-    assert sub is not None
-    psi = rtb.create_provider_specific_image_deferred(image=image, subconfig=sub)
-    assert psi.get_query_assets() == {"image": f"csis/test:{IMAGE}-{BUILDER}"}
     from cs_image_system.packer_plugin.packer_image_builder import parse_packer_manifest
     manifest = prepared / "m.json"
     manifest.write_text('{"last_run_uuid": "r1", "builds": [{"name": "%s", "packer_run_uuid": "r1", '
@@ -193,17 +141,6 @@ def _errors(root: Path, monkeypatch) -> list[str]:
     return [str(e) for e in collect_validation_errors(ctx)]
 
 
-def test_validate_accepts_the_overlay_and_prints_its_names(prepared, monkeypatch, caplog):
-    import logging
-    caplog.set_level(logging.INFO)
-    errors = _errors(prepared, monkeypatch)
-    assert not errors, errors
-    assert any(r.message.startswith("image name:") and f"{BASE}-{RUNTIME}-<timestamp>" in r.message
-               for r in caplog.records)
-    assert any(r.message.startswith("image source:") and BASE in r.message and "debian:12" in r.message
-               for r in caplog.records)
-
-
 def test_an_opa_group_on_a_docker_runtime_is_refused_in_the_builders_words(tmp_path, monkeypatch):
     root = copy_config(tmp_path)
     docker_overlay(root, group="coops")
@@ -213,29 +150,6 @@ def test_an_opa_group_on_a_docker_runtime_is_refused_in_the_builders_words(tmp_p
     hits = [e for e in errors if IMAGE in e and "coops" in e and RUNTIME in e]
     assert len(hits) == 1, errors
     assert "(okta)" in hits[0] and "sftd" in hits[0], "the objection is the okta builder's, in its words"
-
-
-def test_both_addresses_or_an_unknown_machine_type_are_refused_at_load(tmp_path, monkeypatch):
-    stub_environment(monkeypatch)
-    root = copy_config(tmp_path)
-    docker_overlay(root, host="unix:///var/run/docker.sock", context="orbstack")
-    with pytest.raises(Exception, match="both `host` and `context`"):
-        load_context(root)
-    root = copy_config(tmp_path, "two")
-    docker_overlay(root)
-    _edit(root / "cfg" / "runtime-builders.yml",
-          lambda d: [e for e in d["runtime_builders"] if e["name"] == RUNTIME][0].update({"default_machine_type": "huge"}))
-    with pytest.raises(Exception, match="not one of its machine_types"):
-        load_context(root)
-
-
-def test_a_too_long_prefix_is_refused_by_the_tag_rule(tmp_path, monkeypatch):
-    root = copy_config(tmp_path)
-    docker_overlay(root, prefix="x" * 120)
-    stub_environment(monkeypatch)
-    _stub_daemon(monkeypatch)
-    errors = _errors(root, monkeypatch)
-    assert any("128" in e and "docker tag" in e for e in errors), errors
 
 
 # ------------------------------------------------------------------ outside the seam
@@ -282,13 +196,6 @@ def test_an_unreachable_daemon_is_a_one_line_environment_failure():
     failure = classify_load_failure(wrapped)
     assert failure is not None and failure.kind == "environment" and failure.code == 2
     assert "orbstack" in failure.lines[0] and "docker version" in failure.lines[1]
-
-
-def test_the_mod_tests_run_the_declared_docker_binary(prepared, monkeypatch):
-    from cs_image_system.docker_runtime.local_target import docker_binary
-    ctx = load_context(prepared)
-    assert docker_binary(ctx.executables) == "/usr/local/bin/docker"
-    assert docker_binary(None) == "docker"
 
 
 def test_the_contract_declares_the_new_hooks_and_the_core_answers_them():
@@ -340,9 +247,9 @@ def test_the_docs_name_the_runtime_and_the_justfile_its_leg():
     from harness import REPO
     cfg = (REPO / "docs" / "CONFIGURATION.md").read_text()
     assert any(line.startswith("#") and "`docker`" in line for line in cfg.splitlines()), "a heading for the runtime"
-    assert "docker-runtime-plugin" in (REPO / "docs" / "PLUGINS.md").read_text()
-    assert "docker-runtime-plugin" in (REPO / "docs" / "DAILY_DRIVER.md").read_text()
-    assert "test-docker-bake" in (REPO / "packages" / "docker-runtime-plugin" / "README.md").read_text()
+    assert "docker-plugin" in (REPO / "docs" / "PLUGINS.md").read_text()
+    assert "docker-plugin" in (REPO / "docs" / "DAILY_DRIVER.md").read_text()
+    assert "test-docker-bake" in (REPO / "packages" / "docker-plugin" / "README.md").read_text()
     rc, out = _just("--summary")
     assert rc == 0 and {"test-docker-bake", "test-docker-cycle"} <= set(out.split())
 
@@ -375,12 +282,6 @@ STORAGE = "docker_data"
 
 
 INSTANCE = "docker-test"
-
-
-CID = "c" * 64
-
-
-ID = "sha256:" + "a" * 64
 
 
 def instances_overlay(root: Path, *, host: str | None = None) -> None:
@@ -417,203 +318,6 @@ def prepared_instances(tmp_path, monkeypatch):
     stub_environment(monkeypatch)
     _stub_daemon(monkeypatch)
     return root
-
-
-def _tf(generated: Path, part: str) -> str:
-    return "\n".join(p.read_text() for p in sorted(generated.rglob("*")) if p.is_file() and part in str(p))
-
-
-def test_a_dry_run_emits_the_container_and_the_volume_roots(prepared_instances, monkeypatch):
-    run = FixtureRun(prepared_instances, monkeypatch, config_root=prepared_instances)
-    _stub_daemon(monkeypatch)
-    summary = run.run("all")
-    assert summary.ok, summary.error
-    inst = _tf(run.generated, f"instance-image/{INSTANCE_BUILDER}/")
-    assert 'source = "kreuzwerker/docker"' in inst and 'version = ">= 3.0.0"' in inst
-    assert 'provider "docker" {\n    alias = "tofu_docker_local"\n}' in inst       # empty: the address rides in the environment
-    assert 'module "instance_docker_test"' in inst and "tfmodules/docker_container" in inst
-    assert 'name = "docker-test"' in inst and 'hostname = "docker-test-001"' in inst
-    assert "image = var.docker_test_image" in inst and f'image_tag = "csis/test:{IMAGE}-{BUILDER}"' in inst
-    assert 'cpus = "1.0"' in inst and "memory = 1024" in inst and 'network = "bridge"' in inst
-    assert '"csis_config" = "cs-image-action-test"' in inst and '"csis_generation" = "1"' in inst
-    assert '"csis_instance" = "docker-test"' in inst and '"purpose" = "proof"' in inst
-    assert 'launch_script = templatefile("${path.module}/launch-docker_test.sh.tftpl"' in inst
-    assert '"group_gid" = 3101' in inst                     # a posix gid is a number of the configuration
-    assert '"volume_name" = data.terraform_remote_state.docker_volumes.outputs.storage_docker_data.volume_name' in inst
-    assert '"container_path" = "/mnt/data"' in inst
-    assert 'data "terraform_remote_state" "docker_volumes"' in inst and 'backend = "local"' in inst
-    # the launch script: no hostname to set, nothing to format or mount, the group's subtree, the marker
-    script = (run.generated / "instance-image" / INSTANCE_BUILDER / "instance-generation" / "launch-docker_test.sh.tftpl").read_text()
-    assert "hostnamectl" not in script and "mkfs" not in script and "fstab" not in script
-    assert "the platform named the machine docker-test-001" in script
-    assert "csis-mount: /mnt/data mounted" in script and "mkdir -p '/mnt/data/pxgroup'" in script
-    assert 'chgrp "$GID" \'/mnt/data/pxgroup\'' in script and "chmod 2770" in script
-    assert script.rstrip().endswith("date -u +%FT%TZ > /var/lib/csis/launch-applied")
-    vol = _tf(run.generated, f"storage/{VOLUME_BUILDER}/")
-    assert 'module "storage_docker_data"' in vol and "tfmodules/docker_volume" in vol
-    assert 'name = "docker_data"' in vol and '"csis_group_pxgroup" = "true"' in vol and '"csis_storage" = "docker_data"' in vol
-    assert 'output "storage_docker_data"' in vol and 'provider "docker" {\n    alias = "docker_volumes"\n}' in vol
-    # the clouds' roots are untouched
-    assert 'module "instance_test2"' in _tf(run.generated, "instance-image/open-tofu/")
-
-
-def test_every_tofu_line_of_the_docker_roots_carries_the_daemon_address(prepared_instances, monkeypatch):
-    run = FixtureRun(prepared_instances, monkeypatch, config_root=prepared_instances)
-    _stub_daemon(monkeypatch)
-    assert run.run("all").ok
-    for script, root in (("instance-image/run-instance-image.sh", INSTANCE_BUILDER), ("storage/run-storage.sh", VOLUME_BUILDER)):
-        lines = [ln for ln in (run.generated / script).read_text().splitlines() if f'cd "{root}/' in ln]
-        tofu = [ln for ln in lines if "/bin/tofu " in ln and "gate-plan" not in ln]
-        assert tofu and all("DOCKER_CONTEXT=orbstack /usr/local/bin/tofu" in ln for ln in tofu), lines
-        gate = [ln for ln in lines if "gate-plan" in ln]
-        assert gate and all("DOCKER_CONTEXT" not in ln for ln in gate)           # the system's own steps need no daemon
-        aws = [ln for ln in (run.generated / script).read_text().splitlines() if 'cd "open-tofu/' in ln or 'cd "aws-' in ln]
-        assert aws and all("DOCKER_" not in ln for ln in aws)
-
-
-def test_an_encrypted_host_stays_a_marker_in_the_script_and_opens_in_the_process(tmp_path, monkeypatch):
-    from cs_image_system.base.encryption import encrypt_value
-    root = copy_config(tmp_path)
-    docker_overlay(root, context=None)
-    stub_environment(monkeypatch)
-    _stub_daemon(monkeypatch)
-    marker = encrypt_value("tcp://docker-host.example:2376", [(root / ".age-recipient").read_text().strip()])
-    instances_overlay(root, host=marker)
-    monkeypatch.setenv("CSIS_CONFIG_IDENTITY", str(root / ".age-identity"))
-    run = FixtureRun(tmp_path, monkeypatch, config_root=root)
-    _stub_daemon(monkeypatch)
-    assert run.run(["storage", "instance-image"]).ok
-    text = (run.generated / "instance-image" / "run-instance-image.sh").read_text()
-    line = next(ln for ln in text.splitlines() if f'cd "{INSTANCE_BUILDER}/' in ln and "tofu plan" in ln)
-    assert f"DOCKER_HOST=\"$(cs-image-system decrypt '{marker}')\" /usr/local/bin/tofu plan" in line
-    assert "docker-host.example" not in text                   # the committed script carries ciphertext only
-    ib = run.ctx.instance_builders[INSTANCE_BUILDER]
-    e = ib.get_executable_copy()
-    assert e.environment == {"DOCKER_HOST": marker}
-    assert e.resolved_environment() == {"DOCKER_HOST": "tcp://docker-host.example:2376"}
-
-
-def test_the_launch_parameters_record_the_delivery_and_the_platform_mount(prepared_instances, monkeypatch):
-    run = FixtureRun(prepared_instances, monkeypatch, config_root=prepared_instances)
-    _stub_daemon(monkeypatch)
-    assert run.run("all").ok
-    rec = run.ctx.meta_state.launch_params()[INSTANCE]
-    assert rec["launch_delivery"] == "session" and rec["session"] == "exec" and rec["hostname"] == "docker-test-001"
-    assert rec["mounts"] == [{"builder": VOLUME_BUILDER, "group": "pxgroup", "mount_point": "/mnt/data",
-                              "platform_mounted": True, "public_read": False, "share_mode": "2770",
-                              "storage": STORAGE, "type": "volume"}]
-    # a cloud instance's record has neither key (every existing record stays comparable)
-    cloud = run.ctx.meta_state.launch_params()["test2"]
-    assert "launch_delivery" not in cloud and all("platform_mounted" not in m for m in cloud["mounts"])
-
-
-def _inspect_answer(status="running", labels=None, image=ID, hostname="docker-test-001"):
-    return json.dumps([{"Id": CID, "Image": image, "State": {"Status": status},
-                        "Config": {"Hostname": hostname, "Labels": labels if labels is not None else {"csis_config": "cs-image-action-test"}}}])
-
-
-def _fake_docker(answers: dict[str, Any], calls: list[list[str]]):
-    def run(self, *args: str, timeout: int = 600, check: bool = True):
-        calls.append(list(args))
-        key = " ".join(args[:2])
-        ans = answers.get(key, answers.get(args[0]))
-        if ans is None:
-            return SimpleNamespace(returncode=0, stdout="", stderr="")
-        if isinstance(ans, Exception):
-            raise ans
-        rc, out, err = ans
-        if check and rc != 0:
-            raise RuntimeError(err)
-        return SimpleNamespace(returncode=rc, stdout=out, stderr=err)
-    return run
-
-
-def test_the_power_state_is_read_in_the_systems_words(prepared_instances, monkeypatch):
-    from cs_image_system.base import power_state
-    from cs_image_system.docker_runtime.docker_runtime_builders import DockerContainerBuilder
-    ctx = load_context(prepared_instances)
-    rtb = ctx.runtime_builders[RUNTIME]
-    calls: list[list[str]] = []
-    for status, expected in (("running", power_state.RUNNING), ("exited", power_state.STOPPED),
-                             ("created", power_state.STOPPED), ("paused", power_state.SUSPENDED),
-                             ("restarting", power_state.STARTING), ("weird", power_state.UNKNOWN)):
-        monkeypatch.setattr(DockerContainerBuilder, "_docker",
-                            _fake_docker({"container inspect": (0, _inspect_answer(status), "")}, calls))
-        assert rtb.query_instance_power_state(INSTANCE) == expected, status
-    monkeypatch.setattr(DockerContainerBuilder, "_docker",
-                        _fake_docker({"container inspect": (1, "", "Error: No such container: docker-test")}, calls))
-    assert rtb.query_instance_power_state(INSTANCE) == power_state.ABSENT
-    assert rtb.instance_tags(INSTANCE) is None and rtb.query_instance_identity(INSTANCE) is None
-    # another configuration's container of our name is not ours: absent, no identity
-    monkeypatch.setattr(DockerContainerBuilder, "_docker",
-                        _fake_docker({"container inspect": (0, _inspect_answer(labels={"csis_config": "theirs"}), "")}, calls))
-    assert rtb.query_instance_power_state(INSTANCE) == power_state.ABSENT and rtb.instance_tags(INSTANCE) is None
-    # the daemon not answering is no state at all
-    from cs_image_system.docker_runtime.docker_runtime_builders import DockerUnreachable
-    monkeypatch.setattr(DockerContainerBuilder, "_docker", _fake_docker({"container inspect": DockerUnreachable("gone")}, calls))
-    assert rtb.query_instance_power_state(INSTANCE) is None and rtb.query_instance_boot_image(INSTANCE) is None
-    assert calls and calls[0][:2] == ["container", "inspect"]
-
-
-def test_identity_boot_image_tags_and_power_changes(prepared_instances, monkeypatch):
-    from cs_image_system.base import power_state
-    from cs_image_system.docker_runtime.docker_runtime_builders import DockerContainerBuilder
-    ctx = load_context(prepared_instances)
-    rtb = ctx.runtime_builders[RUNTIME]
-    calls: list[list[str]] = []
-    monkeypatch.setattr(DockerContainerBuilder, "_docker", _fake_docker({
-        "container inspect": (0, _inspect_answer(labels={"csis_config": "cs-image-action-test", "purpose": "proof"}), "")}, calls))
-    assert rtb.can_query_instance_identity() and rtb.can_query_instance_boot_image() and rtb.can_set_instance_power_state()
-    assert rtb.query_instance_identity(INSTANCE) == {"instance_id": CID, "provider_hostname": "docker-test-001"}
-    assert rtb.query_instance_boot_image(INSTANCE) == ID
-    assert rtb.instance_tags(INSTANCE) == {"csis_config": "cs-image-action-test", "purpose": "proof"}
-    with pytest.raises(NotImplementedError, match="fixed when it is created"):
-        rtb.retag_instance(INSTANCE, {"csis_config": "x"})
-    assert rtb.start_instance(INSTANCE) is True and ["start", INSTANCE] in calls
-    monkeypatch.setattr(DockerContainerBuilder, "_docker", _fake_docker({
-        "stop": (0, "", ""), "container inspect": (0, _inspect_answer("exited"), "")}, calls))
-    assert rtb.stop_instance(INSTANCE) is True and ["stop", INSTANCE] in calls
-    assert power_state.is_off(rtb.query_instance_power_state(INSTANCE))
-    assert rtb.ssh_proxy_command(INSTANCE) is None and rtb.launch_delivery() == "session"
-
-
-def test_verification_reads_the_marker_the_mounts_and_the_image_by_exec(prepared_instances, monkeypatch):
-    from cs_image_system.docker_runtime.docker_runtime_builders import DockerContainerBuilder
-    ctx = load_context(prepared_instances)
-    rtb = ctx.runtime_builders[RUNTIME]
-    sent: list[str] = []
-    monkeypatch.setattr(DockerContainerBuilder, "_docker", _fake_docker({"container inspect": (0, _inspect_answer(), "")}, []))
-
-    def session(self, name, script, timeout=300):
-        sent.append(script)
-        return 0, "csis-marker: 2026-10-31T12:00:00Z\ncsis-mount: /mnt/data mounted\n"
-    monkeypatch.setattr(DockerContainerBuilder, "run_session_command", session)
-    result = rtb.verify_instance(INSTANCE, expected_build=ID, mount_points=["/mnt/data"])
-    assert result["ok"] is True
-    assert [c["name"] for c in result["checks"]] == ["launch script", "booted image", "data disks mounted"]
-    assert "applied (2026-10-31T12:00:00Z)" in result["checks"][0]["detail"]
-    assert "/var/lib/csis/launch-applied" in sent[0] and '" /mnt/data "' in sent[0]
-    monkeypatch.setattr(DockerContainerBuilder, "run_session_command",
-                        lambda self, n, s, timeout=300: (0, "csis-marker: absent\ncsis-mount: /mnt/data NOT mounted\n"))
-    result = rtb.verify_instance(INSTANCE, expected_build="sha256:" + "f" * 64, mount_points=["/mnt/data"])
-    assert result["ok"] is False and not any(c["ok"] for c in result["checks"])
-    assert "no completion marker" in result["checks"][0]["detail"] and "missing: /mnt/data" in result["checks"][2]["detail"]
-
-
-def test_run_session_command_execs_as_root_with_the_script_on_stdin(prepared_instances, monkeypatch):
-    import subprocess
-    ctx = load_context(prepared_instances)
-    rtb = ctx.runtime_builders[RUNTIME]
-    seen: dict[str, Any] = {}
-
-    def fake_run(cmd, **kw):
-        seen["cmd"], seen["input"], seen["env"] = cmd, kw.get("input"), kw.get("env")
-        return SimpleNamespace(returncode=3, stdout="posix accounts: in place\n", stderr="")
-    monkeypatch.setattr(subprocess, "run", fake_run)
-    rc, out = rtb.run_session_command(INSTANCE, "echo hi")
-    assert (rc, out) == (3, "posix accounts: in place\n")
-    assert seen["cmd"] == ["/usr/local/bin/docker", "exec", "-i", "-u", "root", INSTANCE, "bash", "-s"]
-    assert seen["input"] == "echo hi" and seen["env"]["DOCKER_CONTEXT"] == "orbstack"
 
 
 def _fake_runtime(delivery="session", state="running", answers=None):
@@ -692,10 +396,17 @@ def test_the_plugin_is_a_member_of_the_workspace():
     from harness import REPO
     root = tomllib.loads((REPO / "pyproject.toml").read_text())
     docker_extra = root["project"]["optional-dependencies"]["docker"]
-    assert any(d.startswith("cs-image-system-tf-docker-plugin==") for d in docker_extra)   # the docker extra carries it
-    assert not any(d.startswith("cs-image-system-tf-docker-plugin") for d in root["project"]["dependencies"])
-    assert "cs-image-system-tf-docker-plugin" in root["tool"]["uv"]["sources"]
-    assert "packages/tf-docker-plugin/tests" in root["tool"]["pytest"]["ini_options"]["testpaths"]
+    assert any(d.startswith("cs-image-system-docker-plugin==") for d in docker_extra)   # the docker extra carries it
+    assert not any(d.startswith("cs-image-system-docker-plugin") for d in root["project"]["dependencies"])
+    assert "cs-image-system-docker-plugin" in root["tool"]["uv"]["sources"]
+    # the bar runs the family's default paths and never its tests/live, which needs a daemon: no default
+    # path of the workspace is, or holds, a `live` directory
+    paths = root["tool"]["pytest"]["ini_options"]["testpaths"]
+    assert {"packages/docker-plugin/tests/unit", "packages/docker-plugin/tests/pipeline"} <= set(paths)
+    family = tomllib.loads((REPO / "packages/docker-plugin/pyproject.toml").read_text())
+    assert family["tool"]["pytest"]["ini_options"]["testpaths"] == ["tests/unit", "tests/pipeline"]
+    for path in paths:
+        assert Path(path).name != "live" and not any(d.is_dir() for d in (REPO / path).rglob("live")), path
     from cs_image_system.tf_docker_plugin.main import initialize
     meta = initialize()
     assert meta is not None

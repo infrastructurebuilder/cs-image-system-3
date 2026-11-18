@@ -8,7 +8,9 @@
 workspace's (0.x until the operator decides otherwise): a bump of the
 workspace leaves it alone, every package that depends on it pins the range
 of its compatible series, and the release tooling that probes and uploads
-by version knows which project follows its own.
+by version knows which project follows its own. The SDK's libraries keep
+version lines of their own too (tests/test_package_metadata.py holds
+those); this file is about the contract's.
 """
 from __future__ import annotations
 
@@ -93,8 +95,11 @@ def test_the_release_tooling_knows_the_contract_follows_its_own_version():
     ``publish-target-ready`` asks the index for that version and never calls
     it a re-cut of the workspace's."""
     own = _load("publish-target-ready").own_versioned(REPO)
-    assert own == {CONTRACT: _contract_version()}
+    assert own[CONTRACT] == _contract_version()
+    # the contract is not alone: the SDK's members keep versions of their own too (the kit; the two
+    # terraform libraries on one line), and the tooling reads all of them from the bump's exclusions
+    assert set(own) == {CONTRACT, "cs-image-system-base", "cs-image-system-hashicorp-utils", "cs-image-system-tofu-roots"}
     versions = _load("publish-dist").project_versions(REPO)
-    assert versions[CONTRACT] == _contract_version()
+    assert {n: versions[n] for n in own} == own
     workspace = tomllib.loads(ROOT.read_text())["project"]["version"]
-    assert {v for n, v in versions.items() if n != CONTRACT} == {workspace}
+    assert {v for n, v in versions.items() if n not in own} == {workspace}

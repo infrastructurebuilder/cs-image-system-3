@@ -1,0 +1,15 @@
+image: imgfile-core
+mods:
+- content_hash: 111ba8202c9a604417659017d2697a22a45ff8bb8b9829a21f431b602f9ef758
+  dir: 01-core-shell
+  idempotent: unknown
+  name: core-shell
+  operation: bash
+  type: bash-remote
+- content_hash: d2081ba0c162b159780527abeff9cfe0095c282be068bd26c7a7efc96c4e8921
+  dir: 02-core-ansible
+  idempotent: ansible
+  name: core-ansible
+  operation: ansible
+  type: ansible-default
+run: 2026_08_26t12_00_00

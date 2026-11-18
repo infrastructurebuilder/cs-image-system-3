@@ -3,8 +3,9 @@
 # SPDX-License-Identifier: Apache-2.0
 
 """A tree whose modifications are this plugin's alone:
-the fixture's one ansible mod builder kept, its bash builder and every
-bash item gone. A dry `instance-image` generation emits, for every image
+the core fixture's one ansible mod builder kept, its bash builder and every
+bash item gone (the core's own fixture, packages/system/tests/fixture, which
+declares no provider: this test needs nothing beyond a plain install). A dry `instance-image` generation emits, for every image
 that keeps a modification, one ansible item per modification in the
 local bundle (its playbook beside its runner, its manifest saying so) and
 the ansible provisioner that runs the bundle's playbooks."""
@@ -14,9 +15,14 @@ import shlex
 from pathlib import Path
 
 import yaml
-from harness import FixtureRun, copy_config, os_type_for_family
+
+from cs_image_system.system import testing as kit
+from cs_image_system.system.testing import double
+
+os_type_for_family = kit.os_type_for_family
 
 ANSIBLE = "ansible-default"
+CORE_FIXTURE = Path(__file__).resolve().parents[2] / "system" / "tests" / "fixture"
 
 
 def _edit(path: Path, fn) -> None:
@@ -45,10 +51,10 @@ def ansible_only(root: Path) -> dict[str, list[dict]]:
 
 
 def test_a_dry_generation_emits_an_ansible_item_per_modification_and_the_provisioner(tmp_path, monkeypatch):
-    root = copy_config(tmp_path)
+    root = kit.copy_fixture(CORE_FIXTURE, tmp_path)
     kept = ansible_only(root)
     assert kept, "the fixture declares no ansible modification"
-    run = FixtureRun(tmp_path, monkeypatch, config_root=root)
+    run = kit.Run(tmp_path, monkeypatch, fixture=CORE_FIXTURE, stubs=(double.stub,), config_root=root)
     try:
         assert set(run.ctx.mod_builders) == {ANSIBLE}
         summary = run.run(["instance-image"], apply=False)

@@ -1,0 +1,16 @@
+# The docker family's own fixture: the one container instance.
+# Taken from the repository's shared fixture (tests/fixtures/config) with its
+# names unchanged, so the family's golden and the shared golden pin the same
+# docker emission.
+instances:
+- name: container-test
+  image: imgfile-container
+  runtime: docker-fixture
+  type: tofu-docker
+  machine_type: small
+  description: The fixture's container instance
+  tags:
+    purpose: proof
+  storages:
+  - name: container_data
+    mount_point: /mnt/data

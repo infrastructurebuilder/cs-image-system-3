@@ -33,7 +33,7 @@ from __future__ import annotations
 import dataclasses
 import os
 from datetime import datetime, timedelta, timezone
-from typing import Any, Callable, Mapping, cast
+from typing import Any, Callable, Iterable, Mapping, cast
 
 from pydantic.dataclasses import dataclass  # validation at construction
 
@@ -112,12 +112,17 @@ def _from_status(runtime: str, provider: str, status: SessionStatus) -> SessionI
                        renews=status.renews, renew=status.renew)
 
 
-def credential_environment_prefixes(reg: Any) -> tuple[str, ...]:
-    """The system's own credential prefixes plus every runtime's and every
-    group builder's registered in ``reg`` -- the loaded run's registry,
-    ``ctx.reg`` (each class's ``credential_environment_prefixes()``), sorted."""
+def credential_environment_prefixes(reg: Any, declared: Iterable[type] | None = None) -> tuple[str, ...]:
+    """The system's own credential prefixes plus those of the runtime and
+    group builder classes asked (each class's
+    ``credential_environment_prefixes()``), sorted. ``declared`` are the
+    classes of the builders a loaded configuration DECLARES, which is what
+    a command over that configuration asks: a provider installed beside it
+    and not used by it adds nothing. Without them the classes are every
+    one registered in ``reg`` (a command with no configuration loaded)."""
     prefixes = set(CORE_CREDENTIAL_ENV_PREFIXES)
-    classes = list(reg.runtime_builder_classes().values()) + list(reg.vct_type_registry.get(VCT.GROUP_BUILDER, []))
+    classes = list(declared) if declared is not None else (
+        list(reg.runtime_builder_classes().values()) + list(reg.vct_type_registry.get(VCT.GROUP_BUILDER, [])))
     for cls in classes:
         hook = cast(Callable[[], tuple[str, ...]] | None, getattr(cls, "credential_environment_prefixes", None))
         if callable(hook):
@@ -125,12 +130,13 @@ def credential_environment_prefixes(reg: Any) -> tuple[str, ...]:
     return tuple(sorted(prefixes))
 
 
-def empty_environment_credentials(reg: Any, environ: Mapping[str, str] | None = None) -> list[str]:
+def empty_environment_credentials(reg: Any, environ: Mapping[str, str] | None = None,
+                                  declared: Iterable[type] | None = None) -> list[str]:
     """The NAMES of credential-shaped environment variables (the prefixes
-    above, for the registry ``reg``) whose value is the empty string -- set,
-    and empty. Never a value."""
+    above, for the classes ``declared`` or else every class in ``reg``)
+    whose value is the empty string -- set, and empty. Never a value."""
     env = os.environ if environ is None else environ
-    prefixes = credential_environment_prefixes(reg)
+    prefixes = credential_environment_prefixes(reg, declared)
     return sorted(k for k, v in env.items() if k.startswith(prefixes) and v == "")
 
 

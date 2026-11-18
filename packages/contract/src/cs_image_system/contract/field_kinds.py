@@ -89,7 +89,10 @@ _HANDLERS: dict[str, FieldKindHandler] = {}
 
 
 def register_field_kind(name: str, handler: FieldKindHandler) -> None:
-    """Register (or replace) the handler for a field kind. The extension seam."""
+    """Register (or replace) the handler for a field kind. The extension
+    seam. The loader reports a kind that a plugin replaced as a collision:
+    a plugin that takes another plugin's kind, or one of the system's own,
+    is not used."""
     _HANDLERS[name] = handler
 
 

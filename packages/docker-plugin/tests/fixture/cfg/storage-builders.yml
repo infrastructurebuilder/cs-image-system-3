@@ -1,0 +1,13 @@
+# The docker family's own fixture: the one storage builder.
+# Taken from the repository's shared fixture (tests/fixtures/config) with its
+# names unchanged, so the family's golden and the shared golden pin the same
+# docker emission.
+storage_builders:
+- name: docker-volume
+  type: tf-docker-volume
+  runtime: docker-fixture
+  executable: open-tofu-1
+  variables:
+    tags:
+      project: MyProject
+  is_default: true

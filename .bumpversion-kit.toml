@@ -1,0 +1,35 @@
+# SPDX-FileCopyrightText: 2026 Mykel Alvis <mykelalvis@infrastructurebuilder.org>
+#
+# SPDX-License-Identifier: Apache-2.0
+
+# The version line of the kit (cs-image-system-base): a version of its own, separate from the
+# workspace's and from the SDK's other line. `just sdk-bump kit last|middle` moves it: the member's own
+# `version =` line and every EXACT pin on a member (each named, so the workspace's own bump and the other line
+# never match). A provider's range (`>=0.2,<0.3`) is not a pin and is not moved: after `middle` it is a person's
+# to move, with the baseline re-recorded (`just surface-record`).
+#
+# The rule (stated once, in the plan's contract): removing or altering anything on a declared surface raises the
+# middle number; any other change raises the last.
+[tool.bumpversion]
+current_version = "0.2.0"
+parse = "(?P<major>\\d+)\\.(?P<middle>\\d+)\\.(?P<last>\\d+)"
+serialize = ["{major}.{middle}.{last}"]
+commit = false
+tag = false
+
+[[tool.bumpversion.files]]
+filename = "packages/base/pyproject.toml"
+search = "version = \"{current_version}\""
+replace = "version = \"{new_version}\""
+
+[[tool.bumpversion.files]]
+glob = "packages/*/pyproject.toml"
+ignore_missing_version = true
+search = "\"cs-image-system-base=={current_version}\""
+replace = "\"cs-image-system-base=={new_version}\""
+
+[[tool.bumpversion.files]]
+filename = "pyproject.toml"
+ignore_missing_version = true
+search = "\"cs-image-system-base=={current_version}\""
+replace = "\"cs-image-system-base=={new_version}\""

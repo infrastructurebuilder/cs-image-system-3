@@ -111,7 +111,7 @@ and unbound backend (the fixture, the live tree) needs nothing beyond the
 core, and a dry run never reaches the bucket.
 
 - **The core, and the gate.** `cs-image-system-contract` and
-  `cs-image-system-base` at the same version (the package's declared
+  `cs-image-system-base`, each pinned as [WRITING_A_PROVIDER.md](../../docs/WRITING_A_PROVIDER.md#how-it-depends-on-the-sdk) describes: the contract by the range of its series, the SDK's libraries at their own line's version (the package's declared
   dependencies), with `cs-image-system-hashicorp-utils` installed beside
   them for the collector. The whole state-backend mechanism is gated by
   `config.use_state_backends` in `cfg/_config.yml`: when it is false or
@@ -313,8 +313,9 @@ other plugins, decide whether any of it is used:
   1, nothing generated. A root with nothing deployed moves with one INFO
   line. Note the timing of the `..` rule: the model accepts `prefix:
   a/../b` at load, and the refusal comes when a location is asked for.
-- **At generation.** The collector's `validate_all()` (provider
-  constraints plus the collision rule) runs before every terraform block,
+- **At generation.** The collector's `validate_for(<workspace>)` (the
+  constraints on the providers that workspace declares, plus the
+  collision rule) runs before every terraform block,
   provider block, variable block and remote-state data source is rendered;
   a conflict is an `HclConfigConflictError` and the run fails. Each bound
   root's location is written to `meta-state/state-locations.yaml`

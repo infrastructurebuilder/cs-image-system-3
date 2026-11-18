@@ -28,7 +28,9 @@ from cs_image_system.system.cli import app
 EXPECTED = {
     "aws-runtime": {"aws_instance", "aws_storage_ebs", "aws_storage_efs", "aws_storage_s3", "bootstrap_aws"},
     "gcloud-runtime": {"gce_instance", "gcp_storage_filestore", "gcp_storage_gcs", "gcp_storage_pd", "bootstrap_gcp"},
-    "docker-runtime": {"docker_container", "docker_volume"},
+    # the docker package is one distribution (cs-image-system-docker-plugin), and a module's namespace is
+    # its distribution's; the package's REGISTRATIONS keep the namespaces docker-runtime and tf-docker
+    "docker": {"docker_container", "docker_volume"},
     "okta-opa": {"okta_opa_module"},
     "base": {"bootstrap_github"},
 }

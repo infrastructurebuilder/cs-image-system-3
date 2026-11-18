@@ -71,7 +71,7 @@ the entry without naming the number in its text.
 | <a id="s106"></a>§106 | 2026-10-30 | 0.1.5 | Stage 106: the image-source catalog in the system's query vocabulary |
 | <a id="r0-1-4"></a>release 0.1.4 | 2026-10-29 | 0.1.4 | release 0.1.4 |
 | <a id="hxix"></a><a id="s102"></a>hygiene XIX (§102) | 2026-10-29 | 0.1.4 | Hygiene XIX: pyright's override check is on, and the okta builder tests stand alone |
-| <a id="s30"></a>§30 | 2026-10-29 | 0.1.4 | Stage 30, branch 2: the proof plugin, a state backend against the contract alone |
+| <a id="s30"></a>§30 | 2026-10-29 | 0.1.4 | Stage 30, branch 2: the proof plugin, a state backend against nothing but the contract |
 | §30 | 2026-10-29 | 0.1.4 | Stage 30, branch 1: the plugin contract is a package of protocols |
 | <a id="hxviii"></a><a id="s101"></a>hygiene XVIII (§101) | 2026-10-28 | 0.1.4 | Hygiene XVIII: the CLI takes --version, so a starter's init names its release |
 | <a id="r0-1-3"></a>release 0.1.3 | 2026-10-28 | 0.1.3 | release 0.1.3 |

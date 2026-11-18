@@ -329,12 +329,15 @@ OWN = "own-versions-current"
 OWN_LINE = f"{OWN}: x-one 0.1.0 is not on testpypi"
 
 
-def test_a_test_index_asks_the_venv_and_the_own_versions_alone(tmp_path: Path):
+def test_a_test_index_asks_the_venv_the_own_versions_and_the_daemon_alone(tmp_path: Path):
+    """The test index's gate needs the daemon (the install check) and
+    nothing of the live configuration."""
     root = _system_repo(tmp_path)
-    shell = FakeShell([("docker info", R.Done(1)), (OWN, R.Done(0, OWN_LINE + "\n"))])
+    shell = FakeShell([(OWN, R.Done(0, OWN_LINE + "\n"))])
     said: list[str] = []
     _family(root, shell, said=said).probes("test")
-    assert said == [f"release: {R.VENV_OK}", OWN_LINE] and shell.count("docker") == 0
+    assert said == [f"release: {R.VENV_OK}", OWN_LINE, "release: docker answers"]
+    assert shell.count("docker info") == 1 and shell.count("just preflight") == 0
     assert shell.first("uv sync --all-extras --check") < shell.first(OWN)
     assert shell.texts()[shell.first(OWN)].endswith(f"scripts/{OWN} test --root {root}")
 
@@ -514,10 +517,12 @@ def test_the_real_form_probes_gates_asks_again_bumps_uploads_then_commits_and_ta
     assert fam.release("patch", "test") == 0
     t = shell.texts()
     order = [shell.first(n) for n in ("publish-target-ready", "uv sync --all-extras --check", OWN, "just test",
-                                      "bump-my-version bump patch", "uv lock", "just build", "publish-dist")]
-    assert order == sorted(order), t
+                                      "just test-docker-install", "bump-my-version bump patch", "uv lock",
+                                      "just build", "publish-dist")]
+    assert order == sorted(order), t                                       # the install check before anything moves
     asks = [i for i, x in enumerate(t) if "publish-target-ready" in x]
-    assert len(asks) == 3 and shell.count("just test") == 1                                 # twice refusing a held version, then publish's own
+    assert len(asks) == 3 and shell.texts().count("just test") == 1                         # twice refusing a held version, then publish's own
+    assert shell.texts().count("just test-docker-install") == 1
     assert [("--refuse-held" in t[i]) for i in asks] == [True, True, False]
     assert shell.first("just test") < asks[1] < shell.first("bump-my-version bump")         # the index again after the bar
     assert shell.first("publish-dist") < shell.first("git add")                             # the upload before the commit
@@ -1170,3 +1175,37 @@ def test_the_recipes_are_wrappers_over_the_script():
         plan = _plan(*args)
         assert len(plan) == 1, (args, plan)                                    # a wrapper, not a program
         assert plan[0].startswith("uv run --no-sync --project ") and script + call in plan[0], (args, plan)
+
+
+SURFACE_CHECK = "just surface-check"
+SURFACE_LINE = "cs_image_system.base: cs_image_system.base.models.thing:Thing was removed from the surface"
+
+
+def test_a_surface_changed_without_its_version_number_is_refused_before_the_gate(tmp_path: Path):
+    """`just surface-check` failing is an entry of a declared surface removed or altered while the library's
+    middle number stands still. The release stops at the probes, with the entry said: no gate, no bump, no
+    tag, the tree as it was. Passing, the probe says nothing."""
+    root = _system_repo(tmp_path)
+    sibling = _sibling_repo(tmp_path)
+    shell = FakeShell([(SURFACE_CHECK, R.Done(1, SURFACE_LINE + "\n")), (OWN, R.Done(0, OWN_LINE + "\n")), *_answers(root)])
+    said: list[str] = []
+    with pytest.raises(R.Refused) as e:
+        _family(root, shell, sibling, env={"TEST_PYPI_TOKEN": "t"}, said=said).release("patch", "test")
+    assert e.value.code == 1 and e.value.message == f"release: {R.SURFACE}" and SURFACE_LINE in said
+    assert shell.first(OWN) < shell.first(SURFACE_CHECK)
+    for never in ("just test", "bump-my-version bump", "uv lock", "publish-dist"):
+        assert shell.count(never) == 0, never
+    assert _git(root, "status", "--porcelain") == "" and _git(root, "tag", "-l") == ""
+
+
+
+def test_a_release_to_the_test_index_without_docker_is_refused_first(tmp_path: Path):
+    """The test index's gate runs the install check, which needs the
+    daemon: a release finds it missing before the bar, with nothing changed."""
+    root = _system_repo(tmp_path)
+    shell = FakeShell([("docker info", R.Done(1))])
+    said: list[str] = []
+    with pytest.raises(R.Refused) as e:
+        _family(root, shell, said=said).probes("test")
+    assert "docker" in e.value.message and "test-docker-install" in e.value.message
+    assert "nothing was changed" in e.value.message and shell.count("just test") == 0

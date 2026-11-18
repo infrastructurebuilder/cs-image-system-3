@@ -1,0 +1,17 @@
+# The docker family's own fixture: the one image builder.
+# Taken from the repository's shared fixture (tests/fixtures/config) with its
+# names unchanged, so the family's golden and the shared golden pin the same
+# docker emission.
+image_builders:
+- name: pckr-docker
+  type: packer-docker
+  runtime: docker-fixture
+  executable: packer
+  required_plugins:
+  - name: docker
+    source: github.com/hashicorp/docker
+    version: '>= 1.0.0'
+  - name: ansible
+    source: github.com/hashicorp/ansible
+    version: '>= 1.0.0'
+  is_default: true

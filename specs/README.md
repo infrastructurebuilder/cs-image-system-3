@@ -8,11 +8,11 @@ specified here; its golden and its tests describe it.
 
 ## Written
 
-| Specification | Serves | Ends in |
-| --- | --- | --- |
-| [001 A provider that stands alone (docker first)](001-standalone-docker-provider/spec.md) | a plugin author; operators | the docker family's tests passing with only its declared dependencies installed |
-| [002 Fifteen minutes to a first dry run](002-first-dry-run/spec.md) | an adopting team | CI running the quickstart page's own commands on a clean machine |
-| [003 Release gates that cannot report a pass they did not earn](003-honest-release-gates/spec.md) | operators; those who install a release | a rehearsed release stopping when a required check did not run |
+| Specification | Serves | Ends in | State |
+| --- | --- | --- | --- |
+| [001 A provider that stands alone (docker first)](001-standalone-docker-provider/spec.md) | a plugin author; operators | the docker family's tests passing with only its declared dependencies installed | implemented on its branch, not merged ([tasks](001-standalone-docker-provider/tasks.md)) |
+| [002 Fifteen minutes to a first dry run](002-first-dry-run/spec.md) | an adopting team | CI running the quickstart page's own commands on a clean machine | written |
+| [003 Release gates that cannot report a pass they did not earn](003-honest-release-gates/spec.md) | operators; those who install a release | a rehearsed release stopping when a required check did not run | written |
 
 The numbers are the order of writing, not of priority. None of the three
 depends on another. 003 is the smallest.

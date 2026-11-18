@@ -41,7 +41,7 @@ SCC_ALL_MAX = 25
 # one plugin importing another, by (importer -> imported) family; a pair
 # absent here may not appear, and a listed count may not grow
 CROSS_PLUGIN_MAX = {
-    "tf_docker_plugin->docker_runtime": 1,
+    "tf_docker_plugin->docker_runtime": 1,      # two halves of one distribution (packages/docker-plugin)
     "tf_ebs_instance_plugin->aws_runtime": 1,
     "tf_gcp_plugin->gcloud_runtime": 3,
 }
@@ -81,16 +81,14 @@ def test_the_kit_imports_nothing_of_the_engine(numbers: dict[str, Any]) -> None:
     assert numbers["kit_to_engine"] == [], numbers["kit_to_engine"]
 
 
-def test_the_two_packages_are_the_two_measured_sets(numbers: dict[str, Any]) -> None:
-    """The kit package is what the plugins reach, and nothing more: every
-    module of ``base`` but its ``__init__`` is in the plugins' closure, and
-    no module of ``engine`` is. A kit module no plugin reaches any more
-    belongs to the engine; an engine module a plugin reaches belongs to the
-    kit (or the plugin reaches too far)."""
+def test_no_plugin_reaches_a_module_of_the_engine(numbers: dict[str, Any]) -> None:
+    """No module of ``engine`` is in the plugins' closure: an engine module
+    a plugin reaches belongs to the kit (or the plugin reaches too far).
+    What a plugin may reach OF the kit is not measured here: the kit
+    declares it (``cs_image_system.base.surface``) and
+    ``tests/test_plugins_keep_to_the_surface.py`` holds every plugin to the
+    declaration."""
     assert numbers["engine_reached"] == [], f"engine modules the plugins reach: {numbers['engine_reached']}"
-    assert numbers["kit_unreached"] == [], f"kit modules no plugin reaches: {numbers['kit_unreached']}"
-    assert numbers["kit_all"] == numbers["kit_modules"] - 1
-    assert numbers["engine_all"] == numbers["engine_modules"] + 1       # the kit's own ``__init__``
 
 
 def test_report_is_fast_and_complete(numbers: dict[str, Any]) -> None:

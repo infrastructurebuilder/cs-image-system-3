@@ -52,10 +52,14 @@ trust first:
 - The documents name what the code declares: model fields, recipes,
   packages, CLI commands and the starter count (`tests/test_docs_parity.py`).
 - Every package declares exactly the third-party distributions it imports
-  and pins its siblings at the shared version; the root is the core with
-  each provider as an extra, and the two private plugins are workspace-only;
-  one bump moves every version line and pin, the extras' and the dev
-  group's included (`tests/test_package_metadata.py`); the extras'
+  and names its siblings as their kind requires (the contract by the range
+  of its series; the SDK's libraries, which keep version lines of their
+  own, exactly from the core and by a range from a provider that stands
+  alone; everything else at the workspace's version); the root is the core
+  with each provider as an extra, and the two private plugins are
+  workspace-only; the workspace's bump moves every one of its version lines
+  and pins, the extras' and the dev group's included, and neither of the
+  SDK's lines (`tests/test_package_metadata.py`); the extras'
   table, the starters' `extras` recipe and what `validate` says of an
   absent plugin (`tests/test_extras.py`).
 

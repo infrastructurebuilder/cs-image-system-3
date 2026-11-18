@@ -36,7 +36,7 @@ names are reserved, in lifecycle order:
 | `build`     | Every workspace member as sdist + wheel under `dist/`; no tests                        |
 | `test`      | The fast suite, all blocking: ruff, pyright, the unit tests (the golden included)      |
 | `full-test` | `test` plus the docker-backed modification tests and, when the runtime sessions are present, a headless dry `run --all` with `state query --strict`; an absent prerequisite reports SKIPPED |
-| `release`   | `just release <part\|version> [test\|pypi]`: probe the index and the token, then the bar (TestPyPI) or `full-test` (PyPI), bump every version line and pin, lock, `build`, publish, commit, tag `v<version>` |
+| `release`   | `just release <part\|version> [test\|pypi]`: probe the index, the token and the container daemon, then the bar and the install check (TestPyPI) or `full-test` (PyPI), bump every version line and pin, lock, `build`, publish, commit, tag `v<version>` |
 
 `just` alone lists every recipe, the contract first. `just publish
 [test|pypi]` builds and uploads the version in the tree (TestPyPI by
@@ -55,25 +55,28 @@ run and applied by the operator. The manual describes each.
 
 ## Layout
 
-`packages/` holds the uv workspace: six core packages and seventeen
-plugins, each with its own README ([docs/PLUGINS.md](docs/PLUGINS.md)
-describes them together). Twenty-one are published; `uv tool install
+`packages/` holds the uv workspace: the core packages and the plugins,
+each with its own README ([docs/PLUGINS.md](docs/PLUGINS.md)
+describes them together). `uv tool install
 cs-image-system` installs the core and the plugins marked **bare**, each
 provider's plugins come with the extra marked beside them (`[aws]`,
 `[gcloud]`, `[docker]`, `[okta]`; `[all]` is every one), and the two
 marked **never published** are workspace-only. The core (all **bare**):
 
-- [contract](packages/contract/README.md) — the plugin contract: what a
-  plugin is written against.
+- [contract](packages/contract/README.md) — the plugin contract: the
+  protocols a plugin satisfies.
 - [base](packages/base/README.md) — the kit: the base classes, the
-  models, the registry and the run context a plugin is written against.
+  models, the registry and the run context. With the two terraform
+  libraries below it is the SDK a plugin is written against: each
+  declares what a plugin may use and keeps a version of its own
+  ([docs/WRITING_A_PROVIDER.md](docs/WRITING_A_PROVIDER.md)).
 - [engine](packages/engine/README.md) — the engine: the plugin loader,
   the configuration reader, the resolver, the lifecycle runner and its
   commands, meta-state, state and the records. No plugin imports it.
 - [system](packages/system/README.md) — the `cs-image-system` CLI.
 - [hashicorp-utils](packages/hashicorp-utils/README.md) — the terraform
   library (a library, not a plugin): HCL rendering and the per-run
-  collectors, on the contract alone.
+  collectors. It depends on the contract and nothing else of the system.
 - [tofu-roots](packages/tofu-roots/README.md) — the provider-neutral
   terraform roots every OpenTofu root plugin subclasses (a library, not a
   plugin).
@@ -84,8 +87,9 @@ The plugins, discovered through Python entry points, one package each:
   runtime: profiles, regions, VPCs and subnets. `[aws]`
 - [gcloud-runtime-plugin](packages/gcloud-runtime-plugin/README.md) — the
   `gcloud` runtime: projects, zones and networks. `[gcloud]`
-- [docker-runtime-plugin](packages/docker-runtime-plugin/README.md) — the
-  `docker` runtime: a host's container daemon. `[docker]`
+- [docker-plugin](packages/docker-plugin/README.md) — the
+  `docker` runtime (a host's container daemon), and containers and
+  named volumes on it through OpenTofu's docker provider. `[docker]`
 - [default-os-plugin](packages/default-os-plugin/README.md) — the OS
   families a base image is built from. **bare**
 - [packer-plugin](packages/packer-plugin/README.md) — the one `packer`
@@ -102,8 +106,6 @@ The plugins, discovered through Python entry points, one package each:
   the OpenTofu instance and storage builders for AWS. `[aws]`
 - [tf-gcp-plugin](packages/tf-gcp-plugin/README.md) — the OpenTofu
   instance and storage builders for Google Cloud. `[gcloud]`
-- [tf-docker-plugin](packages/tf-docker-plugin/README.md) — containers and
-  named volumes through OpenTofu's docker provider. `[docker]`
 - [tf-s3-state-plugin](packages/tf-s3-state-plugin/README.md) — the `s3`
   state backend. `[aws]`
 - [gcs-state-plugin](packages/gcs-state-plugin/README.md) — the `gcs`
@@ -112,7 +114,7 @@ The plugins, discovered through Python entry points, one package each:
   `local` state backend: a state file on disk. **bare**
 - [contract-example-plugin](packages/contract-example-plugin/README.md) —
   the `inmem` state backend: the proof that a plugin can be written
-  against the contract alone, never a backend for a real tree. **never
+  against the contract and nothing else, never a backend for a real tree. **never
   published**: installed with the workspace through the root's `dev`
   group, classified `Private :: Do Not Upload`.
 - [dummy-plugin](packages/dummy-plugin/README.md) — the extension
