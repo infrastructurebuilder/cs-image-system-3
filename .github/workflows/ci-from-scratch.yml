@@ -34,6 +34,11 @@ jobs:
         with:
           python-version: "3.13"
 
+      - name: Install OpenTofu
+        # the core's own suite holds one real `tofu init` against the local backend; its isolated run
+        # (`just test-core`, part of the bar) counts a test that did not run as a failure, so the tool is needed
+        uses: opentofu/setup-opentofu@v2
+
       - name: Install dependencies
         run: just init
 
