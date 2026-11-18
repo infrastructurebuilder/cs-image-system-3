@@ -6,7 +6,7 @@
 
 **Created**: 2026-11-18
 
-**Status**: Implemented on `feature/004-kinds-in-metadata`, not yet merged
+**Status**: Merged into `develop` 2026-11-18 (squash), the feature branch kept. Results and departures are in [tasks.md](tasks.md), under Records.
 
 ## Clarifications
 
