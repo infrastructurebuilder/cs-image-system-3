@@ -509,6 +509,33 @@ for, which a module that runs once cannot say. Keeping it is the side
 that cannot break a usable plugin. No plugin in this repository builds a
 kind that way.
 
+**Where this spec stops, by the operator's decision of 2026-11-18.** A
+plugin registers these kinds as a side effect of being imported, into
+registries every run in the process shares, and the loader can only
+infer afterwards who registered what and undo it. Five rounds of
+convergence found that inference wrong in a new order-dependent case
+each time. Four cases are left as they are, all latent (in this
+repository only the Okta plugin registers a kind, from its own module):
+
+1. A plugin that fails while loading may leave behind a kind a library
+   registered for it; a usable plugin that registers the same kind is
+   then skipped as colliding with the system, in one discovery order
+   and not the other (T140).
+2. The second plugin of a kind collision never becomes a candidate, so
+   a third plugin that collides with the first on another key is
+   skipped in some orders and loads in others (T141).
+3. A kind has one recorded owner; when two plugins depend on the code
+   that registers it and the one found first is skipped, the other
+   loses the kind (T142).
+4. When two plugins share a library that registers a kind and a third
+   plugin claims it, which of the two is named and skipped depends on
+   order, and the other loses the kind (T143).
+
+The cure is not more inference but no side effect: a plugin declares
+its kinds in its metadata and the loader registers them, so a skipped
+plugin's kinds are never registered at all. That changes the contract
+and is specified on its own, as `specs/004-kinds-in-metadata`.
+
 ### R14. A provider disagreement fails only the roots that share it
 
 **Decision**: the collector's agreement check runs per provider name:
