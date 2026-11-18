@@ -10,12 +10,14 @@ specified here; its golden and its tests describe it.
 
 | Specification | Serves | Ends in | State |
 | --- | --- | --- | --- |
-| [001 A provider that stands alone (docker first)](001-standalone-docker-provider/spec.md) | a plugin author; operators | the docker family's tests passing with only its declared dependencies installed | implemented on its branch, not merged ([tasks](001-standalone-docker-provider/tasks.md)) |
+| [001 A provider that stands alone (docker first)](001-standalone-docker-provider/spec.md) | a plugin author; operators | the docker family's tests passing with only its declared dependencies installed | merged into `develop` 2026-11-18; branch kept ([tasks](001-standalone-docker-provider/tasks.md)) |
 | [002 Fifteen minutes to a first dry run](002-first-dry-run/spec.md) | an adopting team | CI running the quickstart page's own commands on a clean machine | written |
-| [003 Release gates that cannot report a pass they did not earn](003-honest-release-gates/spec.md) | operators; those who install a release | a rehearsed release stopping when a required check did not run | written |
+| [003 Release gates that cannot report a pass they did not earn](003-currently-accurate-release-gates/spec.md) | operators; those who install a release | a rehearsed release stopping when a required check did not run | written |
+| [004 Kinds a plugin declares, not kinds it registers on import](004-kinds-in-metadata/spec.md) | a plugin author; operators | every discovery order giving the same accepted plugins and registered kinds | written; follows 001 |
 
-The numbers are the order of writing, not of priority. None of the three
-depends on another. 003 is the smallest.
+The numbers are the order of writing, not of priority. None of 001 to
+003 depends on another; 004 follows 001, whose code it simplifies. 003 is
+the smallest.
 
 ## Next to add: the model proof
 

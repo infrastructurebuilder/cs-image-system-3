@@ -1,8 +1,8 @@
 # Feature Specification: Release gates that cannot report a pass they did not earn
 
-**Feature Directory**: `specs/003-honest-release-gates`
+**Feature Directory**: `specs/003-currently-accurate-release-gates`
 
-**Feature Branch**: `feature/honest-release-gates` (to be created from `develop` when planning starts)
+**Feature Branch**: `feature/003-currently-accurate-release-gates` (to be created from `develop` when planning starts)
 
 **Created**: 2026-11-16
 
