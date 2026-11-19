@@ -4,7 +4,7 @@
 
 [project]
 name = "cs-image-system-local-state-plugin"
-version = "0.1.10"
+version = "0.1.11"
 description = "The local state backend plugin: a state file on disk for every terraform root that names it; no cloud, no credentials"
 readme = "README.md"
 authors = [{ name = "Mykel Alvis", email = "mykelalvis@infrastructurebuilder.org" }]

@@ -4,7 +4,7 @@
 
 [project]
 name = "cs-image-system-okta-opa-plugin"
-version = "0.1.10"
+version = "0.1.11"
 description = "The identity plugin for Okta: groups and users as Okta Privileged Access and Okta terraform roots"
 readme = "README.md"
 authors = [{ name = "Mykel Alvis", email = "mykelalvis@infrastructurebuilder.org" }]
