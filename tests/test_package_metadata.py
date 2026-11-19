@@ -221,8 +221,12 @@ def contract_range(contract_version: str) -> str:
 #: The packages that pin an SDK version line (the kit's; the two terraform
 #: libraries') by the range of its compatible series instead of exactly: the
 #: ones proven to stand alone at both ends of that range
-#: (`just test-docker-alone`, `just test-terraform-alone`).
-SDK_BY_RANGE = {"cs-image-system-docker-plugin", "cs-image-system-tofu-roots"}
+#: (`just test-docker-alone`, `just test-terraform-alone`), and the Google
+#: Cloud family, which ranges on the SDK it will be tested against from its
+#: own repository (spec 005).
+SDK_BY_RANGE = {"cs-image-system-docker-plugin", "cs-image-system-tofu-roots",
+                "cs-image-system-gcloud-runtime-plugin", "cs-image-system-tf-gcp-plugin",
+                "cs-image-system-gcs-state-plugin"}
 #: the SDK's two version lines; members of one line pin each other exactly
 SDK_VERSION_LINES = ({"cs-image-system-base"}, {"cs-image-system-hashicorp-utils", "cs-image-system-tofu-roots"})
 

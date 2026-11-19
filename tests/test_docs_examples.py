@@ -98,7 +98,7 @@ def stub_networks_from(monkeypatch, root: Path) -> None:
     tree under test instead (which VPCs and subnets exist is a live-account
     fact these tests must not restate)."""
     from cs_image_system.aws_runtime import aws_utils
-    from cs_image_system.gcloud_runtime import gcp_utils
+    from cs_image_system.gcloud_runtime import testing as gcloud_testing
     runtimes = _runtimes(root)
 
     class _AnySecurityGroups(dict):
@@ -110,17 +110,7 @@ def stub_networks_from(monkeypatch, root: Path) -> None:
     monkeypatch.setattr(aws_utils, "get_vpc_map_and_default_vpc_id",
                         lambda session_config: ({v: {"subnets": []} for v in vpcs}, "default",
                                                 _AnySecurityGroups()))
-    networks: dict[str, dict] = {"default": {"subnets": []}}
-    for r in runtimes:
-        if r.get("type") != "gcloud":
-            continue
-        net = (r.get("networking") or {})
-        name = str(net.get("network") or "default")
-        entry = networks.setdefault(name, {"subnets": []})
-        for s in net.get("subnets") or []:
-            entry["subnets"].append({"subnet_id": s.get("subnet_id")})
-    monkeypatch.setattr(gcp_utils, "get_network_map_and_default_network",
-                        lambda session_config, clients=None: (networks, "default", {}))
+    gcloud_testing.stub_declared_networks(monkeypatch, runtimes)
     # a load adopts the record a real run would have written
     # instead of asking the clouds; the harness writes it, saying what the
     # stubs above answer, so `validate` passes offline as it would after

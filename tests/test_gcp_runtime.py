@@ -45,6 +45,7 @@ from tests.harness import (
     copy_config,
     load_context,
     modules_beside,
+    private_plugin_cache,
     stub_environment,
 )
 
@@ -446,37 +447,6 @@ def test_gce_state_query_hooks_exist(gce3, monkeypatch):
     monkeypatch.setattr(subprocess, "run", lambda cmd, **kw: SimpleNamespace(
         returncode=1, stdout="", stderr="ERROR: NOT_FOUND: instance"))
     assert fs._lookup(next(s for s in ctx.storages if s.get_name() == "gce_share")) is None
-
-
-def private_plugin_cache(tmp_path: Path, roots: list[Path]) -> Path:
-    """The suite's real-tofu test never shares the operator's provider
-    cache -- `TF_PLUGIN_CACHE_DIR` is not safe under concurrent `init`, and a
-    cycle that overlapped the bar failed on it. A private cache under the test's
-    temporary directory, seeded by COPYING (never linking: tofu writes beside
-    what it reads) the providers the roots require from the shared cache when
-    one is there, so nothing is downloaded that need not be and nothing is
-    written outside tmp_path."""
-    private = tmp_path / "plugin-cache"
-    private.mkdir(exist_ok=True)
-    shared = os.environ.get("TF_PLUGIN_CACHE_DIR")
-    if not shared or not Path(shared).is_dir():
-        return private
-    sources: set[str] = set()
-    for r in roots:
-        for tf in r.rglob("*.tf"):
-            for src in re.findall(r'source\s*=\s*"([^"]+)"', tf.read_text()):
-                if src.startswith((".", "/")) or ":" in src:      # a module path or URL
-                    continue
-                parts = src.split("/")
-                if len(parts) == 2:
-                    parts = ["registry.opentofu.org", *parts]
-                if len(parts) == 3:
-                    sources.add("/".join(parts))
-    for src in sorted(sources):
-        have = Path(shared) / src
-        if have.is_dir() and not (private / src).exists():
-            shutil.copytree(have, private / src)
-    return private
 
 
 @pytest.mark.skipif(shutil.which("tofu") is None, reason="tofu not installed")

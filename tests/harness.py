@@ -26,6 +26,7 @@ fixture that declares all of them.
 from __future__ import annotations
 
 import os
+import re
 import shutil
 from pathlib import Path
 from typing import Any
@@ -191,33 +192,17 @@ def _clouds(monkeypatch, retags: list[tuple[str, dict[str, str]]]) -> None:
                         lambda session_config: ({v: {"subnets": []} for v in VPCS}, "default",
                                                 _AnySecurityGroups()))
     from cs_image_system.aws_runtime.aws_runtime_builders import AwsCloudBuilder
-    from cs_image_system.gcloud_runtime import gcp_utils
-    from cs_image_system.gcloud_runtime.gcp_runtime_builders import GCPCloudBuilder
+    from cs_image_system.gcloud_runtime import testing as gcloud_testing
 
-    def _gcp_network_map(session_config, clients=None):
-        # Config-derived like the SG stub: which subnets exist is a
-        # live-account fact, and the fixture's ids are data these tests must
-        # not restate. The my-project entries serve the gce_overlay tests.
-        import yaml as _yaml
-        subnets = [{"subnet_id": "projects/my-project/regions/us-east1/subnetworks/default"},
-                   {"subnet_id": "projects/my-project/regions/us-east1/subnetworks/custom-subnet-1"}]
-        d = _yaml.safe_load((FIXTURE_CONFIG / "cfg" / "runtime-builders.yml").read_text()) or {}
-        for r in d.get("runtime_builders", []):
-            if r.get("type") == "gcloud":
-                for s in (r.get("networking", {}) or {}).get("subnets") or []:
-                    subnets.append({"subnet_id": s.get("subnet_id")})
-        return ({"default": {"subnets": subnets}}, "default", {})
-
-    monkeypatch.setattr(gcp_utils, "get_network_map_and_default_network", _gcp_network_map)
+    # Google Cloud's stubs ship with its plugin; the my-project subnets
+    # they always hold serve the gce_overlay tests
+    gcloud_testing.stub(monkeypatch, retags, config=FIXTURE_CONFIG)
     monkeypatch.setattr(AwsCloudBuilder, "query_provider_image",
                         lambda self, osb: (VENDOR_AMI, "amazon", {}))
-    monkeypatch.setattr(GCPCloudBuilder, "query_provider_image",
-                        lambda self, osb: ("debian-11-v1", "debian-cloud", {}))
     # The read-only state-query hooks would reach AWS/OPA: answer "nothing
     # of ours exists" by default. Tests of the query itself re-patch these
     # AFTER constructing their FixtureRun.
     monkeypatch.setattr(AwsCloudBuilder, "query_images", lambda self, series: [])
-    monkeypatch.setattr(GCPCloudBuilder, "query_images", lambda self, series: [])
     # zero-drift-report: post-bake retagging would reach EC2; journal it.
     monkeypatch.setattr(AwsCloudBuilder, "retag_image",
                         lambda self, image_id, tags: retags.append((image_id, dict(tags))) or True)
@@ -226,10 +211,6 @@ def _clouds(monkeypatch, retags: list[tuple[str, dict[str, str]]]) -> None:
     # failing or dead session override this per test)
     monkeypatch.setattr(AwsCloudBuilder, "run_session_command",
                         passing_session(AwsCloudBuilder.run_session_command))
-    monkeypatch.setattr(GCPCloudBuilder, "run_session_command",
-                        passing_session(GCPCloudBuilder.run_session_command))
-    monkeypatch.setattr(GCPCloudBuilder, "retag_image",                    # GCE relabels too
-                        lambda self, image_id, tags: retags.append((image_id, dict(tags))) or True)
 
 
 def _identity_provider(monkeypatch, retirements: list[tuple[str, str]]) -> None:
@@ -295,3 +276,34 @@ class FixtureRun:
 
     def restore_cwd(self) -> None:
         os.chdir(self._cwd)
+
+
+def private_plugin_cache(tmp_path: Path, roots: list[Path]) -> Path:
+    """The suite's real-tofu test never shares the operator's provider
+    cache -- `TF_PLUGIN_CACHE_DIR` is not safe under concurrent `init`, and a
+    cycle that overlapped the bar failed on it. A private cache under the test's
+    temporary directory, seeded by COPYING (never linking: tofu writes beside
+    what it reads) the providers the roots require from the shared cache when
+    one is there, so nothing is downloaded that need not be and nothing is
+    written outside tmp_path."""
+    private = tmp_path / "plugin-cache"
+    private.mkdir(exist_ok=True)
+    shared = os.environ.get("TF_PLUGIN_CACHE_DIR")
+    if not shared or not Path(shared).is_dir():
+        return private
+    sources: set[str] = set()
+    for r in roots:
+        for tf in r.rglob("*.tf"):
+            for src in re.findall(r'source\s*=\s*"([^"]+)"', tf.read_text()):
+                if src.startswith((".", "/")) or ":" in src:      # a module path or URL
+                    continue
+                parts = src.split("/")
+                if len(parts) == 2:
+                    parts = ["registry.opentofu.org", *parts]
+                if len(parts) == 3:
+                    sources.add("/".join(parts))
+    for src in sorted(sources):
+        have = Path(shared) / src
+        if have.is_dir() and not (private / src).exists():
+            shutil.copytree(have, private / src)
+    return private

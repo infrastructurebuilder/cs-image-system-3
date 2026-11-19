@@ -14,6 +14,7 @@ specified here; its golden and its tests describe it.
 | [002 Fifteen minutes to a first dry run](002-first-dry-run/spec.md) | an adopting team | CI running the quickstart page's own commands on a clean machine | written |
 | [003 Release gates that cannot report a pass they did not earn](003-currently-accurate-release-gates/spec.md) | operators; those who install a release | a rehearsed release stopping when a required check did not run | written |
 | [004 Kinds a plugin declares, not kinds it registers on import](004-kinds-in-metadata/spec.md) | a plugin author; operators | every discovery order giving the same accepted plugins and registered kinds | merged into `develop` 2026-11-18; branch kept ([tasks](004-kinds-in-metadata/tasks.md)) |
+| [005 The Google Cloud provider in a repository of its own](005-relocate-gcp-provider/spec.md) | a plugin author; operators; an adopting team | the family's own repository passing its acceptance tests from a fresh clone, and this one passing without it | in progress: phase 1 merged ([tasks](005-relocate-gcp-provider/tasks.md)) |
 
 The numbers are the order of writing, not of priority. None of 001 to
 003 depends on another; 004 follows 001, whose code it simplifies. 003 is

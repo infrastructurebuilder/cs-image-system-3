@@ -3,11 +3,12 @@
 # SPDX-License-Identifier: Apache-2.0
 
 """The `gcs` backend type: its renderings, its per-root prefix,
-and its place beside S3 and local in the collision rule."""
+and its place beside another kind in the collision rule."""
 from __future__ import annotations
 
+from cs_image_system.contract.state import BackendRegistration, StateLocation
 from cs_image_system.gcs_state_plugin.gcs_state_models import GCS_KIND, GcsStateBuilderModel
-from cs_image_system.hashicorp_utils.collector import BackendRegistration, StateLocation, TerraformCollector
+from cs_image_system.hashicorp_utils.collector import TerraformCollector
 
 
 def test_the_kind_gives_every_root_its_own_prefix_under_the_declared_one():
@@ -40,23 +41,20 @@ def test_the_model_registers_the_kind_and_trims_its_prefix():
     assert model.get_state_file_path("gcp-gcs") == "statefiles/csia/gcp_gcs/default.tfstate"
 
 
-def test_a_gcs_location_is_a_third_kind_of_place_in_the_collision_rule():
+def test_a_gcs_location_is_its_own_kind_of_place_in_the_collision_rule():
+    # beside the core's local backend only: a family's tests name no other provider family's plugin
     from cs_image_system.local_state_plugin.local_state_models import LOCAL_KIND
-    from cs_image_system.tf_s3_state_plugin.tf_s3_state_models import S3_KIND
     col = TerraformCollector()
     col.reset()
     try:
-        col.register_backend(BackendRegistration(
-            name="s3", type="s3", kind=S3_KIND, is_default=True,
-            settings={"bucket": "b", "region": "us-east-2", "key_prefix": "statefiles/", "encrypt": False,
-                      "use_lockfile": True, "profile": None}))
-        col.register_backend(BackendRegistration(name="gcs", type="gcs", kind=GCS_KIND, settings={"bucket": "b", "prefix": "statefiles"}))
+        col.register_backend(BackendRegistration(name="gcs", type="gcs", kind=GCS_KIND, is_default=True,
+                                                 settings={"bucket": "statefiles", "prefix": "statefiles"}))
         col.register_backend(BackendRegistration(name="local", type="local", kind=LOCAL_KIND, settings={"path": "statefiles"}))
-        for name in ("s3", "gcs", "local"):
+        for name in ("gcs", "local"):
             col.set_backend(f"ws-{name}", name)
-        col.validate_state_locations()                                   # same bucket name, three types: three places
+        col.validate_state_locations()                                   # one name, two types: two places
         col.set_backend("ws_gcs", "gcs")                                 # collapses onto ws-gcs's object
         assert col.state_collisions(col.state_locations()) == [
-            "workspaces ws-gcs, ws_gcs would share the state object gcs://b/statefiles/ws_gcs/default.tfstate"]
+            "workspaces ws-gcs, ws_gcs would share the state object gcs://statefiles/statefiles/ws_gcs/default.tfstate"]
     finally:
         col.reset()

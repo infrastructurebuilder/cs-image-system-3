@@ -10,8 +10,11 @@ that stands in for its own calls to the outside world, in its own package,
 and a test hands it in.
 
 The kit needs ``pytest`` only for the ``monkeypatch`` a test passes to it;
-install it with the ``testing`` extra of this distribution.
+install it with the ``testing`` extra of this distribution. Its
+:mod:`~cs_image_system.system.testing.strict` plugin makes a session that
+collected nothing or skipped anything fail.
 """
+from . import strict
 from .golden import IGNORED_FILES, assert_matches, differences, emitted, write
 from .neighbours import broken_neighbour
 from .run import (
@@ -66,6 +69,7 @@ __all__ = [
     "passing_session",
     "plain",
     "run_mod_tests",
+    "strict",
     "stub_core",
     "tree",
     "validation_errors",
