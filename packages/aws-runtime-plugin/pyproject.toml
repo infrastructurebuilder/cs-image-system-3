@@ -4,7 +4,7 @@
 
 [project]
 name = "cs-image-system-aws-runtime-plugin"
-version = "0.1.10"
+version = "0.1.11"
 description = "The aws runtime type: Amazon EC2 as a place where images bake and instances run"
 readme = "README.md"
 authors = [{ name = "Mykel Alvis", email = "mykelalvis@infrastructurebuilder.org" }]

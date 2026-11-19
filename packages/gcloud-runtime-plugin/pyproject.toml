@@ -4,7 +4,7 @@
 
 [project]
 name = "cs-image-system-gcloud-runtime-plugin"
-version = "0.1.10"
+version = "0.1.11"
 description = "The gcloud runtime type: Google Compute Engine as a place where images bake and instances run"
 readme = "README.md"
 authors = [{ name = "Mykel Alvis", email = "mykelalvis@infrastructurebuilder.org" }]

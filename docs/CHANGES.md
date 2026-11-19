@@ -25,8 +25,9 @@ the entry without naming the number in its text.
 
 | Stage | Landed | Released in | Squash subject |
 | --- | --- | --- | --- |
+| <a id="r0-1-11"></a>release 0.1.11 | 2026-11-19 | 0.1.11 | release 0.1.11 |
 | <a id="r0-1-10"></a>release 0.1.10 | 2026-11-16 | 0.1.10 | release 0.1.10 |
-| <a id="hxxxi"></a><a id="s139"></a>§139 | 2026-11-16 | not yet | Stage 139: hygiene bundle XXXI, the release walk's own defects |
+| <a id="hxxxi"></a><a id="s139"></a>§139 | 2026-11-16 | 0.1.11 | Stage 139: hygiene bundle XXXI, the release walk's own defects |
 | <a id="hxxx"></a><a id="s138"></a>§138 | 2026-11-15 | 0.1.10 | Stage 138: hygiene bundle XXX, the golden and the plugins without V2 |
 | <a id="hxxix"></a><a id="s137"></a>§137 | 2026-11-15 | 0.1.10 | Stage 137: hygiene bundle XXIX, one retry rule and no V2 in the golden |
 | <a id="hxxviii"></a><a id="s136"></a>§136 | 2026-11-15 | 0.1.10 | Stage 136: hygiene bundle XXVIII, after the kit and the engine |
