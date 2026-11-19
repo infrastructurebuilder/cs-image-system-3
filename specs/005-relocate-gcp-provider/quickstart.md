@@ -15,7 +15,7 @@ configuration's root.
 | Step | Proves | Spec |
 | --- | --- | --- |
 | 1 | The family passes its acceptance tests from a fresh clone, nothing skipped | Story 1; FR-001 to FR-004; SC-001 |
-| 2 | It passes at the low end of its SDK ranges, and its starters render | Story 1, scenario 2; Story 3, scenario 4; FR-002 |
+| 2 | It passes at the low end of its SDK ranges | Story 1, scenario 2; FR-002 |
 | 3 | This repository passes without the family, and nothing here imports it | Story 2; FR-006, FR-007; SC-002 |
 | 4 | A release here builds nothing of the family | Story 4; FR-011 |
 | 5 | The reference configuration's emission did not move | Story 3; FR-012; SC-003 |
@@ -33,17 +33,19 @@ cd /tmp/gcp-family && just init && just test
 Expect lint clean, the type check at zero errors, and the tests passing
 under the strict session (no `strict:` line).
 
-## Step 2: the low end and the starters
+## Step 2: the low end
 
-About 20 minutes. Needs a container daemon, `packer`, `tofu` and
-`ansible-playbook`, as `just test-docker-install` does.
+A few minutes. The two starters that declare Google Cloud are not
+rendered there: they declare other providers too, so this repository
+tests them where every provider is installed (`just test-cloud-starters`
+in CI's `live` job; research R11).
 
 ```sh
-# step 2 -- box 1 of 1 -- v1
+# step 2 -- box 1 of 1 -- v2
 cd /tmp/gcp-family && just full-test
 ```
 
-Expect every leg reported as ran and succeeded.
+Expect every leg reported as passed, and `full-test: passed` last.
 
 ## Step 3: this repository without the family
 

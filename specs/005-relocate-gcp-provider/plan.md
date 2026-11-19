@@ -22,6 +22,30 @@ and release; remove here and release; the reference takes it. The SDK
 the family must range on (contract 0.5.0, kit 0.2.0, Terraform 0.2.0)
 is not yet on the index, which is why phase 1 ends in a release.
 
+## Revision of 2026-11-19
+
+Re-planned after phase 1 (merged and released as 0.1.11) and most of
+phase 2. What the work found or the operator decided since the plan was
+committed, each carried into the documents below:
+
+- **The identity** (operator, at T021): the family's fixture gives its
+  image a POSIX group, not the shared fixture's Okta group; the
+  configured Okta is not available on Google Cloud (research R7).
+- **The starters** (operator, at T031, option c): `standard-gce` and
+  `complete` are tested here, where every provider is installed, by a
+  check in this repository's CI `live` job, and not in the family's
+  repository; that job keeps its Google Cloud identity (research R11).
+- **The golden comparison** found a third cause of difference beside the
+  backend and the identity: the other families' declarations absent from
+  the tree (research R7, tasks T026).
+- **The pipeline suite's dependencies** sit in the family workspace's
+  dev group, not in a package's `test` extra; each package's extra holds
+  only what its own tests need (data model).
+- **The family's CI** runs on every push, as FR-003 says, not only on
+  pushes to `develop` (contract; a follow-up to THERE's workflow).
+- **A defect found, not this feature's**: a runtime written by its
+  qualified word fails validation; it is specification 006.
+
 ## Technical Context
 
 **Language/Version**: Python 3.13 (both repositories)
@@ -65,7 +89,7 @@ repositories (this one, the family's, the reference)
 | I. Purpose first | Serves a plugin author (primary), operators and an adopting team, named in the spec | Pass |
 | II. Acceptance is executable | Quickstart steps 1 to 5; the family's `just test` and CI; this repository's `just test`; the reference's drift check. The strict session makes a skip a failure there as here | Pass |
 | III. Nothing irreversible by default | No apply; no live cycle unless the operator decides one (R12); releases stop for the operator (R2) | Pass |
-| IV. The emission is the contract | The family's golden is compared file by file with the shared golden before anything here moves (R7); the shared golden's 37 changed files read file by file (R10). One recorded departure: the GCE roots' state backend (Complexity Tracking) | Pass, with the recorded departure |
+| IV. The emission is the contract | The family's golden is compared file by file with the shared golden before anything here moves (R7, done at T026); the shared golden's 37 changed files read file by file (R10). One recorded departure, with three causes: the GCE roots' state backend, the POSIX identity, the other families' declarations absent (Complexity Tracking) | Pass, with the recorded departure |
 | V. Public by construction | Both repositories are public; the moved files are already public; `just public-safe` runs on each | Pass |
 | VI. Layers and no interference | The family imports only the contract and the SDK's declared surfaces (its self-check); nothing here imports it; its tests depend on no other provider family (R7 rejects the S3 coupling) | Pass |
 | VII. Budget, subtraction | Below: this workspace falls by three packages and their code; growth is in the family's repository and is the code that left here | Pass |
@@ -127,9 +151,11 @@ Corrected in the same work. From the inventory of 2026-11-19.
   `complete` are unchanged (R11). The starters' `PERFORM_RUNTIME:
   aws-REPLACE-ME` in `standard-gce` is a defect seen in passing, not
   this feature's (Constitution: it waits until its code is touched).
-- **Workflows**: `.github/workflows/ci.yml` and `ci-from-scratch.yml`,
-  the `live` jobs' Google Cloud identity steps and secret gates
-  (R12); `publish-starters` installs the family from the index (R11).
+- **Workflows**: `.github/workflows/ci.yml` and `ci-from-scratch.yml`:
+  `fixture-live` no longer asks Google Cloud (the frozen fixture loses
+  its GCP declarations), while the `live` jobs keep their Google Cloud
+  identity for the starters' check (`just test-cloud-starters`, R11);
+  `publish-starters` installs the family from the index (R11).
 - **The reference configuration** (`cs-image-system-testconfig`): its
   `CI_SETUP.md` (lines 29-30, 49-62, 226-234) and `README.md` (38-40)
   where they say the family comes from this repository; its pin and
@@ -176,8 +202,9 @@ docs/**, README.md, packages/*/README.md        # phase 3: Principle X list
 
 # the family's repository (R5)
 packages/{gcloud-runtime-plugin,tf-gcp-plugin,gcs-state-plugin}/
-tests/{fixture,golden,pipeline,live}/
-pyproject.toml, Justfile, docs/, .github/workflows/ci.yml
+tests/{fixture,golden,pipeline,tooling,live}/
+scripts/{full-test-legs,release}
+pyproject.toml, Justfile, REUSE.toml, LICENSES/, docs/, .github/workflows/ci.yml
 ```
 
 **Structure Decision**: the family's repository is a uv workspace of
@@ -188,5 +215,6 @@ repository loses three workspace members and keeps its layout.
 
 | Cost | Why needed | Simpler alternative rejected because |
 | --- | --- | --- |
-| The family's golden is not byte-identical to the shared golden's GCE files: its roots keep their state in the family's own `gcs` backend, not the AWS family's S3 (R7; the operator's decision of 2026-11-19) | Byte-identity needs the AWS state plugin as a test dependency of the Google Cloud family | That couples one provider family's tests to another's release (Constitution VI), and the AWS family is next to leave. The difference is confined to the backend and is read file by file |
+| The family's golden is not byte-identical to the shared golden's GCE files: its roots keep their state in the family's own `gcs` backend, not the AWS family's S3; its image's group is POSIX, not Okta; and the other families' declarations are absent (R7; the backend and the identity are the operator's decisions of 2026-11-19) | Byte-identity needs the AWS state plugin and the Okta plugin as test dependencies of the Google Cloud family, and AWS storage types declared on a tree with no AWS plugin, which validation refuses | Each couples one family's tests to another's release (Constitution VI), and the configured Okta is not available on Google Cloud. Every difference was read file by file and follows from one of the three causes (T026) |
+| A check of two starters in this repository's `live` job, under cloud sessions (R11) | `standard-gce` declares the Okta plugin and `complete` every provider, so neither renders where only the family is installed | Changing the starters changes what adopting teams get; testing them nowhere leaves them unproven (the operator's decision, option c) |
 | Three releases, two of them this repository's, for one move (R1) | The SDK the family ranges on is not published; the umbrella's `gcloud` extra must name a family release that exists | A path source to a sibling checkout hides the coupling the move removes; removing first leaves `develop` without Google Cloud |

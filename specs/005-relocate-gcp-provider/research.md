@@ -118,7 +118,9 @@ the family's shared suite at the repository root.
 ```text
 cs-image-system-google-cloud/
 ├── pyproject.toml          # the workspace; dev group; no published umbrella
-├── Justfile                # init, build, test, full-test, release (+ golden-regen, surface-check)
+├── Justfile                # init, build, test, full-test, release (+ golden-regen, surface-check, test-live, public-safe)
+├── REUSE.toml, LICENSES/
+├── scripts/                # full-test-legs (the low end), release
 ├── packages/
 │   ├── gcloud-runtime-plugin/   # src/, tests/ (its unit tests), README.md
 │   ├── tf-gcp-plugin/
@@ -126,8 +128,9 @@ cs-image-system-google-cloud/
 ├── tests/
 │   ├── fixture/            # the family's configuration (R7)
 │   ├── golden/             # its emission (R7)
-│   ├── pipeline/           # tests that drive the pipeline with the test kit
-│   └── live/               # the cycle tests that need a GCP session; never in `just test`
+│   ├── pipeline/           # tests that drive the pipeline with the test kit (family.py, the harness)
+│   ├── tooling/            # the release tool's own tests
+│   └── live/               # what needs a Google Cloud session (validate --online); never in `just test`
 ├── docs/                   # what the family's READMEs link to beyond themselves
 └── .github/workflows/ci.yml
 ```
@@ -199,6 +202,14 @@ it. Before phase 3 removes anything, the two are compared file by file.
   backend instead, which the shared fixture declares but binds to
   nothing. Every other declaration is unchanged. The reference
   configuration is not affected: its GCE roots stay on S3.
+- **The identity** (**decided** by the operator, 2026-11-19, at T021):
+  the shared fixture's GCE instance runs an image owned by an Okta group
+  (`coops`), so its emission carries the Okta plugin's enrollment, labels
+  and bake steps. The family's fixture gives that image a POSIX group
+  instead, from the core's `posix-identity-plugin` (a test dependency
+  from the index), as docker's fixture does: the configured Okta is not
+  available on Google Cloud, and the Okta plugin would otherwise be a
+  test dependency of the family.
 - **The golden** (**read**): 31 files in the GCE roots' own directories
   (`base-image/pckr-gce-ans`, `instance-image/pckr-gce-ans`,
   `instance-image/tofu-gce`, `storage/gcp-gcs`, `storage/gcp-pd`) and
@@ -209,7 +220,13 @@ it. Before phase 3 removes anything, the two are compared file by file.
   path, and each of the 6 shared files' GCE lines with the family's
   lines; every difference is read and must be a consequence of the
   state backend (the backend block of a root, its `state-locations`
-  entry). The comparison, with its result, is a record in `tasks.md`.
+  entry), of the identity (the POSIX group in place of the Okta group:
+  the enrollment, the group's labels, the bake steps, the start-up
+  script and its hash), or of the other families' declarations being
+  absent from the tree (the AWS storage types on the base, and the
+  instance root's reads of the AWS and docker storage roots; validation
+  refuses a storage type whose plugin is not installed). The comparison,
+  with its result, is a record in `tasks.md`.
 
 **Alternatives considered**:
 - *Keep the S3 backend, with the AWS family's state plugin as a test
@@ -296,12 +313,17 @@ system's data, so `init-config --from standard-gce` and
   `type:` words this workspace's plugins register, selected by what
   each starter declares (the rule `src/cs_image_system/extras.py`
   already applies), not by a skip.
-- **There**, the family's acceptance tests render `standard-gce`, validates it and
-  dry-runs it with the system from the index and the family from its
-  checkout (spec story 3, scenario 4).
-- `complete`, which declares every provider, is rendered and dry-run
-  in the family's `full-test` with the AWS and docker families from
-  the index.
+- **Neither starter that declares Google Cloud is tested in the
+  family's repository** (**decided** by the operator, 2026-11-19, at
+  T031, option c): `standard-gce` declares the Okta plugin's group and
+  user builders and `complete` every provider, so neither renders with
+  the family alone. Both are tested **here, where every provider is
+  installed**: a check in this repository's CI that installs the system
+  from this checkout's wheels with the family from the index, renders
+  `standard-gce` and `complete`, validates them and dry-runs them. Their
+  load asks the clouds for networks and vendor images, so the check runs
+  in the `live` job, beside `fixture-live`, under its read-only AWS and
+  Google Cloud identities (T051 keeps the Google Cloud identity for it).
 - `just publish-starters` (this repository, on a final release) writes
   each starter's modules from the installed plugins, so its CI step
   installs the family by the `gcloud` extra from the index, as an
