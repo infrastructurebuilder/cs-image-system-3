@@ -6,7 +6,7 @@
 
 **Created**: 2026-11-18
 
-**Status**: Draft
+**Status**: In progress. Phase 1 (prepare here) merged into `develop` 2026-11-19 from `feature/005-prepare`; phases 2 to 4 continue on `feature/005-relocate-gcp-provider`. Records are in [tasks.md](tasks.md).
 
 ## Clarifications
 
@@ -76,17 +76,17 @@ ranges it declares.
 changed address.
 
 **Independent Test**: in an empty environment, a fresh clone of the
-family's repository runs its acceptance bar, against the newest and the
+family's repository runs its acceptance tests, against the newest and the
 oldest SDK releases its ranges allow, and passes with nothing skipped.
 
 **Acceptance Scenarios**:
 
 1. **Given** a fresh clone of the family's repository and no checkout of
-   this one, **When** its acceptance bar runs, **Then** it builds the
+   this one, **When** its acceptance tests run, **Then** it builds the
    three packages, passes its own tests, fixture and golden, and skips
    nothing.
 2. **Given** the oldest SDK releases the family's ranges allow, **When**
-   the bar runs against them, **Then** it passes, or names what that
+   the acceptance tests run against them, **Then** they pass, or names what that
    SDK lacks.
 3. **Given** a release of the family, **When** it is installed beside a
    released system from the package index, **Then** a Google Cloud
@@ -98,27 +98,27 @@ oldest SDK releases its ranges allow, and passes with nothing skipped.
 
 A maintainer of the core changes the kit, the engine or another
 provider without a Google Cloud identity, the `gcloud` tool or the
-family's code installed, and the bar here says nothing about Google
+family's code installed, and the acceptance tests here say nothing about Google
 Cloud.
 
 **Why this priority**: half the point of the move. Constitution VI:
 one provider's presence must not change what another, or the core,
 needs.
 
-**Independent Test**: this repository's acceptance bar passes with no
+**Independent Test**: this repository's acceptance tests pass with no
 Google Cloud package installed; no source, test, recipe or CI job here
 imports, installs or runs the family's code.
 
 **Acceptance Scenarios**:
 
-1. **Given** this repository after the move, **When** its bar runs,
+1. **Given** this repository after the move, **When** its acceptance tests run,
    **Then** it passes with the family absent, the shared suite holds
    only its AWS and docker parts, and the workspace holds three
    packages fewer.
 2. **Given** this repository's sources and tests, **When** they are
    searched for the family's packages, **Then** nothing imports them.
 3. **Given** a change to the kit's surface, **When** it is released,
-   **Then** the family learns of it from its own bar against the new
+   **Then** the family learns of it from its own acceptance tests against the new
    release, not from this repository's.
 
 ---
@@ -168,7 +168,7 @@ gone.
 
 **Independent Test**: a release of the system succeeds with the family
 untouched; a release of the family succeeds with the system untouched;
-neither publishes a version that its own bar did not prove.
+neither publishes a version that its own acceptance tests did not prove.
 
 **Acceptance Scenarios**:
 
@@ -176,7 +176,7 @@ neither publishes a version that its own bar did not prove.
    builds nor publishes the family's packages, and its `gcloud` and
    `all` extras name the family by a range that a published family
    release satisfies.
-2. **Given** a family release, **When** its bar did not pass against
+2. **Given** a family release, **When** its acceptance tests did not pass against
    the SDK it claims, **Then** it is not published.
 3. **Given** a system release that moves the contract's series,
    **When** the family's range does not include it, **Then** installing
@@ -215,11 +215,11 @@ neither publishes a version that its own bar did not prove.
   `cs-image-system-google-cloud`, under the same distribution names,
   import names and entry points as today.
 - **FR-002**: The family MUST declare ranges, not exact versions, on
-  the contract, the kit and the Terraform libraries, and its bar MUST
+  the contract, the kit and the Terraform libraries, and its acceptance tests MUST
   pass at both ends of those ranges against published releases.
 - **FR-003**: The family's repository MUST have the five lifecycle
   targets (`init`, `build`, `test`, `full-test`, `release`) and a CI
-  job that runs its bar on every push.
+  job that runs its acceptance tests on every push.
 - **FR-004**: The family's own tests MUST prove what this repository's
   shared tests prove of it today; a behaviour proven here before the
   move MUST be proven there, or its removal stated and justified.
@@ -230,7 +230,7 @@ neither publishes a version that its own bar did not prove.
 
 - **FR-006**: The three packages MUST leave this workspace, with every
   test, recipe, CI step and document here that names them.
-- **FR-007**: This repository's bar MUST pass with no Google Cloud
+- **FR-007**: This repository's acceptance tests MUST pass with no Google Cloud
   package, tool or identity present, and skip nothing for the lack of
   one.
 - **FR-008**: The Google Cloud parts of the shared fixture, golden and
@@ -249,7 +249,7 @@ neither publishes a version that its own bar did not prove.
 **Releases**
 
 - **FR-010**: The family MUST release from its own repository, on a
-  version line of its own, and MUST NOT publish a version its bar did
+  version line of its own, and MUST NOT publish a version its acceptance tests did
   not pass.
 - **FR-011**: The system's release MUST NOT build, test or publish the
   family.
@@ -272,7 +272,7 @@ neither publishes a version that its own bar did not prove.
 - **The Google Cloud family**: the runtime, its Terraform roots and its
   state backend; three distributions that release together.
 - **The family's repository**: `cs-image-system-google-cloud`, a
-  workspace of the three packages with its own bar, CI and release.
+  workspace of the three packages with its own acceptance tests, CI and release.
 - **The SDK**: the contract, the kit and the Terraform libraries,
   published from this repository, which the family ranges on.
 - **The shared suite**: the fixture, golden and tests that install
@@ -283,10 +283,10 @@ neither publishes a version that its own bar did not prove.
 
 ### Measurable Outcomes
 
-- **SC-001**: A fresh clone of the family's repository passes its bar
+- **SC-001**: A fresh clone of the family's repository passes its acceptance tests
   in an empty environment with zero tests skipped, at both ends of its
   SDK ranges.
-- **SC-002**: This repository's bar passes with none of the three
+- **SC-002**: This repository's acceptance tests pass with none of the three
   packages installed, and zero files here import them.
 - **SC-003**: The reference configuration's drift check exits 0 with
   the family installed from its own release.

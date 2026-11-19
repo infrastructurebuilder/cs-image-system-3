@@ -34,7 +34,7 @@ published. The index holds `cs-image-system-contract` up to 0.4.2 and
 `cs-image-system-base`, `-hashicorp-utils` and `-tofu-roots` up to
 0.1.10; this workspace is at contract 0.5.0 and the three SDK libraries
 at 0.2.0 (specs 001 and 004, unreleased). `cs-image-system-docker-plugin`
-is not published either. The family cannot pass its bar against
+is not published either. The family cannot pass its acceptance tests against
 published releases (FR-002) until phase 1's release exists.
 
 **Alternatives considered**:
@@ -154,7 +154,7 @@ things are added to it in phase 1:
 1. **A strict session** (`cs_image_system.system.testing.strict`, a
    pytest plugin): a session that collects zero tests, or skips any,
    fails, with the same verdict `scripts/isolated-run` gives. Here it
-   is `isolated-run`'s rule; there it is the family's bar's. One
+   is `isolated-run`'s rule; there it is the family's acceptance tests'. One
    source: `isolated-run` reads the verdict from the same module.
 2. **Nothing else, unless phase 2 finds a gap.** Whatever the family's
    tests need that the kit lacks is added here, in phase 1, and
@@ -276,7 +276,7 @@ the family).
 family.* Rejected: they test the core (bakes, fingerprints, retention,
 decommission, detach, ephemeral runs, runtime facts); with GCE gone
 here they would prove the core only from another repository, and the
-core's bar would stop guarding them (Constitution VI cuts both ways).
+core's acceptance tests would stop guarding them (Constitution VI cuts both ways).
 
 ## R10. The shared suite after the move
 
@@ -296,7 +296,7 @@ system's data, so `init-config --from standard-gce` and
   `type:` words this workspace's plugins register, selected by what
   each starter declares (the rule `src/cs_image_system/extras.py`
   already applies), not by a skip.
-- **There**, the family's bar renders `standard-gce`, validates it and
+- **There**, the family's acceptance tests render `standard-gce`, validates it and
   dry-runs it with the system from the index and the family from its
   checkout (spec story 3, scenario 4).
 - `complete`, which declares every provider, is rendered and dry-run

@@ -296,7 +296,7 @@ def test_the_actions_variables_are_the_union_of_the_wanted_sections_variables():
 
 @pytest.mark.skipif(shutil.which("tofu") is None, reason="tofu not installed")
 def test_the_generated_root_validates_with_tofu(tmp_path: Path):
-    from tests.test_gcp_runtime import private_plugin_cache
+    from tests.harness import private_plugin_cache
     root = _starter_copy(tmp_path)
     bs.write_answers(root / bs.ANSWERS_FILE, GITHUB_ANSWERS)
     bs.regenerate(root)

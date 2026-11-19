@@ -11,7 +11,7 @@ The Google Cloud family (`cs-image-system-gcloud-runtime-plugin`,
 leaves this workspace for `infrastructurebuilder/cs-image-system-google-cloud`,
 with its history, and is made to stand alone as it moves: its own tests,
 fixture and golden there, built on the test kit and the SDK from the
-index, its own version line from 0.2.0, its own bar and CI. Here, its
+index, its own version line from 0.2.0, its own acceptance tests and CI. Here, its
 packages, its tests and its part of the shared suite leave; thirteen
 test files that prove the core through GCE are re-hosted on AWS; the
 umbrella's `gcloud` and `all` extras name the family by a range.

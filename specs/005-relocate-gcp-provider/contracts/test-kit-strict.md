@@ -20,8 +20,11 @@ line naming why, when:
 
 | Condition | Line |
 | --- | --- |
-| No test was collected | `strict: no test was collected; the tests did not run` |
-| Any test was skipped | `strict: <n> skipped; a skipped check is a failed check` |
+| No test was collected | `strict: no test was collected` |
+| Any test was skipped | `strict: <n> of <m> were skipped (a skipped test is a test that did not run)` |
+
+The lines are the verdict's own reasons (`strict.verdict`), the ones an
+isolated run prints.
 
 A session with failures already fails; the plugin adds nothing to it.
 

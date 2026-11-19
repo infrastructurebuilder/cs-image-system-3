@@ -40,7 +40,7 @@ with US3's proofs; phase 4 (the reference) is in Polish.
   whose `develop` is caught up first (`git fetch && git merge --ff-only
   origin/main`) and never `main`.
 - Run Python as `uv run --no-sync python`; iterate with `just test-one
-  <paths>`; the bar is `just test` at every checkpoint, in the
+  <paths>`; the acceptance tests are `just test` at every checkpoint, in the
   repository the checkpoint names.
 - **The shared golden is the tripwire until T052.** Before T052,
   `git status --short tests/fixtures` in HERE must print nothing after
@@ -61,6 +61,21 @@ Filled in as tasks complete.
 
 | Task | Record |
 | --- | --- |
+| T001 | Taken from `develop`'s proof, not run again: the branch differs from `f3c7472e` only in `specs/` (10 files). On `f3c7472e` both CI workflows passed on 2026-11-18 (`CI`, `CI from scratch`); the local acceptance tests on the same code (spec 004's T035): lint clean, type check 0 errors, 2,712 passed and 28 skipped, `test-core` 369, `test-terraform-alone` 6, 37 and 6, `test-docker-alone` 62, 62 and 38, each 0 skipped, plus `test-docker-install` and `fixture-live` passed |
+| T002 | Before-figures, 2026-11-19: source lines 57,214; test lines 48,141; tests 2,093; shared golden files 148; workspace packages 22. The family's own: 3,030 source lines in 30 files; 26 package tests in 472 lines |
+| T003 | The comparison's left side is the tree at `c273d854`: `tests/fixtures/golden` is tree `4ae74a59cff35f6eecfaa02da6a42dbcdfa9396e` (148 files), `tests/fixtures/config` tree `e6aac0a04089740237147517c602f579f7e16af9`; reachable with `git archive c273d854 tests/fixtures/golden tests/fixtures/config`, which is how a later task recovers them (the scratchpad copy is a convenience and may be pruned) |
+| T004, T005 | The strict session: `packages/system/src/cs_image_system/system/testing/strict.py` (`verdict(collected, skipped, failed)` and the plugin) and `packages/system/tests/test_strict_session.py`, 8 tests, each reading only the exit status; its lines are the verdict's own reasons, so `contracts/test-kit-strict.md` now quotes those |
+| T006 | `scripts/isolated-run`'s `verdict` keeps the "did not run" case and hands every other to `strict.verdict`; its messages are unchanged. Proven by T015's isolated runs |
+| T007 | The three packages range on the kit and the Terraform libraries (`>=0.2,<0.3`), with docker's comment; `uv lock`, `just init` |
+| T008 | `cs_image_system.gcloud_runtime.testing`: `stub(monkeypatch, retags, *, config)`, `network_map(config)`, `VENDOR_IMAGE`; the package now declares `PyYAML>=6.0` (the stub reads the fixture's runtimes). `tests/harness.py` calls it; the AWS stubs stay in the harness. GCP-heavy files and the golden passed after the move (84 tests) |
+| T009 | `stub_networks_from` stays where its three users import it; its Google Cloud half moved into the family's module as `stub_declared_networks(monkeypatch, runtimes)`, so in T041 the call is removed here and nothing else |
+| T010 | Only `private_plugin_cache` had to move: into `tests/harness.py`, its four users point there. The other helpers stay: `test_convergent_bakes.py` and `test_ephemeral.py` are re-hosted here (T039), so their users stay with them; `test_bootstrap_coverage.py`'s GCS case leaves with the GCP helpers (T041, T024); `test_mount_verification.py` gets its own `prepared` in THERE (T023) |
+| T011 | `test_gcs_backend.py` names no AWS plugin: the collision case sets gcs beside the core's `local` backend; it imports the backend records from `cs_image_system.contract.state` (they were reached through the Terraform library's collector, which does not list them) |
+| T012 | Done in THERE instead, by T023: run here against the shared fixture, the kit's `Run` would need the AWS family's stubs, which live only in this harness; the test is rewritten once, on the family's fixture, when it moves (T018 carries it) |
+| T013 | Done in THERE instead, by T019: the `test` extra names `cs-image-system-system[testing]` from T016's release, whose number is not known yet, and a package-level pytest configuration here would take over `just test-one packages/<pkg>/tests` from the root's (the tf-gcp test needs the root's `pythonpath` until T023) |
+| T014 | `tests/test_keeps_to_the_surface.py` in each package: sources and tests keep to the SDK's surfaces. One finding, fixed by T011's import; the gcs tests may also import the core's local backend plugin (`TESTS_ALSO`), which THERE's test extra will declare. No surface addition is needed, so T016's release carries nothing the family lacks |
+| T015 | 2026-11-19. `just test`: lint clean, type check 0 errors, 2,724 passed, 28 skipped, 3 failed. Two failures were real: `tests/test_package_metadata.py` held that only docker and tofu-roots range on the SDK; the three Google Cloud packages joined its by-range set. The third, `tests/test_release_on_main.py`, was this checkout's environment: `uv lock` had run after T008 without `just init`, so the release script's venv check refused; after `just init` both files passed (86). The isolated recipes, not reached by the failed run, then passed: `test-core` 377 (the strict session's 8 among them, so T006 holds inside an isolated run), `test-terraform-alone` 6, 37 and 6, `test-docker-alone` 62, 62 and 38, each 0 skipped; lint clean and type check 0 errors again; `git status --short tests/fixtures` printed nothing |
+| T016 | **Waiting for the operator's release.** It must carry, all already in this branch or on `develop`: `cs-image-system-contract` 0.5.0; `cs-image-system-base` 0.2.0; `cs-image-system-hashicorp-utils` and `cs-image-system-tofu-roots` 0.2.0; `cs-image-system-docker-plugin` (new on the index); `cs-image-system-system` with `cs_image_system.system.testing.strict`; the three Google Cloud packages on the workspace's number, ranging on the SDK and carrying `cs_image_system.gcloud_runtime.testing`. None of these is on the index today (2026-11-19: contract up to 0.4.2; base, hashicorp-utils, tofu-roots up to 0.1.10; no docker-plugin). Phase 1 reached `develop` by its own branch, `feature/005-prepare` (squash, kept), by the operator's choice of 2026-11-19, so each squash on `develop` holds one phase; the release is cut from `main` after that |
 
 ---
 
@@ -69,9 +84,9 @@ Filled in as tasks complete.
 **Purpose**: the before-state the budget, the golden comparison and the
 proofs compare with.
 
-- [ ] T001 Record HERE's `just test` before any change in the Records table of `specs/005-relocate-gcp-provider/tasks.md`: take it from the CI proof of `develop` at `f3c7472e` (both workflows passed on 2026-11-18) and the local bar of spec 004's T035, since the branch differs from it only in specification files; if it differs, run `just test`
-- [ ] T002 [P] Record the budget's before-figures with the plan's method (source lines 57,214; test lines 48,141; tests 2,093; golden files 148; workspace packages 22) and the family's own (3,030 source lines; 26 package tests in 472 lines) in the Records table
-- [ ] T003 [P] Keep the shared golden before the move as the comparison's left side: copy `tests/fixtures/golden` and `tests/fixtures/config` at `c273d854` to the scratchpad directory, and record the copy's path and `git rev-parse HEAD:tests/fixtures/golden` in the Records table (research R7)
+- [X] T001 Record HERE's `just test` before any change in the Records table of `specs/005-relocate-gcp-provider/tasks.md`: take it from the CI proof of `develop` at `f3c7472e` (both workflows passed on 2026-11-18) and the local acceptance tests of spec 004's T035, since the branch differs from it only in specification files; if it differs, run `just test`
+- [X] T002 [P] Record the budget's before-figures with the plan's method (source lines 57,214; test lines 48,141; tests 2,093; golden files 148; workspace packages 22) and the family's own (3,030 source lines; 26 package tests in 472 lines) in the Records table
+- [X] T003 [P] Keep the shared golden before the move as the comparison's left side: copy `tests/fixtures/golden` and `tests/fixtures/config` at `c273d854` to the scratchpad directory, and record the copy's path and `git rev-parse HEAD:tests/fixtures/golden` in the Records table (research R7)
 
 ---
 
@@ -80,18 +95,18 @@ proofs compare with.
 **Purpose**: the family ready to leave while still in HERE, and the SDK
 and test kit it will range on published. Blocks every story.
 
-- [ ] T004 [P] Write the strict session's tests in `packages/system/tests/test_strict_session.py` (new; `git add -N`): with `pytester`, a session that collects nothing fails with exit status 1; one that skips a test fails; one that passes everything passes; one that fails already fails without a second cause (contracts/test-kit-strict.md)
-- [ ] T005 Add the strict session as `packages/system/src/cs_image_system/system/testing/strict.py` (new): a pytest plugin whose `pytest_sessionfinish` sets exit status 1 with the line `strict: no test was collected; the tests did not run` or `strict: <n> skipped; a skipped check is a failed check`, and a function `verdict(collected, skipped, failed)` that both the plugin and `scripts/isolated-run` use; export it from `packages/system/src/cs_image_system/system/testing/__init__.py`
-- [ ] T006 Make `scripts/isolated-run` take its verdict from `cs_image_system.system.testing.strict.verdict` instead of its own `verdict` (lines 198-209), keeping its messages; run `just test-core test-docker-alone`
-- [ ] T007 [P] Turn the family's exact SDK pins into ranges: `packages/gcloud-runtime-plugin/pyproject.toml` (`cs-image-system-base>=0.2,<0.3`, `cs-image-system-hashicorp-utils>=0.2,<0.3`), `packages/tf-gcp-plugin/pyproject.toml` (the same, and `cs-image-system-tofu-roots>=0.2,<0.3`), `packages/gcs-state-plugin/pyproject.toml` (`cs-image-system-base>=0.2,<0.3`); `uv lock`; `just init` (data-model.md: "Ranges only")
-- [ ] T008 Move the Google Cloud stubs out of `tests/harness.py` (`_clouds()`, lines 183-232: the network map from the fixture's `gcloud` runtimes, `query_provider_image`, `query_images`, `run_session_command`, `retag_image`) into `packages/gcloud-runtime-plugin/src/cs_image_system/gcloud_runtime/testing.py` (new) as `stub(monkeypatch, ...)` in the shape of `cs_image_system.docker_runtime.testing.stub`; `tests/harness.py` calls it among its stubs, unchanged in behaviour (research R6)
-- [ ] T009 [P] Move `stub_networks_from` (`tests/test_docs_examples.py`, lines 95-128) onto `cs_image_system.gcloud_runtime.testing`, and point its three users (`tests/test_a_load_enters_every_child_under_its_own_key.py`, `tests/test_registry_index_holds_current_ids_after_a_load.py`, `tests/test_bake_steps.py:364`) at the harness or the stub
-- [ ] T010 [P] Move the helpers other test files import from Google Cloud test modules to where their users are: `private_plugin_cache` (`tests/test_gcp_runtime.py:451`, used by `test_bootstrap.py`, `test_bootstrap_aws.py`, `test_bootstrap_gcp.py`) into `tests/harness.py`; `_facts`, `_project`, `_tree` (`tests/test_bootstrap_gcp.py`, used by `test_bootstrap_coverage.py:189-190`) beside their user; `GCE_RT` and `_seed_converged` (`tests/test_convergent_bakes.py`, used by `test_bake_fingerprints.py:26-27`) beside their user; `prepared` and `_declare_ephemeral` (`tests/test_ephemeral.py`, used by `test_mount_verification.py:18`, `test_instance_roots.py:76`) beside their users (research R9)
-- [ ] T011 [P] Make `packages/gcs-state-plugin/tests/test_gcs_backend.py` (lines 44-45) stop importing `tf_s3_state_plugin`, keeping what it asserts of the gcs backend; `local_state_plugin`, a core plugin, may stay
-- [ ] T012 [P] Make `packages/tf-gcp-plugin/tests/test_gcp_only_storage.py` drive its run through the test kit (`kit.Run` with the family's stub) instead of `from harness import FixtureRun, copy_config`, against the shared fixture for now
-- [ ] T013 Give each of the three packages a `[project.optional-dependencies] test` extra naming `cs-image-system-system[testing]` and the core plugins its tests need, and a `[tool.pytest.ini_options]` with its own `testpaths` and `--import-mode=importlib`, in the shape of `packages/docker-plugin/pyproject.toml` lines 26-43 and 76-78
-- [ ] T014 Add to each of the three packages a surface self-check test (`tests/test_keeps_to_the_surface.py`, in the shape of `packages/docker-plugin/tests/unit/test_keeps_to_the_surface.py`), with `own` naming its own import package and `family` naming `cs_image_system.gcloud_runtime` for `tf-gcp-plugin`; any finding is fixed in the package's source
-- [ ] T015 Checkpoint: `just test` passes in HERE, the isolated runs each with `0 skipped`; `git status --short tests/fixtures` prints nothing; record it
+- [X] T004 [P] Write the strict session's tests in `packages/system/tests/test_strict_session.py` (new; `git add -N`): with `pytester`, a session that collects nothing fails with exit status 1; one that skips a test fails; one that passes everything passes; one that fails already fails without a second cause (contracts/test-kit-strict.md)
+- [X] T005 Add the strict session as `packages/system/src/cs_image_system/system/testing/strict.py` (new): a pytest plugin whose `pytest_sessionfinish` sets exit status 1 with the line `strict: no test was collected; the tests did not run` or `strict: <n> skipped; a skipped check is a failed check`, and a function `verdict(collected, skipped, failed)` that both the plugin and `scripts/isolated-run` use; export it from `packages/system/src/cs_image_system/system/testing/__init__.py`
+- [X] T006 Make `scripts/isolated-run` take its verdict from `cs_image_system.system.testing.strict.verdict` instead of its own `verdict` (lines 198-209), keeping its messages; run `just test-core test-docker-alone`
+- [X] T007 [P] Turn the family's exact SDK pins into ranges: `packages/gcloud-runtime-plugin/pyproject.toml` (`cs-image-system-base>=0.2,<0.3`, `cs-image-system-hashicorp-utils>=0.2,<0.3`), `packages/tf-gcp-plugin/pyproject.toml` (the same, and `cs-image-system-tofu-roots>=0.2,<0.3`), `packages/gcs-state-plugin/pyproject.toml` (`cs-image-system-base>=0.2,<0.3`); `uv lock`; `just init` (data-model.md: "Ranges only")
+- [X] T008 Move the Google Cloud stubs out of `tests/harness.py` (`_clouds()`, lines 183-232: the network map from the fixture's `gcloud` runtimes, `query_provider_image`, `query_images`, `run_session_command`, `retag_image`) into `packages/gcloud-runtime-plugin/src/cs_image_system/gcloud_runtime/testing.py` (new) as `stub(monkeypatch, ...)` in the shape of `cs_image_system.docker_runtime.testing.stub`; `tests/harness.py` calls it among its stubs, unchanged in behaviour (research R6)
+- [X] T009 [P] Move `stub_networks_from` (`tests/test_docs_examples.py`, lines 95-128) onto `cs_image_system.gcloud_runtime.testing`, and point its three users (`tests/test_a_load_enters_every_child_under_its_own_key.py`, `tests/test_registry_index_holds_current_ids_after_a_load.py`, `tests/test_bake_steps.py:364`) at the harness or the stub
+- [X] T010 [P] Move the helpers other test files import from Google Cloud test modules to where their users are: `private_plugin_cache` (`tests/test_gcp_runtime.py:451`, used by `test_bootstrap.py`, `test_bootstrap_aws.py`, `test_bootstrap_gcp.py`) into `tests/harness.py`; `_facts`, `_project`, `_tree` (`tests/test_bootstrap_gcp.py`, used by `test_bootstrap_coverage.py:189-190`) beside their user; `GCE_RT` and `_seed_converged` (`tests/test_convergent_bakes.py`, used by `test_bake_fingerprints.py:26-27`) beside their user; `prepared` and `_declare_ephemeral` (`tests/test_ephemeral.py`, used by `test_mount_verification.py:18`, `test_instance_roots.py:76`) beside their users (research R9)
+- [X] T011 [P] Make `packages/gcs-state-plugin/tests/test_gcs_backend.py` (lines 44-45) stop importing `tf_s3_state_plugin`, keeping what it asserts of the gcs backend; `local_state_plugin`, a core plugin, may stay
+- [X] T012 [P] Make `packages/tf-gcp-plugin/tests/test_gcp_only_storage.py` drive its run through the test kit (`kit.Run` with the family's stub) instead of `from harness import FixtureRun, copy_config`, against the shared fixture for now
+- [X] T013 Give each of the three packages a `[project.optional-dependencies] test` extra naming `cs-image-system-system[testing]` and the core plugins its tests need, and a `[tool.pytest.ini_options]` with its own `testpaths` and `--import-mode=importlib`, in the shape of `packages/docker-plugin/pyproject.toml` lines 26-43 and 76-78
+- [X] T014 Add to each of the three packages a surface self-check test (`tests/test_keeps_to_the_surface.py`, in the shape of `packages/docker-plugin/tests/unit/test_keeps_to_the_surface.py`), with `own` naming its own import package and `family` naming `cs_image_system.gcloud_runtime` for `tf-gcp-plugin`; any finding is fixed in the package's source
+- [X] T015 Checkpoint: `just test` passes in HERE, the isolated runs each with `0 skipped`; `git status --short tests/fixtures` prints nothing; record it
 - [ ] T016 **RELEASE** (the operator's; research R1, R2): HERE's next release publishes the contract 0.5.0, the kit 0.2.0, both Terraform libraries 0.2.0, `cs-image-system-docker-plugin` and the test kit with `strict`, with the family still inside on the workspace's number. Record in the Records table what it must carry and, once cut, its version and the index's answer for each SDK name; stop until it exists
 
 **Checkpoint**: the SDK and the test kit are on the index; the family
@@ -101,7 +116,7 @@ ranges on them and keeps to their surfaces.
 
 ## Phase 3: User Story 1 - The family builds, tests and releases from its own repository (Priority: P1) 🎯 MVP
 
-**Goal**: a fresh clone of THERE passes its bar against published
+**Goal**: a fresh clone of THERE passes its acceptance tests against published
 releases, with nothing skipped, and releases the family on its own.
 
 **Independent Test**: quickstart steps 1 and 2.
@@ -125,7 +140,7 @@ releases, with nothing skipped, and releases the family on its own.
 - [ ] T028 [P] [US1] Add `tests/pipeline/test_qualified_words.py` to THERE: a configuration that writes `gcloud-runtime/gcloud`, `tf-gcp/tofu-gce` and `gcs-state/gcs` loads, and so does one that writes them bare (spec story 3, scenario 2)
 - [ ] T029 [P] [US1] Add `tests/live/` to THERE with the cycle tests that need a Google Cloud session, excluded from `testpaths`, and a `just test-live` recipe that fails, never skips, without a session; it is not part of `just test` or `just full-test`
 
-### Its bar, its documents, its CI
+### Its acceptance tests, its documents, its CI
 
 - [ ] T030 [US1] Make THERE's `just test` pass: lint, type check at zero errors, each package's self-check, the unit and pipeline tests and the golden, under the strict session; record the counts
 - [ ] T031 [US1] Add THERE's `full-test` legs: the low end of the SDK ranges (`uv sync --resolution lowest-direct`, then the unit tests and self-checks, as docker's low end), and `standard-gce` and `complete` rendered with `init-config`, validated and dry-run with the system and the AWS and docker families from the index and the family from the checkout (research R11; spec story 3, scenario 4); a leg whose tool is absent fails
@@ -144,7 +159,7 @@ its own repository.
 
 ## Phase 4: User Story 2 - This repository no longer holds the family (Priority: P2)
 
-**Goal**: HERE's bar passes with no Google Cloud package, tool or
+**Goal**: HERE's acceptance tests pass with no Google Cloud package, tool or
 identity, and nothing here imports the family.
 
 **Independent Test**: quickstart steps 3 and 4.

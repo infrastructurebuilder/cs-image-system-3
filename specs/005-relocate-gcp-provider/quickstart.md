@@ -14,7 +14,7 @@ configuration's root.
 
 | Step | Proves | Spec |
 | --- | --- | --- |
-| 1 | The family passes its bar from a fresh clone, nothing skipped | Story 1; FR-001 to FR-004; SC-001 |
+| 1 | The family passes its acceptance tests from a fresh clone, nothing skipped | Story 1; FR-001 to FR-004; SC-001 |
 | 2 | It passes at the low end of its SDK ranges, and its starters render | Story 1, scenario 2; Story 3, scenario 4; FR-002 |
 | 3 | This repository passes without the family, and nothing here imports it | Story 2; FR-006, FR-007; SC-002 |
 | 4 | A release here builds nothing of the family | Story 4; FR-011 |
@@ -61,7 +61,7 @@ Expect the single line `searched`.
 just test
 ```
 
-Expect the whole bar to pass, the isolated runs each with `0 skipped`.
+Expect all the acceptance tests to pass, the isolated runs each with `0 skipped`.
 
 ## Step 4: a release here leaves the family alone
 

@@ -284,7 +284,7 @@ def test_the_module_says_what_the_guide_says():
 
 @pytest.mark.skipif(shutil.which("tofu") is None, reason="tofu not installed")
 def test_the_root_with_both_sections_validates_with_tofu(tmp_path: Path):
-    from tests.test_gcp_runtime import private_plugin_cache
+    from tests.harness import private_plugin_cache
     root, out = _root(tmp_path, oidc=True, read=True, write=True, bucket=True, profile=False)
     modules_inside(root)
     env = {**os.environ, "TF_PLUGIN_CACHE_DIR": str(private_plugin_cache(tmp_path, [out, module_path("bootstrap_aws")]))}
