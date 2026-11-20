@@ -11,7 +11,7 @@
 # The rule (stated once, in the plan's contract): removing or altering anything on a declared surface raises the
 # middle number; any other change raises the last.
 [tool.bumpversion]
-current_version = "0.2.0"
+current_version = "0.2.1"
 parse = "(?P<major>\\d+)\\.(?P<middle>\\d+)\\.(?P<last>\\d+)"
 serialize = ["{major}.{middle}.{last}"]
 commit = false

@@ -805,7 +805,7 @@ wheels = [
 
 [[package]]
 name = "cs-image-system-hashicorp-utils"
-version = "0.2.0"
+version = "0.2.1"
 source = { editable = "packages/hashicorp-utils" }
 dependencies = [
     { name = "cs-image-system-contract" },
@@ -998,7 +998,7 @@ requires-dist = [
 
 [[package]]
 name = "cs-image-system-tofu-roots"
-version = "0.2.0"
+version = "0.2.1"
 source = { editable = "packages/tofu-roots" }
 dependencies = [
     { name = "cs-image-system-base" },
