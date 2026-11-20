@@ -3,15 +3,15 @@
 # SPDX-License-Identifier: Apache-2.0
 
 """The provider-neutral terraform root: no root plugin depends on another
-provider's root, and the GCE and docker roots install without the AWS one.
+provider's root, and the docker root installs without the AWS one.
 
-Three proofs. The import graph: no source file of tf-gcp or tf-docker
-imports tf-ebs-instance or aws-runtime, and the AWS root imports no other
+Three proofs. The import graph: no source file of tf-docker imports
+tf-ebs-instance or aws-runtime, and the AWS root imports no other
 provider's runtime; the neutral bases in tofu-roots import no provider
-plugin at all. The declared dependencies: the two pyprojects name no
-AWS package. The install: an environment synced from the lock for the two
-plugins alone holds neither the AWS root, nor aws-runtime, nor boto3, and
-both plugins import, register and construct their builders there.
+plugin at all. The declared dependencies: the docker pyproject names no
+AWS package. The install: an environment synced from the lock for the
+docker plugin alone holds neither the AWS root, nor aws-runtime, nor
+boto3, and the plugin imports, registers and constructs its builders there.
 
 History: stage 120.
 """
@@ -30,11 +30,9 @@ import pytest
 REPO = Path(__file__).resolve().parents[1]
 PACKAGES = REPO / "packages"
 
-ROOTS = {"tf-gcp-plugin": "tf_gcp_plugin", "docker-plugin": "tf_docker_plugin",
-         "tf-ebs-instance-plugin": "tf_ebs_instance_plugin"}
+ROOTS = {"docker-plugin": "tf_docker_plugin", "tf-ebs-instance-plugin": "tf_ebs_instance_plugin"}
 AWS = {"cs_image_system.tf_ebs_instance_plugin", "cs_image_system.aws_runtime", "boto3", "botocore"}
-OTHER_PROVIDERS = {"cs_image_system.gcloud_runtime", "cs_image_system.docker_runtime",
-                   "cs_image_system.tf_gcp_plugin", "cs_image_system.tf_docker_plugin"}
+OTHER_PROVIDERS = {"cs_image_system.docker_runtime", "cs_image_system.tf_docker_plugin"}
 
 
 def _imports(path: Path) -> set[str]:
@@ -60,8 +58,7 @@ def _crossing(package: str, forbidden: set[str]) -> list[str]:
     return hits
 
 
-def test_the_gce_and_docker_roots_import_nothing_of_aws():
-    assert _crossing("tf-gcp-plugin", AWS) == []
+def test_the_docker_root_imports_nothing_of_aws():
     assert _crossing("docker-plugin", AWS) == []
 
 
@@ -70,8 +67,8 @@ def test_the_aws_root_imports_no_other_providers_runtime_or_root():
 
 
 def test_the_neutral_bases_import_no_provider_plugin():
-    bases = {"cs_image_system.aws_runtime", "cs_image_system.gcloud_runtime", "cs_image_system.docker_runtime",
-             "cs_image_system.tf_ebs_instance_plugin", "cs_image_system.tf_gcp_plugin", "cs_image_system.tf_docker_plugin"}
+    bases = {"cs_image_system.aws_runtime", "cs_image_system.docker_runtime",
+             "cs_image_system.tf_ebs_instance_plugin", "cs_image_system.tf_docker_plugin"}
     hits = [f"{f.name}: {m}" for f in _sources("tofu-roots")
             for m in _imports(f) if any(m == x or m.startswith(x + ".") for x in bases)]
     assert hits == []
@@ -82,40 +79,37 @@ def test_every_root_subclasses_the_neutral_bases():
     for base in ("TofuInstanceBuilderBase", "TofuStorageBuilderBase",
                  "TofuInstanceBuilderModelBase", "TofuStorageBuilderModelBase"):
         assert re.search(rf"\(\s*{base}\b", text), base
-    assert "class TofuGceInstanceBuilder(TofuInstanceBuilderBase[" in text
     assert "class TofuDockerInstanceBuilder(TofuInstanceBuilderBase[" in text
     assert "class TofuInstanceBuilder(TofuInstanceBuilderBase[" in text
 
 
-@pytest.mark.parametrize("package", ["tf-gcp-plugin", "docker-plugin"])
-def test_the_gce_and_docker_pyprojects_name_no_aws_package(package: str):
+@pytest.mark.parametrize("package", ["docker-plugin"])
+def test_the_docker_pyproject_names_no_aws_package(package: str):
     deps = tomllib.loads((PACKAGES / package / "pyproject.toml").read_text())["project"]["dependencies"]
     assert not [d for d in deps if "tf-ebs-instance" in d or "aws-runtime" in d or d.startswith("boto")], deps
 
 
 def test_every_root_plugin_registers_the_tofu_version_checker():
     from cs_image_system.tofu_roots.tofu_instance_builder import TofuVersionChecker
-    for module in ("cs_image_system.tf_ebs_instance_plugin.main", "cs_image_system.tf_gcp_plugin.main",
-                   "cs_image_system.tf_docker_plugin.main"):
+    for module in ("cs_image_system.tf_ebs_instance_plugin.main", "cs_image_system.tf_docker_plugin.main"):
         md = __import__(module, fromlist=["initialize"]).initialize()
         assert any(TofuVersionChecker in classes for classes in md.services.values()), module
 
 
-# that the registry takes the one checker from the three roots as one
+# that the registry takes the one checker from the two roots as one
 # registration is proved in tests/test_registration_namespaces.py
-# (test_the_same_class_under_three_namespaces_is_one_registration)
+# (test_the_same_class_under_two_namespaces_is_one_registration)
 
 
 _ISOLATION = """
 import importlib.util, sys
 for absent in ("boto3", "botocore", "cs_image_system.aws_runtime", "cs_image_system.tf_ebs_instance_plugin"):
     assert importlib.util.find_spec(absent) is None, absent + " is installed"
-from cs_image_system.tf_gcp_plugin.main import initialize as gcp
 from cs_image_system.tf_docker_plugin.main import initialize as docker
 from cs_image_system.tofu_roots.tofu_instance_builder import TofuInstanceBuilderBase, TofuVersionChecker
 from cs_image_system.tofu_roots.tofu_storage_builder import TofuStorageBuilderBase
 seen = set()
-for md in (gcp(), docker()):
+for md in (docker(),):
     for classes in md.services.values():
         seen.update(classes)
     for model, builder in md.builders_for_models.items():
@@ -127,13 +121,12 @@ print("isolated: ok")
 """
 
 
-def test_the_gce_and_docker_roots_install_and_register_without_the_aws_root(tmp_path: Path):
-    """An environment synced from the lock for the two plugins alone (about
+def test_the_docker_root_installs_and_registers_without_the_aws_root(tmp_path: Path):
+    """An environment synced from the lock for the docker plugin alone (about
     half a minute from the cache): no AWS root, no aws-runtime, no boto3;
-    both plugins import, register and build on the neutral bases."""
+    the plugin imports, registers and builds on the neutral bases."""
     env = {**os.environ, "UV_PROJECT_ENVIRONMENT": str(tmp_path / "venv")}
-    sync = subprocess.run(["uv", "sync", "--frozen", "--no-dev", "--package", "cs-image-system-tf-gcp-plugin",
-                           "--package", "cs-image-system-docker-plugin"],
+    sync = subprocess.run(["uv", "sync", "--frozen", "--no-dev", "--package", "cs-image-system-docker-plugin"],
                           cwd=REPO, env=env, capture_output=True, text=True)
     assert sync.returncode == 0, sync.stderr[-2000:]
     python = tmp_path / "venv" / ("Scripts/python.exe" if sys.platform == "win32" else "bin/python")

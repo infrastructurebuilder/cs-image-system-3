@@ -49,7 +49,6 @@ def rules(data: str, path: str = "generated/x.tf", allow=()) -> set[str]:
 @pytest.mark.parametrize("text,rule", [
     (PEM, "pem-private-key"), (AKIA, "aws-access-key"), (JWT, "jwt"), (GH, "github-token"),
     (SLACK, "slack-token"), (AGE_ID, "age-identity"),
-    ('{"ty' + 'pe": "service_account", "private_' + 'key": "x", "private_' + 'key_id": "' + "a" * 40 + '"}', "gcp-service-account"),
     ("export TF_" + "VAR_nos_key=abcd1234", "tfvar-assignment"),
 ])
 def test_every_hard_shape_is_refused_anywhere_including_prose_and_test_code(text, rule):
@@ -59,11 +58,11 @@ def test_every_hard_shape_is_refused_anywhere_including_prose_and_test_code(text
 
 
 @pytest.mark.parametrize("text", [
-    "AKIA is a prefix", "TF_" + "VAR_nos_key=$NOS_KEY", 'TF_' + 'VAR_x="${TOKEN}"', '"ty' + 'pe": "service_account" in prose',
+    "AKIA is a prefix", "TF_" + "VAR_nos_key=$NOS_KEY", 'TF_' + 'VAR_x="${TOKEN}"',
     "eyJ short", "-----BEGIN PUBLIC KEY-----",
 ])
 def test_the_hard_rules_do_not_fire_on_the_negative_shapes(text):
-    assert not rules(text) & set(("pem-private-key", "aws-access-key", "jwt", "gcp-service-account", "tfvar-assignment"))
+    assert not rules(text) & set(("pem-private-key", "aws-access-key", "jwt", "tfvar-assignment"))
 
 
 def test_addresses_and_high_entropy_strings_are_soft_findings_exempt_in_prose_and_test_code():

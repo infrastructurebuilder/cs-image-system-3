@@ -377,6 +377,10 @@ clean environment without asking a question.
   this feature is done. Moving it to a repository of its own is a later
   specification, which this feature does not perform and does not
   forbid. This feature MAY increase the number of workspace packages.
+  *Note, added 2026-11-20:* the docker family is still in this
+  repository. The first family to move to a repository of its own is
+  the Google Cloud family, under
+  [specification 005](../005-relocate-gcp-provider/spec.md).
 - **FR-025**: The shared fixture and golden that exist today MUST stay
   whole and byte-identical. They become the every-provider suite: it
   runs with every provider installed, it is not part of the core's
@@ -464,6 +468,10 @@ clean environment without asking a question.
   in the every-provider suite (FR-025), so docker's emission is pinned
   twice, in the family's golden and in the shared one, until those
   specifications land.
+  *Note, added 2026-11-20:* the Google Cloud one is
+  [specification 005](../005-relocate-gcp-provider/spec.md), which moves
+  the Google Cloud family to a repository of its own; its tests, fixture
+  and golden left the every-provider suite with it.
 - The published test kit and the split of the shared test harness are
   part of this feature, because Story 1 cannot pass without them.
 - Moving the family to its own repository, and releasing the family on

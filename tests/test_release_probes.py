@@ -26,6 +26,7 @@ import pytest
 
 REPO = Path(__file__).resolve().parents[1]
 OWN = "own-versions-current"
+ELSEWHERE = "with-released-families"
 
 pytestmark = pytest.mark.skipif(shutil.which("just") is None, reason="needs just")
 
@@ -42,14 +43,16 @@ def _stub(bin_dir: Path, name: str, body: str) -> None:
 
 
 def _probes(tmp_path: Path, index: str, *, docker_ok: bool = True, synced: bool = True, config: Path | None = None,
-            who: str = "release", own: int = 0) -> subprocess.CompletedProcess:
-    """The recipe with docker, `uv sync` and scripts/own-versions-current (which would build and ask the
-    index) stubbed; every other `uv` call is the real one."""
+            who: str = "release", own: int = 0, elsewhere: int = 0) -> subprocess.CompletedProcess:
+    """The recipe with docker, `uv sync`, scripts/own-versions-current (which would build and ask the
+    index) and scripts/with-released-families (which would ask PyPI) stubbed; every other `uv` call is
+    the real one."""
     bin_dir = tmp_path / "bin"
     bin_dir.mkdir(exist_ok=True)
     _stub(bin_dir, "docker", f"exit {0 if docker_ok else 1}\n")
     real_uv = shutil.which("uv")
-    _stub(bin_dir, "uv", f'case "$*" in *{OWN}*) echo "{OWN}: stubbed"; exit {own};; esac\n'
+    _stub(bin_dir, "uv", f'case "$*" in *{OWN}*) echo "{OWN}: stubbed"; exit {own};; '
+                         f'*"{ELSEWHERE} --check"*) echo "{ELSEWHERE}: stubbed"; exit {elsewhere};; esac\n'
                          f'[ "$1" = sync ] && exit {0 if synced else 1}\nexec "{real_uv}" "$@"\n')
     home = tmp_path / "home"
     home.mkdir(exist_ok=True)
@@ -66,8 +69,8 @@ def test_a_test_index_asks_the_venv_the_own_versions_and_the_daemon(tmp_path: Pa
     done = _probes(tmp_path, "test")
     assert done.returncode == 0, done.stdout + done.stderr
     lines = done.stdout.strip().splitlines()
-    assert len(lines) == 3 and lines[0].startswith("release:") and "in step" in lines[0] and lines[1].startswith(OWN)
-    assert lines[2] == "release: docker answers"
+    assert len(lines) == 4 and lines[0].startswith("release:") and "in step" in lines[0] and lines[1].startswith(OWN)
+    assert lines[2].startswith(ELSEWHERE) and lines[3] == "release: docker answers"
     refused = _probes(tmp_path, "test", docker_ok=False)
     assert refused.returncode == 1 and "test-docker-install" in refused.stdout and "nothing was changed" in refused.stdout
 
@@ -78,6 +81,15 @@ def test_an_own_version_refusal_ends_the_probes_with_its_code(tmp_path: Path, ow
     lines = done.stdout.strip().splitlines()
     assert done.returncode == code and len(lines) == 3 and lines[1].startswith(OWN)
     assert lines[2].startswith("release:") and "nothing was changed" in lines[2]       # before docker is asked
+
+
+@pytest.mark.parametrize(("elsewhere", "code"), [(1, 1), (2, 2)])
+def test_a_family_released_elsewhere_that_pypi_lacks_ends_the_probes_with_its_code(tmp_path: Path, elsewhere: int,
+                                                                                    code: int):
+    done = _probes(tmp_path, "test", elsewhere=elsewhere)
+    lines = done.stdout.strip().splitlines()
+    assert done.returncode == code and len(lines) == 4 and lines[2].startswith(ELSEWHERE)
+    assert lines[3].startswith("release:") and "nothing was changed" in lines[3]       # before docker is asked
 
 
 def test_a_stale_venv_is_refused_for_every_index_in_one_line(tmp_path: Path):
@@ -92,8 +104,8 @@ def test_pypi_without_docker_is_refused_first(tmp_path: Path):
     done = _probes(tmp_path, "pypi", docker_ok=False)
     assert done.returncode == 1
     lines = done.stdout.strip().splitlines()
-    assert len(lines) == 3 and "in step" in lines[0] and lines[1].startswith(OWN)
-    assert "docker" in lines[2] and "nothing was changed" in lines[2]
+    assert len(lines) == 4 and "in step" in lines[0] and lines[1].startswith(OWN) and lines[2].startswith(ELSEWHERE)
+    assert "docker" in lines[3] and "nothing was changed" in lines[3]
 
 
 def test_pypi_without_a_live_configuration_or_a_session_is_refused_by_name(tmp_path: Path):
@@ -107,4 +119,4 @@ def test_pypi_without_a_live_configuration_or_a_session_is_refused_by_name(tmp_p
 def test_release_finish_asks_the_venv_alone(tmp_path: Path):
     done = _probes(tmp_path, "pypi", docker_ok=False, who="release-finish")
     assert done.returncode == 0 and done.stdout.startswith("release-finish:") and "in step" in done.stdout
-    assert OWN not in done.stdout                                       # it builds and uploads nothing
+    assert OWN not in done.stdout and ELSEWHERE not in done.stdout     # it builds and uploads nothing

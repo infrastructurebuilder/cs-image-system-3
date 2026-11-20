@@ -135,7 +135,7 @@ def test_only_standing_durable_instances_are_targets(world):
     assert [i.get_name() for i in lp.standing_instances(run.ctx)] == ["test"]
     with pytest.raises(ValueError, match="not declared"):
         lp.login_proof(run.ctx, ["nope"])
-    assert lp.login_proof(run.ctx, runtime="gcloud-east1") == [], "gce-test is not launched: nothing to prove"
+    assert lp.login_proof(run.ctx, runtime="docker-fixture") == [], "container-test is not launched: nothing to prove"
 
 
 def test_workload_facts_come_from_the_builder(world):

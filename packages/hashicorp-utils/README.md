@@ -26,13 +26,19 @@ satisfy too.
 In the workspace, the packages that depend on it directly are
 `tofu-roots`, whose root mixin and neutral roots drive the terraform
 collector; the identity root plugin (`okta-opa-plugin`) and the provider
-root plugins (`tf-ebs-instance-plugin`, `tf-gcp-plugin`,
+root plugins (`tf-ebs-instance-plugin`,
 `docker-plugin`), which reach the collector and the block model beside
 the roots they subclass from tofu-roots; `packer-plugin`, which uses the
 packer collector; and the runtime plugins (`aws-runtime-plugin`,
-`gcloud-runtime-plugin`, `docker-plugin`), which import the formatter
-options for their packer sources. The state plugins
-(`tf-s3-state-plugin`, `local-state-plugin`, `gcs-state-plugin`) do not
+`docker-plugin`), which import the formatter
+options for their packer sources. Outside the workspace, the Google Cloud
+family, released from its own repository
+([cs-image-system-google-cloud](https://github.com/infrastructurebuilder/cs-image-system-google-cloud)),
+depends on this package by a range in the same two ways: `tf-gcp-plugin`
+as a provider root plugin and `gcloud-runtime-plugin` as a runtime plugin.
+The state plugins
+(`tf-s3-state-plugin`, `local-state-plugin`, and the Google Cloud family's
+`gcs-state-plugin`) do not
 depend on it: their models answer a registration the collector pulls
 from the run context when it is first asked for, and they import
 nothing but the contract and the kit.

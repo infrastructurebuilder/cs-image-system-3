@@ -27,8 +27,10 @@ from pathlib import Path
 
 import pytest
 import yaml
+from starter_support import starters_this_workspace_renders
 
-from cs_image_system.system.starters import STARTERS
+# the starters rendered here: those whose providers are installed (spec 005, research R11)
+STARTERS = starters_this_workspace_renders()
 
 JUST = shutil.which("just")
 needs_just = pytest.mark.skipif(JUST is None, reason="`just` is not on PATH")

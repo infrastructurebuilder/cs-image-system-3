@@ -9,8 +9,7 @@ Every declared S3 backend bound to a root gets its bucket made when absent
 root is left out, with a line saying so; a bucket the account cannot be
 asked about is refused, not guessed. A state bucket the bootstrap made stays
 managed by the root through the second interview; one that stood before the
-root is read and never managed. The GCP section makes the GCS state bucket
-when absent with the same managed-or-read fork. The generated README
+root is read and never managed. The generated README
 tabulates what the root covers (MADE, READ, ADOPTED, BY HAND) for every
 section, the Okta section audits what it never makes, the write role
 carries the read document as a second policy, and the release carries the
@@ -45,8 +44,16 @@ def _row(readme: str, section: str, resource: str, status: str) -> bool:
 # ------------------------------------------------------------- the AWS buckets
 def _complete_tree(tmp_path: Path) -> Path:
     """The complete starter with a team's values: TWO S3 backends, `s3-east2`
-    the default, `s3-east1` bound by the storage builders and a runtime."""
-    root = _starter_copy(tmp_path, "complete")
+    the default, `s3-east1` bound by the storage builders and a runtime. The
+    bootstrap reads a tree's `cfg/` as plain YAML and loads no plugin, so the
+    starter's SOURCE serves (it declares every provider, and a rendered tree
+    exists only where every provider is installed: spec 005, research R11)."""
+    root = tmp_path / "tree"
+    shutil.copytree(EXAMPLES / "complete", root)
+    _git(root, "init", "-q", "-b", "develop")
+    _git(root, "config", "user.email", "t@example.invalid")
+    _git(root, "config", "user.name", "t")
+    _git(root, "remote", "add", "origin", "git@github.com:acme/widgets.git")
     for name in ("runtime-builders.yml", "state-backends.yml", "state-backends-2.yml"):
         f = root / "cfg" / name
         f.write_text(f.read_text().replace('"123456789012"', f'"{ACCOUNT}"').replace("REPLACE-ME-profile", "acme")
@@ -184,45 +191,6 @@ def test_a_bucket_the_root_made_stays_managed_after_the_second_interview(tmp_pat
         assert module.count("var.state_bucket_managed ? 1 : 0") == 4 and "state_bucket_exists ? 0 : 1" not in module, path
 
 
-# --------------------------------------------------------------- the GCS bucket
-def _gce_root(tmp_path: Path, bucket_exists: bool) -> tuple[Path, Path]:
-    from tests.test_bootstrap_gcp import _facts as _gcp_facts
-    from tests.test_bootstrap_gcp import _project, _tree
-    root = _tree(tmp_path)
-    facts = _gcp_facts(root, _project(None, number=True, pool=False, provider=False, read=False, write=False, bucket=bucket_exists))
-    answers = bs.run_interview(bs.discover(), facts, quiet=True, only=["github", "gcp"])
-    bs.write_answers(root / bs.ANSWERS_FILE, answers)
-    assert bs.regenerate(root)
-    return root, bs.output_dir(root)
-
-
-def test_the_gcs_state_bucket_is_made_when_absent_and_read_when_it_stands(tmp_path: Path):
-    root, out = _gce_root(tmp_path, bucket_exists=False)
-    answers = bs.read_answers(root / bs.ANSWERS_FILE)["gcp"]
-    assert answers["state_bucket_exists"] is False and answers["state_bucket_managed"] is True
-    assert answers["state_bucket_location"] == "us-east1"                     # the runtime's zone's region
-    tfvars = (out / "bootstrap.auto.tfvars").read_text()
-    for key, value in (("gcp_state_bucket", '"acme-gcs-tfstate"'), ("gcp_state_bucket_managed", "true"),
-                       ("gcp_state_bucket_exists", "false"), ("gcp_state_bucket_location", '"us-east1"'),
-                       ("gcp_state_prefix", '"statefiles/my-team-images"')):
-        assert _assigned(tfvars, key, value), key
-    assert 'backend "local" {}' in (out / "providers.tf").read_text()        # local first, as on AWS
-    readme = (out / "README.md").read_text()
-    assert "us-east1" in readme and _row(readme, "gcp", "acme-gcs-tfstate", "MADE"), readme
-    module = (module_path("bootstrap_gcp") / "main.tf").read_text()
-    for needle in ('resource "google_storage_bucket" "state"', "uniform_bucket_level_access = true",
-                   'public_access_prevention    = "enforced"', 'resource "google_storage_bucket_iam_member" "state_read"',
-                   'resource "google_storage_bucket_iam_member" "state_write"', "roles/storage.objectViewer"):
-        assert needle in module, needle
-    assert not re.search(r"google_storage_bucket_iam_(binding|policy)\b", module)   # single members, never authoritative
-    # the bucket stands: read, never managed; the root binds to it
-    root, out = _gce_root(tmp_path / "b", bucket_exists=True)
-    answers = bs.read_answers(root / bs.ANSWERS_FILE)["gcp"]
-    assert answers["state_bucket_exists"] is True and answers["state_bucket_managed"] is False
-    assert 'backend "gcs" {' in (out / "providers.tf").read_text()
-    assert _row((out / "README.md").read_text(), "gcp", "acme-gcs-tfstate", "READ")
-
-
 # ------------------------------------------------------------- the audit table
 def test_every_sections_coverage_is_a_table_in_the_readme_in_the_audits_words(tmp_path: Path):
     root, out, _ = _aws_root(tmp_path, {"acme-tfstate-east2": True, "acme-tfstate-east1": True})
@@ -266,6 +234,6 @@ def test_the_write_role_carries_the_read_document():
 
 
 def test_the_release_carries_the_bootstrap_modules():
-    for module in ("bootstrap_aws", "bootstrap_gcp"):
+    for module in ("bootstrap_aws",):
         assert [f.name for f in sorted(module_path(module).glob("*.tf"))] == ["main.tf", "outputs.tf", "variables.tf"], module
     assert shutil.which("git") and _git is not None

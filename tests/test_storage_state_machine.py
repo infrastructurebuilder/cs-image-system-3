@@ -110,7 +110,7 @@ def test_storage_runner_is_gated(fixture_run):
     assert fixture_run.run(["storage"], apply=False).ok
     cmds = command_lines((fixture_run.generated / "storage" / "run-storage.sh").read_text())
     roots = len(yaml.safe_load((fixture_run.config_root / "cfg" / "storage-builders.yml").read_text())["storage_builders"])
-    assert roots >= 5
+    assert roots >= 4
     assert sum("tofu plan -input=false -out=tfplan" in c for c in cmds) == roots   # one plan per declared storage root
     assert sum("gate-plan --planfile tfplan" in c for c in cmds) == roots          # and one gate per plan
     assert not any(" apply " in c for c in cmds)

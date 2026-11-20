@@ -24,7 +24,9 @@ default:
 # recipe that drives one depends on config-guard. It stands alone: its own
 # Justfile drives its cycles; the recipes here read it for the system's own proofs.
 config_root := env("CSIS_CONFIG_ROOT", justfile_directory() + "/../cs-image-system-testconfig")
-live_cli := "uv run cs-image-system --root-dir " + quote(config_root)
+# the reference declares the Google Cloud family, which this venv does not hold: it is layered in from the
+# index for each command (scripts/with-released-families)
+live_cli := "uv run --no-sync python scripts/with-released-families cs-image-system --root-dir " + quote(config_root)
 # The branch a release is cut on: ONE branch, named here, never a walk or feature branch. `main`:
 # develop is where work is done and main is where releases live. Before a release main takes
 # develop by fast-forward; the release commit and the tag land on main; develop takes main back
@@ -40,9 +42,11 @@ release_branch := "main"
 # test uses a private cache and never contends.
 export TF_PLUGIN_CACHE_DIR := justfile_directory() / ".tofu-plugin-cache"
 
-# One-time setup: the toolchain and every workspace package (idempotent)
+# One-time setup: the toolchain and every workspace package (idempotent). Every extra but
+# `gcloud` and `all`: the Google Cloud family is released from its own repository, and this
+# repository's tests pass without it (spec 005)
 init:
-	@uv sync --all-extras
+	@uv sync --all-extras --no-extra gcloud --no-extra all
 	@mkdir -p "$TF_PLUGIN_CACHE_DIR"
 	@just hooks
 
@@ -51,13 +55,14 @@ build:
 	@uv build --all-packages
 
 # The fast suite, every check blocking: lint (ruff), type-check (pyright), the
-# unit tests (the golden emission included), the core's own suite with no
-# provider installed (`test-core`), the two terraform libraries' own suites
+# unit tests (the golden emission included), the starters that need every
+# provider with the Google Cloud family from the index (`test-cloud-starters`),
+# the core's own suite with no provider installed (`test-core`), the two terraform libraries' own suites
 # with nothing but themselves (`test-terraform-alone`) and the docker family's
 # own suite in an environment that holds only that package
 # (`test-docker-alone`). The local acceptance bar; `verify` is its alias.
-[doc("The fast suite, all blocking: lint (ruff), type-check (pyright), the unit tests, then the core, the terraform libraries and the docker family each alone; `verify` is its alias")]
-test: lint typecheck pytest test-core test-terraform-alone test-docker-alone
+[doc("The fast suite, all blocking: lint (ruff), type-check (pyright), the unit tests, the starters that need every provider, then the core, the terraform libraries and the docker family each alone; `verify` is its alias")]
+test: lint typecheck pytest test-cloud-starters test-core test-terraform-alone test-docker-alone
 
 # Everything `test` does plus the slow and external legs: the
 # modification tests under docker (`test-mods --strict`), and -- only when
@@ -77,7 +82,7 @@ full-test: test
 # maintenance branch), a clean tree, the
 # index itself (its upload endpoint and every project page answer, and no project
 # holds the version), the index token, the tag, the remote -- then from develop the
-# checkout of `release_branch` and its fast-forward to develop, `uv sync --all-extras`,
+# checkout of `release_branch` and its fast-forward to develop, `uv sync --all-extras --no-extra gcloud --no-extra all`,
 # the venv's probes, the bar, the index asked AGAIN (the
 # bar takes twenty minutes), the bump, the lock, the
 # build and the upload, and only then the release's row in docs/CHANGES.md, the commit and
@@ -93,7 +98,7 @@ full-test: test
 # the checkout to the branch it started on. After the tag: `git push origin main
 # v<version>` (main and its own tag by name, so no other local tag travels: GitHub starts
 # no tag run when more than three tags are pushed at once), develop checked out,
-# fast-forwarded to main and pushed, and `uv sync --all-extras` again (a maintenance
+# fast-forwarded to main and pushed, and `uv sync --all-extras --no-extra gcloud --no-extra all` again (a maintenance
 # branch: that branch and its tag pushed, develop untouched); the pushed tag makes CI
 # publish (it uploads nothing the index already holds). A failed step there names itself
 # and the commands left. `yes` as the third argument is the dry form:
@@ -111,7 +116,7 @@ release target index="test" dry="no":
 # uncommitted and nothing else changed, and only when the index holds the version for every
 # project: the modification-test evidence (on PyPI), the docs/CHANGES.md row, the commit, the
 # tag; then the release's own ending: `git push origin main v<version>`, develop's
-# fast-forward to main and its push, and `uv sync --all-extras`.
+# fast-forward to main and its push, and `uv sync --all-extras --no-extra gcloud --no-extra all`.
 [doc("After a release's upload was completed by `just publish`: check every project holds the version, then commit, tag and push it")]
 release-finish index="test":
 	@uv run --no-sync --project "{{justfile_directory()}}" python "{{justfile_directory()}}/scripts/release.py" release-finish "{{index}}" \
@@ -142,7 +147,7 @@ release-watch version:
 
 # What a release needs and `full-test` only finds out twenty minutes in, asked
 # first and in one line each, before anything changes. For every index: the venv is in step with
-# the lock (`uv sync --all-extras --check`), because every recipe runs `uv run --no-sync` and a venv
+# the lock (`uv sync --all-extras --no-extra gcloud --no-extra all --check`), because every recipe runs `uv run --no-sync` and a venv
 # behind the checkout answers with stale metadata. Then, for a release, every package whose version the
 # release does not move (the bump's `glob_exclude`: the contract) is either not on the index or held
 # there as this tree's build, file for file (scripts/own-versions-current), because an index never takes a
@@ -232,9 +237,9 @@ full-test-legs:
 		mkdir -p "$copy/cs-image-system-testconfig"
 		(cd "{{config_root}}" && tar --exclude=./.git --exclude=./generated --exclude=./_private --exclude=./.tofu-plugin-cache -cf - .) | tar -xf - -C "$copy/cs-image-system-testconfig"
 		echo "full-test: headless dry run --all over a private copy of the reference configuration ($copy)"
-		uv run cs-image-system --root-dir "$copy/cs-image-system-testconfig" run --all || { echo "full-test: FAILED dry run --all"; status=1; }
+		uv run --no-sync python scripts/with-released-families cs-image-system --root-dir "$copy/cs-image-system-testconfig" run --all || { echo "full-test: FAILED dry run --all"; status=1; }
 		echo "full-test: state query --strict over the copy"
-		uv run cs-image-system --root-dir "$copy/cs-image-system-testconfig" state query --strict || { echo "full-test: FAILED state query --strict"; status=1; }
+		uv run --no-sync python scripts/with-released-families cs-image-system --root-dir "$copy/cs-image-system-testconfig" state query --strict || { echo "full-test: FAILED state query --strict"; status=1; }
 		rm -rf "$copy"
 	else
 		echo "full-test: SKIPPED the credential-gated legs (dry run --all, state query --strict) -- a runtime session is absent or expired (see above)"
@@ -609,6 +614,10 @@ publish-starters dry="no":
 		[ -n "${STARTER_PUSH_TOKEN:-}" ] || { echo "publish-starters: STARTER_PUSH_TOKEN is not set -- the token that may push to the template repositories; nothing was published"; exit 2; }
 	fi
 	work=$(mktemp -d "${TMPDIR:-/tmp}/csis-starters.XXXXXX")
+	# a template carries the modules of the plugins installed where it is written: the Google Cloud
+	# family is not in this workspace's venv (spec 005), so it is layered in from the index for the
+	# writing alone (`gcloud-with`)
+	read -r -a with <<< "$(just gcloud-with)"
 	# every repository is checked before any is pushed: one that holds the version refuses them all
 	while read -r name repo; do
 		if ! git clone -q --depth 1 "https://github.com/$repo.git" "$work/$name.git" 2>/dev/null; then
@@ -618,7 +627,7 @@ publish-starters dry="no":
 		elif [ -n "$(git -C "$work/$name.git" ls-remote --tags origin "refs/tags/v$version")" ]; then
 			echo "publish-starters: $repo already holds v$version -- a version is published once; nothing was published"; exit 1
 		fi
-		uv run --no-sync python scripts/starter-tree "$name" "$version" "$work/$name.tree"
+		uv run --no-sync "${with[@]}" python scripts/starter-tree "$name" "$version" "$work/$name.tree"
 		uv run --no-sync cs-image-system public-safe --tree "$work/$name.tree" --config "$work/$name.tree/cfg/_config.yml"
 	done < <(uv run --no-sync python scripts/starter-tree --list)
 	# the commit's identity: this checkout's (the operator's), or GitHub Actions' bot in CI
@@ -677,7 +686,7 @@ clean-all: clean clean-venv
 
 # The system's live proof over the FROZEN FIXTURE (what this repository's CI `live` job runs; the
 # reference configuration's own CI proves the live tree). With real sessions -- the fixture names the real
-# account's networks and project -- and the fixture's committed TEST identity: `validate --online` (the one
+# account's networks -- and the fixture's committed TEST identity: `validate --online` (the one
 # check that asks the clouds: each runtime's networking against its account, recorded in the fixture's
 # meta-state/runtime-facts.yaml for this run and removed again afterwards, since the frozen fixture carries
 # no meta-state), then a headless dry run --all over a private copy (the record copied along; the installed
@@ -720,6 +729,26 @@ fixture-live:
 	[ "$had_meta_state" -eq 0 ] && rm -rf tests/fixtures/config/meta-state
 	if [ "$status" -eq 0 ]; then echo "fixture-live: passed"; else echo "fixture-live: FAILED"; fi
 	exit $status
+
+# The `uv run` options that layer the families released from their own repositories (the Google
+# Cloud family) in from the index for one command (scripts/with-released-families --print)
+[private]
+gcloud-with:
+	@uv run --no-sync python scripts/with-released-families --print
+
+# The starters that need every provider, the Google Cloud family's among them (tests/cloud_starters,
+# left out of the default collection; part of `test`): the family is released from its own repository
+# and this workspace's venv does not hold it, so it is layered in from the index for this run alone
+# (scripts/with-released-families), under the strict session, so a family that is absent fails instead
+# of skipping (spec 005, research R11). The index (or uv's cache); no cloud session: the starters'
+# clouds are stubbed, as every starter test's are. A starter's runtimes name placeholder accounts,
+# so an installed command could not validate one without a real account's `validate --online`.
+[doc("The starters that need every provider (tests/cloud_starters), with the Google Cloud family from the index, strict; part of `test`")]
+test-cloud-starters:
+	#!/usr/bin/env bash
+	set -euo pipefail
+	read -r -a with <<< "$(just gcloud-with)"
+	uv run --no-sync "${with[@]}" pytest tests/cloud_starters -p cs_image_system.system.testing.strict -q
 
 # Run the CLI against the reference configuration, e.g. `just cli validate`, `just cli config-drift`,
 # `just cli state query --strict`: the system's own live proofs. Its cycles run from ITS Justfile.

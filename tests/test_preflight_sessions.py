@@ -34,7 +34,7 @@ def test_static_keys_are_present_and_not_judged(tmp_path):
     assert "AKIA-test" not in env.line(datetime.now(timezone.utc), 30)          # never a value
     # the judged kinds are unchanged: a fixed expiry, a credential that renews itself (and was checked)
     assert preflight.SessionInfo("r", "aws", "p", datetime.now(timezone.utc)).judged
-    assert preflight.SessionInfo("r", "gcloud", "ADC", None, "refreshes itself", renews=True).judged
+    assert preflight.SessionInfo("r", "some-cloud", "token", None, "refreshes itself", renews=True).judged
 
 
 def test_preflight_never_closes_green_over_keys_it_cannot_judge(monkeypatch, tmp_path):

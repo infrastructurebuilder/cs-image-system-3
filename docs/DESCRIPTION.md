@@ -103,16 +103,21 @@ lifecycles.
 - **Plugins.** Every capability is a plugin discovered through Python
   entry points (`cs_image_system.plugins.*`). A plugin registers model
   classes and builder classes under a classification enum of about forty
-  values. The seventeen in-repo plugins: the `aws`, `gcloud` and `docker`
+  values. The plugins in this repository: the `aws` and `docker`
   runtimes; `default-os` (the OS families a base image is built from);
   `packer` (the image builders for EBS, GCE and docker images); `ansible`
   and `bash-mod` (modifications); `okta-opa` (Okta users, OPA groups) and
   `posix-identity` (POSIX groups and users on the machines); the OpenTofu
-  instance and storage builders for AWS (`tf-ebs-instance`), Google Cloud
-  (`tf-gcp`) and docker (`tf-docker`); the `s3`, `gcs` and `local` state
+  instance and storage builders for AWS (`tf-ebs-instance`) and docker
+  (`tf-docker`); the `s3` and `local` state
   backends; `contract-example` (the `inmem` state backend, the proof that
   a plugin can be written against nothing but the contract); and `dummy`, the
-  extension template and test double. Adding a cloud, a storage kind or
+  extension template and test double. The Google Cloud family, the
+  `gcloud` runtime, its OpenTofu instance and storage builders (`tf-gcp`)
+  and the `gcs` state backend, is released from its own repository,
+  [cs-image-system-google-cloud](https://github.com/infrastructurebuilder/cs-image-system-google-cloud),
+  and installed with the system's `[gcloud]` extra; a tree uses it like
+  any other plugin. Adding a cloud, a storage kind or
   a modification mechanism means adding a plugin, not editing the core.
   Each package has its own README ([docs/PLUGINS.md](PLUGINS.md)).
 - **Lifecycles.** Four generation lifecycles run in order — identity,
@@ -216,7 +221,12 @@ Three commitments show up everywhere:
   `v<version>`. The pushed `v*` tag makes CI upload to TestPyPI always
   and, for a final version, to PyPI too, skipping whatever the index
   already holds, and then push the five starter template repositories.
-  No package is released on its own.
+  No package of this repository is released on its own. The Google Cloud
+  family is the one exception to "the whole system": it is released from
+  its own repository on a version line of its own, the `[gcloud]` and
+  `[all]` extras name it by that line's range (which a bump here never
+  moves), and a release here refuses unless PyPI holds a release of the
+  Google Cloud family inside that range.
 
 Where the documentation and the system can diverge, and how to check, is
 [PARITY.md](PARITY.md).

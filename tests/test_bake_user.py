@@ -6,10 +6,9 @@
 
 The three fields (``config_username``, ``default_config_username``,
 ``default_owners``) are read; the entry beats the runtime's
-``ssh_username``; an AWS image entry's user is the most specific; a GCE
-chain bakes and provisions as one user, and an image naming another user
-than its root is refused; nothing to name a user is refused at validate;
-both packer sources emit what the resolver answers.
+``ssh_username``; an AWS image entry's user is the most specific; nothing
+to name a user is refused at validate; the packer source emits what the
+resolver answers.
 
 History: stage 63 items 22 and 23 (decided 2026-09-25).
 """
@@ -20,7 +19,7 @@ from typing import Any
 
 import yaml
 
-from tests.harness import FixtureRun, copy_config, load_context, stub_environment
+from tests.harness import copy_config, load_context, stub_environment
 
 
 def _edit(path: Path, fn) -> None:
@@ -61,8 +60,6 @@ def test_the_fixture_resolves_as_it_always_baked(tmp_path: Path, monkeypatch):
     ctx = _ctx(copy_config(tmp_path), monkeypatch)
     assert _resolve(ctx, "basic-rhel-9", "aws-east2-runtime") == "ec2-user"   # family default
     assert _resolve(ctx, "my-deb-12", "aws-east2-runtime") == "admin"
-    assert _resolve(ctx, "basic-rh-10", "gcloud-east1") == "packer"           # the entry
-    assert _resolve(ctx, "imgfile-basic-dask", "gcloud-east1") == "packer"    # via its root
     assert _resolve(ctx, "imgfile-data-science", "aws-east2-runtime") == "admin"
 
 
@@ -109,47 +106,7 @@ def test_nothing_to_name_a_user_is_refused_at_validate(tmp_path: Path, monkeypat
     assert any("basic-rhel-9" in e and "aws-east2-runtime" in e and "config_username" in e for e in errors), errors
 
 
-# ------------------------------------ 23. the entry wins; one user per chain
-
-def test_the_entry_beats_the_runtimes_ssh_username(tmp_path: Path, monkeypatch):
-    root = copy_config(tmp_path)
-    _edit(root / "cfg" / "runtime-builders.yml",
-          lambda d: _runtime(d, "gcloud-east1").update(ssh_username="runtime-user"))
-    ctx = _ctx(root, monkeypatch)
-    # the GCE entry declares `packer`; the runtime's value used to override it
-    assert _resolve(ctx, "basic-rh-10", "gcloud-east1") == "packer"
-
-
-def test_the_gce_provisioner_connects_as_the_user_the_source_bakes_as(tmp_path: Path, monkeypatch):
-    root = copy_config(tmp_path)
-    _edit(root / "cfg" / "os-builders.yml",
-          lambda d: _entry(_osb(d, "basic-rh-10"), "pckr-gce-ans").update(ssh_username="builder"))
-    run = FixtureRun(tmp_path, monkeypatch, config_root=root)
-    try:
-        assert run.run(["base-image", "instance-image"], apply=False).ok
-        gce = "".join(p.read_text() for p in run.generated.rglob("*.pkr.hcl") if "pckr-gce-ans" in str(p))
-        assert 'ssh_username = "builder"' in gce, "the source bakes as the entry's user"
-        assert 'user = "builder"' in gce and 'user = "packer"' not in gce, \
-            "the ansible provisioner connects as the same user (it said packer)"
-    finally:
-        run.restore_cwd()
-
-
-def test_a_gce_image_naming_another_user_than_its_root_is_refused(tmp_path: Path, monkeypatch):
-    from cs_image_system.engine.commands.validate import check_bake_users
-    root = copy_config(tmp_path)
-
-    def edit(d):
-        dask = next(i for i in d["images"] if i["name"] == "imgfile-basic-dask")
-        next(r for r in dask["runtimes"] if r["image_builder"] == "pckr-gce-ans")["ssh_username"] = "other"
-    _edit(root / "images" / "image1.yaml", edit)
-    ctx = _ctx(root, monkeypatch)
-    errors = [str(e) for e in check_bake_users(ctx)]
-    assert any("imgfile-basic-dask" in e and "'other'" in e and "gcloud-east1" in e
-               and "'basic-rh-10'" in e and "'packer'" in e for e in errors), errors
-    # the same pair on AWS is allowed: AWS needs no one-user chain
-    assert not any("aws-east2-runtime" in e for e in errors), errors
-
+# ------------------------------------------------------ 23. the entry wins
 
 def test_the_fixture_has_no_bake_user_finding(tmp_path: Path, monkeypatch):
     from cs_image_system.engine.commands.validate import check_bake_users
@@ -168,12 +125,10 @@ def test_an_aws_image_entry_user_is_the_most_specific(tmp_path: Path, monkeypatc
     assert _resolve(ctx, "imgfile-basic-dask", "aws-east2-runtime") == "dask-user"
 
 
-def test_the_resolver_is_what_both_sources_emit(tmp_path: Path, monkeypatch):
-    """The two packer sources no longer carry their own fallbacks."""
+def test_the_resolver_is_what_the_source_emits(tmp_path: Path, monkeypatch):
+    """The packer source no longer carries its own fallback."""
     import inspect
 
     from cs_image_system.aws_runtime import aws_packer_source
-    from cs_image_system.gcloud_runtime import gcp_packer_source
-    for mod in (aws_packer_source, gcp_packer_source):
-        src = inspect.getsource(mod)
-        assert "resolve_bake_user(" in src and "model.ssh_username" not in src, mod.__name__
+    src = inspect.getsource(aws_packer_source)
+    assert "resolve_bake_user(" in src and "model.ssh_username" not in src, aws_packer_source.__name__

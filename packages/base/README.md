@@ -1337,7 +1337,10 @@ itself needs is short.
   image builder, no OS builder, no storage, group, user, instance or mod
   builder and no state backend; every one comes from a plugin that
   subclasses a base here and registers through the contract's entry
-  points. The plugin READMEs say what each needs:
+  points. The plugin READMEs say what each needs (the Google Cloud
+  family's three, `gcloud-runtime-plugin`, `gcs-state-plugin` and
+  `tf-gcp-plugin`, are in its own repository, from which it is
+  released):
   [ansible-plugin](../ansible-plugin/README.md),
   [aws-runtime-plugin](../aws-runtime-plugin/README.md),
   [bash-mod-plugin](../bash-mod-plugin/README.md),
@@ -1345,14 +1348,14 @@ itself needs is short.
   [default-os-plugin](../default-os-plugin/README.md),
   [docker-plugin](../docker-plugin/README.md),
   [dummy-plugin](../dummy-plugin/README.md),
-  [gcloud-runtime-plugin](../gcloud-runtime-plugin/README.md),
-  [gcs-state-plugin](../gcs-state-plugin/README.md),
+  [gcloud-runtime-plugin](https://github.com/infrastructurebuilder/cs-image-system-google-cloud/blob/develop/packages/gcloud-runtime-plugin/README.md),
+  [gcs-state-plugin](https://github.com/infrastructurebuilder/cs-image-system-google-cloud/blob/develop/packages/gcs-state-plugin/README.md),
   [local-state-plugin](../local-state-plugin/README.md),
   [okta-opa-plugin](../okta-opa-plugin/README.md),
   [packer-plugin](../packer-plugin/README.md),
   [posix-identity-plugin](../posix-identity-plugin/README.md),
   [tf-ebs-instance-plugin](../tf-ebs-instance-plugin/README.md),
-  [tf-gcp-plugin](../tf-gcp-plugin/README.md),
+  [tf-gcp-plugin](https://github.com/infrastructurebuilder/cs-image-system-google-cloud/blob/develop/packages/tf-gcp-plugin/README.md),
   [tf-s3-state-plugin](../tf-s3-state-plugin/README.md).
 
 ## Configuration reference

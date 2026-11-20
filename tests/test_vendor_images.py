@@ -8,7 +8,8 @@ The vendor's newest image moving under a base this tree has not baked is
 named and is not the tree's drift: `config-drift` passes on it alone and
 CI's guard (`runtime-unchanged`) passes a vendor move alone, fails a vendor
 move beside a change of the runtime's, and never reads a diff cut short as
-a move. A pinned GCE image that is not READY is refused. `validate` prints
+a move -- on the fixture's AWS runtime, whose vendor line is the base
+source's `image-id` filter. `validate` prints
 the modification tests' stand-in per OS builder and WARNS when a query
 plainly names another family than the declared one.
 
@@ -21,20 +22,23 @@ import os
 import re
 from pathlib import Path
 
-import pytest
 import yaml
-from harness import copy_config, load_context, stub_environment
+from harness import VENDOR_AMI, copy_config, load_context, stub_environment
 from test_release_whole import _copy_of_committed, _generated_tree
 
+AWS = "aws-east2-runtime"
+MOVED_AMI = "ami-0feedfacecafe0002"
 
-def _gce_source(root: Path) -> Path:
-    return next(p for p in (root / "generated" / "base-image").rglob("*.pkr.hcl")
-                if "gce" in str(p.relative_to(root)) and "source_image =" in p.read_text())
+
+def _aws_source(root: Path) -> Path:
+    """The AWS base's packer source that names the vendor's AMI (basic-rh-10 on pckr-ebs-ans)."""
+    return next(p for p in (root / "generated" / "base-image" / "pckr-ebs-ans").rglob("*source-basic-rh-10-*.pkr.hcl")
+                if "image-id =" in p.read_text())
 
 
 def _move_the_vendor_image(root: Path) -> None:
-    f = _gce_source(root)
-    f.write_text(re.sub(r'source_image = "[^"]*"', 'source_image = "debian-11-v2"', f.read_text(), count=1))
+    f = _aws_source(root)
+    f.write_text(f.read_text().replace(f'image-id = "{VENDOR_AMI}"', f'image-id = "{MOVED_AMI}"', 1))
 
 
 # ------------------------------- a vendor move is named, and is not drift
@@ -47,9 +51,10 @@ def test_the_vendors_image_moving_under_an_unbaked_base_is_named_and_not_behind(
     assert vendor_image_moves(moved) == [
         "base-image/packer-ebs/image-generation/block-000/source-el10.pkr.hcl: "
         'image-id = "ami-0426928e75e7093d4" -> image-id = "ami-0281f4b4279b17b5b"']
-    gce = ["diff base-image/pckr-gce-ans/image-generation/block-000/source.pkr.hcl",
-           '-  source_image = "almalinux-10-v20261005"', '+  source_image = "almalinux-10-v20261013"']
-    assert len(vendor_image_moves(gce)) == 1
+    # the core reads a `source_image` line (a builder that names its vendor image so) the same way
+    named = ["diff base-image/some-builder/image-generation/block-000/source.pkr.hcl",
+             '-  source_image = "vendor-10-v20261005"', '+  source_image = "vendor-10-v20261013"']
+    assert len(vendor_image_moves(named)) == 1
     assert vendor_image_moves(moved + ["diff instance-image/x.tf", "-a = 1", "+a = 2"]) == []
     assert vendor_image_moves(["diff base-image/x/image-generation/y.pkr.hcl", '-  ami_name = "a"', '+  ami_name = "b"']) == []
     assert vendor_image_moves(["Only in now/base-image: z"]) == []
@@ -75,10 +80,10 @@ def test_the_guard_passes_the_vendors_image_moving_under_an_unbaked_base(tmp_pat
     fixture_run = _generated_tree(tmp_path, monkeypatch)
     os.chdir(fixture_run.config_root)
     _move_the_vendor_image(fixture_run.config_root)
-    code, lines = runtime_unchanged(fixture_run.ctx, "gcloud-east1", "HEAD")
+    code, lines = runtime_unchanged(fixture_run.ctx, AWS, "HEAD")
     assert code == 0, lines
     assert "HEAD" in lines[0] and "vendor" in lines[0], lines
-    assert any('source_image = "debian-11-v1" -> source_image = "debian-11-v2"' in ln for ln in lines[1:]), lines
+    assert any(f'image-id = "{VENDOR_AMI}" -> image-id = "{MOVED_AMI}"' in ln for ln in lines[1:]), lines
     fixture_run.restore_cwd()
 
 
@@ -88,9 +93,9 @@ def test_the_guard_still_fails_a_vendor_move_beside_a_change_of_the_runtimes(tmp
     root = fixture_run.config_root
     os.chdir(root)
     _move_the_vendor_image(root)
-    f = _gce_source(root)
+    f = _aws_source(root)
     f.write_text(f.read_text() + "# a declaration changed\n")
-    code, lines = runtime_unchanged(fixture_run.ctx, "gcloud-east1", "HEAD")
+    code, lines = runtime_unchanged(fixture_run.ctx, AWS, "HEAD")
     assert code == 1 and "CHANGED" in lines[0], lines
     fixture_run.restore_cwd()
 
@@ -99,24 +104,24 @@ def test_the_guard_still_fails_a_vendor_move_beside_a_change_of_the_runtimes(tmp
 
 def test_a_diff_cut_short_is_never_read_as_a_vendor_move():
     from cs_image_system.engine.commands.emission import vendor_image_moves
-    gce = ["diff base-image/pckr-gce-ans/image-generation/block-000/source.pkr.hcl",
-           '-  source_image = "almalinux-10-v20261023"', '+  source_image = "almalinux-10-v20261027"']
-    assert len(vendor_image_moves(gce)) == 1
+    aws = ["diff base-image/pckr-ebs-ans/image-generation/block-000/source.pkr.hcl",
+           '-        image-id = "ami-0426928e75e7093d4",', '+        image-id = "ami-0281f4b4279b17b5b",']
+    assert len(vendor_image_moves(aws)) == 1
     # diff_trees ends a long diff with this line; what it left out may be anything
-    assert vendor_image_moves([*gce, "... (40 more lines)"]) == []
+    assert vendor_image_moves([*aws, "... (40 more lines)"]) == []
     # nor is a file whose difference could not be shown
-    assert vendor_image_moves([*gce, "diff base-image/pckr-gce-ans/image-generation/x.bin",
+    assert vendor_image_moves([*aws, "diff base-image/pckr-ebs-ans/image-generation/x.bin",
                                "(binary files differ)"]) == []
 
 
 def test_a_change_past_the_cut_is_not_excused(tmp_path):
     from cs_image_system.engine.commands.emission import diff_trees, vendor_image_moves
     a, b = tmp_path / "committed", tmp_path / "now"
-    for side, image, size in ((a, "v1", "e2-micro"), (b, "v2", "e2-small")):
-        d = side / "base-image" / "pckr-gce-ans" / "image-generation"
+    for side, image, size in ((a, "0001", "t3.micro"), (b, "0002", "t3.small")):
+        d = side / "base-image" / "pckr-ebs-ans" / "image-generation"
         d.mkdir(parents=True)
-        (d / "a-source.pkr.hcl").write_text(f'source "x" "y" {{\n  source_image = "debian-11-{image}"\n}}\n')
-        (d / "b-build.pkr.hcl").write_text(f'build {{\n  machine_type = "{size}"\n}}\n')
+        (d / "a-source.pkr.hcl").write_text(f'data "amazon-ami" "y" {{\n  filters = {{\n    image-id = "ami-0vendor{image}",\n  }}\n}}\n')
+        (d / "b-build.pkr.hcl").write_text(f'source "amazon-ebs" "y" {{\n  instance_type = "{size}"\n}}\n')
     whole = diff_trees(a, b)
     assert vendor_image_moves(whole) == [], whole
     # cut just after the first file's diff: what is shown is all vendor lines
@@ -124,27 +129,6 @@ def test_a_change_past_the_cut_is_not_excused(tmp_path):
     cut = diff_trees(a, b, limit=first)
     assert cut[-1].startswith("... (") and all("b-build" not in ln for ln in cut), cut
     assert vendor_image_moves(cut) == [], cut
-
-
-# ----------------------------------- a vendor image that is not ready
-
-def test_a_pinned_gce_image_that_is_not_ready_is_refused(tmp_path: Path, monkeypatch):
-    from typing import Any, cast
-
-    from cs_image_system.gcloud_runtime import gcp_runtime_builders as g
-    stub_environment(monkeypatch)
-    ctx = load_context(copy_config(tmp_path))
-    rtb = cast(Any, ctx.runtime_builders["gcloud-east1"])
-    entry = next(e for e in ctx.os_builders["basic-rh-10"].get_configs_for_image_builders().values()
-                 if e.get_image_builder() == "pckr-gce-ans")
-    monkeypatch.setattr(g, "query_image", lambda **kw: {"name": "almalinux-10-x", "status": "PENDING",
-                                                          "self_link": "https://x/projects/almalinux-cloud/global/images/almalinux-10-x"})
-    with pytest.raises(ValueError, match="PENDING"):
-        g.GCPCloudBuilder.query_provider_image_by_id(rtb, entry, "almalinux-10-x")
-    monkeypatch.setattr(g, "query_image", lambda **kw: {"name": "almalinux-10-x", "status": "READY",
-                                                          "self_link": "https://x/projects/almalinux-cloud/global/images/almalinux-10-x"})
-    found = g.GCPCloudBuilder.query_provider_image_by_id(rtb, entry, "almalinux-10-x")
-    assert found is not None and found[0] == "almalinux-10-x"
 
 
 # ----------------------------------- validate: the stand-in, and the family a query names

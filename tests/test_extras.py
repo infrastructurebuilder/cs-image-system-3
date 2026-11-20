@@ -13,9 +13,9 @@ the same table (every registration carries its namespace);
 the starters' ``Justfile`` maps the same words to the same extras in its
 ``extras`` recipe (the two tables are one); and ``validate`` on a tree
 declaring a word whose plugin is not installed prints one configuration
-line naming the extra -- proved by hiding the gcloud distributions from
-the loader and validating the frozen fixture, which declares the runtime
-``gcloud-east1`` with ``type: gcloud``.
+line naming the extra -- proved by validating a copy of the frozen
+fixture that declares a runtime with ``type: gcloud``: the Google Cloud
+family is released from its own repository and is not installed here.
 """
 from __future__ import annotations
 
@@ -23,21 +23,20 @@ import re
 import shutil
 import subprocess
 from pathlib import Path
-from typing import Any
 
-import pytest
 from harness import REPO, copy_config, stub_environment
 from typer.testing import CliRunner
 
 from cs_image_system import extras
 from cs_image_system.base.registry import UnknownTypeError
 from cs_image_system.contract.constants import VCT
-from cs_image_system.engine import loader
 from cs_image_system.engine.loader import installed_registry
 
 SKELETON_JUSTFILE = REPO / "docs/examples/_skeleton/Justfile"
-GCLOUD_DISTRIBUTIONS = {"cs-image-system-gcloud-runtime-plugin", "cs-image-system-tf-gcp-plugin",
-                        "cs-image-system-gcs-state-plugin"}
+#: the extras whose plugins are released from a repository of their own and are not installed in this
+#: workspace: their words stay in the table (so a tree that declares them is told which extra to install),
+#: and the family's own repository holds them equal to its registrations
+ELSEWHERE = {"gcloud": "infrastructurebuilder/cs-image-system-google-cloud"}
 runner = CliRunner()
 
 
@@ -63,18 +62,24 @@ def _installed_words() -> dict[tuple[str, str], str]:
 def test_the_static_table_is_what_the_installed_plugins_register():
     """The table cannot drift: regenerated from the registry, it is equal."""
     regenerated = _installed_words()
-    assert regenerated == extras.WORDS, {
-        "missing from WORDS": sorted(set(regenerated) - set(extras.WORDS)),
-        "stale in WORDS": sorted(set(extras.WORDS) - set(regenerated)),
-        "mapped elsewhere": sorted(k for k in regenerated if k in extras.WORDS and extras.WORDS[k] != regenerated[k]),
+    here = {k: extra for k, extra in extras.WORDS.items() if extra not in ELSEWHERE}
+    assert regenerated == here, {
+        "missing from WORDS": sorted(set(regenerated) - set(here)),
+        "stale in WORDS": sorted(set(here) - set(regenerated)),
+        "mapped elsewhere": sorted(k for k in regenerated if k in here and here[k] != regenerated[k]),
     }
+    for extra in ELSEWHERE:                                   # kept, so an absent family is still named
+        assert any(e == extra for e in extras.WORDS.values()), f"the table lost the words of [{extra}]"
 
 
 def test_every_extras_namespace_is_an_installed_plugin_and_nothing_of_the_core_needs_one():
     namespaces = {k.namespace for k in installed_registry().registration_keys()}
     for extra, members in extras.EXTRAS.items():
         for ns in members:
-            assert ns in namespaces, f"[{extra}] names {ns}, which no installed plugin registers as"
+            if extra in ELSEWHERE:
+                assert ns not in namespaces, f"[{extra}] is released from {ELSEWHERE[extra]}, but {ns} is installed here"
+            else:
+                assert ns in namespaces, f"[{extra}] names {ns}, which no installed plugin registers as"
     # a word the bare install carries is never an extra's
     for key in installed_registry().registration_keys():
         if key.namespace not in {ns for members in extras.EXTRAS.values() for ns in members}:
@@ -167,48 +172,20 @@ def test_take_and_every_workflow_install_the_umbrella_with_the_trees_extras():
 
 # -------------------------------------------------- validate names the extra of an absent plugin
 
-class _Points:
-    def __init__(self, points: list[Any]) -> None:
-        self._points = {p.name: p for p in points}
-
-    def __len__(self) -> int:
-        return len(self._points)
-
-    def __iter__(self):
-        return iter(self._points.values())
-
-    def __getitem__(self, name: str) -> Any:
-        return self._points[name]
+GCLOUD_RUNTIME = """    - name: gcloud-east1
+      type: gcloud
+      project_id: my-project
+      zone: us-east1-b
+      region: us-east1
+"""
 
 
-@pytest.fixture
-def without_gcloud(monkeypatch):
-    """The loader sees every installed entry point except the three gcloud
-    distributions'; discovery runs again with that view (and once more,
-    whole, when the test is done, so the suite's view is restored)."""
-    real = loader.entry_points
-
-    def hiding(group: str) -> _Points:
-        def shown(point: Any) -> bool:
-            dist = getattr(point, "dist", None)
-            return dist is None or dist.name not in GCLOUD_DISTRIBUTIONS
-        return _Points([p for p in real(group=group) if shown(p)])
-
-    monkeypatch.setattr(loader, "entry_points", hiding)
-    loader._discovery.cache_clear()
-    loader.discover_plugins()                 # the plugins are held to the contract BEFORE any hook is stubbed
-    try:
-        yield
-    finally:
-        monkeypatch.undo()
-        loader._discovery.cache_clear()
-        loader.discover_plugins()
-
-
-def test_validate_names_the_missing_extra_in_one_line(without_gcloud, tmp_path, monkeypatch):
+def test_validate_names_the_missing_extra_in_one_line(tmp_path, monkeypatch):
     stub_environment(monkeypatch)
     assert "gcloud-runtime" not in {k.namespace for k in installed_registry().registration_keys()}
     root = copy_config(tmp_path)
+    rb = root / "cfg" / "runtime-builders.yml"
+    rb.write_text(rb.read_text().replace("runtime_builders:\n", "runtime_builders:\n" + GCLOUD_RUNTIME, 1))
     from cs_image_system.system.cli import app
     result = runner.invoke(app, ["--root-dir", str(root), "validate"], catch_exceptions=False, input="")
     assert result.exit_code == 1, result.output
@@ -221,9 +198,9 @@ def test_a_word_no_extra_carries_is_unknown_with_the_registered_words_listed(tmp
     stub_environment(monkeypatch)
     root = copy_config(tmp_path)
     rb = root / "cfg" / "runtime-builders.yml"
-    rb.write_text(rb.read_text().replace("type: gcloud", "type: nonsense", 1))
+    rb.write_text(rb.read_text().replace("      type: docker\n", "      type: nonsense\n", 1))
     from cs_image_system.system.cli import app
     result = runner.invoke(app, ["--root-dir", str(root), "validate"], catch_exceptions=False, input="")
     assert result.exit_code == 1, result.output
-    assert "runtime type 'nonsense'" in result.output and "register aws, docker, gcloud" in result.output
+    assert "runtime type 'nonsense'" in result.output and "register aws, docker" in result.output
     assert "Validation failed with 1 error(s)." in result.output

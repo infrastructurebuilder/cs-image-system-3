@@ -36,8 +36,8 @@ def _passed_post_bake(ms, build_id: str) -> None:
     """`release` requires a passing post-bake record where the image
     declares tests.post_bake (the fixture's dask image does); these tests are
     about the other refusals, so record one."""
-    ms.record_image_test(build_id, {"ok": True, "run": "post-bake", "instance": "gce-test",
-                                    "runtime": "gcloud-east1", "image": "imgfile-basic-dask", "time": "t", "checks": []})
+    ms.record_image_test(build_id, {"ok": True, "run": "post-bake", "instance": "test2",
+                                    "runtime": "aws-east2-runtime", "image": "imgfile-basic-dask", "time": "t", "checks": []})
 
 
 def _bake(fixture_run, lifecycle, block_dir, amis):

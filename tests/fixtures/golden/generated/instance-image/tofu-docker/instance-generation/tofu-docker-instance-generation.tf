@@ -55,26 +55,6 @@ data "terraform_remote_state" "aws_s3" {
         profile = "noaa"
     }
 }
-data "terraform_remote_state" "gcp_pd" {
-    backend = "s3"
-    
-    config = {
-        bucket = "my-east1-tfstate-bucket"
-        key = "statefiles/csia/gcp_pd.tfstate"
-        region = "us-east-1"
-        profile = "noaa"
-    }
-}
-data "terraform_remote_state" "gcp_gcs" {
-    backend = "s3"
-    
-    config = {
-        bucket = "my-east1-tfstate-bucket"
-        key = "statefiles/csia/gcp_gcs.tfstate"
-        region = "us-east-1"
-        profile = "noaa"
-    }
-}
 data "terraform_remote_state" "docker_volume" {
     backend = "local"
     

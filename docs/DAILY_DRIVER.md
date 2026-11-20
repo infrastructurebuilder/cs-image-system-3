@@ -98,7 +98,12 @@ runtime: each provider is an extra of it -- `[aws]`, `[gcloud]`,
 `[docker]`, `[okta]`, and `[all]` for every one -- and a tree needs the
 extras its `type:` words name (an AWS tree with Okta groups is
 `cs-image-system[aws,okta]`). Your tree's `Justfile` knows: `just extras`
-prints them, and `just take` installs with them.
+prints them, and `just take` installs with them. `[gcloud]` brings the
+Google Cloud family (the `gcloud` runtime, its GCE roots and the `gcs`
+state backend), which is released from its own repository on a version
+line of its own; you install it the same way as any other extra, and
+"Installing a release" in [OPERATIONS.md](OPERATIONS.md) says how its
+versions are named and found.
 
 ```sh
 uv tool install "cs-image-system[$(just extras)]"    # the command on PATH, with this tree's extras
@@ -245,6 +250,13 @@ The system generates no IAM. Read [OPERATIONS.md](OPERATIONS.md),
 "Network" and "Instance access and sizing".
 
 ### 1.4 GCP, if you use the GCE runtime
+
+The GCE runtime, its roots and the `gcs` state backend are the Google
+Cloud family's plugins, released from its own repository and installed
+with the `[gcloud]` extra (section 1.1; "Installing a release" in
+[OPERATIONS.md](OPERATIONS.md)). Each of its packages' READMEs (section
+7 links them) gives the per-package detail, and its fields are in the
+[Google Cloud family's own configuration reference](https://github.com/infrastructurebuilder/cs-image-system-google-cloud/blob/develop/docs/CONFIGURATION.md).
 
 Nothing in the system needs AWS for a GCE runtime: the runtime, its
 storages and its state backend are the declarations, and the GCE starter
@@ -484,6 +496,12 @@ cs-image-system init-config my-config --from complete
 cs-image-system init-config my-config --from standard-aws-posix   # AWS, people as POSIX accounts, no Okta
 cs-image-system init-config my-config --from standard-docker      # a docker host, people as POSIX accounts, no cloud
 ```
+
+`init-config` writes into the tree's `tfmodules/` the modules of the
+plugins that are installed, so make `standard-gce` or `complete`, which
+declare the Google Cloud family, from an install that carries the
+`[gcloud]` extra (section 1.1); the template repositories already carry
+those modules.
 
 A destination that is empty, or a fresh clone holding only `.git` (the
 usual order: create the repository on GitHub, clone it, write into the
@@ -954,7 +972,10 @@ bound to the new runtime; on the base, a second source under
 in `storage_types`; on each image that should exist there, a second
 `runtimes[]` entry (a bake per runtime); a storage and an instance
 declared on the new runtime (`runtime:` and the `type:` of its
-builder). Then the credentials of section 1.3 or 1.4, CI's secrets for
+builder). Then the extra the new cloud's plugins come with (`just extras`
+reads it from the new `type:` words, and `just take` installs it; for GCE
+that is `[gcloud]`, the Google Cloud family from its own repository,
+section 1.1), the credentials of section 1.3 or 1.4, CI's secrets for
 the cloud ([CI_SETUP.md](examples/_skeleton/CI_SETUP.md), 3.3 or 3.4,
 and the bootstrap's section for it), and, for GCE, the runner service
 account's address allowed through `public_safe.allow`
@@ -1176,7 +1197,7 @@ its code is next changed.
 | --- | --- | --- |
 | `run --commit: REFUSED unpinned -- this tree pins cs-image-system <version> (.csis-version) and the system running is not that release installed from an index` (or the same under `lineage restamp --commit:`), exit 2, before anything is generated or, for a restamp, computed | a committing run (`just record`, `just run`, a `cloud-*` recipe that runs) or a committing `lineage restamp` was started by a command that is not the tree's pinned release: another version, or a development checkout (`CSIS` pointing at a system checkout's venv), whatever version the checkout says it is. The tree's CI installs the pin and would judge such a record BEHIND | record with the pinned release: `CSIS="$HOME/.local/bin/cs-image-system" just record`, after `just take <version>` if the tree should move; or go on deliberately with `CSIS_ALLOW_UNPINNED=1 just record` (section 1.1) |
 | `init: 'cs-image-system' is not runnable` | the release is not installed, or `CSIS` names a command that does not run | `uv tool install "cs-image-system[$(just extras)]"`, or `export CSIS="uv run cs-image-system"` beside a pyproject that depends on it |
-| `runtime type 'gcloud' is registered by no installed plugin: install the extra: uv tool install 'cs-image-system[gcloud]'` under `Validation failed with 1 error(s).` | the tree declares a `type:` word whose plugin comes with an extra the install left out (a bare `cs-image-system` carries no runtime) | the line's own command, or `uv tool install "cs-image-system[$(just extras)]"`; `just take` installs with the extras by itself |
+| `runtime type 'gcloud' is registered by no installed plugin: install the extra: uv tool install 'cs-image-system[gcloud]'` under `Validation failed with 1 error(s).` | the tree declares a `type:` word whose plugin comes with an extra the install left out (a bare `cs-image-system` carries no runtime; `gcloud` is the Google Cloud family's, released from its own repository and installed by that extra all the same, section 1.1) | the line's own command, or `uv tool install "cs-image-system[$(just extras)]"`; `just take` installs with the extras by itself |
 | `preflight: a session is absent or has EXPIRED`; `Token has expired and refresh failed`; `the configuration cannot load: AWS refused the credentials (RequestExpired)` (from a real run's or `validate --online`'s networking check; a plain `validate`, a dry run and `preflight` load without a session) | the AWS portal session behind the profile ended (8h from a browser sign-in; less if the CLI token was minted mid-session); an `sso-session` profile's token lasts an hour and is judged only once it has lapsed, so a lapse mid-run is environmental, not a defect. `RequestExpired` is what temporary keys pasted into the shell or a credentials file say when they lapse, and `preflight` cannot see that coming: it reads no expiry for keys ([static keys](INCIDENTS.md#static-keys-lapsed-under-a-green-session-preflight), [the sso-session hour](INCIDENTS.md#an-sso-session-profile-was-read-as-absent-for-an-hour)) | `aws sso login --profile <profile>` for an SSO profile; FRESH keys for pasted ones (`aws sso login` does nothing for them); then re-run |
 | `preflight: N session(s) present; 1 NOT JUDGED (no expiry readable: ...)` in yellow, exit 0, in place of `every session present` | a session preflight can see but not time: static keys in a profile or in the environment. Present is all it can say without a cloud call, which it makes none of by design, and it says so rather than printing a green line over keys that may already have lapsed ([INCIDENTS.md](INCIDENTS.md#static-keys-lapsed-under-a-green-session-preflight)) | nothing, if you know the keys are fresh; if the next command says `RequestExpired`, fresh keys |
 | `runtime <gce> could not answer` under `unavailable:` | no Application Default Credentials, or they expired, or Google was unreachable | `gcloud auth application-default login --impersonate-service-account=...`; an `unavailable` line is not drift, but the strict query refuses on it |
@@ -1250,7 +1271,9 @@ Each README ends, after its own content, with the same four sections:
 and every variation), **What it tests and verifies**, **When it fails**. The
 four links after each paragraph go straight to them. The three core
 packages come first; a plugin is selected by the `type:` a builder entry
-declares.
+declares. The Google Cloud family's three packages (`gcloud-runtime-plugin`,
+`tf-gcp-plugin`, `gcs-state-plugin`) are released from its own
+repository, so their links go to their READMEs there.
 
 - [contract](../packages/contract/README.md): the plugin contract. The
   protocols a model and a builder satisfy, the constants and
@@ -1310,13 +1333,13 @@ declares.
   [configuration](../packages/aws-runtime-plugin/README.md#configuration-reference) ·
   [tests](../packages/aws-runtime-plugin/README.md#what-it-tests-and-verifies) ·
   [failures](../packages/aws-runtime-plugin/README.md#when-it-fails)
-- [gcloud-runtime-plugin](../packages/gcloud-runtime-plugin/README.md): the
+- [gcloud-runtime-plugin](https://github.com/infrastructurebuilder/cs-image-system-google-cloud/blob/develop/packages/gcloud-runtime-plugin/README.md): the
   GCE context: ADC and impersonation, IAP sessions, labels, the cost
   posture.
-  [prerequisites](../packages/gcloud-runtime-plugin/README.md#prerequisites-and-integration) ·
-  [configuration](../packages/gcloud-runtime-plugin/README.md#configuration-reference) ·
-  [tests](../packages/gcloud-runtime-plugin/README.md#what-it-tests-and-verifies) ·
-  [failures](../packages/gcloud-runtime-plugin/README.md#when-it-fails)
+  [prerequisites](https://github.com/infrastructurebuilder/cs-image-system-google-cloud/blob/develop/packages/gcloud-runtime-plugin/README.md#prerequisites-and-integration) ·
+  [configuration](https://github.com/infrastructurebuilder/cs-image-system-google-cloud/blob/develop/packages/gcloud-runtime-plugin/README.md#configuration-reference) ·
+  [tests](https://github.com/infrastructurebuilder/cs-image-system-google-cloud/blob/develop/packages/gcloud-runtime-plugin/README.md#what-it-tests-and-verifies) ·
+  [failures](https://github.com/infrastructurebuilder/cs-image-system-google-cloud/blob/develop/packages/gcloud-runtime-plugin/README.md#when-it-fails)
 - [docker-plugin](../packages/docker-plugin/README.md): a
   durable host's container daemon as a runtime: images in the
   daemon's store, builds named by tags, bakes through `docker exec`.
@@ -1381,15 +1404,15 @@ declares.
   [configuration](../packages/tf-ebs-instance-plugin/README.md#configuration-reference) ·
   [tests](../packages/tf-ebs-instance-plugin/README.md#what-it-tests-and-verifies) ·
   [failures](../packages/tf-ebs-instance-plugin/README.md#when-it-fails)
-- [tf-gcp-plugin](../packages/tf-gcp-plugin/README.md): the GCE instance and
+- [tf-gcp-plugin](https://github.com/infrastructurebuilder/cs-image-system-google-cloud/blob/develop/packages/tf-gcp-plugin/README.md): the GCE instance and
   storage pieces.
-  [prerequisites](../packages/tf-gcp-plugin/README.md#prerequisites-and-integration) ·
-  [configuration](../packages/tf-gcp-plugin/README.md#configuration-reference) ·
-  [tests](../packages/tf-gcp-plugin/README.md#what-it-tests-and-verifies) ·
-  [failures](../packages/tf-gcp-plugin/README.md#when-it-fails)
+  [prerequisites](https://github.com/infrastructurebuilder/cs-image-system-google-cloud/blob/develop/packages/tf-gcp-plugin/README.md#prerequisites-and-integration) ·
+  [configuration](https://github.com/infrastructurebuilder/cs-image-system-google-cloud/blob/develop/packages/tf-gcp-plugin/README.md#configuration-reference) ·
+  [tests](https://github.com/infrastructurebuilder/cs-image-system-google-cloud/blob/develop/packages/tf-gcp-plugin/README.md#what-it-tests-and-verifies) ·
+  [failures](https://github.com/infrastructurebuilder/cs-image-system-google-cloud/blob/develop/packages/tf-gcp-plugin/README.md#when-it-fails)
 - [tf-s3-state-plugin](../packages/tf-s3-state-plugin/README.md),
   [local-state-plugin](../packages/local-state-plugin/README.md),
-  [gcs-state-plugin](../packages/gcs-state-plugin/README.md): where a root's
+  [gcs-state-plugin](https://github.com/infrastructurebuilder/cs-image-system-google-cloud/blob/develop/packages/gcs-state-plugin/README.md): where a root's
   state lives, and how it moves.
   [s3: prerequisites](../packages/tf-s3-state-plugin/README.md#prerequisites-and-integration) ·
   [s3: configuration](../packages/tf-s3-state-plugin/README.md#configuration-reference) ·
@@ -1397,8 +1420,8 @@ declares.
   [s3: failures](../packages/tf-s3-state-plugin/README.md#when-it-fails) ·
   [local: configuration](../packages/local-state-plugin/README.md#configuration-reference) ·
   [local: failures](../packages/local-state-plugin/README.md#when-it-fails) ·
-  [gcs: configuration](../packages/gcs-state-plugin/README.md#configuration-reference) ·
-  [gcs: failures](../packages/gcs-state-plugin/README.md#when-it-fails)
+  [gcs: configuration](https://github.com/infrastructurebuilder/cs-image-system-google-cloud/blob/develop/packages/gcs-state-plugin/README.md#configuration-reference) ·
+  [gcs: failures](https://github.com/infrastructurebuilder/cs-image-system-google-cloud/blob/develop/packages/gcs-state-plugin/README.md#when-it-fails)
 - [contract-example-plugin](../packages/contract-example-plugin/README.md):
   the proof of the contract: OpenTofu's `inmem` state backend
   as a plugin written against nothing but the contract, subclassing nothing of
@@ -1442,8 +1465,17 @@ Development generally requires a tool that can run `docker` commands, like
 docker desktop or OrbStack (maybe PodMan).
 
 Everything above is for a release. Developing the system is this
-repository: `just init`, then `just test` is the bar (lint, types, the
-fast suite over the frozen fixture and its golden emission), `just full-test`
+repository, which holds every provider but the Google Cloud family: the
+Google Cloud family is developed, tested and released in its own
+repository,
+[cs-image-system-google-cloud](https://github.com/infrastructurebuilder/cs-image-system-google-cloud),
+and this workspace's venv does not hold it ("Installing a release" in
+[OPERATIONS.md](OPERATIONS.md)). `just init`, then `just test` is the bar
+(lint, types, the
+fast suite over the frozen fixture and its golden emission, which declare
+AWS and docker, and the tests of the two starters that declare the Google
+Cloud family, with the Google Cloud family layered in from the package
+index for the run), `just full-test`
 adds the docker-backed modification tests and, when the
 sessions are present, a dry run and a strict state query over a private
 copy of the reference configuration, which is checked out BESIDE this
@@ -1453,7 +1485,7 @@ repository as `cs-image-system-testconfig` for that purpose alone;
 cuts a release to the index (the recipe wraps `scripts/release.py`, which
 also records the release as a row of [CHANGES.md](CHANGES.md)), on
 `main` alone, and is run from `develop`: the recipe checks out `main`,
-fast-forwards it to `develop`, syncs the venv (`uv sync --all-extras`),
+fast-forwards it to `develop`, syncs the venv (`uv sync --all-extras --no-extra gcloud --no-extra all`),
 cuts the release, pushes `main` with its tag, checks out `develop`,
 fast-forwards it to `main`, pushes it and syncs the venv again, so the
 release walk is the one command and the login halfway. Run from `main`
@@ -1504,7 +1536,9 @@ by hand, as that section says.
 
 The recipes here drive that reference
 configuration only through `just cli ...`, for the system's own live
-proofs; its cycles, like any team's, run from its own `Justfile` (`cd
+proofs, with the Google Cloud family the reference declares layered in
+from the package index for each command, since this workspace does not
+hold it; its cycles, like any team's, run from its own `Justfile` (`cd
 ../cs-image-system-testconfig && just cloud-cycle gcloud-east1`), which
 the release shipped and `init-config` wrote. When `CSIS` in that tree's
 `.envrc` points at this checkout's `.venv/bin/cs-image-system` (the

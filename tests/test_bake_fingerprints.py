@@ -11,7 +11,9 @@ follow move is its own bake reason, judged before the fingerprint; a pinned
 child ignores a parent head that moved with the same inputs. An adopted
 build matches on its tagged prefix, a baked one only whole. A bake stamps
 and fingerprints only the storage types whose builder lives on its runtime.
-Cloud-free, on the converged seed of the convergent-bake tests.
+Cloud-free, on the converged seed of the convergent-bake tests (the
+fixture's AWS runtime); the runtime-alone case sets the other runtime's
+type beside AWS's as the fixture's docker runtime's `volume`.
 
 history: bundle VI item 1, X item 3, XII item 21.
 """
@@ -23,10 +25,10 @@ import pytest
 import yaml
 
 from tests.harness import FixtureRun, copy_config, load_context
-from tests.test_convergent_bakes import BASE, DASK, GCE_RT, _pkr_sources
+from tests.test_convergent_bakes import AWS_RT, BASE, BASE_ID, BASE_NEW, DASK, _pkr_sources
 from tests.test_convergent_bakes import _seed_converged as _seed_convergent
 
-GCE = "gcloud-east1"
+DOCKER_RT = "docker-fixture"
 
 
 def _seed_converged(root: Path, tmp_path: Path, monkeypatch, **kw) -> None:
@@ -39,14 +41,14 @@ def _seed_converged(root: Path, tmp_path: Path, monkeypatch, **kw) -> None:
     from cs_image_system.base.lineage import capability_stamp, find_image, input_fingerprint
     ms = root / "meta-state"
     ctx = load_context(root)
-    stamp = capability_stamp(ctx, find_image(ctx, BASE, GCE_RT), GCE_RT)
+    stamp = capability_stamp(ctx, find_image(ctx, BASE, AWS_RT), AWS_RT)
     lineage = yaml.safe_load((ms / "lineage.yaml").read_text())
     for rec in lineage["builds"]:
         rec["capabilities"] = stamp
     (ms / "lineage.yaml").write_text(yaml.safe_dump(lineage, sort_keys=True))
     ctx = load_context(root)
     for rec in lineage["builds"]:
-        rec["input_fingerprint"] = input_fingerprint(ctx, find_image(ctx, rec["series"], GCE_RT), GCE_RT)
+        rec["input_fingerprint"] = input_fingerprint(ctx, find_image(ctx, rec["series"], AWS_RT), AWS_RT)
     (ms / "lineage.yaml").write_text(yaml.safe_dump(lineage, sort_keys=True))
 
 
@@ -79,18 +81,18 @@ def test_a_follow_move_bakes_the_child_even_when_the_parents_inputs_did_not_chan
     lineage = yaml.safe_load((ms / "lineage.yaml").read_text())
     old = lineage["builds"][0]
     newer = dict(old)
-    newer["build_id"] = newer["name"] = f"{BASE}-{GCE_RT}-20260902-000000"
+    newer["build_id"], newer["name"] = BASE_NEW, f"{BASE}-{AWS_RT}-20260902-000000"
     newer["run"] = "2026_09_02t00_00_00_000000"
     assert newer["input_fingerprint"] == old["input_fingerprint"], "the parent's inputs did not change"
     lineage["builds"].append(newer)
     (ms / "lineage.yaml").write_text(yaml.safe_dump(lineage, sort_keys=True))
     run = make()
-    summary = run.run(["instance-image"], apply=True, only=[f"{DASK}@{GCE_RT}"])
+    summary = run.run(["instance-image"], apply=True, only=[f"{DASK}@{AWS_RT}"])
     assert summary.ok, summary.error
-    reason = summary.bake_plan[f"{DASK}@{GCE_RT}"]
+    reason = summary.bake_plan[f"{DASK}@{AWS_RT}"]
     assert reason.startswith("bake: parent moved "), reason
     assert "inputs changed" not in reason
-    assert _pkr_sources(run) == {f"{DASK}@{GCE_RT}"}
+    assert _pkr_sources(run) == {f"{DASK}@{AWS_RT}"}
 
 
 def test_a_pinned_child_ignores_a_parent_head_that_moved_with_the_same_inputs(converged, tmp_path, monkeypatch):
@@ -101,14 +103,14 @@ def test_a_pinned_child_ignores_a_parent_head_that_moved_with_the_same_inputs(co
     ms = root / "meta-state"
     lineage = yaml.safe_load((ms / "lineage.yaml").read_text())
     newer = dict(lineage["builds"][0])
-    newer["build_id"] = newer["name"] = f"{BASE}-{GCE_RT}-20260902-000000"
+    newer["build_id"], newer["name"] = BASE_NEW, f"{BASE}-{AWS_RT}-20260902-000000"
     newer["run"] = "2026_09_02t00_00_00_000000"
     lineage["builds"].append(newer)
     (ms / "lineage.yaml").write_text(yaml.safe_dump(lineage, sort_keys=True))
     run = make()
-    summary = run.run(["instance-image"], apply=True, only=[f"{DASK}@{GCE_RT}"])
+    summary = run.run(["instance-image"], apply=True, only=[f"{DASK}@{AWS_RT}"])
     assert summary.ok, summary.error
-    assert summary.bake_plan[f"{DASK}@{GCE_RT}"].startswith("skip: current"), summary.bake_plan
+    assert summary.bake_plan[f"{DASK}@{AWS_RT}"].startswith("skip: current"), summary.bake_plan
 
 
 # ---------------------------------------- the parent's fingerprint, not its build
@@ -119,39 +121,40 @@ def test_the_fingerprint_carries_the_parents_fingerprint_never_a_build_id(conver
     _seed_converged(root, tmp_path, monkeypatch)
     run = make()
     ctx = run.ctx
-    base, dask = find_image(ctx, BASE, GCE_RT), find_image(ctx, DASK, GCE_RT)
-    assert parent_fingerprint(ctx, base, GCE_RT) == "vendor"
-    assert parent_fingerprint(ctx, dask, GCE_RT) == input_fingerprint(ctx, base, GCE_RT)
+    base, dask = find_image(ctx, BASE, AWS_RT), find_image(ctx, DASK, AWS_RT)
+    assert parent_fingerprint(ctx, base, AWS_RT) == "vendor"
+    assert parent_fingerprint(ctx, dask, AWS_RT) == input_fingerprint(ctx, base, AWS_RT)
     # moving the pin to another build of the same parent changes nothing
-    before = input_fingerprint(ctx, dask, GCE_RT)
-    ctx.meta_state.move_pin("image", ctx.meta_state.image_pin_key(DASK, GCE_RT),
-                            f"{BASE}-{GCE_RT}-20260902-000000", ctx.run_id, op="test")
-    assert input_fingerprint(ctx, dask, GCE_RT) == before
+    before = input_fingerprint(ctx, dask, AWS_RT)
+    ctx.meta_state.move_pin("image", ctx.meta_state.image_pin_key(DASK, AWS_RT),
+                            BASE_NEW, ctx.run_id, op="test")
+    assert input_fingerprint(ctx, dask, AWS_RT) == before
     # a changed parent (a new admin user on the OS builder) changes the child's
     ctx.os_builders[BASE].model.admin_user = "someone-else"
-    assert input_fingerprint(ctx, dask, GCE_RT) != before
+    assert input_fingerprint(ctx, dask, AWS_RT) != before
 
 
 @pytest.mark.parametrize("policy", ["pinned", "follow"])
 def test_a_child_stays_current_after_retention_disposes_its_parent_build(converged, tmp_path, monkeypatch, policy):
     """The ephemeral-runtime cycle, cloud-free: converged, the parent build
-    disposed (record gone, pin gone, as retention does on GCE), plan again.
+    disposed (record gone, pin gone, as retention does on an ephemeral
+    runtime), plan again.
     A fingerprint that hashed the disposed build's id would read `inputs
     changed` here and re-bake the child on every cycle."""
     root, make = converged
     _seed_converged(root, tmp_path, monkeypatch, dask_policy=policy)
     run = make()
-    summary = run.run(["instance-image"], apply=True, only=[f"{DASK}@{GCE_RT}"])
-    assert summary.ok and summary.bake_plan[f"{DASK}@{GCE_RT}"].startswith("skip: current"), summary.bake_plan
+    summary = run.run(["instance-image"], apply=True, only=[f"{DASK}@{AWS_RT}"])
+    assert summary.ok and summary.bake_plan[f"{DASK}@{AWS_RT}"].startswith("skip: current"), summary.bake_plan
     run.restore_cwd()
     ms = run.ctx.meta_state
-    base_id = f"{BASE}-{GCE_RT}-20260901-000000"
+    base_id = BASE_ID
     assert ms.remove_build(base_id) is not None
-    assert ms.unpin_images_at(base_id, "2026_09_02t00_00_00_000000") == [f"{DASK}@{GCE_RT}"]
+    assert ms.unpin_images_at(base_id, "2026_09_02t00_00_00_000000") == [f"{DASK}@{AWS_RT}"]
     again = make()
-    summary = again.run(["instance-image"], apply=True, only=[f"{DASK}@{GCE_RT}"])
+    summary = again.run(["instance-image"], apply=True, only=[f"{DASK}@{AWS_RT}"])
     assert summary.ok, summary.error
-    assert summary.bake_plan[f"{DASK}@{GCE_RT}"].startswith("skip: current"), summary.bake_plan
+    assert summary.bake_plan[f"{DASK}@{AWS_RT}"].startswith("skip: current"), summary.bake_plan
     assert _pkr_sources(again) == set()
 
 
@@ -176,20 +179,20 @@ def test_an_adopted_head_with_the_current_inputs_is_not_baked_again(tmp_path, mo
     run = FixtureRun(tmp_path, monkeypatch, config_root=copy_config(tmp_path))
     try:
         assert run.run(["base-image"], apply=False).ok
-        image = find_image(run.ctx, "basic-rh-10", GCE)
+        image = find_image(run.ctx, "basic-rh-10", AWS_RT)
         assert image is not None
-        fp = input_fingerprint(run.ctx, image, GCE)
-        record = {"build_id": "basic-rh-10-adopted", "series": "basic-rh-10", "runtime": GCE, "parent": "vendor",
+        fp = input_fingerprint(run.ctx, image, AWS_RT)
+        record = {"build_id": "ami-0adopted01", "series": "basic-rh-10", "runtime": AWS_RT, "parent": "vendor",
                   "input_fingerprint": fp[:FINGERPRINT_TAG_LENGTH], "run": "2026_10_04t15_32_14_846854",
                   "imported": True, "mods": [], "chain": []}
         run.ctx.meta_state.add_build(record)
         run.ctx.bake_decisions = {}
-        assert bake_reason(run.ctx, image, GCE) is None
+        assert bake_reason(run.ctx, image, AWS_RT) is None
         # the same prefix on a baked (not adopted) record is a change, as before
-        run.ctx.meta_state.add_build({**record, "build_id": "basic-rh-10-baked", "imported": False,
+        run.ctx.meta_state.add_build({**record, "build_id": "ami-0baked0001", "imported": False,
                                       "run": "2026_10_04t15_40_00_000000"})
         run.ctx.bake_decisions = {}
-        assert str(bake_reason(run.ctx, image, GCE)).startswith("inputs changed")
+        assert str(bake_reason(run.ctx, image, AWS_RT)).startswith("inputs changed")
     finally:
         run.restore_cwd()
 
@@ -203,28 +206,30 @@ def test_a_bake_stamps_and_fingerprints_the_storage_types_of_its_runtime_alone(t
     try:
         ctx = run.ctx
         osb = ctx.os_builders["basic-rh-10"]
-        assert osb.model.get_storage_types() == ["ebs", "efs", "s3", "pd", "gcs"]
+        # AWS's three types beside the other runtime's: `volume`, whose builder
+        # (docker-volume) lives on the fixture's docker runtime
+        osb.model.storage_types = ["ebs", "efs", "s3", "volume"]
         base = BaseImageRef("basic-rh-10", osb.model)             # the plan-time stand-in a base image fingerprints as
-        assert declared_capabilities(ctx, "basic-rh-10")["storage_types"] == ["ebs", "efs", "gcs", "pd", "s3"]
-        assert declared_capabilities(ctx, "basic-rh-10", "aws-east2-runtime")["storage_types"] == ["ebs", "efs", "s3"]
-        assert declared_capabilities(ctx, "basic-rh-10", "gcloud-east1")["storage_types"] == ["gcs", "pd"]
-        assert capability_stamp(ctx, base, "aws-east2-runtime")["storage_types"] == ["ebs", "efs", "s3"]
-        assert capability_stamp(ctx, base, "gcloud-east1")["storage_types"] == ["gcs", "pd"]
+        assert declared_capabilities(ctx, "basic-rh-10")["storage_types"] == ["ebs", "efs", "s3", "volume"]
+        assert declared_capabilities(ctx, "basic-rh-10", AWS_RT)["storage_types"] == ["ebs", "efs", "s3"]
+        assert declared_capabilities(ctx, "basic-rh-10", DOCKER_RT)["storage_types"] == ["volume"]
+        assert capability_stamp(ctx, base, AWS_RT)["storage_types"] == ["ebs", "efs", "s3"]
+        assert capability_stamp(ctx, base, DOCKER_RT)["storage_types"] == ["volume"]
         # the declaration path of an instance image's effective capabilities is per runtime too
         img = ctx.images_map["imgfile-basic-dask"]
-        caps = effective_capabilities(ctx, img, "gcloud-east1")
-        assert caps is not None and caps.source == "declaration" and caps.storage_types == ["gcs", "pd"]
+        caps = effective_capabilities(ctx, img, DOCKER_RT)
+        assert caps is not None and caps.source == "declaration" and caps.storage_types == ["volume"]
         whole = effective_capabilities(ctx, img)                                          # no runtime: as declared
-        assert whole is not None and whole.storage_types == ["ebs", "efs", "gcs", "pd", "s3"]
-        # a type for the other cloud added or removed moves no AWS fingerprint
-        before = input_fingerprint(ctx, base, "aws-east2-runtime")
-        before_gce = input_fingerprint(ctx, base, "gcloud-east1")
-        osb.model.storage_types = ["ebs", "efs", "s3", "gcs"]                  # pd dropped
+        assert whole is not None and whole.storage_types == ["ebs", "efs", "s3", "volume"]
+        # a type for the other runtime added or removed moves no AWS fingerprint
+        before = input_fingerprint(ctx, base, AWS_RT)
+        before_other = input_fingerprint(ctx, base, DOCKER_RT)
+        osb.model.storage_types = ["ebs", "efs", "s3"]                         # volume dropped
         base = BaseImageRef("basic-rh-10", osb.model)
-        assert input_fingerprint(ctx, base, "aws-east2-runtime") == before
-        assert input_fingerprint(ctx, base, "gcloud-east1") != before_gce
-        osb.model.storage_types = ["ebs", "s3", "pd", "gcs"]                   # efs dropped instead
+        assert input_fingerprint(ctx, base, AWS_RT) == before
+        assert input_fingerprint(ctx, base, DOCKER_RT) != before_other
+        osb.model.storage_types = ["ebs", "s3", "volume"]                      # efs dropped instead
         base = BaseImageRef("basic-rh-10", osb.model)
-        assert input_fingerprint(ctx, base, "aws-east2-runtime") != before
+        assert input_fingerprint(ctx, base, AWS_RT) != before
     finally:
         run.restore_cwd()

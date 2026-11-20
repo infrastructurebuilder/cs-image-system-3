@@ -7,9 +7,10 @@ its parent moved under `parent_policy: follow`, `update.refresh_days` is
 due, or the operator forced it -- a second run on a converged tree bakes
 nothing, and the bake plan says why for every image.
 
-Cloud-free: the fixture copy gets a seeded lineage whose recorded
-fingerprints are the ones the current tree computes (the converged
-state), then one input at a time is changed.
+Cloud-free, on the fixture's AWS runtime (aws-east2-runtime, baked by
+pckr-ebs-ans, launched by open-tofu): the fixture copy gets a seeded
+lineage whose recorded fingerprints are the ones the current tree
+computes (the converged state), then one input at a time is changed.
 """
 from __future__ import annotations
 
@@ -21,17 +22,23 @@ import yaml
 
 from tests.harness import FixtureRun, cli_context, copy_config, load_context, stub_environment
 
-GCE_RT = "gcloud-east1"
 AWS_RT = "aws-east2-runtime"
+BUILDER = "pckr-ebs-ans"          # the AWS runtime's image builder
 BASE = "basic-rh-10"
 DASK = "imgfile-basic-dask"
+CLOUDFLOW = "imgfile-basic-cloudflow"
+# the seeded chain's AMIs (a build id on AWS is the AMI id)
+BASE_ID, BASE_NEW = "ami-0base0901", "ami-0base0902"
+DASK_ID, DASK_NEW = "ami-0dask0901", "ami-0dask0902"
 
 
 def _pkr_sources(run: FixtureRun) -> set[str]:
-    """`<series>@<runtime>` for every emitted googlecompute/amazon source."""
+    """`<series>@<runtime>` for every emitted packer source, the runtime read
+    from the image builder whose directory holds it."""
     out: set[str] = set()
     for p in run.generated.rglob("*source-*.pkr.hcl"):
-        rt = GCE_RT if "pckr-gce" in str(p) else AWS_RT
+        builder = p.relative_to(run.generated).parts[1]
+        rt = str(run.ctx.image_builders[builder].model.get_runtime_provider())
         name = p.name.split("-source-", 1)[1].rsplit("-block-", 1)[0]
         out.add(f"{name}@{rt}")
     return out
@@ -60,7 +67,7 @@ def _set_refresh_days(root: Path, days: int) -> None:
 
 def _seed_converged(root: Path, tmp_path: Path, monkeypatch, *, run_id: str = "2026_09_01t00_00_00_000000",
                     dask_policy: str | None = None) -> None:
-    """Record a GCE base + dask chain whose fingerprints equal what the tree
+    """Record an AWS base + dask chain whose fingerprints equal what the tree
     computes now, with the dask pin at the base: a converged state."""
     if dask_policy:
         _set_dask_parent_policy(root, dask_policy)
@@ -69,25 +76,27 @@ def _seed_converged(root: Path, tmp_path: Path, monkeypatch, *, run_id: str = "2
     from cs_image_system.base.lineage import find_image, input_fingerprint
     ms = root / "meta-state"
     ms.mkdir(exist_ok=True)
-    base_id, dask_id = f"{BASE}-{GCE_RT}-20260901-000000", f"{DASK}-pckr-gce-ans-20260901-000100"
-    (ms / "pins.yaml").write_text(yaml.safe_dump({"images": {f"{DASK}@{GCE_RT}": base_id},
+    base_id, dask_id = BASE_ID, DASK_ID
+    (ms / "pins.yaml").write_text(yaml.safe_dump({"images": {f"{DASK}@{AWS_RT}": base_id},
                                                   "instances": {}, "upgrades": []}, sort_keys=True))
     common = {"mods": [], "local_mods": False, "update": None, "tests": {"assertions": 0, "in_bake": True},
-              "capabilities": {"identity_types": ["okta"], "storage_types": ["pd", "gcs"]}}
+              "capabilities": {"identity_types": ["okta"], "storage_types": ["ebs"]}}
 
     def write(base_fp: str, dask_fp: str) -> None:
         (ms / "lineage.yaml").write_text(yaml.safe_dump({"builds": [
-            {"build_id": base_id, "name": base_id, "series": BASE, "runtime": GCE_RT, "parent": "vendor",
+            {"build_id": base_id, "name": f"{BASE}-{AWS_RT}-20260901-000000", "series": BASE, "runtime": AWS_RT,
+             "parent": "vendor",
              "run": run_id, "chain": [], "input_fingerprint": base_fp, **common},
-            {"build_id": dask_id, "name": dask_id, "series": DASK, "runtime": GCE_RT, "parent": base_id,
+            {"build_id": dask_id, "name": f"{DASK}-{BUILDER}-20260901-000100", "series": DASK, "runtime": AWS_RT,
+             "parent": base_id,
              "run": run_id, "chain": [DASK], "input_fingerprint": dask_fp, **common},
         ]}, sort_keys=True))
     # two passes: the child's capability stamp is inherited from the RECORDED
     # parent build (N24), so the records must exist before fingerprinting
     write("", "")
     ctx = load_context(root)
-    base_fp = input_fingerprint(ctx, find_image(ctx, BASE, GCE_RT), GCE_RT)
-    dask_fp = input_fingerprint(ctx, find_image(ctx, DASK, GCE_RT), GCE_RT)
+    base_fp = input_fingerprint(ctx, find_image(ctx, BASE, AWS_RT), AWS_RT)
+    dask_fp = input_fingerprint(ctx, find_image(ctx, DASK, AWS_RT), AWS_RT)
     write(base_fp, dask_fp)
 
 
@@ -107,35 +116,35 @@ def converged(tmp_path: Path, monkeypatch):
             r.restore_cwd()
 
 
-def test_converged_tree_bakes_nothing_on_gce(converged, tmp_path, monkeypatch):
+def test_converged_tree_bakes_nothing_on_aws(converged, tmp_path, monkeypatch):
     root, make = converged
     _seed_converged(root, tmp_path, monkeypatch)
     run = make()
-    summary = run.run(["base-image", "instance-image"], apply=True, only=[f"{BASE}@{GCE_RT}", f"{DASK}@{GCE_RT}"])
+    summary = run.run(["base-image", "instance-image"], apply=True, only=[f"{BASE}@{AWS_RT}", f"{DASK}@{AWS_RT}"])
     assert summary.ok, summary.error
     assert _pkr_sources(run) == set()
-    assert summary.bake_plan[f"{BASE}@{GCE_RT}"].startswith("skip: current (build ")
-    assert summary.bake_plan[f"{DASK}@{GCE_RT}"].startswith("skip: current (build ")
-    assert summary.bake_plan[f"{DASK}@{AWS_RT}"] == "skip: not selected (--only)"
+    assert summary.bake_plan[f"{BASE}@{AWS_RT}"].startswith("skip: current (build ")
+    assert summary.bake_plan[f"{DASK}@{AWS_RT}"].startswith("skip: current (build ")
+    assert summary.bake_plan[f"{CLOUDFLOW}@{AWS_RT}"] == "skip: not selected (--only)"
     assert (run.generated / "run-summary.json").read_text().count("skip: current") >= 2
 
 
 def test_first_build_and_forced_bakes(converged, tmp_path, monkeypatch):
     root, make = converged
     run = make()   # no lineage at all: everything is a first build
-    summary = run.run(["base-image"], apply=True, only=[f"{BASE}@{GCE_RT}"])
+    summary = run.run(["base-image"], apply=True, only=[f"{BASE}@{AWS_RT}"])
     assert summary.ok, summary.error
-    assert _pkr_sources(run) == {f"{BASE}@{GCE_RT}"}
-    entry = summary.bake_plan[f"{BASE}@{GCE_RT}"]
+    assert _pkr_sources(run) == {f"{BASE}@{AWS_RT}"}
+    entry = summary.bake_plan[f"{BASE}@{AWS_RT}"]
     assert entry.startswith("bake:") and "no build" in entry
     _seed_converged(root, tmp_path, monkeypatch)
     run = make()
-    summary = run.run(["base-image"], apply=True, only=[f"{BASE}@{GCE_RT}"])
+    summary = run.run(["base-image"], apply=True, only=[f"{BASE}@{AWS_RT}"])
     assert summary.ok and _pkr_sources(run) == set()          # --only is a pure filter
     run = make()
-    summary = run.run(["base-image"], apply=True, only=[f"{BASE}@{GCE_RT}"], force_bake=[BASE])
-    assert summary.ok and _pkr_sources(run) == {f"{BASE}@{GCE_RT}"}
-    assert summary.bake_plan[f"{BASE}@{GCE_RT}"] == "bake: forced (--force-bake)"
+    summary = run.run(["base-image"], apply=True, only=[f"{BASE}@{AWS_RT}"], force_bake=[BASE])
+    assert summary.ok and _pkr_sources(run) == {f"{BASE}@{AWS_RT}"}
+    assert summary.bake_plan[f"{BASE}@{AWS_RT}"] == "bake: forced (--force-bake)"
 
 
 def test_changed_mod_rebakes_only_the_image_that_carries_it(converged, tmp_path, monkeypatch):
@@ -143,11 +152,11 @@ def test_changed_mod_rebakes_only_the_image_that_carries_it(converged, tmp_path,
     _seed_converged(root, tmp_path, monkeypatch)
     (root / "setup_dask.yml").write_text((root / "setup_dask.yml").read_text() + "\n# changed\n")
     run = make()
-    summary = run.run(["base-image", "instance-image"], apply=True, only=[f"{BASE}@{GCE_RT}", f"{DASK}@{GCE_RT}"])
+    summary = run.run(["base-image", "instance-image"], apply=True, only=[f"{BASE}@{AWS_RT}", f"{DASK}@{AWS_RT}"])
     assert summary.ok, summary.error
-    assert _pkr_sources(run) == {f"{DASK}@{GCE_RT}"}
-    assert summary.bake_plan[f"{DASK}@{GCE_RT}"].startswith("bake: inputs changed (")
-    assert summary.bake_plan[f"{BASE}@{GCE_RT}"].startswith("skip: current")
+    assert _pkr_sources(run) == {f"{DASK}@{AWS_RT}"}
+    assert summary.bake_plan[f"{DASK}@{AWS_RT}"].startswith("bake: inputs changed (")
+    assert summary.bake_plan[f"{BASE}@{AWS_RT}"].startswith("skip: current")
 
 
 def test_changed_base_under_pinned_bakes_the_base_alone_and_reports_stale(converged, tmp_path, monkeypatch):
@@ -156,18 +165,18 @@ def test_changed_base_under_pinned_bakes_the_base_alone_and_reports_stale(conver
     # a new base build recorded AFTER the pin: the child stays on its pin (N17)
     ms = root / "meta-state"
     lineage = yaml.safe_load((ms / "lineage.yaml").read_text())
-    newer = dict(lineage["builds"][0]); newer["build_id"] = newer["name"] = f"{BASE}-{GCE_RT}-20260902-000000"
+    newer = dict(lineage["builds"][0]); newer["build_id"], newer["name"] = BASE_NEW, f"{BASE}-{AWS_RT}-20260902-000000"
     newer["run"] = "2026_09_02t00_00_00_000000"
     lineage["builds"].append(newer)
     (ms / "lineage.yaml").write_text(yaml.safe_dump(lineage, sort_keys=True))
     run = make()
-    summary = run.run(["instance-image"], apply=True, only=[f"{DASK}@{GCE_RT}"])
+    summary = run.run(["instance-image"], apply=True, only=[f"{DASK}@{AWS_RT}"])
     assert summary.ok, summary.error
     assert _pkr_sources(run) == set()                            # pinned: the child does not follow
     from cs_image_system.engine.state_query import DRIFT_STALE, image_drift
-    drift = image_drift(run.ctx, {GCE_RT: [{"image_id": b["build_id"], "tags": {}} for b in lineage["builds"]]})
+    drift = image_drift(run.ctx, {AWS_RT: [{"image_id": b["build_id"], "tags": {}} for b in lineage["builds"]]})
     stale = [d for d in drift if d.drift == DRIFT_STALE]
-    assert [d.name for d in stale] == [f"{DASK}@{GCE_RT}"] and not stale[0].hard
+    assert [d.name for d in stale] == [f"{DASK}@{AWS_RT}"] and not stale[0].hard
     assert "behind series head" in stale[0].detail
 
 
@@ -176,27 +185,27 @@ def test_follow_rebakes_the_child_from_the_new_base_and_moves_the_pin(converged,
     _seed_converged(root, tmp_path, monkeypatch, dask_policy="follow")
     ms = root / "meta-state"
     lineage = yaml.safe_load((ms / "lineage.yaml").read_text())
-    base_new = f"{BASE}-{GCE_RT}-20260902-000000"
-    newer = dict(lineage["builds"][0]); newer["build_id"] = newer["name"] = base_new
+    base_new = BASE_NEW
+    newer = dict(lineage["builds"][0]); newer["build_id"], newer["name"] = base_new, f"{BASE}-{AWS_RT}-20260902-000000"
     newer["run"] = "2026_09_02t00_00_00_000000"
     lineage["builds"].append(newer)
     (ms / "lineage.yaml").write_text(yaml.safe_dump(lineage, sort_keys=True))
     run = make()
-    summary = run.run(["instance-image"], apply=True, only=[f"{DASK}@{GCE_RT}"])
+    summary = run.run(["instance-image"], apply=True, only=[f"{DASK}@{AWS_RT}"])
     assert summary.ok, summary.error
-    assert _pkr_sources(run) == {f"{DASK}@{GCE_RT}"}
-    assert summary.bake_plan[f"{DASK}@{GCE_RT}"].startswith("bake: parent moved ")
+    assert _pkr_sources(run) == {f"{DASK}@{AWS_RT}"}
+    assert summary.bake_plan[f"{DASK}@{AWS_RT}"].startswith("bake: parent moved ")
     text = "\n".join(p.read_text() for p in run.generated.rglob(f"*source-{DASK}*.pkr.hcl"))
-    assert f'source_image = "{base_new}"' in text or f'"{base_new}"' in text
+    assert f'image-id = "{base_new}"' in text
     # a dry run moved nothing
-    assert run.ctx.meta_state.image_pin(DASK, GCE_RT) == f"{BASE}-{GCE_RT}-20260901-000000"
+    assert run.ctx.meta_state.image_pin(DASK, AWS_RT) == BASE_ID
     # the record of a successful bake moves the pin (op: follow)
     from cs_image_system.base.lineage import find_image, record_build
-    record_build(run.ctx, find_image(run.ctx, DASK, GCE_RT), GCE_RT, f"{DASK}-pckr-gce-ans-20260902-000100",
+    record_build(run.ctx, find_image(run.ctx, DASK, AWS_RT), AWS_RT, DASK_NEW,
                  None, lambda series: None)
-    assert run.ctx.meta_state.image_pin(DASK, GCE_RT) == base_new
+    assert run.ctx.meta_state.image_pin(DASK, AWS_RT) == base_new
     ops = [(u["op"], u["from"], u["to"]) for u in run.ctx.meta_state._pins()["upgrades"]]
-    assert ("follow", f"{BASE}-{GCE_RT}-20260901-000000", base_new) in ops
+    assert ("follow", BASE_ID, base_new) in ops
 
 
 def test_refresh_days_rebakes_an_old_head(converged, tmp_path, monkeypatch):
@@ -213,14 +222,14 @@ def test_refresh_days_rebakes_an_old_head(converged, tmp_path, monkeypatch):
             return cls(2026, 9, 7, 12, 0, 0)
     monkeypatch.setattr(lineage, "datetime", _Now)
     run = make()
-    summary = run.run(["base-image"], apply=True, only=[f"{BASE}@{GCE_RT}"])
+    summary = run.run(["base-image"], apply=True, only=[f"{BASE}@{AWS_RT}"])
     assert summary.ok, summary.error
-    assert summary.bake_plan[f"{BASE}@{GCE_RT}"].startswith("bake: update policy: head ")
-    assert _pkr_sources(run) == {f"{BASE}@{GCE_RT}"}
+    assert summary.bake_plan[f"{BASE}@{AWS_RT}"].startswith("bake: update policy: head ")
+    assert _pkr_sources(run) == {f"{BASE}@{AWS_RT}"}
     # a young enough head is current
     _seed_converged(root, tmp_path, monkeypatch, run_id="2026_09_01t00_00_00_000000")
     run = make()
-    summary = run.run(["base-image"], apply=True, only=[f"{BASE}@{GCE_RT}"])
+    summary = run.run(["base-image"], apply=True, only=[f"{BASE}@{AWS_RT}"])
     assert summary.ok and _pkr_sources(run) == set()
 
 
@@ -241,37 +250,37 @@ def test_instance_follow_plans_a_replacement_and_moves_the_pin_after_apply(conve
     ms_dir = root / "meta-state"
     lineage = yaml.safe_load((ms_dir / "lineage.yaml").read_text())
     old_dask = lineage["builds"][1]["build_id"]
-    new_dask = f"{DASK}-pckr-gce-ans-20260902-000100"
-    newer = dict(lineage["builds"][1]); newer["build_id"] = newer["name"] = new_dask
+    new_dask = DASK_NEW
+    newer = dict(lineage["builds"][1]); newer["build_id"], newer["name"] = new_dask, f"{DASK}-{BUILDER}-20260902-000100"
     newer["run"] = "2026_09_02t00_00_00_000000"
     lineage["builds"].append(newer)
     (ms_dir / "lineage.yaml").write_text(yaml.safe_dump(lineage, sort_keys=True))
     pins = yaml.safe_load((ms_dir / "pins.yaml").read_text())
-    pins["instances"]["gce-test"] = old_dask
+    pins["instances"]["test2"] = old_dask
     (ms_dir / "pins.yaml").write_text(yaml.safe_dump(pins, sort_keys=True))
     (ms_dir / "launch-params.yaml").write_text(yaml.safe_dump(
-        {"instances": {"gce-test": {"build": old_dask, "launched": True, "launched_run": "r0", "hostname": "gce-test"}}}))
+        {"instances": {"test2": {"build": old_dask, "launched": True, "launched_run": "r0", "hostname": "test2"}}}))
     inst = root / "instances" / "instances.yaml"
     d = yaml.safe_load(inst.read_text())
     for i in d["instances"]:
-        if i["name"] == "gce-test":
+        if i["name"] == "test2":
             i["image_policy"] = "follow"
     inst.write_text(yaml.safe_dump(d, sort_keys=False))
     run = make()
     summary = run.run(["instance-image"], apply=True, only=["none"])
     assert summary.ok, summary.error
     script = (run.generated / "instance-image" / "run-instance-image.sh").read_text()
-    assert "-replace=module.instance_gce_test.google_compute_instance.this" in script
-    tf = "\n".join(p.read_text() for p in (run.generated / "instance-image" / "tofu-gce").rglob("*.tf"))
+    assert "-replace=module.instance_test2.aws_instance.this" in script
+    tf = "\n".join(p.read_text() for p in (run.generated / "instance-image" / "open-tofu").rglob("*.tf"))
     assert new_dask in tf and old_dask not in tf
-    assert run.ctx.meta_state.instance_pin("gce-test") == old_dask     # nothing moved by generation
+    assert run.ctx.meta_state.instance_pin("test2") == old_dask     # nothing moved by generation
     from cs_image_system.contract.lifecycle import ExecutionLifecyclePhase
-    run.ctx.config["apply_instances"] = ["gcloud-east1"]
-    run.ctx.instance_builders["tofu-gce"].post_finalize_phase(ExecutionLifecyclePhase.INSTANCE_GENERATION)
-    assert run.ctx.meta_state.instance_pin("gce-test") == new_dask
+    run.ctx.config["apply_instances"] = [AWS_RT]
+    run.ctx.instance_builders["open-tofu"].post_finalize_phase(ExecutionLifecyclePhase.INSTANCE_GENERATION)
+    assert run.ctx.meta_state.instance_pin("test2") == new_dask
     ops = [(u["op"], u["name"]) for u in run.ctx.meta_state._pins()["upgrades"]]
-    assert ("follow", "gce-test") in ops
-    assert "gce-test" not in run.ctx.meta_state.pending_replacements()
+    assert ("follow", "test2") in ops
+    assert "test2" not in run.ctx.meta_state.pending_replacements()
 
 
 def test_strict_state_query_reports_stale_but_does_not_fail_on_it(monkeypatch, capsys):

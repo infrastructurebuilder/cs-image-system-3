@@ -7,8 +7,6 @@
 # state: workspace aws-efs -> s3://my-east1-tfstate-bucket/statefiles/csia/aws_efs.tfstate
 # state: workspace aws-s3 -> s3://my-east1-tfstate-bucket/statefiles/csia/aws_s3.tfstate
 # state: workspace docker-volume -> local://state/docker_volume.tfstate
-# state: workspace gcp-gcs -> s3://my-east1-tfstate-bucket/statefiles/csia/gcp_gcs.tfstate
-# state: workspace gcp-pd -> s3://my-east1-tfstate-bucket/statefiles/csia/gcp_pd.tfstate
 # NOTE: builders' pre/post finalize hooks are NOT part of this
 # script; a --no-dry-run run performs them in-process.
 set -euo pipefail
@@ -32,11 +30,3 @@ CSIS_ROOT="$(cd "../.." && pwd)"   # the configuration root, relative to this sc
 ( cd "docker-volume/storage-generation" && cd "$(cs-image-system materialize . --root-dir "$CSIS_ROOT")" && DOCKER_CONTEXT=csis-fixture-daemon /usr/local/bin/tofu init -input=false -reconfigure -backend-config=docker-volume-storage-generation.tfbackend.hcl )
 ( cd "docker-volume/storage-generation" && cd "$(cs-image-system materialize . --root-dir "$CSIS_ROOT")" && DOCKER_CONTEXT=csis-fixture-daemon /usr/local/bin/tofu plan -input=false -out=tfplan )
 ( cd "docker-volume/storage-generation" && cd "$(cs-image-system materialize . --root-dir "$CSIS_ROOT")" && cs-image-system gate-plan --planfile tfplan --tofu /usr/local/bin/tofu )
-( cd "gcp-gcs/storage-generation" && cd "$(cs-image-system materialize . --root-dir "$CSIS_ROOT")" && rm -f tfplan )
-( cd "gcp-gcs/storage-generation" && cd "$(cs-image-system materialize . --root-dir "$CSIS_ROOT")" && /usr/local/bin/tofu init -input=false -reconfigure -backend-config=gcp-gcs-storage-generation.tfbackend.hcl )
-( cd "gcp-gcs/storage-generation" && cd "$(cs-image-system materialize . --root-dir "$CSIS_ROOT")" && /usr/local/bin/tofu plan -input=false -out=tfplan )
-( cd "gcp-gcs/storage-generation" && cd "$(cs-image-system materialize . --root-dir "$CSIS_ROOT")" && cs-image-system gate-plan --planfile tfplan --tofu /usr/local/bin/tofu )
-( cd "gcp-pd/storage-generation" && cd "$(cs-image-system materialize . --root-dir "$CSIS_ROOT")" && rm -f tfplan )
-( cd "gcp-pd/storage-generation" && cd "$(cs-image-system materialize . --root-dir "$CSIS_ROOT")" && /usr/local/bin/tofu init -input=false -reconfigure -backend-config=gcp-pd-storage-generation.tfbackend.hcl )
-( cd "gcp-pd/storage-generation" && cd "$(cs-image-system materialize . --root-dir "$CSIS_ROOT")" && /usr/local/bin/tofu plan -input=false -out=tfplan )
-( cd "gcp-pd/storage-generation" && cd "$(cs-image-system materialize . --root-dir "$CSIS_ROOT")" && cs-image-system gate-plan --planfile tfplan --tofu /usr/local/bin/tofu )

@@ -57,7 +57,7 @@ def test_every_command_is_a_just_target_and_nothing_performs_or_commits():
             assert re.match(r"^just [a-z][\w-]*", run.strip()), f"{job_name}/{name}: {run!r}"
     everything = yaml.safe_dump(wf)
     for forbidden in ("--no-dry-run", "--commit", "--migrate-state", "cloud-perform", "AWS_APPLY_ROLE_ARN",
-                      "GCP_APPLY", "CSIS_CONFIG_PUSH_TOKEN", "cs-image-system-testconfig", "git push"):
+                      "CSIS_CONFIG_PUSH_TOKEN", "cs-image-system-testconfig", "git push"):
         assert forbidden not in everything, forbidden
     assert not any((s.get("uses") or "").startswith("actions/checkout") and "repository" in (s.get("with") or {})
                    for job in wf["jobs"].values() for s in job["steps"]), "no second repository is checked out"
@@ -85,8 +85,7 @@ def test_live_proves_the_fixture_read_only_and_is_gated():
     assert "pull_request" in live["if"]
     assert live["permissions"] == {"id-token": "write", "contents": "read", "packages": "read"}   # packages: the runner image's pull
     gate = next(s for s in live["steps"] if s.get("id") == "gate")
-    for secret in ("AWS_ROLE_ARN", "GCP_WORKLOAD_IDENTITY_PROVIDER", "GCP_SERVICE_ACCOUNT", "OKTA_API_PRIVATE_KEY",
-                   "TF_VAR_NOS_KEY", "TF_VAR_NOS_SECRET"):
+    for secret in ("AWS_ROLE_ARN", "OKTA_API_PRIVATE_KEY", "TF_VAR_NOS_KEY", "TF_VAR_NOS_SECRET"):
         assert secret in yaml.safe_dump(gate["env"]), secret
     # the fixture's identity is committed beside it: no identity secret here
     assert "CSIS_CONFIG_IDENTITY" not in yaml.safe_dump(live)

@@ -19,8 +19,6 @@ members = [
     "cs-image-system-docker-plugin",
     "cs-image-system-dummy-plugin",
     "cs-image-system-engine",
-    "cs-image-system-gcloud-runtime-plugin",
-    "cs-image-system-gcs-state-plugin",
     "cs-image-system-hashicorp-utils",
     "cs-image-system-local-state-plugin",
     "cs-image-system-okta-opa-plugin",
@@ -28,7 +26,6 @@ members = [
     "cs-image-system-posix-identity-plugin",
     "cs-image-system-system",
     "cs-image-system-tf-ebs-instance-plugin",
-    "cs-image-system-tf-gcp-plugin",
     "cs-image-system-tf-s3-state-plugin",
     "cs-image-system-tofu-roots",
 ]
@@ -526,10 +523,10 @@ requires-dist = [
     { name = "cs-image-system-docker-plugin", marker = "extra == 'all'", editable = "packages/docker-plugin" },
     { name = "cs-image-system-docker-plugin", marker = "extra == 'docker'", editable = "packages/docker-plugin" },
     { name = "cs-image-system-engine", editable = "packages/engine" },
-    { name = "cs-image-system-gcloud-runtime-plugin", marker = "extra == 'all'", editable = "packages/gcloud-runtime-plugin" },
-    { name = "cs-image-system-gcloud-runtime-plugin", marker = "extra == 'gcloud'", editable = "packages/gcloud-runtime-plugin" },
-    { name = "cs-image-system-gcs-state-plugin", marker = "extra == 'all'", editable = "packages/gcs-state-plugin" },
-    { name = "cs-image-system-gcs-state-plugin", marker = "extra == 'gcloud'", editable = "packages/gcs-state-plugin" },
+    { name = "cs-image-system-gcloud-runtime-plugin", marker = "extra == 'all'", specifier = ">=0.2,<0.3" },
+    { name = "cs-image-system-gcloud-runtime-plugin", marker = "extra == 'gcloud'", specifier = ">=0.2,<0.3" },
+    { name = "cs-image-system-gcs-state-plugin", marker = "extra == 'all'", specifier = ">=0.2,<0.3" },
+    { name = "cs-image-system-gcs-state-plugin", marker = "extra == 'gcloud'", specifier = ">=0.2,<0.3" },
     { name = "cs-image-system-hashicorp-utils", editable = "packages/hashicorp-utils" },
     { name = "cs-image-system-local-state-plugin", editable = "packages/local-state-plugin" },
     { name = "cs-image-system-okta-opa-plugin", marker = "extra == 'all'", editable = "packages/okta-opa-plugin" },
@@ -539,8 +536,8 @@ requires-dist = [
     { name = "cs-image-system-system", editable = "packages/system" },
     { name = "cs-image-system-tf-ebs-instance-plugin", marker = "extra == 'all'", editable = "packages/tf-ebs-instance-plugin" },
     { name = "cs-image-system-tf-ebs-instance-plugin", marker = "extra == 'aws'", editable = "packages/tf-ebs-instance-plugin" },
-    { name = "cs-image-system-tf-gcp-plugin", marker = "extra == 'all'", editable = "packages/tf-gcp-plugin" },
-    { name = "cs-image-system-tf-gcp-plugin", marker = "extra == 'gcloud'", editable = "packages/tf-gcp-plugin" },
+    { name = "cs-image-system-tf-gcp-plugin", marker = "extra == 'all'", specifier = ">=0.2,<0.3" },
+    { name = "cs-image-system-tf-gcp-plugin", marker = "extra == 'gcloud'", specifier = ">=0.2,<0.3" },
     { name = "cs-image-system-tf-s3-state-plugin", marker = "extra == 'all'", editable = "packages/tf-s3-state-plugin" },
     { name = "cs-image-system-tf-s3-state-plugin", marker = "extra == 'aws'", editable = "packages/tf-s3-state-plugin" },
     { name = "cs-image-system-tofu-roots", editable = "packages/tofu-roots" },
@@ -774,8 +771,8 @@ requires-dist = [
 
 [[package]]
 name = "cs-image-system-gcloud-runtime-plugin"
-version = "0.1.11"
-source = { editable = "packages/gcloud-runtime-plugin" }
+version = "0.2.0"
+source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "cs-image-system-base" },
     { name = "cs-image-system-contract" },
@@ -787,35 +784,23 @@ dependencies = [
     { name = "python-hcl2" },
     { name = "pyyaml" },
 ]
-
-[package.metadata]
-requires-dist = [
-    { name = "cs-image-system-base", editable = "packages/base" },
-    { name = "cs-image-system-contract", editable = "packages/contract" },
-    { name = "cs-image-system-hashicorp-utils", editable = "packages/hashicorp-utils" },
-    { name = "google-api-core", specifier = ">=2.31" },
-    { name = "google-auth", specifier = ">=2.55" },
-    { name = "google-cloud-compute", specifier = ">=1.49" },
-    { name = "pydantic", specifier = ">=2.13" },
-    { name = "python-hcl2", specifier = ">=8.1" },
-    { name = "pyyaml", specifier = ">=6.0" },
+sdist = { url = "https://files.pythonhosted.org/packages/1f/ce/e5f5f574a3dbbab95a128c085a21dd73b5ce5aa17920ba705deecac593ac/cs_image_system_gcloud_runtime_plugin-0.2.0.tar.gz", hash = "sha256:3ae485eb289d30f9679b5bc6e2ef5c9261697290ea759552d7bb685d0b3aa77a", size = 98770, upload-time = "2026-11-19T21:13:29.258Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/21/1b/5f7d47017fbd56c4b0d09ce6f8c58f81f84e13686765c8ada4e6b6b820f7/cs_image_system_gcloud_runtime_plugin-0.2.0-py3-none-any.whl", hash = "sha256:a6088205ead751c44dad5d858b4e2ae09f97f0227d8f28366e4e298e07fc26b3", size = 83977, upload-time = "2026-11-19T21:13:25.977Z" },
 ]
 
 [[package]]
 name = "cs-image-system-gcs-state-plugin"
-version = "0.1.11"
-source = { editable = "packages/gcs-state-plugin" }
+version = "0.2.0"
+source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "cs-image-system-base" },
     { name = "cs-image-system-contract" },
     { name = "pydantic" },
 ]
-
-[package.metadata]
-requires-dist = [
-    { name = "cs-image-system-base", editable = "packages/base" },
-    { name = "cs-image-system-contract", editable = "packages/contract" },
-    { name = "pydantic", specifier = ">=2.13" },
+sdist = { url = "https://files.pythonhosted.org/packages/01/f8/142ba4494033c674c386b83c018b59d22dfb487090a7ba40cd18be11176c/cs_image_system_gcs_state_plugin-0.2.0.tar.gz", hash = "sha256:8d3b15cc2f98d11ffc78ccffd213fc5653086a2dfa66d875cbce787de9f0d6b9", size = 27621, upload-time = "2026-11-19T21:13:30.722Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/a4/b9/a87b6f0fa8f2a5e897c46b2c62b7be6912a8e1a4f1db27f64f3924b74de6/cs_image_system_gcs_state_plugin-0.2.0-py3-none-any.whl", hash = "sha256:d8a516c731ff5c57491d59dcab9dd4bcf03fa59ade216b716031b2be670241d0", size = 19984, upload-time = "2026-11-19T21:13:27.23Z" },
 ]
 
 [[package]]
@@ -978,8 +963,8 @@ requires-dist = [
 
 [[package]]
 name = "cs-image-system-tf-gcp-plugin"
-version = "0.1.11"
-source = { editable = "packages/tf-gcp-plugin" }
+version = "0.2.0"
+source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "cs-image-system-base" },
     { name = "cs-image-system-contract" },
@@ -989,16 +974,9 @@ dependencies = [
     { name = "google-cloud-compute" },
     { name = "pydantic" },
 ]
-
-[package.metadata]
-requires-dist = [
-    { name = "cs-image-system-base", editable = "packages/base" },
-    { name = "cs-image-system-contract", editable = "packages/contract" },
-    { name = "cs-image-system-gcloud-runtime-plugin", editable = "packages/gcloud-runtime-plugin" },
-    { name = "cs-image-system-hashicorp-utils", editable = "packages/hashicorp-utils" },
-    { name = "cs-image-system-tofu-roots", editable = "packages/tofu-roots" },
-    { name = "google-cloud-compute", specifier = ">=1.49" },
-    { name = "pydantic", specifier = ">=2.13" },
+sdist = { url = "https://files.pythonhosted.org/packages/e9/ea/3c73c0e539cf9009111a9d460f72b9168d68b17552e081df9cce7e6900ab/cs_image_system_tf_gcp_plugin-0.2.0.tar.gz", hash = "sha256:da599c0d1fbf488b6e5582cecfbf09145340551645283d030c7a2e2a93d383d3", size = 64580, upload-time = "2026-11-19T21:13:31.65Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/bf/4f/ed315ae7d7016feee252af1f0d45f827a45a8a7586db6d1502003c643ef8/cs_image_system_tf_gcp_plugin-0.2.0-py3-none-any.whl", hash = "sha256:f2e740c8f6998caf77cf02b197404c3b33f71b20009199c36705f064a5bb5a5b", size = 43425, upload-time = "2026-11-19T21:13:28.205Z" },
 ]
 
 [[package]]

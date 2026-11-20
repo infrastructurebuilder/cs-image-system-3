@@ -1,0 +1,9 @@
+# Decommission overlay on the AWS runtime: the AWS instance root may apply,
+# and test2 is UNDECLARED for this invocation -- the overlay `undeclare`
+# form that `--undeclare` reproduces, on the fixture's default runtime. A test
+# device: no recipe names it.
+config:
+  apply_instances: [aws-east2-runtime]
+instances:
+  - name: test2
+    undeclare: true

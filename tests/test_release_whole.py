@@ -16,11 +16,13 @@ import os
 import posixpath
 import re
 import stat
+import sys
 from pathlib import Path
 
 import pytest
 from typer.testing import CliRunner
 
+from cs_image_system.engine.modules import installed_modules
 from cs_image_system.system import starter_links, starters
 from cs_image_system.system.cli import app
 
@@ -109,7 +111,7 @@ def test_init_config_writes_the_whole_starter_into_an_empty_destination(tmp_path
     assert (dest / ".githooks" / "pre-commit").stat().st_mode & stat.S_IXUSR     # the mode travelled
     assert "module_source_base: tfmodules" in (dest / "cfg" / "_config.yml").read_text()
     assert f"the whole tree of {name}" in result.output and "next: git init, just init" in result.output
-    assert "init-config: tfmodules: 14 written" in result.output, result.output   # the modules' own account
+    assert f"init-config: tfmodules: {len(installed_modules())} written" in result.output, result.output   # the modules' own account
     if any(written[r] != starters.render(name)[r] for r in written if r.endswith(".md")):
         assert f"at v{version}" in result.output   # the report says so
 
@@ -141,12 +143,12 @@ def test_init_config_on_an_existing_tree_writes_only_the_release_owned_parts(tmp
     for rel, p in starters.installed_module_files("tfmodules").items():
         assert (dest / rel).read_bytes() == p.read_bytes(), rel
     assert (dest / "tfmodules" / "aws_instance" / ".csis-module").is_file()
-    assert "init-config: tfmodules: 14 written" in result.output
+    assert f"init-config: tfmodules: {len(installed_modules())} written" in result.output
     assert (dest / ".csis-version").read_text() == starters.release_version() + "\n"
     # a second run changes nothing and says so
     again = _invoke(str(dest))
     assert again.exit_code == 0 and "0 written" in again.output, again.output
-    assert "14 kept" in again.output
+    assert f"{len(installed_modules())} kept" in again.output
 
 
 def test_init_config_refuses_a_release_owned_file_that_differs_unless_forced(tmp_path):
@@ -600,16 +602,18 @@ def test_runtime_unchanged_compares_one_runtimes_directories_across_records(tmp_
     fixture_run = _generated_tree(tmp_path, monkeypatch)
     root = fixture_run.config_root
     os.chdir(root)
-    code, lines = runtime_unchanged(fixture_run.ctx, "gcloud-east1", "HEAD")
+    code, lines = runtime_unchanged(fixture_run.ctx, "docker-fixture", "HEAD")
     assert code == 0 and "unchanged since HEAD" in lines[0] and "instance-image/" in lines[0], lines
     # a change under the OTHER runtime's directories is not this runtime's
-    aws_dir = next(p for p in (root / "generated" / "instance-image").iterdir() if p.is_dir() and "gce" not in p.name)
+    aws_dir = root / "generated" / "instance-image" / "open-tofu"
+    assert aws_dir.is_dir()
     (aws_dir / "extra.tf").write_text("# aws only\n")
-    code, lines = runtime_unchanged(fixture_run.ctx, "gcloud-east1", "HEAD")
+    code, lines = runtime_unchanged(fixture_run.ctx, "docker-fixture", "HEAD")
     assert code == 0, lines
-    gce_dir = next(p for p in (root / "generated" / "instance-image").iterdir() if p.is_dir() and "gce" in p.name)
-    (gce_dir / "extra.tf").write_text("# gce\n")
-    code, lines = runtime_unchanged(fixture_run.ctx, "gcloud-east1", "HEAD")
+    docker_dir = root / "generated" / "instance-image" / "tofu-docker"
+    assert docker_dir.is_dir()
+    (docker_dir / "extra.tf").write_text("# docker\n")
+    code, lines = runtime_unchanged(fixture_run.ctx, "docker-fixture", "HEAD")
     assert code == 1 and "CHANGED since HEAD (1 files)" in lines[0] and any("extra.tf" in ln for ln in lines), lines
     code, lines = runtime_unchanged(fixture_run.ctx, "no-such-runtime", "HEAD")
     assert code == 2 and "no runtime named" in lines[0]
@@ -719,3 +723,40 @@ def test_workload_token_refuses_outside_a_job_and_reports_a_refused_token(monkey
     _stub_minting(monkeypatch, rc=0, token="", verdict="")
     result = CliRunner().invoke(app, ["workload", "token"])
     assert result.exit_code == 1 and "issued no token" in result.stderr
+
+
+# ------------------------------------------------------------ what a release here publishes
+
+def _script(name: str):
+    import importlib.machinery
+    import importlib.util
+    path = Path(__file__).resolve().parents[1] / "scripts" / name
+    loader = importlib.machinery.SourceFileLoader(name.replace("-", "_").removesuffix(".py"), str(path))
+    spec = importlib.util.spec_from_loader(loader.name, loader)
+    assert spec is not None
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[loader.name] = module                          # dataclasses resolve their module by name
+    loader.exec_module(module)
+    return module
+
+
+def test_a_release_here_builds_and_publishes_none_of_the_google_cloud_family():
+    """spec 005: the Google Cloud family is released from its own repository; this repository's release
+    uploads none of it (the members `scripts/release.py` publishes and the projects
+    `scripts/publish-target-ready` probes), and `just build` (`uv build --all-packages`, every workspace
+    member) has none of it to build."""
+    import tomllib
+
+    from packaging.utils import canonicalize_name
+    repo = Path(__file__).resolve().parents[1]
+    elsewhere = {canonicalize_name(r.split(">")[0].split("<")[0].split("=")[0])
+                 for r in _script("with-released-families").requirements()}
+    assert elsewhere == {"cs-image-system-gcloud-runtime-plugin", "cs-image-system-tf-gcp-plugin",
+                         "cs-image-system-gcs-state-plugin"}
+    published = {canonicalize_name(tomllib.loads(p.read_text())["project"]["name"])
+                 for p in _script("release.py").published_members(repo)}
+    probed = {canonicalize_name(n) for n in _script("publish-target-ready").projects(repo)}
+    members = {canonicalize_name(tomllib.loads(p.read_text())["project"]["name"])
+               for p in repo.glob("packages/*/pyproject.toml")}
+    assert published and probed and members
+    assert not (published | probed | members) & elsewhere

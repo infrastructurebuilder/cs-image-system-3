@@ -23,6 +23,7 @@ import sys
 from pathlib import Path
 
 import pytest
+from starter_support import starters_this_workspace_renders
 
 REPO = Path(__file__).resolve().parents[1]
 EXAMPLES = REPO / "docs" / "examples"
@@ -69,7 +70,7 @@ def test_the_starter_justfile_puts_a_csis_path_first_on_path(rendered_starters: 
     """Through `just` itself: PATH as the recipes see it, with CSIS naming a
     path and with CSIS bare; and the dry form of `init` asks which command the
     callbacks find."""
-    for name in ("standard-aws", "standard-gce", "complete", "standard-aws-posix", "standard-docker"):
+    for name in starters_this_workspace_renders():
         starter = rendered_starters / name
         env = {**os.environ, "CSIS": "/opt/csis/.venv/bin/cs-image-system"}
         path = subprocess.run([str(JUST), "--evaluate", "PATH"], cwd=starter, env=env, capture_output=True, text=True, check=True).stdout

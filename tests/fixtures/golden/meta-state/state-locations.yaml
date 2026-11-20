@@ -38,28 +38,6 @@ workspaces:
     path: ../../../../state/docker_volume.tfstate
     run: 2026_08_26t12_00_00
     type: local
-  gcp-gcs:
-    backend: s3-east1
-    bucket: my-east1-tfstate-bucket
-    encrypt: true
-    key: statefiles/csia/gcp_gcs.tfstate
-    location: s3://my-east1-tfstate-bucket/statefiles/csia/gcp_gcs.tfstate
-    profile: noaa
-    region: us-east-1
-    run: 2026_08_26t12_00_00
-    type: s3
-    use_lockfile: true
-  gcp-pd:
-    backend: s3-east1
-    bucket: my-east1-tfstate-bucket
-    encrypt: true
-    key: statefiles/csia/gcp_pd.tfstate
-    location: s3://my-east1-tfstate-bucket/statefiles/csia/gcp_pd.tfstate
-    profile: noaa
-    region: us-east-1
-    run: 2026_08_26t12_00_00
-    type: s3
-    use_lockfile: true
   okta-groups-ro:
     backend: local-dev
     location: local://state/okta_groups_ro.tfstate
@@ -95,14 +73,3 @@ workspaces:
     path: ../../../../state/tofu_docker.tfstate
     run: 2026_08_26t12_00_00
     type: local
-  tofu-gce:
-    backend: s3-east2
-    bucket: noaa-ioos-cloud-sandbox-tfstate
-    encrypt: true
-    key: statefiles/csia-image-system-test/tofu_gce.tfstate
-    location: s3://noaa-ioos-cloud-sandbox-tfstate/statefiles/csia-image-system-test/tofu_gce.tfstate
-    profile: noaa
-    region: us-east-2
-    run: 2026_08_26t12_00_00
-    type: s3
-    use_lockfile: true

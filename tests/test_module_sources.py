@@ -27,13 +27,14 @@ from cs_image_system.system.cli import app
 
 EXPECTED = {
     "aws-runtime": {"aws_instance", "aws_storage_ebs", "aws_storage_efs", "aws_storage_s3", "bootstrap_aws"},
-    "gcloud-runtime": {"gce_instance", "gcp_storage_filestore", "gcp_storage_gcs", "gcp_storage_pd", "bootstrap_gcp"},
     # the docker package is one distribution (cs-image-system-docker-plugin), and a module's namespace is
     # its distribution's; the package's REGISTRATIONS keep the namespaces docker-runtime and tf-docker
     "docker": {"docker_container", "docker_volume"},
     "okta-opa": {"okta_opa_module"},
     "base": {"bootstrap_github"},
 }
+# every module the installed plugins ship
+TOTAL = sum(len(names) for names in EXPECTED.values())
 
 
 # ------------------------------------------------------------ the declaration
@@ -108,10 +109,10 @@ def test_an_absolute_or_remote_override_passes_through_as_the_module(tmp_path: P
 def test_a_bad_module_sources_value_is_refused_by_key(tmp_path: Path):
     with pytest.raises(ValueError, match="module_sources must be a mapping"):
         module_source_overrides(_ctx(tmp_path, module_sources="../mods"))
-    with pytest.raises(ValueError, match="'gce_instance' must be a path or URL"):
-        module_source(_ctx(tmp_path, module_sources={"gce_instance": ["a"]}), "aws_instance", WS)
-    with pytest.raises(ValueError, match="'gce_instance' must be a path or URL"):
-        module_source_overrides(_ctx(tmp_path, module_sources={"gce_instance": ""}))
+    with pytest.raises(ValueError, match="'docker_volume' must be a path or URL"):
+        module_source(_ctx(tmp_path, module_sources={"docker_volume": ["a"]}), "aws_instance", WS)
+    with pytest.raises(ValueError, match="'docker_volume' must be a path or URL"):
+        module_source_overrides(_ctx(tmp_path, module_sources={"docker_volume": ""}))
     assert module_source_overrides(_ctx(tmp_path)) == {}
 
 
@@ -154,7 +155,7 @@ def test_materialise_writes_and_stamps_every_module(tmp_path: Path):
         assert {p.name for p in (dest / name).iterdir()} == {p.name for p in source.path.iterdir()
                                                                 if p.name not in (".DS_Store", "__pycache__")} | {m.STAMP_FILE}
     assert (dest / "aws_instance" / m.STAMP_FILE).read_text().splitlines()[0] == "plugin: aws-runtime"
-    assert report.lines()[0].startswith("modules: 14 written, 0 refreshed")
+    assert report.lines()[0].startswith(f"modules: {TOTAL} written, 0 refreshed")
     assert "modules: aws_instance: written from the release" in report.lines()
 
 
@@ -188,15 +189,15 @@ def test_an_edited_copy_survives_a_refresh_and_is_named_even_with_force(tmp_path
         assert (copy / "main.tf").read_text() == "# the team's edit\n"
         line = next(x for x in report.lines() if x.startswith("modules: REFUSED aws_instance"))
         assert "config: module_sources (aws_instance: <path or URL>)" in line and "delete the copy" in line
-    assert len(report.kept) == 13
+    assert len(report.kept) == TOTAL - 1
 
 
 def test_an_unstamped_identical_copy_is_adopted(tmp_path: Path):
     dest = tmp_path / "tfmodules"
     m.materialise_modules(dest)
-    (dest / "gce_instance" / m.STAMP_FILE).unlink()
+    (dest / "docker_volume" / m.STAMP_FILE).unlink()
     report = m.materialise_modules(dest)
-    assert report.ok and report.adopted == ["gce_instance"] and _stamp(dest / "gce_instance").plugin == "gcloud-runtime"
+    assert report.ok and report.adopted == ["docker_volume"] and _stamp(dest / "docker_volume").plugin == "docker"
 
 
 def test_an_unstamped_different_copy_is_refused_without_force_and_replaced_with_it(tmp_path: Path):
@@ -248,12 +249,12 @@ def test_the_command_lists_and_writes(tmp_path: Path):
     listed = CliRunner().invoke(app, ["modules"])
     assert listed.exit_code == 0, listed.output
     lines = listed.output.strip().splitlines()
-    assert len(lines) == 14 and lines[0].startswith("aws_instance  aws-runtime ")
+    assert len(lines) == TOTAL and lines[0].startswith("aws_instance  aws-runtime ")
     assert all(Path(line.split("  ")[-1]).is_dir() for line in lines)
     dest = tmp_path / "tfmodules"
     written = CliRunner().invoke(app, ["modules", "--write", str(dest)])
     assert written.exit_code == 0, written.output
-    assert "modules: 14 written" in written.output and (dest / "bootstrap_github" / m.STAMP_FILE).is_file()
+    assert f"modules: {TOTAL} written" in written.output and (dest / "bootstrap_github" / m.STAMP_FILE).is_file()
     (dest / "bootstrap_github" / "main.tf").write_text("# edited\n")
     refused = CliRunner().invoke(app, ["modules", "--write", str(dest), "--force"])
     assert refused.exit_code == 1 and "REFUSED bootstrap_github" in refused.output

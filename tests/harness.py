@@ -9,7 +9,7 @@ Every such test runs the real pipeline over a private COPY of the frozen
 fixture (``tests/fixtures/config``: owned by the tests, never a
 live configuration) with all external touchpoints stubbed:
 
-* no cloud: AWS networking discovery, vendor-AMI queries and GCP queries are
+* no cloud: AWS networking discovery and vendor-AMI queries are
   replaced; nothing in these tests can read or write AWS/Okta;
 * no tools: ``ExecutableModel.execute`` is journaled, never run;
 * deterministic: the run timestamp and ``USER`` are pinned, and dummy okta /
@@ -20,7 +20,7 @@ The harness is a composition. What names no provider is the published test
 kit (``cs_image_system.system.testing``), which a provider's own suite uses
 directly. What stands in for a provider is that provider's own stub
 function where its package ships one (docker, the terraform roots library);
-the stubs for AWS, Google Cloud and Okta are kept here, beside the frozen
+the stubs for AWS and Okta are kept here, beside the frozen
 fixture that declares all of them.
 """
 from __future__ import annotations
@@ -101,13 +101,12 @@ class _AnySecurityGroups(dict):
 def copy_config(tmp_path: Path, name: str = "config") -> Path:
     """A private copy of the frozen fixture (without any generated output).
     The transient apply_* flags are normalized to false -- a live run's
-    TEMP flag flip must never leak into tests (found live during the first
-    GCP apply, when the fixture was still the live tree); tests that want
-    a flag on set ``ctx.config`` (and the file, for apply-check)
-    themselves. The live GCE runtime declares `ephemeral: true` (rule 58);
-    copies start non-ephemeral and tests that want it declare it."""
+    TEMP flag flip must never leak into tests (found live, when the fixture
+    was still the live tree); tests that want a flag on set ``ctx.config``
+    (and the file, for apply-check) themselves. Copies start non-ephemeral
+    (rule 58) and tests that want it declare it."""
     dst = kit.copy_fixture(FIXTURE_CONFIG, tmp_path, name)
-    # The suite's instance subjects (test, test2, gce-test) are declared in
+    # The suite's instance subjects (test, test2, container-test) are declared in
     # the fixture itself; nothing is injected here.
     # The one meta-state file a copy starts with: the network
     # facts record a real run would have written, saying exactly what the
@@ -120,10 +119,10 @@ def copy_config(tmp_path: Path, name: str = "config") -> Path:
 def record_network_facts(root: Path, checked_at: str = FIXED_CHECKED_AT) -> Path:
     """Write ``<root>/meta-state/runtime-facts.yaml`` for the tree under
     ``root``, derived from its own ``cfg/*.yml`` (the ids are the tree's
-    data, not literals restated here): every aws/gcloud runtime's declared
+    data, not literals restated here): every aws runtime's declared
     network (a `default` recorded as the literal ``default``, what the
     harness's stubs answer as the account's default), its declared subnet
-    ids and, on aws, its declared security groups -- as if a real run had
+    ids and its declared security groups -- as if a real run had
     checked them. The path is returned."""
     import yaml as _yaml
 
@@ -132,14 +131,13 @@ def record_network_facts(root: Path, checked_at: str = FIXED_CHECKED_AT) -> Path
     for p in sorted((root / "cfg").glob("*.y*ml")):
         doc = _yaml.safe_load(p.read_text()) or {}
         for r in (doc.get("runtime_builders") or []) if isinstance(doc, dict) else []:
-            if not isinstance(r, dict) or r.get("type") not in ("aws", "gcloud") or not r.get("name"):
+            if not isinstance(r, dict) or r.get("type") != "aws" or not r.get("name"):
                 continue
             net = r.get("networking") or {}
             network = net.get("network")
             facts: dict = {"network": "default" if network in OOPS_DEFAULTS else str(network),
-                           "subnets": [str(s.get("subnet_id")) for s in net.get("subnets") or []]}
-            if r.get("type") == "aws":
-                facts["security_groups"] = [str(sg) for sg in net.get("addl_security_groups") or []]
+                           "subnets": [str(s.get("subnet_id")) for s in net.get("subnets") or []],
+                           "security_groups": [str(sg) for sg in net.get("addl_security_groups") or []]}
             facts["checked_at"] = checked_at
             runtimes[str(r["name"])] = facts
     path = root / "meta-state" / "runtime-facts.yaml"
@@ -182,7 +180,7 @@ def _credentials(monkeypatch) -> None:
 
 
 def _clouds(monkeypatch, retags: list[tuple[str, dict[str, str]]]) -> None:
-    """The AWS and Google Cloud stubs."""
+    """The AWS stubs."""
     # The cloud discovery stubs: a LOAD never calls them --
     # the copy's meta-state/runtime-facts.yaml (record_network_facts) says
     # what they would answer -- but a real run's `discover` and a test's
@@ -192,11 +190,6 @@ def _clouds(monkeypatch, retags: list[tuple[str, dict[str, str]]]) -> None:
                         lambda session_config: ({v: {"subnets": []} for v in VPCS}, "default",
                                                 _AnySecurityGroups()))
     from cs_image_system.aws_runtime.aws_runtime_builders import AwsCloudBuilder
-    from cs_image_system.gcloud_runtime import testing as gcloud_testing
-
-    # Google Cloud's stubs ship with its plugin; the my-project subnets
-    # they always hold serve the gce_overlay tests
-    gcloud_testing.stub(monkeypatch, retags, config=FIXTURE_CONFIG)
     monkeypatch.setattr(AwsCloudBuilder, "query_provider_image",
                         lambda self, osb: (VENDOR_AMI, "amazon", {}))
     # The read-only state-query hooks would reach AWS/OPA: answer "nothing

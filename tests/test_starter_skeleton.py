@@ -117,12 +117,12 @@ def _old_layout_root(into: Path) -> Path:
 
 def test_write_starter_writes_the_modules_with_stamps_into_the_declared_base(tmp_path: Path):
     dest = tmp_path / "tree"
-    written = starters.write_starter("standard-gce", dest, version="9.9.9")
+    written = starters.write_starter("standard-aws", dest, version="9.9.9")
     assert written == sorted(written) and ".csis-version" in written and "Justfile" in written
     assert (dest / ".csis-version").read_text() == "9.9.9\n"
     assert "module_source_base: tfmodules" in (dest / "cfg" / "_config.yml").read_text()
     modules = installed_modules()
-    assert len(modules) >= 14
+    assert len(modules) >= 9
     for name, module in modules.items():
         copy = dest / "tfmodules" / name
         stamp = Stamp.read(copy / STAMP_FILE)
@@ -228,16 +228,16 @@ def test_changes_since_an_older_layout_lists_nothing_when_nothing_changed_and_a_
     assert report.unchanged >= len(installed_modules())                     # the release-owned files and every module
     # the previous release's module differed, and the tree still holds that release's copy, unstamped
     # as that layout wrote it: one refresh entry for the module
-    old_main = previous / "standard-aws" / "tfmodules" / "gce_instance" / "main.tf"
+    old_main = previous / "standard-aws" / "tfmodules" / "aws_instance" / "main.tf"
     old_main.write_text(old_main.read_text() + "\n# older\n")
-    copy = tree / "tfmodules" / "gce_instance"
+    copy = tree / "tfmodules" / "aws_instance"
     (copy / "main.tf").write_bytes(old_main.read_bytes())
     (copy / STAMP_FILE).unlink()
     report = starters.changes_since(tree, previous, "standard-aws")
-    assert report.refresh == ["tfmodules/gce_instance/"] and report.edited == [] and report.added == []
+    assert report.refresh == ["tfmodules/aws_instance/"] and report.edited == [] and report.added == []
     # the tree's copy differs from both: edited
     (copy / "main.tf").write_text("# ours\n")
-    assert starters.changes_since(tree, previous, "standard-aws").edited == ["tfmodules/gce_instance/"]
+    assert starters.changes_since(tree, previous, "standard-aws").edited == ["tfmodules/aws_instance/"]
 
 
 def test_changes_since_a_current_layout_previous_root_judges_each_module_by_its_stamp(tmp_path: Path):
@@ -247,9 +247,9 @@ def test_changes_since_a_current_layout_previous_root_judges_each_module_by_its_
     report = starters.changes_since(tree, previous, "standard-aws")
     assert report.clear, report.lines()
     with_modules = report.unchanged
-    (tree / "tfmodules" / "gce_instance" / "main.tf").write_text("# ours\n")           # edited since its stamp
+    (tree / "tfmodules" / "aws_instance" / "main.tf").write_text("# ours\n")           # edited since its stamp
     report = starters.changes_since(tree, previous, "standard-aws")
-    assert report.edited == ["tfmodules/gce_instance/"] and report.unchanged == with_modules - 1
+    assert report.edited == ["tfmodules/aws_instance/"] and report.unchanged == with_modules - 1
     shutil.rmtree(tree / "tfmodules" / "docker_volume")
     assert "tfmodules/docker_volume/" in starters.changes_since(tree, previous, "standard-aws").added
 

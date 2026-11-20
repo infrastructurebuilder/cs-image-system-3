@@ -41,9 +41,9 @@ from cs_image_system.base.models.os_builder_model import OsBuilderModel
 
 #: the fixture's overlay that undeclares this instance for one invocation
 #: and lets its runtime's instance root apply
-OVERLAY = "gce-cycle-decommission.yaml"
-OVERLAY_INSTANCE = "gce-test"
-OVERLAY_APPLIES = ["gcloud-east1"]
+OVERLAY = "aws-cycle-decommission.yaml"
+OVERLAY_INSTANCE = "test2"
+OVERLAY_APPLIES = ["aws-east2-runtime"]
 #: a family only the second tree's catalog layer knows
 FAMILY = "only-in-the-second-tree"
 

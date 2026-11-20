@@ -24,8 +24,11 @@ exported) and run through the ``validate`` command's checks; the standard
 trees are pinned minimal, the complete tree is pinned to name every plugin
 type, and every ``ENC[age:...]`` marker in the trees must open with the
 test identity. The wheel test alone reads the SOURCE under
-``docs/examples``. Documentation only: nothing here changes what the code
-does.
+``docs/examples``. A starter whose providers are not installed here (the
+Google Cloud family is released from its own repository) is left out, and
+``complete``'s own tests are in ``tests/cloud_starters`` (``just
+test-cloud-starters``). Documentation only: nothing here changes what the
+code does.
 """
 from __future__ import annotations
 
@@ -36,16 +39,18 @@ from pathlib import Path
 import pytest
 import yaml
 from harness import load_context, record_network_facts, stub_environment
-from starter_support import RENDERED
+from starter_support import RENDERED, starters_this_workspace_renders
 
-from cs_image_system.system.starters import STARTERS
+from cs_image_system.system.starters import STARTERS, render
 
 REPO = Path(__file__).resolve().parents[1]
 EXAMPLES = REPO / "docs" / "examples"
 SKELETON = EXAMPLES / "_skeleton"
-# the starters are the release's constant: the standard trees are
-# every starter but the complete one
-TREES = list(STARTERS)
+# the starters this workspace renders: the release's constant, less any
+# whose declared providers are not installed here (they are checked where
+# every provider is: spec 005, research R11); the standard trees are every
+# one of them but the complete one
+TREES = starters_this_workspace_renders()
 STANDARD = [name for name in TREES if name != "complete"]
 
 # The `type:` keys each plugin package answers to (docs/PLUGINS.md and the
@@ -59,14 +64,11 @@ PLUGIN_TYPES: dict[str, set[str]] = {
     "bash-mod-plugin": {"bash-remote"},
     "default-os-plugin": {"rhel", "debian", "ubuntu"},      # fedora and alpine are the same plugin, unused here
     "docker-plugin": {"docker", "tofu-docker", "tf-docker-volume"},
-    "gcloud-runtime-plugin": {"gcloud"},
-    "gcs-state-plugin": {"gcs"},
     "local-state-plugin": {"local"},
     "okta-opa-plugin": {"okta-tf", "okta-tf-ro"},
     "posix-identity-plugin": {"posix"},
     "packer-plugin": {"packer"},
     "tf-ebs-instance-plugin": {"tofu", "tf-aws-ebs", "tf-aws-efs", "tf-aws-s3"},
-    "tf-gcp-plugin": {"tofu-gce", "tf-gcp-pd", "tf-gcp-filestore", "tf-gcp-gcs"},
     "tf-s3-state-plugin": {"s3"},
 }
 NOT_PLUGINS = {"base", "engine", "contract", "contract-example-plugin", "system", "hashicorp-utils", "tofu-roots",
@@ -98,7 +100,6 @@ def stub_networks_from(monkeypatch, root: Path) -> None:
     tree under test instead (which VPCs and subnets exist is a live-account
     fact these tests must not restate)."""
     from cs_image_system.aws_runtime import aws_utils
-    from cs_image_system.gcloud_runtime import testing as gcloud_testing
     runtimes = _runtimes(root)
 
     class _AnySecurityGroups(dict):
@@ -110,7 +111,6 @@ def stub_networks_from(monkeypatch, root: Path) -> None:
     monkeypatch.setattr(aws_utils, "get_vpc_map_and_default_vpc_id",
                         lambda session_config: ({v: {"subnets": []} for v in vpcs}, "default",
                                                 _AnySecurityGroups()))
-    gcloud_testing.stub_declared_networks(monkeypatch, runtimes)
     # a load adopts the record a real run would have written
     # instead of asking the clouds; the harness writes it, saying what the
     # stubs above answer, so `validate` passes offline as it would after
@@ -134,14 +134,24 @@ def stub_opa_credentials_from(monkeypatch, root: Path) -> None:
                     monkeypatch.setenv(f"TF_VAR_{team}_secret", "dummy")
 
 
-@pytest.fixture(params=TREES)
-def tree(request, tmp_path, monkeypatch, rendered_starters):
+def _loaded(name: str, tmp_path: Path, monkeypatch, rendered_starters: Path):
+    """(name, root, context): the starter NAME copied, stubbed and loaded."""
     stub_environment(monkeypatch)
-    root = copy_example(tmp_path, request.param, rendered_starters)
+    root = copy_example(tmp_path, name, rendered_starters)
     stub_networks_from(monkeypatch, root)
     stub_opa_credentials_from(monkeypatch, root)
     ctx = load_context(root, dry_run=True)
-    return request.param, root, ctx
+    return name, root, ctx
+
+
+@pytest.fixture(params=TREES)
+def tree(request, tmp_path, monkeypatch, rendered_starters):
+    return _loaded(request.param, tmp_path, monkeypatch, rendered_starters)
+
+
+@pytest.fixture(params=STANDARD)
+def standard_tree(request, tmp_path, monkeypatch, rendered_starters):
+    return _loaded(request.param, tmp_path, monkeypatch, rendered_starters)
 
 
 def _validation_errors(ctx) -> list[str]:
@@ -165,10 +175,8 @@ def test_every_example_has_the_shape_of_a_configuration_root(rendered_starters):
             assert (root / f).read_text() == (fixture / f).read_text(), f"{name}/{f} is not the TEST identity"
 
 
-def test_the_standard_trees_are_minimal(tree):
-    name, root, ctx = tree
-    if name not in STANDARD:
-        pytest.skip("the complete tree is anything but minimal")
+def test_the_standard_trees_are_minimal(standard_tree):
+    name, root, ctx = standard_tree
     assert len(ctx.groups) == 1, [g.get_name() for g in ctx.groups]
     assert len(ctx.storages) == 1, [s.get_name() for s in ctx.storages]
     assert len(ctx.os_builders) == 1, sorted(ctx.os_builders)
@@ -176,10 +184,18 @@ def test_the_standard_trees_are_minimal(tree):
     assert len(ctx.instances) == 1, [i.get_name() for i in ctx.instances]
 
 
+# the cloud of each standard tree rendered here (standard-gce's, gcloud, is
+# checked where the Google Cloud family is installed: spec 005, research R11)
+STANDARD_CLOUD = {"standard-aws": "aws", "standard-aws-posix": "aws", "standard-docker": "docker"}
+
+
 def test_the_standard_trees_use_their_cloud_alone(rendered_starters):
-    for name, runtime in (("standard-aws", "aws"), ("standard-gce", "gcloud"), ("standard-aws-posix", "aws"), ("standard-docker", "docker")):
+    assert set(STANDARD_CLOUD) <= set(STANDARD), sorted(set(STANDARD_CLOUD) - set(STANDARD))
+    for name in STANDARD:
         types = {r.get("type") for r in _runtimes(rendered_starters / name)}
-        assert types == {runtime}, f"{name} declares runtimes of types {types}"
+        assert len(types) == 1, f"{name} declares runtimes of types {types}"
+        if name in STANDARD_CLOUD:
+            assert types == {STANDARD_CLOUD[name]}, f"{name} declares runtimes of types {types}"
 
 
 def _builder_types(root: Path) -> set[str]:
@@ -197,14 +213,16 @@ def _builder_types(root: Path) -> set[str]:
     return out
 
 
-def test_the_complete_tree_declares_every_plugin_the_workspace_ships(rendered_starters):
+def test_the_complete_tree_declares_every_plugin_the_workspace_ships():
     packages = {p.name for p in (REPO / "packages").iterdir()
                 if p.is_dir() and (p / "pyproject.toml").exists()}
     plugins = packages - NOT_PLUGINS
     assert plugins == set(PLUGIN_TYPES), "a plugin package appeared or left: update PLUGIN_TYPES"
     for pkg in plugins:
         assert "entry-points" in (REPO / "packages" / pkg / "pyproject.toml").read_text(), f"{pkg} registers no entry point"
-    used = _builder_types(rendered_starters / "complete")
+    # the declarations are the starter's own `cfg/` (the skeleton has none), read as
+    # written: no plugin is needed to read them, so every provider's are read here
+    used = _builder_types(EXAMPLES / "complete")
     for pkg, types in sorted(PLUGIN_TYPES.items()):
         missing = types - used
         assert not missing, f"complete: {pkg} type(s) {sorted(missing)} are not declared"
@@ -248,46 +266,6 @@ def test_every_overlay_has_the_documented_shape(rendered_starters):
                     assert isinstance(value, list) and all(isinstance(e, dict) and e.get("name") for e in value), p
 
 
-@pytest.mark.parametrize("overlay", ["apply-identity-and-storage", "gce-cycle-launch", "gce-cycle-decommission",
-                                     "archive-volume", "gce-cycle-storage-teardown"])
-def test_the_complete_tree_loads_under_each_overlay(tmp_path, monkeypatch, overlay, rendered_starters):
-    stub_environment(monkeypatch)
-    root = copy_example(tmp_path, "complete", rendered_starters)
-    stub_networks_from(monkeypatch, root)
-    stub_opa_credentials_from(monkeypatch, root)
-    ctx = load_context(root, dry_run=True, overlays=[root / "overlays" / f"{overlay}.yaml"])
-    errors = _validation_errors(ctx)
-    if overlay == "gce-cycle-storage-teardown":
-        # the documented refusal: a never-applied, still-attached storage may
-        # not be requested destroyed (the overlay is the pattern, not a plan)
-        assert errors and all("gce_data" in e or "gce_bucket" in e for e in errors), errors
-    else:
-        assert errors == [], errors
-    if overlay == "gce-cycle-launch":
-        assert any(i.get_name() == "gce-cycle" for i in ctx.instances)
-    if overlay == "gce-cycle-decommission":
-        assert not any(i.get_name() == "gce-node" for i in ctx.instances)
-
-
-def test_the_complete_tree_carries_every_variation(tree):
-    name, root, ctx = tree
-    if name != "complete":
-        pytest.skip("the standard trees are minimal by design")
-    from cs_image_system.base.lineage import image_policy_of, parent_policy_of
-    assert {parent_policy_of(i) for i in ctx.images} == {"pinned", "follow"}
-    assert {image_policy_of(i) for i in ctx.instances} == {"pinned", "follow"}
-    assert {bool(i.ephemeral) for i in ctx.instances} == {True, False}
-    assert {s.state for s in ctx.storages} == {"active", "archived", "destroyed"}
-    assert {rt.model.type_ for rt in ctx.runtime_builders.values()} == {"aws", "gcloud", "docker"}   # the container runtime too
-    # the token says what the image IS; what it is treated as comes from the catalog
-    assert {osb.model.get_vendor_family() for osb in ctx.os_builders.values()} == {"alma-linux", "debian", "ubuntu"}
-    assert {osb.model.get_family() for osb in ctx.os_builders.values()} == {"rhel", "debian", "ubuntu"}
-    assert {b.model.type_ for b in ctx.state_backends.values()} == {"s3", "local", "gcs"}
-    assert any(getattr(g.model, "workload_connection", None) for g in ctx.group_builders.values())
-    assert (root / "meta-state" / "aliases.txt").is_file()
-    assert any(i.get_name() == "gce-node" for i in ctx.instances)
-
-
 # ------------------------------------------------------------- the starter parts
 
 STARTER_FILES = ["Justfile", ".github/workflows/ci.yml", ".githooks/pre-commit", ".gitignore"]
@@ -308,7 +286,7 @@ def test_every_example_is_a_whole_repository_a_team_can_copy(rendered_starters):
     assert sorted(STARTERS) == sorted(p.name for p in EXAMPLES.iterdir() if p.is_dir() and not p.name.startswith("_"))
     assert starters_root().resolve() == EXAMPLES.resolve()          # an editable checkout resolves the source
     modules = installed_modules()
-    assert len(modules) >= 14, sorted(modules)
+    assert len(modules) >= 9, sorted(modules)
     for name in TREES:
         root = rendered_starters / name
         for rel in STARTER_FILES:
@@ -528,7 +506,7 @@ def test_the_built_release_carries_the_starters_byte_for_byte(tmp_path):
     with zipfile.ZipFile(wheel) as z:
         carried = {n[len(prefix):]: z.read(n) for n in z.namelist() if n.startswith(prefix)}
     expected = {"DEFAULT": (EXAMPLES / "DEFAULT").read_bytes()}
-    for name in ["_skeleton", *TREES]:
+    for name in ["_skeleton", *STARTERS]:          # the source of every starter, rendered here or not
         for p in sorted((EXAMPLES / name).rglob("*")):
             if p.is_file() and p.name != ".DS_Store":
                 expected[f"{name}/{p.relative_to(EXAMPLES / name)}"] = p.read_bytes()
@@ -549,9 +527,8 @@ def test_the_built_release_carries_the_starters_byte_for_byte(tmp_path):
 GUIDE = "CI_SETUP.md"
 
 
-def _gate_secrets(root: Path) -> set[str]:
-    """Every secret a gate of the starter workflow (at ROOT) reads (its HAVE_<NAME> lines)."""
-    text = (root / ".github" / "workflows" / "ci.yml").read_text()
+def _gate_secrets(text: str) -> set[str]:
+    """Every secret a gate of a starter workflow (its TEXT) reads (its HAVE_<NAME> lines)."""
     return set(re.findall(r"HAVE_([A-Z0-9_]+):\s*\$\{\{\s*secrets\.\1\s*!= ''", text))
 
 
@@ -573,13 +550,15 @@ def test_every_starter_carries_the_same_ci_guide_and_it_is_release_owned(rendere
     assert not (REPO / "WORKLOAD_CONNECTION.md").exists(), "stage 69: the checklist folded into the guide's OPA section"
 
 
-def test_the_guides_secrets_table_is_the_workflows_gates(rendered_starters):
+def test_the_guides_secrets_table_is_the_workflows_gates():
     """Every secret a starter workflow's gates read is in the guide's GitHub
     secrets table, and every name in the table is read by some starter's gate,
     so the guide cannot fall behind the workflow (or run ahead of it)."""
     text = (SKELETON / GUIDE).read_text()
     table = _guide_secrets(text, "### 3.7 The secrets")
-    gates = set().union(*(_gate_secrets(rendered_starters / name) for name in TREES))
+    # every starter's workflow as the release renders it (the skeleton under the overlay, no
+    # plugin needed), so the providers checked elsewhere keep their secrets in the table
+    gates = set().union(*(_gate_secrets(render(name)[".github/workflows/ci.yml"].decode()) for name in STARTERS))
     assert gates, "no gate read a secret: the pattern no longer matches the workflow"
     assert table == gates, {"in the workflow, not the guide": sorted(gates - table),
                             "in the guide, not the workflow": sorted(table - gates)}

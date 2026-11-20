@@ -26,7 +26,7 @@ import pytest
 
 from tests.harness import FixtureRun, copy_config
 
-GCE = "gcloud-east1"
+DOCKER = "docker-fixture"
 AWS = "aws-east2-runtime"
 
 
@@ -67,42 +67,42 @@ def _cli_scope(run: FixtureRun, runtime: str) -> list[str]:
 
 def test_apply_runtime_implies_the_bake_filter_and_the_plan_says_so(fresh):
     run = fresh()
-    only = _cli_scope(run, GCE)
+    only = _cli_scope(run, DOCKER)
     summary = run.run(["base-image", "instance-image"], apply=False, only=only)
     assert summary.ok, summary.error
     plan = summary.bake_plan
-    assert all(v.startswith("bake:") for k, v in plan.items() if k.endswith(f"@{GCE}"))
+    assert all(v.startswith("bake:") for k, v in plan.items() if k.endswith(f"@{DOCKER}"))
     aws = {k: v for k, v in plan.items() if k.endswith(f"@{AWS}")}
-    assert aws and all(v == f"skip: outside the apply scope (--apply-runtime {GCE})" for v in aws.values())
+    assert aws and all(v == f"skip: outside the apply scope (--apply-runtime {DOCKER})" for v in aws.values())
     files = [str(p.relative_to(run.generated)) for p in run.generated.rglob("*source-*.pkr.hcl")]
-    assert files and all("pckr-gce" in f for f in files)          # no AWS bake surface at all
+    assert files and all("pckr-docker" in f for f in files)       # no AWS bake surface at all
 
 
 def test_a_scoped_run_refuses_bakes_outside_its_scope_before_any_bake(fresh):
     from cs_image_system.engine.commands.run_scope import apply_scope_runtimes, unscoped_bakes
     run = fresh(dry_run=False)
-    run.ctx.config["apply_instances"] = [GCE]                   # the gce-apply overlay's shape, no --only
-    assert apply_scope_runtimes(run.ctx) == {GCE}
+    run.ctx.config["apply_instances"] = [DOCKER]                # a scoped apply overlay's shape, no --only
+    assert apply_scope_runtimes(run.ctx) == {DOCKER}
     summary = run.run(["base-image"], apply=False)
     assert not summary.ok
-    assert "run scope:" in str(summary.error) and "['gcloud-east1']" in str(summary.error)
+    assert "run scope:" in str(summary.error) and "['docker-fixture']" in str(summary.error)
     assert f"basic-rh-10@{AWS}" in str(summary.error) and "--allow-unscoped-bakes" in str(summary.error)
     assert unscoped_bakes(run.ctx, summary.bake_plan) == sorted(
-        k for k, v in summary.bake_plan.items() if v.startswith("bake:") and not k.endswith(f"@{GCE}"))   # every other runtime's
+        k for k, v in summary.bake_plan.items() if v.startswith("bake:") and not k.endswith(f"@{DOCKER}"))   # every other runtime's
     assert not list(run.generated.rglob("*.pkr.hcl"))            # nothing generated, nothing baked
 
 
 def test_the_operator_may_allow_or_select_explicitly_and_a_dry_run_only_warns(fresh, caplog):
     run = fresh(dry_run=False)
-    run.ctx.config["apply_instances"] = [GCE]
+    run.ctx.config["apply_instances"] = [DOCKER]
     run.ctx.allow_unscoped_bakes = True
     assert run.run(["base-image"], apply=False).ok
     run = fresh(dry_run=False)
-    run.ctx.config["apply_instances"] = [GCE]
+    run.ctx.config["apply_instances"] = [DOCKER]
     run.ctx.explicit_bake_selection = True                        # --only / --only-runtime was given
     assert run.run(["base-image"], apply=False, only=[f"basic-rh-10@{AWS}"]).ok
     run = fresh()                                                 # dry run
-    run.ctx.config["apply_instances"] = [GCE]
+    run.ctx.config["apply_instances"] = [DOCKER]
     with caplog.at_level("WARNING"):
         summary = run.run(["base-image"], apply=False)
     assert summary.ok and any("not refused" in r.message for r in caplog.records)
@@ -114,8 +114,8 @@ def test_a_run_with_no_apply_scope_bakes_wherever_the_tree_says(fresh):
     assert apply_scope_runtimes(run.ctx) is None                  # flags off, no --apply-runtime
     run.ctx.config["apply_instances"] = True
     assert apply_scope_runtimes(run.ctx) is None                  # a bool flag: the whole lifecycle
-    run.ctx.config["apply_instances"] = ["tofu-gce"]              # a ROOT name maps to its runtime
-    assert apply_scope_runtimes(run.ctx) == {GCE}
+    run.ctx.config["apply_instances"] = ["tofu-docker"]           # a ROOT name maps to its runtime
+    assert apply_scope_runtimes(run.ctx) == {DOCKER}
 
 
 # ------------------------------------------------------ session lifetimes
@@ -154,14 +154,11 @@ def test_preflight_lines_flag_a_session_shorter_than_the_expected_run(fresh, tmp
     monkeypatch.setenv("CSIS_AWS_DIR", str(_aws_dir(tmp_path, "noaa", "https://x.awsapps.com/start",
                                                     now + timedelta(minutes=12))))
     monkeypatch.delenv("AWS_ACCESS_KEY_ID", raising=False)
-    monkeypatch.setenv("GOOGLE_APPLICATION_CREDENTIALS", str(tmp_path / "missing-adc.json"))
     lines, blocking = session_lines(run.ctx, now)
     aws_line = next(ln for ln in lines if f"{AWS}" in ln and "(aws, s3, profile noaa)" in ln)   # the runtimes AND the s3 backends on that profile
     assert "12 min" in aws_line and "SHORTER" in aws_line
     assert blocking == [aws_line]                                # one line per SOURCE, default window 30 min
     assert aws_line.startswith("session: aws-east1, aws-east2-runtime")   # every runtime on that profile
-    gcp_line = next(ln for ln in lines if f"{GCE}" in ln and "(gcloud, gcs, " in ln)     # the entries' own type words
-    assert "no Application Default Credentials found" in gcp_line and gcp_line not in blocking
     run.ctx.config["preflight"] = {"expected_run_minutes": 10}   # the operator's own window
     _, blocking = session_lines(run.ctx, now)
     assert blocking == []
@@ -186,12 +183,10 @@ def test_an_expired_session_does_not_stop_the_load_and_the_loaded_tree_reports_i
     monkeypatch.setenv("CSIS_AWS_DIR", str(_aws_dir(tmp_path, "noaa", "https://x.awsapps.com/start",
                                                     now - timedelta(minutes=5))))
     monkeypatch.delenv("AWS_ACCESS_KEY_ID", raising=False)
-    monkeypatch.setenv("GOOGLE_APPLICATION_CREDENTIALS", str(tmp_path / "missing-adc.json"))
     ctx = load_context(root)                                     # loads: nothing asked the cloud
-    lines, absent, expired, blocking, _ = session_readiness(ctx, now)
+    lines, _, expired, blocking, _ = session_readiness(ctx, now)
     assert any(ln.startswith("session: aws-east1, aws-east2-runtime") and "EXPIRED" in ln for ln in lines)
     assert expired and expired == blocking[:1]
-    assert any("(gcloud, gcs, ADC)" in ln for ln in lines) and absent
     overlay = tmp_path / "pre.yaml"
     overlay.write_text("config:\n  preflight:\n    expected_run_minutes: 100000\n")
     monkeypatch.setenv("CSIS_AWS_DIR", str(_aws_dir(tmp_path / "f", "noaa", "https://x.awsapps.com/start",
@@ -204,28 +199,28 @@ def test_an_expired_session_does_not_stop_the_load_and_the_loaded_tree_reports_i
 
 def test_only_runtime_scopes_the_terraform_roots_too(tmp_path, monkeypatch):
     """A run scoped to one runtime's images generates and plans no OTHER
-    runtime's root (the GCE instance root's family lookup 404'd during a
-    scoped AWS bake). A list-valued apply flag alone is NOT a scope: the
+    runtime's root (another provider's instance root's family lookup 404'd
+    during a scoped AWS bake). A list-valued apply flag alone is NOT a scope: the
     per-root scoping decision keeps every root planning and gating under it."""
     from cs_image_system.base.utils import root_in_runtime_scope
     root = copy_config(tmp_path)
     run = FixtureRun(tmp_path, monkeypatch, config_root=root)
     try:
         run.ctx.only_runtime_scope = AWS
-        assert root_in_runtime_scope(run.ctx, AWS) and not root_in_runtime_scope(run.ctx, GCE) and root_in_runtime_scope(run.ctx, None)
+        assert root_in_runtime_scope(run.ctx, AWS) and not root_in_runtime_scope(run.ctx, DOCKER) and root_in_runtime_scope(run.ctx, None)
         summary = run.run(["storage", "instance-image"], apply=True, only=["none"])
         assert summary.ok, summary.error
         roots = {p.relative_to(run.generated).parts[1] for p in run.generated.rglob("*.tf")}
         assert "open-tofu" in roots and "aws-ebs" in roots
-        assert not any(r.startswith(("tofu-gce", "gcp-")) for r in roots)
+        assert not any(r.startswith(("tofu-docker", "docker-")) for r in roots)
         script = (run.generated / "instance-image" / "run-instance-image.sh").read_text()
-        assert "tofu-gce" not in script and "open-tofu/instance-generation" in script
+        assert "tofu-docker" not in script and "open-tofu/instance-generation" in script
         run.ctx.only_runtime_scope = None
-        run.ctx.config["apply_instances"] = [GCE]                   # a flag list scopes applies only
+        run.ctx.config["apply_instances"] = [DOCKER]                # a flag list scopes applies only
         summary = run.run(["instance-image"], apply=True, only=["none"])
         assert summary.ok, summary.error
         script = (run.generated / "instance-image" / "run-instance-image.sh").read_text()
-        assert "tofu-gce/instance-generation" in script and "open-tofu/instance-generation" in script
+        assert "tofu-docker/instance-generation" in script and "open-tofu/instance-generation" in script
     finally:
         run.restore_cwd()
 

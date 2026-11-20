@@ -186,7 +186,7 @@ def test_the_live_configuration_never_reaches_the_fast_suite_and_is_guarded_else
         assert "exit 2" in plan and ("cfg/_config.yml" in plan or "just config-guard" in plan), n   # guarded
     # the cycle recipes live in a configuration repository's Justfile (the release ships it)
     assert not {"cloud-cycle", "cloud-perform", "cloud-launch", "ci-login-proof", "sft-install", "v2-dry-run",
-                "config-drift", "runtime-unchanged", "gce-cycle"} & set(_summary()), _summary()
+                "config-drift", "runtime-unchanged"} & set(_summary()), _summary()
     guard = _plan("config-guard")
     assert "exit 2" in guard and "tests/fixtures/config" in guard
     # config-drift: the CLI's command, reached here as `just cli config-drift`; the normaliser is its module
@@ -228,22 +228,21 @@ def test_preflight_reports_absent_sessions_and_exits_2(monkeypatch):
     # conftest: an empty AWS dir, no ADC -- every session absent
     result = _preflight(monkeypatch)
     assert result.exit_code == 2, result.output
-    assert "aws-east2-runtime" in result.output and "gcloud-east1" in result.output and "docker-fixture" in result.output
+    assert "aws-east2-runtime" in result.output and "docker-fixture" in result.output
     assert "not in" in result.output or "no SSO token" in result.output      # the aws line's reason
     # the synthetic daemon's line: the context exists nowhere, the CLI may be absent (a bare runner), or
     # a probe may time out; any of the three is "absent"
     assert any(w in result.output for w in ("does not answer", "is not an executable", "no answer within")), result.output
-    assert "Application Default Credentials" in result.output
     assert "EXPIRED" in result.output and "renew" in result.output
     assert not (FIXTURE_CONFIG / "meta-state").exists()                     # the load wrote nothing into the frozen fixture
 
 
 def test_preflight_passes_with_static_keys_and_an_adc(monkeypatch, tmp_path):
-    adc = tmp_path / "adc.json"
+    adc = tmp_path / "adc.json"                  # present while the fixture declares a Google Cloud session; inert after
     adc.write_text(json.dumps({"type": "authorized_user"}))
     result = _preflight(monkeypatch, daemon=True, AWS_ACCESS_KEY_ID="AKIA-test", GOOGLE_APPLICATION_CREDENTIALS=str(adc))
     assert result.exit_code == 0, result.output
-    assert "env keys" in result.output and "authorized_user" in result.output and "engine stub" in result.output
+    assert "env keys" in result.output and "engine stub" in result.output
     # keys are present and NOT JUDGED, never "every session present"
     assert "every session present" not in result.output and "NOT JUDGED" in result.output
 
@@ -257,7 +256,7 @@ def test_preflight_fails_on_a_credential_that_is_set_but_empty(monkeypatch, tmp_
     assert empty_environment_credentials(installed_registry(),
                                          {"TF_VAR_X": "", "OKTA_API_TOKEN": "", "AWS_PROFILE": "p", "HOME": ""}) == \
         ["OKTA_API_TOKEN", "TF_VAR_X"]
-    adc = tmp_path / "adc.json"
+    adc = tmp_path / "adc.json"                  # present while the fixture declares a Google Cloud session; inert after
     adc.write_text(json.dumps({"type": "authorized_user"}))
     result = _preflight(monkeypatch, daemon=True, AWS_ACCESS_KEY_ID="AKIA-test", GOOGLE_APPLICATION_CREDENTIALS=str(adc),
                         TF_VAR_NOS_KEY="")
@@ -404,7 +403,9 @@ def test_the_root_recipes_hand_each_word_whole(tmp_path: Path, recipe: str):
     got = _received(done)
     assert got[-len(SPACED):] == SPACED, got
     if recipe == "cli":
-        assert got == ["run", "cs-image-system", "--root-dir", str(tmp_path / "live"), *SPACED], got
+        # the reference may declare a family released from its own repository: the wrapper layers it in
+        assert got == ["run", "--no-sync", "python", "scripts/with-released-families", "cs-image-system", "--root-dir",
+                       str(tmp_path / "live"), *SPACED], got
 
 
 @pytest.mark.parametrize("recipe", ["cli", "state-query", "ci-login-proof", "test-mods", "public-safe", "bootstrap",

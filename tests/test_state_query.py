@@ -262,44 +262,39 @@ def test_state_query_is_a_registered_validator():
 
 # ------------------------------------------------ finding 49: booted image
 
-def _gce_runtime(ctx) -> str:
-    from cs_image_system.gcloud_runtime.gcp_runtime_builders import GCPCloudBuilder
-    return sorted(n for n, b in ctx.runtime_builders.items() if isinstance(b, GCPCloudBuilder))[0]
-
-
 def test_booted_image_differing_from_the_pin_is_changed_drift(world, monkeypatch):
     """Finding 49: a pin moved to a new series head while the instance kept
     running the old image, and nothing compared the two."""
-    from cs_image_system.gcloud_runtime.gcp_runtime_builders import GCPCloudBuilder
+    from cs_image_system.aws_runtime.aws_runtime_builders import AwsCloudBuilder
     run, _ = world
     ctx = run.ctx
-    rt = _gce_runtime(ctx)
-    ctx.meta_state.add_build(_build("img-old", "imgfile-basic-dask", rt))
-    ctx.meta_state.add_build(_build("img-new", "imgfile-basic-dask", rt))
-    ctx.meta_state.bind_instance("gce-test", "img-new", "run-x")
-    ctx.meta_state.record_launch_params("gce-test", {"launched": True})   # a machine never launched is not asked
-    monkeypatch.setattr(GCPCloudBuilder, "query_instance_boot_image", lambda self, name: "img-old")
+    rt = _runtime(ctx)
+    ctx.meta_state.add_build(_build("ami-old", "imgfile-basic-dask", rt))
+    ctx.meta_state.add_build(_build("ami-new", "imgfile-basic-dask", rt))
+    ctx.meta_state.bind_instance("test2", "ami-new", "run-x")
+    ctx.meta_state.record_launch_params("test2", {"launched": True})   # a machine never launched is not asked
+    monkeypatch.setattr(AwsCloudBuilder, "query_instance_boot_image", lambda self, name: "ami-old")
     report = sq.query_state(ctx)
-    hits = [d for d in report.drift if d.kind == "instance" and d.name == "gce-test"]
+    hits = [d for d in report.drift if d.kind == "instance" and d.name == "test2"]
     assert len(hits) == 1 and hits[0].drift == sq.DRIFT_CHANGED
-    assert "booted image img-old" in hits[0].detail and "img-new" in hits[0].detail
+    assert "booted image ami-old" in hits[0].detail and "ami-new" in hits[0].detail
 
 
 def test_booted_image_matching_the_pin_is_clean_and_unanswered_is_unavailable(world, monkeypatch):
-    from cs_image_system.gcloud_runtime.gcp_runtime_builders import GCPCloudBuilder
+    from cs_image_system.aws_runtime.aws_runtime_builders import AwsCloudBuilder
     run, _ = world
     ctx = run.ctx
-    rt = _gce_runtime(ctx)
-    ctx.meta_state.add_build(_build("img-new", "imgfile-basic-dask", rt))
-    ctx.meta_state.bind_instance("gce-test", "img-new", "run-x")
-    ctx.meta_state.record_launch_params("gce-test", {"launched": True})   # a machine never launched is not asked
-    monkeypatch.setattr(GCPCloudBuilder, "query_instance_boot_image", lambda self, name: "img-new")
+    rt = _runtime(ctx)
+    ctx.meta_state.add_build(_build("ami-new", "imgfile-basic-dask", rt))
+    ctx.meta_state.bind_instance("test2", "ami-new", "run-x")
+    ctx.meta_state.record_launch_params("test2", {"launched": True})   # a machine never launched is not asked
+    monkeypatch.setattr(AwsCloudBuilder, "query_instance_boot_image", lambda self, name: "ami-new")
     report = sq.query_state(ctx)
     assert not [d for d in report.drift if d.kind == "instance"]
-    monkeypatch.setattr(GCPCloudBuilder, "query_instance_boot_image", lambda self, name: None)
+    monkeypatch.setattr(AwsCloudBuilder, "query_instance_boot_image", lambda self, name: None)
     report = sq.query_state(ctx)
     assert not [d for d in report.drift if d.kind == "instance"]
-    assert any("instances/gce-test" in u for u in report.unavailable)
+    assert any("instances/test2" in u for u in report.unavailable)
 
 
 def test_runtimes_without_the_boot_query_make_no_claim(world, monkeypatch):

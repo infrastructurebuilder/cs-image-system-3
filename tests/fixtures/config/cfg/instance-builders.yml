@@ -18,12 +18,6 @@ instance_builders:
     #     playbooks: 
     #     - "{{ this.os.family }}/{{ this.os.family_version }}/{{ this.name}}.yml"
     state_configuration: s3-east2 # tofu/terraform state backend (by name)
-  # GCP readiness
-  - name: tofu-gce
-    type: tofu-gce
-    runtime: gcloud-east1
-    executable: open-tofu-1
-    state_configuration: s3-east2 # decision: GCP roots keep the S3 backend for now
   # Containers on the fixture's docker runtime. No
   # state_configuration: the root inherits the runtime's (local-dev).
   - name: tofu-docker

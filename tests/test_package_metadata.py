@@ -45,6 +45,7 @@ from pathlib import Path
 import pytest
 from harness import REPO
 from packaging.requirements import Requirement
+from packaging.specifiers import SpecifierSet
 from packaging.utils import canonicalize_name
 
 PACKAGES = sorted(p for p in (REPO / "packages").iterdir() if (p / "pyproject.toml").exists())
@@ -66,6 +67,9 @@ EXTRA_DISTRIBUTIONS = {
     "docker": {"cs-image-system-docker-plugin"},
     "okta": {"cs-image-system-okta-opa-plugin"},
 }
+#: the distributions released from a repository of their own, on their own version line: the umbrella's
+#: extras name them by the range of that line, which a bump never moves (spec 005: the Google Cloud family)
+RELEASED_ELSEWHERE = {name: ">=0.2,<0.3" for name in EXTRA_DISTRIBUTIONS["gcloud"]}
 
 
 def _project(path: Path) -> dict:
@@ -222,11 +226,9 @@ def contract_range(contract_version: str) -> str:
 #: libraries') by the range of its compatible series instead of exactly: the
 #: ones proven to stand alone at both ends of that range
 #: (`just test-docker-alone`, `just test-terraform-alone`), and the Google
-#: Cloud family, which ranges on the SDK it will be tested against from its
+#: Cloud family, which ranged on the SDK it is now tested against from its
 #: own repository (spec 005).
-SDK_BY_RANGE = {"cs-image-system-docker-plugin", "cs-image-system-tofu-roots",
-                "cs-image-system-gcloud-runtime-plugin", "cs-image-system-tf-gcp-plugin",
-                "cs-image-system-gcs-state-plugin"}
+SDK_BY_RANGE = {"cs-image-system-docker-plugin", "cs-image-system-tofu-roots"}
 #: the SDK's two version lines; members of one line pin each other exactly
 SDK_VERSION_LINES = ({"cs-image-system-base"}, {"cs-image-system-hashicorp-utils", "cs-image-system-tofu-roots"})
 
@@ -251,6 +253,8 @@ def expected_pin(owner: str, dependency: str, workspace: str, own: dict[str, str
     same version line; every other sibling exactly at the workspace's version."""
     if dependency == CONTRACT:
         return contract_range(own[CONTRACT])
+    if dependency in RELEASED_ELSEWHERE:
+        return str(SpecifierSet(RELEASED_ELSEWHERE[dependency]))
     if dependency in own:
         same_line = any(owner in line and dependency in line for line in SDK_VERSION_LINES)
         return contract_range(own[dependency]) if owner in SDK_BY_RANGE and not same_line else f"=={own[dependency]}"
@@ -317,8 +321,9 @@ def test_the_root_is_the_core_and_each_provider_is_an_extra():
     assert set(extras["all"]) == set().union(*EXTRA_DISTRIBUTIONS.values())
     provided = set().union(*(set(reqs) for reqs in extras.values()))
     assert not (set(siblings) & provided), "a package is both a dependency and an extra's"
-    assert set(siblings) | provided == _published()
-    assert len(_published()) == 20 and len(siblings) == 12 and len(provided) == 8
+    assert set(siblings) | (provided - set(RELEASED_ELSEWHERE)) == _published()
+    assert not (set(RELEASED_ELSEWHERE) & _published()), "a distribution released elsewhere is published here"
+    assert len(_published()) == 17 and len(siblings) == 12 and len(provided) == 8
     assert not any(n for n in siblings if "runtime" in n or n.startswith("cs-image-system-tf-") or "okta" in n
                    or n in ("cs-image-system-gcs-state-plugin",)), "the bare install carries a provider"
     names = {i["name"]: i for i in root["tool"]["uv"]["index"]}
@@ -420,7 +425,8 @@ def test_a_bump_moves_every_version_line_and_every_pin_at_once(tree: Path):
             assert str(req.specifier) == expected_pin(owner, name, new, own), (path, name)
     root_after = tomllib.loads((tree / "pyproject.toml").read_text())
     assert {str(r.specifier) for r in _dev_group(root_after).values()} == {f"=={new}"}
-    assert {str(r.specifier) for r in _extras(root_after["project"])["all"].values()} == {f"=={new}"}
+    assert {str(r.specifier) for n, r in _extras(root_after["project"])["all"].items()
+            if n not in RELEASED_ELSEWHERE} == {f"=={new}"}
     assert not (tree / ".git").exists() and not list(tree.rglob("*.orig"))       # commit = false, tag = false
 
 

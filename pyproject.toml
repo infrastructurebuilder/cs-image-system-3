@@ -36,8 +36,11 @@ dependencies = [
 ]
 
 # The extras: a provider's runtime plugin with its terraform-root and state-backend
-# plugins, and `all` for every provider. Every pin is == the workspace version, so a bump moves
-# them with the rest (the `=={current_version}"` rule below reads the whole file); the
+# plugins, and `all` for every provider. Every pin on a workspace package is == the workspace
+# version, so a bump moves them with the rest (the `=={current_version}"` rule below reads the
+# whole file); the Google Cloud family is released from its own repository
+# (cs-image-system-google-cloud) on its own version line, so it is named by a range a bump
+# never moves; the
 # docker extra is one package, the runtime and its roots together. The two
 # private plugins (dummy, contract-example) are in the dev group, never here.
 [project.optional-dependencies]
@@ -47,9 +50,9 @@ aws = [
     "cs-image-system-tf-s3-state-plugin==0.1.11",
 ]
 gcloud = [
-    "cs-image-system-gcloud-runtime-plugin==0.1.11",
-    "cs-image-system-tf-gcp-plugin==0.1.11",
-    "cs-image-system-gcs-state-plugin==0.1.11",
+    "cs-image-system-gcloud-runtime-plugin>=0.2,<0.3",
+    "cs-image-system-tf-gcp-plugin>=0.2,<0.3",
+    "cs-image-system-gcs-state-plugin>=0.2,<0.3",
 ]
 docker = [
     "cs-image-system-docker-plugin==0.1.11",
@@ -61,9 +64,9 @@ all = [
     "cs-image-system-aws-runtime-plugin==0.1.11",
     "cs-image-system-tf-ebs-instance-plugin==0.1.11",
     "cs-image-system-tf-s3-state-plugin==0.1.11",
-    "cs-image-system-gcloud-runtime-plugin==0.1.11",
-    "cs-image-system-tf-gcp-plugin==0.1.11",
-    "cs-image-system-gcs-state-plugin==0.1.11",
+    "cs-image-system-gcloud-runtime-plugin>=0.2,<0.3",
+    "cs-image-system-tf-gcp-plugin>=0.2,<0.3",
+    "cs-image-system-gcs-state-plugin>=0.2,<0.3",
     "cs-image-system-docker-plugin==0.1.11",
     "cs-image-system-okta-opa-plugin==0.1.11",
 ]
@@ -106,19 +109,16 @@ cs-image-system-contract-example-plugin = { workspace = true }
 cs-image-system-system = { workspace = true }
 cs-image-system-okta-opa-plugin = { workspace = true }
 cs-image-system-aws-runtime-plugin = { workspace = true }
-cs-image-system-gcloud-runtime-plugin = { workspace = true }
 cs-image-system-packer-plugin = { workspace = true }
 cs-image-system-ansible-plugin = { workspace = true }
 cs-image-system-bash-mod-plugin = { workspace = true }
 cs-image-system-dummy-plugin = { workspace = true }
 cs-image-system-tf-ebs-instance-plugin = { workspace = true }
-cs-image-system-tf-gcp-plugin = { workspace = true }
 cs-image-system-default-os-plugin = { workspace = true }
 cs-image-system-tf-s3-state-plugin = { workspace = true }
 cs-image-system-hashicorp-utils = { workspace = true }
 cs-image-system-local-state-plugin = { workspace = true }
 cs-image-system-posix-identity-plugin = { workspace = true }
-cs-image-system-gcs-state-plugin = { workspace = true }
 cs-image-system-docker-plugin = { workspace = true }
 cs-image-system-tofu-roots = { workspace = true }
 
@@ -200,16 +200,13 @@ testpaths = ["tests",
    "packages/okta-opa-plugin/tests",
    "packages/packer-plugin/tests",
    "packages/aws-runtime-plugin/tests",
-   "packages/gcloud-runtime-plugin/tests",
    "packages/ansible-plugin/tests",
    "packages/bash-mod-plugin/tests",
    "packages/tf-ebs-instance-plugin/tests",
-   "packages/tf-gcp-plugin/tests",
    "packages/default-os-plugin/tests",
    "packages/hashicorp-utils/tests",
    "packages/local-state-plugin/tests",
    "packages/posix-identity-plugin/tests",
-   "packages/gcs-state-plugin/tests",
    # the docker family's default paths only: its tests/live needs a container daemon and is run on purpose
    "packages/docker-plugin/tests/unit",
    "packages/docker-plugin/tests/pipeline",
@@ -230,15 +227,12 @@ pythonpath = [
     "packages/okta-opa-plugin/src",
     "packages/packer-plugin/src",
     "packages/aws-runtime-plugin/src",
-    "packages/gcloud-runtime-plugin/src",
     "packages/ansible-plugin/src",
     "packages/bash-mod-plugin/src",
     "packages/dummy-plugin/src",
     "packages/tf-ebs-instance-plugin/src",
-    "packages/tf-gcp-plugin/src",
     "packages/default-os-plugin/src",
     "packages/docker-plugin/src",
-    "packages/gcs-state-plugin/src",
     "packages/hashicorp-utils/src",
     "packages/tofu-roots/src",
     "packages/local-state-plugin/src",
@@ -246,6 +240,9 @@ pythonpath = [
     "packages/tf-s3-state-plugin/src",
 ]
 addopts = "--import-mode=importlib"
+# pytest's own defaults, and tests/cloud_starters: the starters that need every provider, the Google
+# Cloud family's among them, which this venv does not hold; `just test-cloud-starters` runs them
+norecursedirs = ["*.egg", ".*", "_darcs", "build", "CVS", "dist", "node_modules", "venv", "{arch}", "cloud_starters"]
 
 [dependency-groups]
 dev = [
@@ -325,8 +322,6 @@ extraPaths = [
     "packages/docker-plugin/src",
     "packages/dummy-plugin/src",
     "packages/engine/src",
-    "packages/gcloud-runtime-plugin/src",
-    "packages/gcs-state-plugin/src",
     "packages/hashicorp-utils/src",
     "packages/local-state-plugin/src",
     "packages/okta-opa-plugin/src",
@@ -334,7 +329,6 @@ extraPaths = [
     "packages/posix-identity-plugin/src",
     "packages/system/src",
     "packages/tf-ebs-instance-plugin/src",
-    "packages/tf-gcp-plugin/src",
     "packages/tf-s3-state-plugin/src",
     "packages/tofu-roots/src",
 ]

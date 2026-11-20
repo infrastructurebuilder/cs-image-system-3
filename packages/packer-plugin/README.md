@@ -279,15 +279,17 @@ images with no mutual dependencies):
 
 | File | Content |
 |---|---|
-| [pckr-ebs-ans-image-generation-block-000-build.pkr.hcl](../../tests/fixtures/golden/generated/base-image/pckr-ebs-ans/image-generation/block-000/pckr-ebs-ans-image-generation-block-000-build.pkr.hcl) | `build "pckr-ebs-ans-block-000"`; per image: OS update, admin user, `okta` prerequisites, `ebs`/`efs`/`s3` prerequisites (`gcs` and `pd` as "no plugin on runtime" comments), SSM agent, verification; then the manifest post-processor. |
+| [pckr-ebs-ans-image-generation-block-000-build.pkr.hcl](../../tests/fixtures/golden/generated/base-image/pckr-ebs-ans/image-generation/block-000/pckr-ebs-ans-image-generation-block-000-build.pkr.hcl) | `build "pckr-ebs-ans-block-000"`; per image: OS update, admin user, `okta` prerequisites, `ebs`/`efs`/`s3` prerequisites, SSM agent, verification; then the manifest post-processor. |
 | [...-block-000-ebs-ansible-setup.pkr.hcl](../../tests/fixtures/golden/generated/base-image/pckr-ebs-ans/image-generation/block-000/pckr-ebs-ans-image-generation-block-000-ebs-ansible-setup.pkr.hcl) | The `locals` block. |
 | [...-block-000-plugins.pkr.hcl](../../tests/fixtures/golden/generated/base-image/pckr-ebs-ans/image-generation/block-000/pckr-ebs-ans-image-generation-block-000-plugins.pkr.hcl) | `required_plugins` `amazon` and `ansible`. |
 | [...-block-000-vars.pkr.hcl](../../tests/fixtures/golden/generated/base-image/pckr-ebs-ans/image-generation/block-000/pckr-ebs-ans-image-generation-block-000-vars.pkr.hcl) | `release` and `base_image_version`. |
 | [...-source-basic-rh-10-block-000.pkr.hcl](../../tests/fixtures/golden/generated/base-image/pckr-ebs-ans/image-generation/block-000/pckr-ebs-ans-image-generation-source-basic-rh-10-block-000.pkr.hcl), `-source-basic-rhel-9-`, `-source-my-deb-12-` | `data "amazon-ami"` (resolved image id) and `source "amazon-ebs"` (name, instance type, VPC, subnet, tags, SSM session interface, block device). |
 | [run-base-image.sh](../../tests/fixtures/golden/generated/base-image/run-base-image.sh) | `packer build .` in each block directory. |
 
-The GCE builder `pckr-gce-ans` emits the same set of files under
-[base-image/pckr-gce-ans/image-generation/block-000](../../tests/fixtures/golden/generated/base-image/pckr-gce-ans/image-generation/block-000);
+The GCE builder `pckr-gce-ans` emits the same set of files; this
+repository's fixture declares no GCE runtime, so they are pinned by the
+Google Cloud family's own golden, in its repository, under
+[base-image/pckr-gce-ans/image-generation/block-000](https://github.com/infrastructurebuilder/cs-image-system-google-cloud/tree/develop/tests/golden/generated/base-image/pckr-gce-ans/image-generation/block-000);
 its source file holds a `source "googlecompute"` block with `image_name`,
 `image_family`, `image_labels`, `use_iap`, `preemptible`, `disk_size`.
 
@@ -300,12 +302,18 @@ Instance-image lifecycle, builder `pckr-ebs-ans`:
 | [block-000/csis-mods/imgfile-basic-dask/](../../tests/fixtures/golden/generated/instance-image/pckr-ebs-ans/image-generation/block-000/csis-mods/imgfile-basic-dask/MANIFEST.yaml) | The local bundle: `csis-mods`, `MANIFEST.yaml`, `01-dask-setup-jeffy/`, `02-derivative-setup/`. |
 | `block-000/setup_dask.yml`, `setup_data_science.yml`, `mod_image.sh`, `modify_image.yml` | Playbooks and scripts copied beside the root by the modification builders. |
 | [block-001/pckr-ebs-ans-image-generation-block-001-build.pkr.hcl](../../tests/fixtures/golden/generated/instance-image/pckr-ebs-ans/image-generation/block-001/pckr-ebs-ans-image-generation-block-001-build.pkr.hcl) | The second block: `imgfile-basic-cloudflow`, whose `source_image` is built in block-000. |
-| [run-instance-image.sh](../../tests/fixtures/golden/generated/instance-image/run-instance-image.sh) | `packer build .` per block for `pckr-ebs-ans` (two blocks), `pckr-gce-ans` and `some-other-builder` (with its own executable, `packer-1.9.4`), before the instance roots' terraform commands. |
+| [run-instance-image.sh](../../tests/fixtures/golden/generated/instance-image/run-instance-image.sh) | `packer build .` per block for `pckr-docker`, `pckr-ebs-ans` (two blocks) and `some-other-builder` (with its own executable, `packer-1.9.4`), before the instance roots' terraform commands. |
 
 ## Example configuration
 
 From
-[tests/fixtures/config/cfg/image-builders.yml](../../tests/fixtures/config/cfg/image-builders.yml):
+[tests/fixtures/config/cfg/image-builders.yml](../../tests/fixtures/config/cfg/image-builders.yml),
+with a GCE builder beside the AWS one as a tree that also installs the
+Google Cloud family writes it (this repository's fixture declares no GCE
+runtime, so it holds `pckr-ebs-ans` and not `pckr-gce-ans`; the Google
+Cloud family's own fixture declares `pckr-gce-ans` in
+[`tests/fixture/cfg/image-builders.yml`](https://github.com/infrastructurebuilder/cs-image-system-google-cloud/blob/develop/tests/fixture/cfg/image-builders.yml),
+in the Google Cloud family's repository):
 
 ```yaml
 image_builders:
@@ -334,9 +342,11 @@ image_builders:
         version: '>= 1.0.0'
 ```
 
-An instance image baked by both builders, from
+An instance image baked by both builders, as such a tree writes it
+(comments removed; this repository's
 [tests/fixtures/config/images/image1.yaml](../../tests/fixtures/config/images/image1.yaml)
-(comments removed):
+declares the same image with the `pckr-ebs-ans` entry alone, and its
+post-bake mount is `/mnt/data`):
 
 ```yaml
 images:
@@ -472,7 +482,7 @@ needs the IAP firewall rule (`35.235.240.0/20` -> `tcp:22`) and
 `roles/iap.tunnelResourceAccessor` on the RUNNER service account, not only
 on the operators; without it every bake times out "waiting for SSH". The
 build VM keeps its ephemeral external IP for egress (`omit_external_ip` is
-never emitted). Details: [gcloud-runtime-plugin](../gcloud-runtime-plugin/README.md)
+never emitted). Details: [gcloud-runtime-plugin](https://github.com/infrastructurebuilder/cs-image-system-google-cloud/blob/develop/packages/gcloud-runtime-plugin/README.md)
 and the GCP section of [OPERATIONS.md](../../docs/OPERATIONS.md).
 
 **The age identity, for encrypted values.** An admin public key (or any
@@ -909,7 +919,7 @@ Failures the code raises:
   (`PackerPluginConfig`).
 - Runtime plugins that supply the source blocks:
   [aws-runtime-plugin](../aws-runtime-plugin),
-  [gcloud-runtime-plugin](../gcloud-runtime-plugin).
+  [gcloud-runtime-plugin](https://github.com/infrastructurebuilder/cs-image-system-google-cloud/tree/develop/packages/gcloud-runtime-plugin).
 - Modification plugins whose provisioners land in the build file:
   [ansible-plugin](../ansible-plugin),
   [bash-mod-plugin](../bash-mod-plugin).

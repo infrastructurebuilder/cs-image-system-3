@@ -27,7 +27,6 @@ CANNED = {
     # name, type, canned output, satisfied requirement, the version read
     "packer": ("packer", "1789674564,,version,1.14.3", ">=1.14, <1.15", "1.14.3"),
     "open-tofu-1": ("tofu", '{"terraform_version": "1.12.6", "platform": "darwin_amd64", "provider_selections": {}}', ">1,<2", "1.12.6"),
-    "gcloud": ("executable", "Google Cloud SDK 585.0.0\nbq 2.1.29\ncore 2026.09.11\ngsutil 5.35", ">=500", "585.0.0"),
     "ansible-playbook": ("executable", "ansible-playbook [core 2.21.3]\n  config file = None", ">=2.16", "2.21.3"),
     "bash": ("executable", "GNU bash, version 5.3.15(1)-release (x86_64-apple-darwin23.6.0)", ">=5", "5.3.15"),
     "aws-cli": ("executable", "aws-cli/2.36.33 Python/3.14.7 Darwin/24.6.0 source/x86_64", ">=2.32", "2.36.33"),
@@ -62,10 +61,10 @@ def test_a_checker_is_found_by_name_then_type_then_the_generic_default(plugins):
         return found.__name__
     found = {name: checker(name, type_)
              for name, type_ in (("packer", "executable"), ("packer-1.9.4", "packer"), ("open-tofu-1", "tofu"),
-                                 ("gcloud", "executable"), ("aws-cli", "executable"), ("ansible-playbook", "executable"),
+                                 ("aws-cli", "executable"), ("ansible-playbook", "executable"),
                                  ("bash", "executable"), ("jq", "executable"), ("docker", "executable"))}
     assert found == {"packer": "PackerVersionChecker", "packer-1.9.4": "PackerVersionChecker",
-                     "open-tofu-1": "TofuVersionChecker", "gcloud": "GCPCLIVersionChecker",
+                     "open-tofu-1": "TofuVersionChecker",
                      "aws-cli": "AwsCLIVersionChecker", "ansible-playbook": "AnsibleVersionChecker",
                      "bash": "BashVersionChecker", "jq": "GenericVersionChecker", "docker": "DockerCLIVersionChecker"}
 
@@ -102,7 +101,8 @@ def test_the_fixture_declares_a_checked_requirement_for_every_tool(plugins):
     from cs_image_system.base.models.executable import ExecutableModel
     from cs_image_system.engine.commands.validate import version_checker_for
     entries = yaml.safe_load((FIXTURE_CONFIG / "cfg" / "executables.yml").read_text())["executables"]
-    assert [e["name"] for e in entries] == ["aws-cli", "packer", "gcloud", "ansible-playbook", "bash", "docker", "open-tofu-1", "yq", "jq"]
+    tools = ["aws-cli", "packer", "ansible-playbook", "bash", "docker", "open-tofu-1", "yq", "jq"]
+    assert [e["name"] for e in entries if e["name"] in tools] == tools
     for e in entries:
         assert e.get("version"), f"{e['name']} declares no requirement"
         checker = version_checker_for(ExecutableModel(name=e["name"], type_=e.get("type", "executable")), plugins)

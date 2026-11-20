@@ -11,11 +11,12 @@ serves FR-001 to FR-005, FR-009 and FR-010.
 
 | Target | Does |
 | --- | --- |
-| `just init` | `uv sync --locked` from the index (no path source to another repository) |
+| `just init` | `uv sync --locked --all-extras` from the index (no path source to another repository) |
 | `just build` | Builds the three wheels |
-| `just test` | Lint, the type check (zero errors), the surface self-check of each package, the unit and pipeline tests and the golden, under the test kit's strict session: zero collected or any skip fails |
-| `just full-test` | `just test`, then the same at the low end of the SDK ranges (unit tests and the self-check, as docker's low end), then `standard-gce` and `complete` rendered, validated and dry-run with the system from the index |
-| `just release <part> [test\|pypi]` | Moves the family's one number in all three manifests, runs `full-test`, builds and publishes the three together; refuses a version the index ever held |
+| `just test` | Lint (ruff and REUSE), the type check (zero errors), the surface check of each package's sources, then every test (the packages' own, which also hold their tests to the surface; the pipeline suite and the golden; the release tool's) under the test kit's strict session: zero collected or any skip fails |
+| `just full-test` | `just test`, then the low end of the SDK ranges: a fresh environment with everything at the oldest release the ranges allow, the packages' own tests and self-checks under the strict session. The starters that declare Google Cloud are not rendered here (research R11): the system's repository checks them where every provider is installed |
+| `just release <part\|version> [test\|pypi] [yes]` | Probes first (clean checkout, no tag, no version the index ever listed for any of the three, the token), `yes` stops with the plan; then moves the family's one number in all three manifests, runs `full-test`, builds and publishes the three together, commits and tags; the pushes are the operator's |
+| `just test-live` | What needs a Google Cloud session (`tests/live`), under the strict session; never part of `test` or `full-test` |
 
 ## What a package declares
 
@@ -42,10 +43,11 @@ Entry points, unchanged:
 
 ## CI
 
-One workflow on every push to `develop` and every pull request: a fresh
-runner, `just init`, `just test`. The live tests run only by dispatch,
-with the operator's Google Cloud identity, and tear down what they
-stand up.
+One workflow on every push (any branch, FR-003) and every pull request:
+a fresh runner, OpenTofu, `just init`, `just test`, `just public-safe`.
+The live tests run only by dispatch, with the operator's Google Cloud
+identity (the secrets `GCP_WORKLOAD_IDENTITY_PROVIDER` and
+`GCP_SERVICE_ACCOUNT`), and tear down what they stand up.
 
 ## What an operator types
 
