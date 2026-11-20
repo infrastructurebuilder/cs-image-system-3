@@ -13,7 +13,7 @@ license-files = ["LICENSE"]
 requires-python = ">=3.13"
 dependencies = [
     "cs-image-system-contract>=0.5,<0.6",
-    "cs-image-system-base==0.2.0",
+    "cs-image-system-base==0.2.1",
     "cs-image-system-hashicorp-utils==0.2.0",
     "cs-image-system-tofu-roots==0.2.0",
     "pydantic>=2.13",
