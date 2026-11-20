@@ -28,7 +28,8 @@ the address a detach destroys, the security group as the resource the
 root lets go once no instance is declared, and the module arguments
 tabled below; the storage side adds the boto3 lookups and the AWS CLI
 transition scripts. The GCE root (`tofu-gce`, in
-[cs-image-system-tf-gcp-plugin](https://github.com/infrastructurebuilder/cs-image-system-google-cloud/blob/develop/packages/tf-gcp-plugin/README.md)) and the
+[cs-image-system-tf-gcp-plugin](https://github.com/infrastructurebuilder/cs-image-system-google-cloud/blob/develop/packages/tf-gcp-plugin/README.md),
+the Google Cloud family's, released from its own repository) and the
 container root (`tofu-docker`, in
 [cs-image-system-docker-plugin](../docker-plugin/README.md)) are
 sibling subclasses of the same bases, not subclasses of this package,
@@ -1340,7 +1341,8 @@ Each with the message or symptom, what it means, where to look, what to do.
 - [cs-image-system-tf-gcp-plugin](https://github.com/infrastructurebuilder/cs-image-system-google-cloud/blob/develop/packages/tf-gcp-plugin/README.md) and
   [cs-image-system-docker-plugin](../docker-plugin/README.md): the
   GCE and container roots, sibling subclasses of the same bases; neither
-  depends on this package.
+  depends on this package. The GCE root is the Google Cloud family's, in
+  its own repository.
 - [cs-image-system-tf-s3-state-plugin](../tf-s3-state-plugin/README.md): the
   S3 state backend the `state_configuration` field names.
 - [cs-image-system-aws-runtime-plugin](../aws-runtime-plugin/README.md): the

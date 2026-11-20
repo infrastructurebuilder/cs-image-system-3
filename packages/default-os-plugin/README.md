@@ -352,7 +352,9 @@ files, under
   manifest. `basic-rhel-9` shows the same without a targeted package.
   `my-deb-12` declares no policy and gets no update provisioner.
 - [pckr-gce-ans-image-generation-block-000-build.pkr.hcl](https://github.com/infrastructurebuilder/cs-image-system-google-cloud/blob/develop/tests/golden/generated/base-image/pckr-gce-ans/image-generation/block-000/pckr-gce-ans-image-generation-block-000-build.pkr.hcl):
-  the same `basic-rh-10` provisioner scoped to `googlecompute.basic-rh-10`.
+  the same `basic-rh-10` provisioner scoped to `googlecompute.basic-rh-10`,
+  in the Google Cloud family's own golden (its repository's; this
+  repository's fixture declares no GCE runtime).
 - [pckr-ebs-ans-image-generation-source-basic-rh-10-block-000.pkr.hcl](../../tests/fixtures/golden/generated/base-image/pckr-ebs-ans/image-generation/block-000/pckr-ebs-ans-image-generation-source-basic-rh-10-block-000.pkr.hcl):
   the resolved vendor image (`image-id` and `owners` in the `data
   "amazon-ami"` block), `instance_type = "t3.medium"` from the entry's
@@ -363,9 +365,15 @@ files, under
 
 ## Example configuration
 
-From
+The default OS builder of
 [tests/fixtures/config/cfg/os-builders.yml](../../tests/fixtures/config/cfg/os-builders.yml),
-the default OS builder, baked on both runtimes:
+as a tree that also installs the Google Cloud family writes it, baked on
+both runtimes. This repository's fixture holds the AWS entry alone, with
+`storage_types: [ebs, efs, s3]`, since it declares no GCE runtime; the
+GCE entry (`gcp-my-rh10`) and the `pd` and `gcs` storage types are what
+such a tree adds, as the Google Cloud family's own fixture declares them in
+[`tests/fixture/cfg/os-builders.yml`](https://github.com/infrastructurebuilder/cs-image-system-google-cloud/blob/develop/tests/fixture/cfg/os-builders.yml), in the
+Google Cloud family's repository:
 
 ```yaml
 os_builders:

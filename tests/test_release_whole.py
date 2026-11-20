@@ -16,6 +16,7 @@ import os
 import posixpath
 import re
 import stat
+import sys
 from pathlib import Path
 
 import pytest
@@ -722,3 +723,40 @@ def test_workload_token_refuses_outside_a_job_and_reports_a_refused_token(monkey
     _stub_minting(monkeypatch, rc=0, token="", verdict="")
     result = CliRunner().invoke(app, ["workload", "token"])
     assert result.exit_code == 1 and "issued no token" in result.stderr
+
+
+# ------------------------------------------------------------ what a release here publishes
+
+def _script(name: str):
+    import importlib.machinery
+    import importlib.util
+    path = Path(__file__).resolve().parents[1] / "scripts" / name
+    loader = importlib.machinery.SourceFileLoader(name.replace("-", "_").removesuffix(".py"), str(path))
+    spec = importlib.util.spec_from_loader(loader.name, loader)
+    assert spec is not None
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[loader.name] = module                          # dataclasses resolve their module by name
+    loader.exec_module(module)
+    return module
+
+
+def test_a_release_here_builds_and_publishes_none_of_the_google_cloud_family():
+    """spec 005: the Google Cloud family is released from its own repository; this repository's release
+    uploads none of it (the members `scripts/release.py` publishes and the projects
+    `scripts/publish-target-ready` probes), and `just build` (`uv build --all-packages`, every workspace
+    member) has none of it to build."""
+    import tomllib
+
+    from packaging.utils import canonicalize_name
+    repo = Path(__file__).resolve().parents[1]
+    elsewhere = {canonicalize_name(r.split(">")[0].split("<")[0].split("=")[0])
+                 for r in _script("with-released-families").requirements()}
+    assert elsewhere == {"cs-image-system-gcloud-runtime-plugin", "cs-image-system-tf-gcp-plugin",
+                         "cs-image-system-gcs-state-plugin"}
+    published = {canonicalize_name(tomllib.loads(p.read_text())["project"]["name"])
+                 for p in _script("release.py").published_members(repo)}
+    probed = {canonicalize_name(n) for n in _script("publish-target-ready").projects(repo)}
+    members = {canonicalize_name(tomllib.loads(p.read_text())["project"]["name"])
+               for p in repo.glob("packages/*/pyproject.toml")}
+    assert published and probed and members
+    assert not (published | probed | members) & elsewhere

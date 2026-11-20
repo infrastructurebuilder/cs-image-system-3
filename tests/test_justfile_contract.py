@@ -403,7 +403,9 @@ def test_the_root_recipes_hand_each_word_whole(tmp_path: Path, recipe: str):
     got = _received(done)
     assert got[-len(SPACED):] == SPACED, got
     if recipe == "cli":
-        assert got == ["run", "cs-image-system", "--root-dir", str(tmp_path / "live"), *SPACED], got
+        # the reference may declare a family released from its own repository: the wrapper layers it in
+        assert got == ["run", "--no-sync", "python", "scripts/with-released-families", "cs-image-system", "--root-dir",
+                       str(tmp_path / "live"), *SPACED], got
 
 
 @pytest.mark.parametrize("recipe", ["cli", "state-query", "ci-login-proof", "test-mods", "public-safe", "bootstrap",

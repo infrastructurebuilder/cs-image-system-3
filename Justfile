@@ -24,7 +24,9 @@ default:
 # recipe that drives one depends on config-guard. It stands alone: its own
 # Justfile drives its cycles; the recipes here read it for the system's own proofs.
 config_root := env("CSIS_CONFIG_ROOT", justfile_directory() + "/../cs-image-system-testconfig")
-live_cli := "uv run cs-image-system --root-dir " + quote(config_root)
+# the reference declares the Google Cloud family, which this venv does not hold: it is layered in from the
+# index for each command (scripts/with-released-families)
+live_cli := "uv run --no-sync python scripts/with-released-families cs-image-system --root-dir " + quote(config_root)
 # The branch a release is cut on: ONE branch, named here, never a walk or feature branch. `main`:
 # develop is where work is done and main is where releases live. Before a release main takes
 # develop by fast-forward; the release commit and the tag land on main; develop takes main back
@@ -53,13 +55,14 @@ build:
 	@uv build --all-packages
 
 # The fast suite, every check blocking: lint (ruff), type-check (pyright), the
-# unit tests (the golden emission included), the core's own suite with no
-# provider installed (`test-core`), the two terraform libraries' own suites
+# unit tests (the golden emission included), the starters that need every
+# provider with the Google Cloud family from the index (`test-cloud-starters`),
+# the core's own suite with no provider installed (`test-core`), the two terraform libraries' own suites
 # with nothing but themselves (`test-terraform-alone`) and the docker family's
 # own suite in an environment that holds only that package
 # (`test-docker-alone`). The local acceptance bar; `verify` is its alias.
-[doc("The fast suite, all blocking: lint (ruff), type-check (pyright), the unit tests, then the core, the terraform libraries and the docker family each alone; `verify` is its alias")]
-test: lint typecheck pytest test-core test-terraform-alone test-docker-alone
+[doc("The fast suite, all blocking: lint (ruff), type-check (pyright), the unit tests, the starters that need every provider, then the core, the terraform libraries and the docker family each alone; `verify` is its alias")]
+test: lint typecheck pytest test-cloud-starters test-core test-terraform-alone test-docker-alone
 
 # Everything `test` does plus the slow and external legs: the
 # modification tests under docker (`test-mods --strict`), and -- only when
@@ -234,9 +237,9 @@ full-test-legs:
 		mkdir -p "$copy/cs-image-system-testconfig"
 		(cd "{{config_root}}" && tar --exclude=./.git --exclude=./generated --exclude=./_private --exclude=./.tofu-plugin-cache -cf - .) | tar -xf - -C "$copy/cs-image-system-testconfig"
 		echo "full-test: headless dry run --all over a private copy of the reference configuration ($copy)"
-		uv run cs-image-system --root-dir "$copy/cs-image-system-testconfig" run --all || { echo "full-test: FAILED dry run --all"; status=1; }
+		uv run --no-sync python scripts/with-released-families cs-image-system --root-dir "$copy/cs-image-system-testconfig" run --all || { echo "full-test: FAILED dry run --all"; status=1; }
 		echo "full-test: state query --strict over the copy"
-		uv run cs-image-system --root-dir "$copy/cs-image-system-testconfig" state query --strict || { echo "full-test: FAILED state query --strict"; status=1; }
+		uv run --no-sync python scripts/with-released-families cs-image-system --root-dir "$copy/cs-image-system-testconfig" state query --strict || { echo "full-test: FAILED state query --strict"; status=1; }
 		rm -rf "$copy"
 	else
 		echo "full-test: SKIPPED the credential-gated legs (dry run --all, state query --strict) -- a runtime session is absent or expired (see above)"
@@ -727,18 +730,20 @@ fixture-live:
 	if [ "$status" -eq 0 ]; then echo "fixture-live: passed"; else echo "fixture-live: FAILED"; fi
 	exit $status
 
-# The `uv run` options that layer the Google Cloud family in from the index for one command, by the
-# `gcloud` extra's own ranges (read from pyproject.toml, never restated): the family is released from
-# its own repository and this workspace's venv does not hold it (spec 005)
+# The `uv run` options that layer the families released from their own repositories (the Google
+# Cloud family) in from the index for one command (scripts/with-released-families --print)
 [private]
 gcloud-with:
-	@uv run --no-sync python -c 'import tomllib; print(" ".join("--with=" + r for r in tomllib.load(open("pyproject.toml", "rb"))["project"]["optional-dependencies"]["gcloud"]))'
+	@uv run --no-sync python scripts/with-released-families --print
 
 # The starters that need every provider, the Google Cloud family's among them (tests/cloud_starters,
-# left out of the default collection): run with the family layered in from the index, under the strict
-# session, so a family that is absent fails instead of skipping (spec 005, research R11). Needs the index
-# (or uv's cache) the first time; no cloud session.
-[doc("The starters that need every provider (tests/cloud_starters), with the Google Cloud family from the index, strict")]
+# left out of the default collection; part of `test`): the family is released from its own repository
+# and this workspace's venv does not hold it, so it is layered in from the index for this run alone
+# (scripts/with-released-families), under the strict session, so a family that is absent fails instead
+# of skipping (spec 005, research R11). The index (or uv's cache); no cloud session: the starters'
+# clouds are stubbed, as every starter test's are. A starter's runtimes name placeholder accounts,
+# so an installed command could not validate one without a real account's `validate --online`.
+[doc("The starters that need every provider (tests/cloud_starters), with the Google Cloud family from the index, strict; part of `test`")]
 test-cloud-starters:
 	#!/usr/bin/env bash
 	set -euo pipefail

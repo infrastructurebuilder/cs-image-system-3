@@ -1871,7 +1871,9 @@ command.
 
 `just fixture-live` is the system's own live proof and what
 this repository's CI `live` job runs: with real sessions (the frozen
-fixture names the real account's networks, project and OPA team) and the
+fixture names the real AWS account's networks and the OPA team; it
+declares no Google Cloud project since the Google Cloud family moved to
+its own repository, so `validate --online` asks AWS alone) and the
 fixture's committed TEST identity, `validate` over the fixture, a headless
 dry `run --all --no-state-query` over a private copy with the installed
 modules written beside it (`cs-image-system modules --write`; the state
@@ -1947,7 +1949,9 @@ commit that follows; make the record that `main` will carry with the
 pinned release (`CSIS="$HOME/.local/bin/cs-image-system" just record`).
 
 The fixture carries no `meta-state/` and no generated output; its instance
-subjects (`test`, `test2`, `gce-test`) are declared in its own
+subjects (`test`, `test2` on AWS and `container-test` on docker; the GCE
+subject `gce-test` is the Google Cloud family's fixture's, in its own
+repository) are declared in its own
 `instances/instances.yaml`; its rosters are encrypted entry by entry to
 the fixture's own committed TEST identity (`.age-identity`, public key
 `.age-recipient`), which the harness exports as `CSIS_CONFIG_IDENTITY`.
@@ -2492,12 +2496,38 @@ of the others. The bare install carries no runtime:
 uv tool install cs-image-system               # the CLI, the engine, the OS families, packer,
                                               # ansible, bash, posix identity, the local state
 uv tool install 'cs-image-system[aws]'        # + the aws runtime, its roots (tofu, tf-aws-*), s3 state
-uv tool install 'cs-image-system[gcloud]'     # + the gcloud runtime, its roots (tofu-gce, tf-gcp-*), gcs
+uv tool install 'cs-image-system[gcloud]'     # + the Google Cloud family: the gcloud runtime, its roots (tofu-gce, tf-gcp-*), gcs
 uv tool install 'cs-image-system[docker]'     # + the docker runtime, its roots (tofu-docker, tf-docker-volume)
 uv tool install 'cs-image-system[okta]'       # + Okta users and OPA groups (okta-tf, okta-tf-ro)
 uv tool install 'cs-image-system[aws,okta]'   # any combination, in one line
 uv tool install 'cs-image-system[all]'        # every provider: what the reference configuration installs
 ```
+
+**The Google Cloud family comes from its own repository.** Its three
+packages, `cs-image-system-gcloud-runtime-plugin`,
+`cs-image-system-tf-gcp-plugin` and `cs-image-system-gcs-state-plugin`,
+are built, tested and released from
+[cs-image-system-google-cloud](https://github.com/infrastructurebuilder/cs-image-system-google-cloud),
+on a version line of their own (0.2.0 was the first) that is not this
+repository's. An operator installs them exactly as any other provider,
+with the `[gcloud]` extra (or `[all]`) above: the umbrella's two extras
+name the three by the range of that line (`>=0.2,<0.3`), not by a `==`
+pin, so an install takes the newest release of the Google Cloud family
+inside the range, and a new release of the Google Cloud family inside
+the range reaches an operator with no release here. The Google Cloud
+family is released to PyPI alone. A development install from TestPyPI (below) still gets
+it, because PyPI is named there as the extra index; a release here
+refuses unless PyPI holds a release inside the range
+(`scripts/with-released-families --check`). This repository's own
+workspace does not hold the Google Cloud family: `just init` syncs every
+extra but `gcloud` and `all`, and the recipes that load a tree declaring
+it (`just cli`, `full-test`'s legs over the reference configuration, the
+release's session probe, `just test-cloud-starters`, and the writing of
+the templates in `just publish-starters`) layer it in from the index for
+that one command (`scripts/with-released-families`). The Google Cloud
+family's own READMEs, documents and tests are in its repository; its
+configuration fields are in
+[its `docs/CONFIGURATION.md`](https://github.com/infrastructurebuilder/cs-image-system-google-cloud/blob/develop/docs/CONFIGURATION.md).
 
 A configuration repository's `Justfile` reads the extras its tree needs
 from the `type:` words under `cfg/` (`just extras` prints them, as
@@ -2670,7 +2700,7 @@ repository's, which the release ships.
 | --- | --- | --- |
 | `init` | `uv sync --all-extras --no-extra gcloud --no-extra all`, then `hooks` | nothing |
 | `build` | sdist + wheel of every workspace member under `dist/` (the system package carries the five starter trees) | nothing |
-| `test` | lint → typecheck → pytest → `test-core` → `test-terraform-alone` → `test-docker-alone`, all blocking (the bar) | nothing |
+| `test` | lint → typecheck → pytest → `test-cloud-starters` → `test-core` → `test-terraform-alone` → `test-docker-alone`, all blocking (the bar) | nothing; the package index (or uv's cache), for the Google Cloud family `test-cloud-starters` layers in |
 | `full-test` | `test`, then `full-test-legs`: the dev-pin resolution check (`scripts/dev-pin-resolves`), the docker legs (`test-mods --strict`, `test-posix-accounts`, `test-bake-steps`, `runner-image`, `test-docker-bake`, `test-docker-cycle`, `test-podman-cycle`, `test-podman-desktop-cycle`) and, gated on `preflight`, a dry `run --all` and `state query --strict` over a copy of the reference configuration | docker, the network, reference configuration, runtime sessions; each leg skips loudly |
 | `release <part\|version> [test\|pypi] [yes]` | from `develop`: probe (the branch; a clean tree; the index ready and free of the version; token; tag; the remote, fetched, holding nothing `main` or `develop` lacks), the move to `main` and `uv sync`, the venv's probes, the bar or `full-test`, the index again, `bump-my-version`, `uv lock`, `publish`, the `CHANGES.md` row, commit, tag `v<version>`, then the pushes of `main` and `develop` and the resync; `yes` = dry (the logic is `scripts/release.py`) | `UV_PUBLISH_TOKEN`; for `pypi`: clean trees, mod-test evidence, `full-test`'s needs |
 | `release-take <part\|version> <test\|pypi> [main] [yes]` | the live configuration asked first, then `release`, then `UV_REFRESH=1 just take <version>` there (the version read back; the variable reaches the take alone), `main` passed through; `yes` = dry | `release`'s needs, and the live configuration's sessions for the take |
@@ -2688,7 +2718,7 @@ repository's, which the release ships.
 | `test-core` | the core's own tests (the contract, the kit, the engine, the command line and the always-installed plugins) in an empty environment that holds a plain `cs-image-system` with no extras, installed from built wheels: no docker, AWS, Google Cloud or Okta plugin. Fails when no test was collected or any was skipped | nothing; the package index for third-party packages |
 | `test-terraform-alone` | the two shared terraform libraries' own tests (`packages/hashicorp-utils/tests`, `packages/tofu-roots/tests`) in an empty environment that holds only the two libraries and what they declare (the kit and the contract), at both ends of the kit range the roots library declares. Fails when no test was collected or any was skipped | nothing; the package index, for third-party packages and to ask which kit versions it holds |
 | `test-docker-alone` | the docker family's own tests ([packages/docker-plugin/tests](../packages/docker-plugin/tests)) in an empty environment that holds only the docker package and what it declares, installed from built wheels, at both ends of the SDK range it declares: at the high end the whole suite, in place and from a copy of the package's directory outside the workspace; at the low end the unit tests and the surface check with the package and the SDK alone. Says for each SDK library whether it came from the index or from this repository's build. Fails when no test was collected or any was skipped | nothing (no daemon: its runs are stubbed); the package index, for third-party packages and to ask which SDK versions it holds |
-| `test-cloud-starters` | the tests of the starters that need every provider, the Google Cloud family's among them ([tests/cloud_starters](../tests/cloud_starters)): the Google Cloud family is released from its own repository and this workspace's venv does not hold it, so it is layered in from the index for this run alone, by the `gcloud` extra's ranges; under the strict session, so a missing family fails instead of skipping | the package index (or uv's cache), for the Google Cloud family |
+| `test-cloud-starters` | the tests of the starters that need every provider, the Google Cloud family's among them ([tests/cloud_starters](../tests/cloud_starters)): the Google Cloud family is released from its own repository and this workspace's venv does not hold it, so it is layered in from the index for this run alone, by the `gcloud` extra's ranges; the starters' clouds stubbed, under the strict session, so a missing Google Cloud family fails instead of skipping. Part of `test` | the package index (or uv's cache), for the Google Cloud family |
 | `test-docker-install` | what a person who installs the docker extra gets: `cs-image-system[docker]` installed from the built wheels into an empty environment that holds nothing else, the [standard-docker](examples/standard-docker) starter rendered with the installed command, then the installed `validate` and a dry `run --all` on it. Reports the install, the validation and the dry run each as ran and succeeded, ran and failed, or did not run, and passes only when all three ran and succeeded. `keep=<directory>` leaves the emitted `generated` tree there | `docker`, `packer`, `ansible-playbook`, `bash` and `tofu`; a container daemon that answers; the registry (a dry run resolves the base image with a pull); the package index, for third-party packages |
 | `test-docker-live` | the docker family's tests that need a container daemon ([packages/docker-plugin/tests/live](../packages/docker-plugin/tests/live)): the modification tests of the family's fixture on the docker runtime's own stand-in, a throwaway container on the local daemon. In no default path and no isolated run; a leg of `full-test`. Fails, and never skips, without a daemon | a container daemon that answers; the registry (the container's image is pulled) |
 | `test-one *ARGS` | one pytest expression, each word passed to pytest whole (`-k "a or b"` is one expression) | nothing |
@@ -2928,8 +2958,9 @@ exists (decision D8); when the bootstrap makes the bucket, the first
 apply is local and a second interview, the bucket now standing, binds
 it (`tofu init -migrate-state`).
 
-The GCP section (the gcloud runtime plugin, module
-`tfmodules/bootstrap_gcp`) writes CI_SETUP.md 3.4 as terraform: the
+The GCP section (the Google Cloud family's gcloud runtime plugin, module
+`tfmodules/bootstrap_gcp`; present when the Google Cloud family is
+installed) writes CI_SETUP.md 3.4 as terraform: the
 workload identity pool and its GitHub provider (the guide's attribute
 mapping, and a condition admitting this repository alone -- by its id
 when `gh` gave it, by its name otherwise), the READ-ONLY service account
@@ -3050,10 +3081,14 @@ line (`docker version` against its daemon).
 The
 modules ship inside their plugin's package like every module
 (`cs-image-system modules` lists them; `init-config` writes them into
-the tree); `tests/test_bootstrap_gcp.py` holds the GCP section (the
-tree-derived gates across both clouds, the probes and refusals, a fresh
-project and a shared provider, the by-hand note, the additive-only
-module held to the guide's mapping, a real `tofu validate`),
+the tree); the GCP section's tests are the Google Cloud family's, in
+its own repository:
+[`tests/pipeline/test_bootstrap_gcp.py`](https://github.com/infrastructurebuilder/cs-image-system-google-cloud/blob/develop/tests/pipeline/test_bootstrap_gcp.py)
+(the tree-derived gates across both clouds, the probes and refusals, a
+fresh project and a shared provider, the by-hand note, the additive-only
+module held to the guide's mapping, a real `tofu validate`) and
+[`tests/pipeline/test_bootstrap_coverage_gce.py`](https://github.com/infrastructurebuilder/cs-image-system-google-cloud/blob/develop/tests/pipeline/test_bootstrap_coverage_gce.py)
+(the GCS state bucket). Here,
 `tests/test_bootstrap_aws.py` holds the AWS section (the
 probes, the refusals, the forks, the imports, the backend, the guide's
 statements, a real `tofu validate` of both sections together) and
@@ -3061,7 +3096,7 @@ statements, a real `tofu validate` of both sections together) and
 interview, the root (a real `tofu validate`), the regeneration inside a
 run, the commit, `config-drift`, the secrets script, the starters' parts
 and the command; `tests/test_bootstrap_coverage.py` holds the other S3
-backends' buckets, the GCS bucket, the audit table and the two validate
+backends' buckets, the audit table and the two validate
 lines.
 
 ### This repository: the `verify` job
@@ -3090,8 +3125,7 @@ touching the reference configuration.
 | Gate on the live secrets | none configured: `live: SKIPPED`, `ready=false`, a job-summary line (a green conclusion is not proof that anything ran); some configured and some missing or EMPTY: `live: FAILED -- ... missing or EMPTY: <names>`, exit 1 |
 | Check out the system | one checkout; no second repository |
 | Federated AWS credentials; the `[noaa]` shim | `AWS_ROLE_ARN`, the read-only role, via OIDC; the profile the fixture's runtimes name |
-| Federated GCP credentials | `GCP_WORKLOAD_IDENTITY_PROVIDER` and `GCP_SERVICE_ACCOUNT`, read-only |
-| No install step: the runner image carries just, uv, OpenTofu, Packer, gcloud, ansible and the docker client at the paths the fixture's `executables.yml` pins (`/usr/local/bin`) | `validate` checks every declared tool at its path and version; the from-scratch workflow installs the same tools by steps and places them there |
+| No install step: the runner image carries just, uv, OpenTofu, Packer, gcloud, ansible and the docker client under `/usr/local/bin`, the paths the fixture's `executables.yml` pins for every tool it declares (it no longer declares `gcloud`, which the image keeps for the configurations that run the Google Cloud family) | `validate` checks every declared tool at its path and version; the from-scratch workflow installs the same tools by steps and places them there |
 | `just init` | |
 | `just fixture-live` | `validate` over the fixture with its committed TEST identity, a dry `run --all --no-state-query` over a private copy with the installed modules written beside it (`modules --write`), `test-mods --strict` over the copy under docker |
 
@@ -3221,7 +3255,6 @@ This repository:
 | Secret | What reads it | Job |
 | --- | --- | --- |
 | `AWS_ROLE_ARN` | the federated-credentials action, then the `[noaa]` shim; a READ-ONLY role (EC2 describes for the fixture's load) | live |
-| `GCP_WORKLOAD_IDENTITY_PROVIDER`, `GCP_SERVICE_ACCOUNT` | the GCP auth action: the application-default credentials the gcloud runtime's network discovery uses; read-only | live |
 | `OKTA_API_PRIVATE_KEY` | the load's check that the okta provider can authenticate | live |
 | `TF_VAR_NOS_KEY`, `TF_VAR_NOS_SECRET` → exported as `TF_VAR_nos_coastal_modeling_cloud_sandbox_key` / `_secret` | the load's `_require_tfvar` assertion (the fixture names the real team) | live |
 | `TEST_PYPI_TOKEN`, `PYPI_TOKEN` | `just publish test` / `pypi`, as `UV_PUBLISH_TOKEN` | publish |

@@ -73,10 +73,17 @@ def test_pinned_parent_build_follows_the_bake_runtime(tmp_path, monkeypatch):
         ctx = run.ctx
         ms = ctx.meta_state
         ms.add_build(_build("ami-1", "basic-rh-10", AWS))
+        ms.add_build(_build("ami-east1-1", "basic-rh-10", OTHER))
         image = ctx.images_map["imgfile-basic-dask"]
         assert lineage.primary_runtime_of(ctx, image) == AWS
+        # first bind on each runtime picks THAT runtime's series head (spec 005: the second runtime is
+        # aws-east1, where GCE used to be)
+        assert lineage.pinned_parent_build(ctx, image, OTHER) == "ami-east1-1"
         assert lineage.pinned_parent_build(ctx, image) == "ami-1"        # primary runtime
+        assert lineage.parent_reference(ctx, image, OTHER) == "ami-east1-1"
+        assert lineage.lineage_tags(ctx, image, OTHER)["csis_parent"] == "ami-east1-1"
         assert lineage.lineage_tags(ctx, image, AWS)["csis_parent"] == "ami-1"
+        assert lineage.input_fingerprint(ctx, image, AWS) != lineage.input_fingerprint(ctx, image, OTHER)
     finally:
         run.restore_cwd()
 

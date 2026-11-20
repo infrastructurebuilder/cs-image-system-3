@@ -364,6 +364,30 @@ def test_an_own_version_package_the_index_would_refuse_is_refused_before_the_gat
         assert _git(root, "status", "--porcelain") == "" and _git(root, "tag", "-l") == ""
 
 
+ELSEWHERE = "with-released-families --check pypi"
+
+
+@pytest.mark.parametrize(("rc", "code", "message"), [(1, 1, "ELSEWHERE_UNMET"), (2, 2, "ELSEWHERE_UNASKED")])
+def test_a_family_released_elsewhere_that_pypi_lacks_is_refused_before_the_gate(tmp_path: Path, rc: int, code: int,
+                                                                                message: str):
+    """spec 005: the umbrella names the Google Cloud family by a range; a release whose range PyPI cannot
+    meet (exit 1), or whose index could not be asked (any other), stops at the probes, after the own
+    versions and before the surfaces, for every index; PyPI is asked whatever the release's index."""
+    for index, env in (("test", {"TEST_PYPI_TOKEN": "t"}), ("pypi", {"PYPI_TOKEN": "p"})):
+        root = _system_repo(tmp_path / index)
+        sibling = _sibling_repo(tmp_path / index)
+        line = "with-released-families: cs-image-system-x>=0.2,<0.3 -- NO release on the pypi index"
+        shell = FakeShell([(ELSEWHERE, R.Done(rc, line + "\n")), *_answers(root)])
+        said: list[str] = []
+        with pytest.raises(R.Refused) as e:
+            _family(root, shell, sibling, env=env, said=said).release("patch", index)
+        assert e.value.code == code and e.value.message == f"release: {getattr(R, message)}"
+        assert line in said and shell.first(OWN) < shell.first(ELSEWHERE)
+        for never in ("just surface-check", "just test", "docker info", "bump-my-version bump", "publish-dist"):
+            assert shell.count(never) == 0, never
+        assert _git(root, "status", "--porcelain") == "" and _git(root, "tag", "-l") == ""
+
+
 @pytest.mark.parametrize("index", ["test", "pypi"])
 def test_a_stale_venv_is_refused_for_every_index_in_one_line(tmp_path: Path, index: str):
     root = _system_repo(tmp_path)

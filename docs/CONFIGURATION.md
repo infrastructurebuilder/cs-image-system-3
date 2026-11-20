@@ -5,7 +5,22 @@ every resource type, every field. The models in
 [`packages/base/src/cs_image_system/base/models/`](../packages/base/src/cs_image_system/base/models/)
 and the plugins' `*_models.py` files are the source of truth; the frozen
 fixture under [`tests/fixtures/config/`](../tests/fixtures/config/) supplies
-every example. Its people are synthetic personas on example domains.
+every example of this repository's plugins. Its people are synthetic
+personas on example domains.
+
+The Google Cloud family (the `gcloud` runtime, its `tofu-gce` and
+`tf-gcp-*` builders and the `gcs` state backend) is released from its own
+repository,
+[cs-image-system-google-cloud](https://github.com/infrastructurebuilder/cs-image-system-google-cloud),
+and installed with the system's `[gcloud]` extra. This repository's
+fixture declares none of it. The fields of its runtime and its state
+backend have their one reference in
+[that repository's `docs/CONFIGURATION.md`](https://github.com/infrastructurebuilder/cs-image-system-google-cloud/blob/develop/docs/CONFIGURATION.md), which
+sections 4.4 and 10 below link; its builders' fields are rows of this
+document's shared tables (8.1, 8.2). An example below that declares a
+GCE runtime, builder, instance or storage is a tree that installs the
+Google Cloud family, as its own fixture
+([`tests/fixture/`](https://github.com/infrastructurebuilder/cs-image-system-google-cloud/blob/develop/tests/fixture)) declares it, and says so where it appears.
 
 Every model is a pydantic dataclass with one shared configuration
 ([`model_config.py`](../packages/contract/src/cs_image_system/contract/model_config.py)):
@@ -314,7 +329,8 @@ the version its checker reads must satisfy that PEP 440 specifier set; a
 mismatch, a missing binary or an unreadable version fails validation and
 every run, by name. The checker is looked up under the entry's `name`
 first -- `packer` (`packer version -machine-readable`), `tofu`
-(`--version -json`), `gcloud` (the `Google Cloud SDK` line), `aws-cli`
+(`--version -json`), `gcloud` (the `Google Cloud SDK` line; registered by
+the Google Cloud family, so present when it is installed), `aws-cli`
 (`aws --version`), `ansible-playbook` (`[core x.y.z]`) and `bash` have
 their own -- then under its `type` (`type: packer` on an entry with
 another name); the default type, `executable`, is the generic checker:
@@ -334,9 +350,6 @@ executables:
   - name: packer
     version: ">=1.14, <1.15"
     binary: /usr/local/bin/packer
-  - name: gcloud
-    binary: /usr/local/bin/gcloud
-    version: ">=500"        # the Google Cloud SDK version, not the core component's date
   - name: ansible-playbook
     binary: /usr/local/bin/ansible-playbook
     version: ">=2.16"
@@ -359,7 +372,8 @@ executables:
 Key: `runtime_builders`. Types: `aws`
 ([`aws_runtime_models.py`](../packages/aws-runtime-plugin/src/cs_image_system/aws_runtime/aws_runtime_models.py))
 and `gcloud`
-([`gcp_runtime_models.py`](../packages/gcloud-runtime-plugin/src/cs_image_system/gcloud_runtime/gcp_runtime_models.py)).
+([`gcp_runtime_models.py`](https://github.com/infrastructurebuilder/cs-image-system-google-cloud/blob/develop/packages/gcloud-runtime-plugin/src/cs_image_system/gcloud_runtime/gcp_runtime_models.py),
+in the Google Cloud family's repository).
 A runtime is where images are baked and instances stand; other builders
 name it through `runtime:`.
 
@@ -434,25 +448,18 @@ session.
 
 ### 4.4 `gcloud`
 
-`GCPCloudBuilderModel`.
-
-| Field | Type | Default | Meaning and allowed values |
-| --- | --- | --- | --- |
-| `project_id` | str or null | null | the project |
-| `zone` | str or null | null | the zone for build VMs and instances |
-| `service_account_email` | str or null | null | the service account attached to build VMs (the packer source); the instance module attaches none |
-| `default_disk_size` | int or null | null | bake disk size in GB for every image baked here (a GCE boot disk is exactly its image's disk); null uses the image's own value |
-| `bake_preemptible` | bool | `false` | bake on preemptible (spot) build VMs |
-| `state_configuration` | str | `default` | a state backend (section 10); `default` inherits the runtime's, else the default backend |
-| `ssh_username` | str | `default` | the bake ssh user for every image on this runtime that names none more specifically: step 4 of the bake-user order (5.1.1); with nothing named anywhere, GCE bakes as `packer` |
-| `session_mechanism` | str or null | null | `iap` is the only supported value; with none declared, every session command (post-bake verify, unmount, the alias writer) is refused naming the field |
-| `executable` | str or null | `gcloud` | the `cfg/executables.yml` entry every gcloud call on this runtime runs through (sessions, inventory, the GCP storage lookups and scripts); `validate` refuses it undeclared |
-| `networking` | mapping or null | null | 4.5 with `network_tags` |
-| `credentials` | mapping | `{}` | the empty base: GCE uses Application Default Credentials, so any key here is refused |
-
-At load the GCP runtime resolves the project; when it can, it checks
-`networking.network` (or `default`) and every subnet against the project
-and warns about a network tag no firewall rule targets.
+`GCPCloudBuilderModel`, registered by the Google Cloud family's
+`gcloud-runtime-plugin`: a Google Cloud project and zone that GCE images
+are baked in and GCE instances stand in, reached through Application
+Default Credentials (so the runtime takes no `credentials`) and, for
+sessions, through IAP. Its fields (the project, the zone, the build VMs'
+service account and disk, preemptible bakes, the bake ssh user, the
+session mechanism, the `gcloud` executable, the networking with its
+`network_tags`) and what the load checks against the project are in the
+one reference for them,
+[the Google Cloud family's `docs/CONFIGURATION.md`](https://github.com/infrastructurebuilder/cs-image-system-google-cloud/blob/develop/docs/CONFIGURATION.md#the-gcloud-runtime).
+The fields common to every builder (4.1) and to every runtime (4.2), and
+the networking block (4.5), are this document's and apply as well.
 
 ### 4.5 `networking`
 
@@ -526,8 +533,8 @@ smallest working tree on this runtime; the bootstrap's `docker` section
 ### 4.7 Examples
 
 [`cfg/runtime-builders.yml`](../tests/fixtures/config/cfg/runtime-builders.yml)
-(the AWS default and the GCE runtime; the fixture also declares `aws-east1`
-and `west1`):
+(the AWS default; the fixture also declares `aws-east1`, `west1` and a
+docker runtime):
 
 ```yaml
 ---
@@ -570,6 +577,15 @@ runtime_builders:
         - name: east2-az2-public
           subnet_id: subnet-0c127b762e075a94d
           public: true
+```
+
+A GCE runtime, in a tree that installs the Google Cloud family (its own
+fixture declares this entry, as its default runtime, in
+[`tests/fixture/cfg/runtime-builders.yml`](https://github.com/infrastructurebuilder/cs-image-system-google-cloud/blob/develop/tests/fixture/cfg/runtime-builders.yml)):
+
+```yaml
+---
+runtime_builders:
     - name: gcloud-east1
       aliases:
         - gcp
@@ -741,7 +757,7 @@ default base (the fixture also declares `my-deb-12` and `basic-rhel-9`):
 os_builders:
   - name: basic-rh-10
     identity_types: [okta]
-    storage_types: [ebs, efs, s3, pd, gcs]
+    storage_types: [ebs, efs, s3]
     tests:
       packages: [nfs-utils]
       files:
@@ -768,6 +784,14 @@ os_builders:
             root_device_type: ebs
             architecture: x86_64
             virtualization_type: hvm
+```
+
+In a tree that installs the Google Cloud family, the same OS builder
+carries a GCE entry beside the AWS one, and lists `pd` and `gcs` (the
+Google Cloud family's storage types) in its `storage_types` when its
+instances mount them:
+
+```yaml
     -   name: gcp-my-rh10
         image_builder: pckr-gce-ans
         ssh_username: packer
@@ -854,7 +878,8 @@ in what a family is; a command run with no tree loaded reads every
 installed runtime's) (the `aws` blocks in
 [the aws plugin's `image-sources.yml`](../packages/aws-runtime-plugin/src/cs_image_system/aws_runtime/data/image-sources.yml),
 the `gcloud` blocks in
-[the gcloud plugin's](../packages/gcloud-runtime-plugin/src/cs_image_system/gcloud_runtime/data/image-sources.yml),
+[the gcloud plugin's](https://github.com/infrastructurebuilder/cs-image-system-google-cloud/blob/develop/packages/gcloud-runtime-plugin/src/cs_image_system/gcloud_runtime/data/image-sources.yml),
+in the Google Cloud family's repository,
 the `docker` blocks in
 [the docker plugin's](../packages/docker-plugin/src/cs_image_system/docker_runtime/data/image-sources.yml)).
 So the release catalog a tree sees carries a block for a runtime type
@@ -1035,8 +1060,9 @@ the same builder for one release, so a tree that wrote one keeps working;
 `validate` logs one INFO line per such builder naming the replacement
 (`image builder 'pckr-ebs-ans': \`type: packer-ebs\` is an older name of
 \`packer\`, kept for one release; say \`type: packer\``). The examples
-below are the frozen fixture's and still carry the older keys; a tree
-written today says `packer`.
+below are the frozen fixture's (the GCE one the Google Cloud family's
+fixture's) and still carry the older keys; a tree written today says
+`packer`.
 
 | Field | Type | Default | Meaning and allowed values |
 | --- | --- | --- | --- |
@@ -1073,6 +1099,15 @@ image_builders:
       - name: ansible
         source: github.com/hashicorp/ansible
         version: '>= 1.0.0'
+```
+
+A builder on a GCE runtime, in a tree that installs the Google Cloud
+family (its own fixture declares it in
+[`tests/fixture/cfg/image-builders.yml`](https://github.com/infrastructurebuilder/cs-image-system-google-cloud/blob/develop/tests/fixture/cfg/image-builders.yml)),
+names the `googlecompute` and `ansible` plugins:
+
+```yaml
+image_builders:
   - name: pckr-gce-ans
     type: packer-gce
     runtime: gcloud-east1
@@ -1253,8 +1288,9 @@ Items, from [`images/image1.yaml`](../tests/fixtures/config/images/image1.yaml):
 Key: `instance_builders`. One terraform root per builder. Model:
 `TofuInstanceBuilderModel`
 ([`tf_instance_models.py`](../packages/tf-ebs-instance-plugin/src/cs_image_system/tf_ebs_instance_plugin/tf_instance_models.py)),
-types `tofu` (AWS), `tofu-gce` (GCE, same fields,
-[`tf_gcp_models.py`](../packages/tf-gcp-plugin/src/cs_image_system/tf_gcp_plugin/tf_gcp_models.py))
+types `tofu` (AWS), `tofu-gce` (GCE, same fields; the Google Cloud
+family's, in its repository:
+[`tf_gcp_models.py`](https://github.com/infrastructurebuilder/cs-image-system-google-cloud/blob/develop/packages/tf-gcp-plugin/src/cs_image_system/tf_gcp_plugin/tf_gcp_models.py))
 and `tofu-docker` (a container on a `docker` runtime, same fields,
 [`tf_docker_models.py`](../packages/docker-plugin/src/cs_image_system/tf_docker_plugin/tf_docker_models.py)).
 A `tofu-docker` root names no address of its own: the runtime's daemon rides
@@ -1287,11 +1323,6 @@ instance_builders:
         source: hashicorp/aws
         version: '>= 4.0.0'
     state_configuration: s3-east2
-  - name: tofu-gce
-    type: tofu-gce
-    runtime: gcloud-east1
-    executable: open-tofu-1
-    state_configuration: s3-east2
   - name: tofu-docker
     type: tofu-docker
     runtime: docker-host
@@ -1303,12 +1334,28 @@ instance_builders:
         version: '>= 3.0.0'
 ```
 
+A GCE instance root, in a tree that installs the Google Cloud family
+(its own fixture, in
+[`tests/fixture/cfg/instance-builders.yml`](https://github.com/infrastructurebuilder/cs-image-system-google-cloud/blob/develop/tests/fixture/cfg/instance-builders.yml),
+binds it to its `gcs` backend; a tree may as well keep it on `s3`, as
+the reference configuration does):
+
+```yaml
+instance_builders:
+  - name: tofu-gce
+    type: tofu-gce
+    runtime: gcloud-east1
+    executable: open-tofu-1
+    state_configuration: gcs-east1
+```
+
 ### 8.2 Storage builders
 
 Key: `storage_builders`. One terraform root per builder; each realizes one
 kind of storage on one runtime. Models:
 [`tf_storage_models.py`](../packages/tf-ebs-instance-plugin/src/cs_image_system/tf_ebs_instance_plugin/tf_storage_models.py),
-[`tf_gcp_models.py`](../packages/tf-gcp-plugin/src/cs_image_system/tf_gcp_plugin/tf_gcp_models.py),
+[`tf_gcp_models.py`](https://github.com/infrastructurebuilder/cs-image-system-google-cloud/blob/develop/packages/tf-gcp-plugin/src/cs_image_system/tf_gcp_plugin/tf_gcp_models.py)
+(the Google Cloud family's, in its repository),
 [`tf_docker_models.py`](../packages/docker-plugin/src/cs_image_system/tf_docker_plugin/tf_docker_models.py).
 
 Fields common to every storage builder (`TofuStorageBuilderModel`):
@@ -1400,17 +1447,6 @@ storage_builders:
       tags:
         Project: MyProject
         Environment: Development
-  - name: gcp-pd
-    type: tf-gcp-pd
-    executable: open-tofu-1
-    runtime: gcloud-east1
-    size: 30
-    disk_type: pd-standard
-  - name: gcp-gcs
-    type: tf-gcp-gcs
-    executable: open-tofu-1
-    runtime: gcloud-east1
-    bucket_name: csis-sandbox-86233086783-default-bucket
   - name: docker-volumes
     type: tf-docker-volume
     executable: open-tofu-1
@@ -1419,6 +1455,28 @@ storage_builders:
     variables:
       tags:
         project: example
+```
+
+GCE storage roots, in a tree that installs the Google Cloud family (its
+own fixture declares these in
+[`tests/fixture/cfg/storage-builders.yml`](https://github.com/infrastructurebuilder/cs-image-system-google-cloud/blob/develop/tests/fixture/cfg/storage-builders.yml),
+on its `gcs` backend):
+
+```yaml
+storage_builders:
+  - name: gcp-pd
+    type: tf-gcp-pd
+    executable: open-tofu-1
+    runtime: gcloud-east1
+    state_configuration: gcs-east1
+    size: 30
+    disk_type: pd-standard
+  - name: gcp-gcs
+    type: tf-gcp-gcs
+    executable: open-tofu-1
+    runtime: gcloud-east1
+    state_configuration: gcs-east1
+    bucket_name: csis-sandbox-86233086783-default-bucket
 ```
 
 ## 9. `cfg/group-builders.yml`
@@ -1555,7 +1613,8 @@ Key: `state_backends`. Three types exist: `s3`, model
 `local`, model `LocalStateBuilderModel`
 ([`local_state_models.py`](../packages/local-state-plugin/src/cs_image_system/local_state_plugin/local_state_models.py)),
 and `gcs`, model `GcsStateBuilderModel`
-([`gcs_state_models.py`](../packages/gcs-state-plugin/src/cs_image_system/gcs_state_plugin/gcs_state_models.py)).
+([`gcs_state_models.py`](https://github.com/infrastructurebuilder/cs-image-system-google-cloud/blob/develop/packages/gcs-state-plugin/src/cs_image_system/gcs_state_plugin/gcs_state_models.py)),
+which comes with the Google Cloud family from its own repository.
 A type is a plugin: a model plus a *kind* that renders a root's location,
 its backend file and a consumer's data source (the S3 plugin's README has
 the recipe). Every terraform root names one backend through
@@ -1711,39 +1770,18 @@ state_backends:
 
 ### `gcs`
 
-A Google Cloud Storage bucket. Declared in the fixture and bound to
-nothing: the GCE roots stay on the S3 backend by the standing decision,
-and the live tree carries the same file with every line commented out.
-
-| Field | Type | Default | Meaning and allowed values |
-| --- | --- | --- | --- |
-| common builder fields (4.1) | | | `is_default` marks the backend `default` resolves to |
-| `bucket` | str | required, non-empty | the state bucket |
-| `prefix` | str | `statefiles` | the prefix inside the bucket; each root gets `<prefix>/<root name>` beneath it |
-| `credentials` | str or null | null | a PATH to a credentials file, never a value |
-| `impersonate_service_account` | str or null | null | the service account terraform impersonates |
-| `encryption_key` | str or null | null | a customer-supplied key |
-| `kms_encryption_key` | str or null | null | a Cloud KMS key name |
-| `executable` | str or null | null | as for `s3` |
-
-A root's location is `gcs://<bucket>/<prefix>/<root name>/default.tfstate`
-(OpenTofu's `gcs` backend names the default terraform workspace's object
-`default.tfstate` under the prefix, so each root gets its own prefix). The
-backend file carries `bucket`, `prefix`, the identity fields and the
-encryption keys when set; a consumer's data source `bucket`, `prefix` and
-the identity fields only. `required_plugins` is refused at load (a
-backend has no plugins).
-
-[`cfg/state-gcm.yml`](../tests/fixtures/config/cfg/state-gcm.yml):
-
-```yaml
----
-state_backends:
-  - name: gcs-east1
-    type: gcs
-    bucket: csis-sandbox-tfstate
-    prefix: statefiles/csia
-```
+A Google Cloud Storage bucket, registered by the Google Cloud family's
+`gcs-state-plugin`, so a tree can declare it only when the Google Cloud family is
+installed. A root's state is an object under the bucket's prefix, one
+prefix per root, and the location a run records is
+`gcs://<bucket>/<prefix>/<root name>/default.tfstate`. Its fields (the
+bucket, the prefix, the identity and the encryption keys), what the
+backend file and a consumer's data source carry, and an example are in
+the one reference for them,
+[the Google Cloud family's `docs/CONFIGURATION.md`](https://github.com/infrastructurebuilder/cs-image-system-google-cloud/blob/develop/docs/CONFIGURATION.md#the-gcs-state-backend).
+This repository's fixture declares no `gcs` backend; the reference
+configuration keeps its GCE roots on the S3 backend by the standing
+decision.
 
 ## 11. The collections
 
@@ -1827,8 +1865,6 @@ images:
     group: coops
     runtimes:
       - image_builder: pckr-ebs-ans
-      - image_builder: pckr-gce-ans
-        machine_type: e2-medium
     tags:
       dask: "true"
     type: pckr-ebs-ans
@@ -1846,11 +1882,24 @@ images:
           - run: "python3 -c 'import dask'"
         files:
           - path: /var/lib/csis/launch-applied
-        mounts: [/mnt/gce-data]
+        mounts: [/mnt/data]
     release:
       model: default
     modifications:
       - ...
+```
+
+In a tree that installs the Google Cloud family, an image bakes on GCE
+too by a second `runtimes[]` entry naming a GCE image builder, here with
+a machine type of its own (the Google Cloud family's own fixture bakes
+this image on GCE alone, in
+[`tests/fixture/images/image1.yaml`](https://github.com/infrastructurebuilder/cs-image-system-google-cloud/blob/develop/tests/fixture/images/image1.yaml)):
+
+```yaml
+    runtimes:
+      - image_builder: pckr-ebs-ans
+      - image_builder: pckr-gce-ans
+        machine_type: e2-medium
 ```
 
 ### 11.3 `instances/`
@@ -1925,6 +1974,14 @@ instances:
     storages:
       - name: mnt_data
         mount_point: /mnt/data
+```
+
+A GCE instance, in a tree that installs the Google Cloud family (its own
+fixture declares it in
+[`tests/fixture/instances/instances.yaml`](https://github.com/infrastructurebuilder/cs-image-system-google-cloud/blob/develop/tests/fixture/instances/instances.yaml)):
+
+```yaml
+instances:
   - name: gce-test
     image: imgfile-basic-dask
     runtime: gcloud-east1
@@ -1964,8 +2021,7 @@ A storage is realized by its builder's root; the YAML declares the
 | `source` | mapping[str, str] | `{}` | accepted; not read |
 | `description`, `aliases` | | | as elsewhere |
 
-[`storages/storage0.yaml`](../tests/fixtures/config/storages/storage0.yaml)
-and [`storages/gce.yaml`](../tests/fixtures/config/storages/gce.yaml):
+[`storages/storage0.yaml`](../tests/fixtures/config/storages/storage0.yaml):
 
 ```yaml
 storages:
@@ -1996,7 +2052,13 @@ storages:
     share_mode: "2775"
     lifecycle:
       ia_days: 30
----
+```
+
+GCE storages, in a tree that installs the Google Cloud family (its own
+fixture declares them in
+[`tests/fixture/storages/gce.yaml`](https://github.com/infrastructurebuilder/cs-image-system-google-cloud/blob/develop/tests/fixture/storages/gce.yaml)):
+
+```yaml
 storages:
 - name: gce_data
   type: gcp-pd
@@ -2152,7 +2214,22 @@ flag, needing no file: `--undeclare instance:gce-test`,
 `--undeclare storage:gce_data`. The kind is a collection key or its
 singular.
 
-[`overlays/gce-cycle-launch.yaml`](../tests/fixtures/config/overlays/gce-cycle-launch.yaml):
+This repository's fixture carries one overlay,
+[`overlays/aws-cycle-decommission.yaml`](../tests/fixtures/config/overlays/aws-cycle-decommission.yaml),
+the `undeclare` form on its AWS runtime:
+
+```yaml
+config:
+  apply_instances: [aws-east2-runtime]
+instances:
+  - name: test2
+    undeclare: true
+```
+
+The three overlays of a GCE change cycle are a tree that installs the
+Google Cloud family; its own fixture carries them, under
+[`tests/fixture/overlays/`](https://github.com/infrastructurebuilder/cs-image-system-google-cloud/blob/develop/tests/fixture/overlays).
+[`overlays/gce-cycle-launch.yaml`](https://github.com/infrastructurebuilder/cs-image-system-google-cloud/blob/develop/tests/fixture/overlays/gce-cycle-launch.yaml):
 
 ```yaml
 config:
@@ -2168,7 +2245,7 @@ instances:
         mount_point: /mnt/gce-data
 ```
 
-[`overlays/gce-cycle-decommission.yaml`](../tests/fixtures/config/overlays/gce-cycle-decommission.yaml):
+[`overlays/gce-cycle-decommission.yaml`](https://github.com/infrastructurebuilder/cs-image-system-google-cloud/blob/develop/tests/fixture/overlays/gce-cycle-decommission.yaml):
 
 ```yaml
 config:
@@ -2178,7 +2255,7 @@ instances:
     undeclare: true
 ```
 
-[`overlays/gce-cycle-storage-teardown.yaml`](../tests/fixtures/config/overlays/gce-cycle-storage-teardown.yaml):
+[`overlays/gce-cycle-storage-teardown.yaml`](https://github.com/infrastructurebuilder/cs-image-system-google-cloud/blob/develop/tests/fixture/overlays/gce-cycle-storage-teardown.yaml):
 
 ```yaml
 config:

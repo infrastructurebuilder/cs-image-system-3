@@ -106,14 +106,14 @@ Measured on this branch on 2026-11-19 (the method of spec 004's T002:
 lines of `*.py` under `packages/*/src` and `src`; tracked `*.py` under
 `tests` and `packages/*/tests`, fixtures left out).
 
-| Measure | Today | Expected (this repository) | Reason for any growth |
-| --- | --- | --- | --- |
-| Workspace packages | 22 | 19 | — |
-| Source lines | 57,214 | −2,950 to −3,050 | The family's 3,030 leave; the test kit's strict session adds about 40 |
-| Test lines | 48,141 | −3,500 to −5,500 | The family's own tests (472), the four GCP-only files (1,652) and the GCP parts of the mixed files leave; the 13 re-hosted files keep their size |
-| Tests | 2,093 | −100 to −160 | 26 package tests, 59 GCP-only tests and the GCP-only cases of the mixed files leave; the strict session gains a few tests |
-| Contract protocol members | — | 0 | — |
-| Golden files (shared) | 148 | 117 | — |
+| Measure | Today | Expected (this repository) | Actual (2026-11-20, T065) | Reason for any growth |
+| --- | --- | --- | --- | --- |
+| Workspace packages | 22 | 19 | 19 | — |
+| Source lines | 57,214 | −2,950 to −3,050 | 54,249 (−2,965) | The family's 3,030 leave; the test kit's strict session adds about 40 |
+| Test lines | 48,141 | −3,500 to −5,500 | 45,992 (−2,149) | **Outside the range.** The family's own tests (472) and the four GCP-only files (1,652) left, about the whole fall; the GCP parts of the mixed files were mostly re-hosted on AWS (T039 to T041 kept each behaviour) rather than removed, and the work added tests: `tests/cloud_starters` and the selection rule (T043, T076), `scripts/with-released-families` and the release's probe (T058), the overlay case on AWS (T046), the two core rules (T074), the release's published set (T057) |
+| Tests | 2,093 | −100 to −160 | 2,004 (−89) | **Outside the range**, for the same reason: fewer cases left than the plan counted, and about 25 were added |
+| Contract protocol members | — | 0 | 0 | — |
+| Golden files (shared) | 148 | 117 | 117 | — |
 
 The family's repository starts from nothing and holds what left here
 (about 3,030 source lines and 2,000 to 3,500 test lines), plus its new

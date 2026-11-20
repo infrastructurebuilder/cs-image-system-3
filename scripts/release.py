@@ -123,6 +123,12 @@ UNBUMPED = ("a package whose version the release does not move changed since the
             "nothing was changed")
 UNASKED = ("the index could not be asked whether it holds this tree's build of every package whose version the "
            "release does not move, or one could not be built (above); nothing is guessed -- nothing was changed")
+#: the released-elsewhere probe's refusals, after "<who>: ", below scripts/with-released-families' own lines
+ELSEWHERE_UNMET = ("the umbrella's extras name a family released from its own repository by a range PyPI holds no "
+                   "release inside (above), so an install of that extra would fail -- release the family, or move the "
+                   "range in pyproject.toml -- nothing was changed")
+ELSEWHERE_UNASKED = ("PyPI could not be asked whether it holds a release inside each range the umbrella's extras name "
+                     "for a family released from its own repository (above); nothing is guessed -- nothing was changed")
 #: the surface probe's refusal, after "<who>: ", below `just surface-check`'s own lines
 SURFACE = ("a declared surface of the SDK and its baseline disagree (above): an entry removed or altered needs a new "
            "middle number (`just sdk-bump <line> middle`, then `just surface-record`); an entry added needs only to be "
@@ -558,6 +564,21 @@ class Family:
                 self.say(line)
         raise Refused(f"{who}: {UNASKED}", 2)
 
+    def released_elsewhere_or_refuse(self, who: str) -> None:
+        """scripts/with-released-families --check pypi, its lines said: every range by which the umbrella's
+        extras name a family released from its own repository (the Google Cloud family) holds a release on
+        PyPI. PyPI whatever the release's own index: the family is released there, and an install from
+        TestPyPI takes what TestPyPI lacks from PyPI. Exit 1 is a range nothing on PyPI meets (the extra could
+        not be installed); any other failure is refused as "could not ask" (exit 2), never guessed."""
+        done = self.run(["uv", "run", "--no-sync", "python", str(HERE / "with-released-families"), "--check", "pypi"],
+                        cwd=self.root)
+        for line in (done.out + done.err).splitlines():
+            if line.strip():
+                self.say(line)
+        if done.rc == 0:
+            return
+        raise Refused(f"{who}: {ELSEWHERE_UNMET if done.rc == 1 else ELSEWHERE_UNASKED}", 1 if done.rc == 1 else 2)
+
     def surfaces_or_refuse(self, who: str) -> None:
         """`just surface-check`: each SDK library (the kit, the two terraform libraries) keeps its version rule
         against its committed baseline. An entry of a declared surface removed or altered while the library's
@@ -573,11 +594,13 @@ class Family:
 
     def probes(self, index: str, who: str = "release", *, will_sync: bool = False) -> None:
         """What a release needs and full-test only finds out twenty minutes in, asked first and in one line each.
-        For every index: the venv is in step with the lock (`uv sync --all-extras --no-extra gcloud --no-extra all --check`), because every recipe
+        For every index: the venv is in step with the lock (``SYNC`` with `--check`), because every recipe
         runs `uv run --no-sync` and a venv behind the checkout answers with stale metadata; then, for a release,
         every package whose version the release does not move is fresh on the index or held there as this tree's
         build (`own_versions_or_refuse`: an index never takes a second build under a version, so a changed
-        package without its own bump would be refused at the upload, after the gate). For a PyPI release
+        package without its own bump would be refused at the upload, after the gate), and every family released
+        from its own repository is on PyPI inside the range the extras name (`released_elsewhere_or_refuse`).
+        For a PyPI release
         also: docker answers, the live configuration is present and every runtime session of it is present
         (`just preflight`, the gate full-test itself uses: without it the live legs would be skipped, which a
         release cannot accept) and how many minutes the soonest-expiring session has left
@@ -588,13 +611,14 @@ class Family:
         # the venv asked is the one running this script: the checkout's own, named when it is behind
         if self.run([*SYNC, "--check"], cwd=REPO).rc != 0:
             if not will_sync:
-                raise Refused(f"{who}: the venv of {REPO} is behind its checkout (uv sync --all-extras --no-extra gcloud --no-extra all --check) -- "
+                raise Refused(f"{who}: the venv of {REPO} is behind its checkout ({' '.join(SYNC)} --check) -- "
                               "`just init` there syncs it -- nothing was changed")
             self.say(f"{who}: {VENV_WILL_SYNC}")
         else:
             self.say(f"{who}: {VENV_OK}")
         if who == "release":
             self.own_versions_or_refuse(index, who)
+            self.released_elsewhere_or_refuse(who)
             self.surfaces_or_refuse(who)
         if who != "release":
             return
@@ -615,8 +639,9 @@ class Family:
             raise Refused(f"{who}: a runtime session of the live configuration is absent or expired (`just preflight` "
                           "says which) -- full-test's live legs would be skipped; log in -- nothing was changed")
         # how long the soonest-expiring session has left; a login lasts one hour and a PyPI release takes nearly
-        # all of it
-        asked = self.run(["uv", "run", "--no-sync", "python", str(HERE / "session-minutes-left"), str(root)],
+        # all of it; the tree may declare a family released from its own repository, layered in for the probe
+        asked = self.run(["uv", "run", "--no-sync", "python", str(HERE / "with-released-families"),
+                          "python", str(HERE / "session-minutes-left"), str(root)],
                          cwd=self.root)
         left = asked.out.strip() if asked.rc == 0 else ""
         try:

@@ -569,7 +569,10 @@ are the ones the operator sees fail.
 [tf-gcp-plugin](https://github.com/infrastructurebuilder/cs-image-system-google-cloud/blob/develop/packages/tf-gcp-plugin/README.md) (Google Cloud) and
 [docker-plugin](../docker-plugin/README.md) (a container daemon).
 Each depends on this package and on its own runtime plugin, and on no
-other provider's root plugin. A provider's prerequisites (the account,
+other provider's root plugin. `tf-gcp-plugin` is the Google Cloud
+family's, released from its own repository, and names this
+package by a range of its released versions rather than by the
+workspace's pin. A provider's prerequisites (the account,
 the credentials, the CLI the transition scripts call, the network) are
 that plugin's and are listed in its README; what the roots emit needs
 only what is listed above.

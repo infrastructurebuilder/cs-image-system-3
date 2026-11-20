@@ -178,7 +178,8 @@ Nothing else changes: the collector, the roots mixin, the runner header,
 the location record and the migration operation render whatever the kind
 returns. The `local` and `gcs` types
 ([local-state-plugin](../local-state-plugin/README.md),
-[gcs-state-plugin](https://github.com/infrastructurebuilder/cs-image-system-google-cloud/blob/develop/packages/gcs-state-plugin/README.md)) were added this way.
+[gcs-state-plugin](https://github.com/infrastructurebuilder/cs-image-system-google-cloud/blob/develop/packages/gcs-state-plugin/README.md),
+now the Google Cloud family's, in its own repository) were added this way.
 
 ## The builder
 
@@ -708,10 +709,12 @@ arrive from tofu; the rest are the load's and `validate`'s refusals.
 ## Related
 
 - [cs-image-system-tf-ebs-instance-plugin](../tf-ebs-instance-plugin/README.md)
-  and [cs-image-system-tf-gcp-plugin](https://github.com/infrastructurebuilder/cs-image-system-google-cloud/blob/develop/packages/tf-gcp-plugin/README.md): the
+  and [cs-image-system-tf-gcp-plugin](https://github.com/infrastructurebuilder/cs-image-system-google-cloud/blob/develop/packages/tf-gcp-plugin/README.md)
+  (the Google Cloud family's, in its own repository): the
   consumers whose `state_configuration:` names a backend.
 - [cs-image-system-local-state-plugin](../local-state-plugin/README.md) and
-  [cs-image-system-gcs-state-plugin](https://github.com/infrastructurebuilder/cs-image-system-google-cloud/blob/develop/packages/gcs-state-plugin/README.md): the
+  [cs-image-system-gcs-state-plugin](https://github.com/infrastructurebuilder/cs-image-system-google-cloud/blob/develop/packages/gcs-state-plugin/README.md)
+  (the Google Cloud family's, in its own repository): the
   other two backend types, built on the same collector contract.
 - [contract state.py](../contract/src/cs_image_system/contract/state.py):
   `BackendRegistration`, `StateLocation`, the `BackendKindProtocol` this

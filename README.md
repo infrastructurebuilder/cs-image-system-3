@@ -5,6 +5,10 @@
 A plugin-based, configuration-driven system that turns one YAML tree into
 infrastructure-as-code for identities, storages, base images and instance
 images, and applies it through gates, on AWS, on GCE and on a docker host.
+GCE is reached through the Google Cloud family of plugins, which is
+released from its own repository
+([cs-image-system-google-cloud](https://github.com/infrastructurebuilder/cs-image-system-google-cloud))
+and installed with the `[gcloud]` extra.
 Its purpose is scientific compute: machine images that are correct for a
 given HPC model, formally released, whose users log in through Okta
 Privileged Access.
@@ -61,7 +65,13 @@ describes them together). `uv tool install
 cs-image-system` installs the core and the plugins marked **bare**, each
 provider's plugins come with the extra marked beside them (`[aws]`,
 `[gcloud]`, `[docker]`, `[okta]`; `[all]` is every one), and the two
-marked **never published** are workspace-only. The core (all **bare**):
+marked **never published** are workspace-only. The Google Cloud family's
+three plugins are listed below too, but they are not in `packages/`: they
+live in its own repository, are released there on a version
+line of their own, and the `[gcloud]` and `[all]` extras name them by
+that line's range, so this workspace's venv does not hold them ("Installing
+a release" in [docs/OPERATIONS.md](docs/OPERATIONS.md) says how an
+operator installs them). The core (all **bare**):
 
 - [contract](packages/contract/README.md) — the plugin contract: the
   protocols a plugin satisfies.
@@ -132,10 +142,15 @@ declared through the `cs_image_system.modules` entry point);
 <dir>` writes them into a tree.
 `tests/` is the suite, with the frozen fixture configuration under
 `tests/fixtures/config/` and the golden emission under
-`tests/fixtures/golden/`. `docs/examples/` holds the five starter
+`tests/fixtures/golden/`; both declare AWS and docker only, and the
+Google Cloud family's fixture and golden are in its own repository.
+`docs/examples/` holds the five starter
 configuration repositories the release ships and `init-config` writes
 out: `complete`, `standard-aws`, `standard-aws-posix`, `standard-docker`
-and `standard-gce`. The reference configuration is its own
+and `standard-gce`. Two of them, `standard-gce` and `complete`, declare
+the Google Cloud family; their tests are under `tests/cloud_starters/`,
+which `just test` runs with the Google Cloud family layered in from the package
+index for that run alone. The reference configuration is its own
 repository, `cs-image-system-testconfig`, which stands alone with its own
 `Justfile` and CI; it is checked out beside this one (`CSIS_CONFIG_ROOT`
 overrides) for the system's own live proofs only, and the tests never

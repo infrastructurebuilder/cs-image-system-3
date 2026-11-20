@@ -1,0 +1,118 @@
+#!/usr/bin/env python3
+# SPDX-FileCopyrightText: 2026 Mykel Alvis <mykelalvis@infrastructurebuilder.org>
+#
+# SPDX-License-Identifier: Apache-2.0
+"""Run a command with the provider families that are released from their own
+repositories layered in from the index.
+
+    with-released-families COMMAND [ARG ...]
+    with-released-families --print
+    with-released-families --check test|pypi
+
+A family released from a repository of its own (the Google Cloud family,
+spec 005) is not in this workspace's venv: `just init` leaves its extra out,
+so this repository's tests pass without it. A command that loads a tree
+declaring it -- the reference configuration, a starter that needs every
+provider -- runs here as ``uv run --no-sync --with=<req> ... COMMAND``: the
+family is layered in for that command alone, by its extra's own ranges in
+``pyproject.toml`` (never restated), and the venv is left as it was.
+``--print`` prints the ``--with=<req>`` options instead, for a recipe that
+builds its own ``uv run``. ``--check INDEX`` asks the index (``test``,
+TestPyPI, or ``pypi``) whether it holds a release inside every such range, a
+line each, the newest one named: 0 when every range is met, 1 when one is not
+(the umbrella would name a family no one can install), 2 when the index
+could not be asked (nothing is guessed). A release asks it first.
+"""
+from __future__ import annotations
+
+import json
+import os
+import sys
+import tomllib
+import urllib.error
+import urllib.request
+from collections.abc import Callable
+from pathlib import Path
+
+from packaging.requirements import Requirement
+from packaging.version import InvalidVersion, Version
+
+REPO = Path(__file__).resolve().parents[1]
+#: the root's extras whose distributions are released from their own repositories
+RELEASED_ELSEWHERE = ("gcloud",)
+
+
+def requirements(pyproject: Path = REPO / "pyproject.toml") -> list[str]:
+    """Every requirement of the released-elsewhere extras, in the extras' order."""
+    extras = tomllib.loads(pyproject.read_text())["project"]["optional-dependencies"]
+    return [req for extra in RELEASED_ELSEWHERE for req in extras[extra]]
+
+
+def with_options(pyproject: Path = REPO / "pyproject.toml") -> list[str]:
+    return [f"--with={req}" for req in requirements(pyproject)]
+
+
+INDEX_JSON = {"test": "https://test.pypi.org/pypi/{name}/json", "pypi": "https://pypi.org/pypi/{name}/json"}
+
+
+class Unasked(RuntimeError):
+    """The index could not be asked which versions of a project it holds."""
+
+
+def published(index: str, name: str) -> set[Version]:
+    """The versions of ``name`` that ``index`` holds, yanked ones left out (none when it has never held one)."""
+    try:
+        with urllib.request.urlopen(INDEX_JSON[index].format(name=name), timeout=30) as response:
+            releases = json.load(response).get("releases") or {}
+    except urllib.error.HTTPError as e:
+        if e.code == 404:
+            return set()
+        raise Unasked(f"{name}: the index answered {e.code}") from e
+    except (urllib.error.URLError, TimeoutError, ValueError) as e:
+        raise Unasked(f"{name}: {e}") from e
+    out: set[Version] = set()
+    for text, files in releases.items():
+        try:
+            version = Version(text)
+        except InvalidVersion:
+            continue
+        if files and not all(f.get("yanked") for f in files):
+            out.add(version)
+    return out
+
+
+def check(index: str, *, asked: Callable[[str, str], set[Version]] = published,
+          say: Callable[[str], None] = print, pyproject: Path = REPO / "pyproject.toml") -> int:
+    """0 when ``index`` holds a release inside every released-elsewhere requirement's range, 1 when one
+    has none, 2 when the index could not be asked."""
+    met = True
+    for text in requirements(pyproject):
+        req = Requirement(text)
+        try:
+            inside = sorted(v for v in asked(index, req.name) if req.specifier.contains(v))
+        except Unasked as e:
+            say(f"with-released-families: the {index} index could not be asked: {e}")
+            return 2
+        if inside:
+            say(f"with-released-families: {req.name}{req.specifier} -- {inside[-1]} on the {index} index")
+        else:
+            met = False
+            say(f"with-released-families: {req.name}{req.specifier} -- NO release on the {index} index")
+    return 0 if met else 1
+
+
+def main(argv: list[str]) -> int:
+    if argv == ["--print"]:
+        print(" ".join(with_options()))
+        return 0
+    if len(argv) == 2 and argv[0] == "--check" and argv[1] in INDEX_JSON:
+        return check(argv[1])
+    if not argv or argv[0].startswith("-"):
+        print("with-released-families: name the command to run, or --print", file=sys.stderr)
+        return 2
+    os.execvp("uv", ["uv", "run", "--no-sync", *with_options(), *argv])
+    return 1                                    # not reached: exec replaces the process
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))

@@ -4,6 +4,13 @@ The uv workspace is the packages under `packages/`. Each has its own
 README that describes it on its own terms: what it registers, its models
 and how they extend the base models, its builder's hooks, what it emits,
 and one example configuration. The core and the CLI are packages too.
+The tables below also list the Google Cloud family's three packages
+(`gcloud-runtime-plugin`, `tf-gcp-plugin`, `gcs-state-plugin`), because a
+tree uses them like any other plugin; they are not in `packages/`. They
+live in the Google Cloud family's own repository,
+[cs-image-system-google-cloud](https://github.com/infrastructurebuilder/cs-image-system-google-cloud),
+which builds, tests and releases them on a version line of their own,
+and their links below point there.
 
 The workspace root is the umbrella, `cs-image-system`: no sources of its
 own, a `==` pin on the core -- the CLI, the engine, the libraries and
@@ -12,7 +19,13 @@ every plugin that needs no provider account -- and an extra per provider
 `uv pip install cs-image-system==<version>` carries no runtime and
 `'cs-image-system[aws]==<version>'` adds one (see "Installing a release"
 in [OPERATIONS.md](OPERATIONS.md); the table from a `type:` word to its
-extra is `cs_image_system.extras`, the umbrella's one module). The dummy plugin and the
+extra is `cs_image_system.extras`, the umbrella's one module). The
+`[gcloud]` and `[all]` extras name the Google Cloud family by the range of
+its own line rather than by a `==` pin, since it is released from its own
+repository; the workspace's `just init` therefore syncs every extra but
+those two, and the commands that load a tree declaring the Google Cloud
+family layer it in from the index for that command alone. The dummy plugin
+and the
 contract example plugin are workspace-only: classified `Private :: Do
 Not Upload`, installed through the root's `dev` group, never on the
 index. Every package declares exactly the
@@ -24,7 +37,10 @@ contract has a version of its own and is named by the range of its
 series. The SDK's libraries (the kit, and the two terraform libraries
 together) each keep a version line of their own: the core and the
 plugins that release with it pin them exactly, and a provider that
-stands alone, as the docker provider does, names them by a range.
+stands alone, as the docker provider does, names them by a range. The
+Google Cloud family, released from its own repository, names the
+contract, the kit and the terraform libraries by ranges too, and the
+umbrella names it by a range in turn.
 Everything else carries the workspace's one version and is pinned at it.
 [WRITING_A_PROVIDER.md](WRITING_A_PROVIDER.md) says what the SDK's
 version numbers promise.
@@ -83,7 +99,8 @@ inherits it from its distribution: the distribution name with the
 package names its two namespaces itself (`docker-runtime` for the
 runtime, `tf-docker` for the roots), as they were when it was two
 packages, so a tree that wrote a qualified word still loads. The
-packages above therefore register as `aws-runtime`, `gcloud-runtime`,
+packages above (the Google Cloud family's three among them, from its
+own repository) therefore register as `aws-runtime`, `gcloud-runtime`,
 `docker-runtime`, `tf-docker`, `default-os`, `packer`, `ansible`,
 `bash-mod`, `okta-opa`, `posix-identity`, `tf-ebs-instance`, `tf-gcp`,
 `tf-s3-state`, `contract-example`, `local-state`, `gcs-state` and
@@ -118,7 +135,9 @@ plugin's model that names instances is marked with
 to be read the same way (the okta group builder's `posix` is).
 
 The three terraform root plugins (`tf-ebs-instance-plugin`,
-`tf-gcp-plugin`, `docker-plugin`) share one implementation of the
+`tf-gcp-plugin`, `docker-plugin`; the Google Cloud family's
+`tf-gcp-plugin` from its own repository, which depends on the released
+`tofu-roots` by a range) share one implementation of the
 root: the provider-neutral bases in
 [tofu-roots](../packages/tofu-roots/README.md#the-terraform-roots)
 own the workspace, the variables, the state binding, the module calls,

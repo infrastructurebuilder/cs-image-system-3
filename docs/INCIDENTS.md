@@ -1179,7 +1179,7 @@ checks it and stops it again; the login proof starts nothing.
 have happened" (the "stopped machine was reported" item);
 [../packages/aws-runtime-plugin/README.md](../packages/aws-runtime-plugin/README.md)
 "Seen live" (the 2026-09-21 item);
-[../packages/gcloud-runtime-plugin/README.md](../packages/gcloud-runtime-plugin/README.md)
+[../packages/gcloud-runtime-plugin/README.md](https://github.com/infrastructurebuilder/cs-image-system-google-cloud/blob/v0.2.0/packages/gcloud-runtime-plugin/README.md)
 "When it fails" (the 2026-09-21 item).
 
 ### The run's commit failed while the instance it launched was running
@@ -1600,9 +1600,9 @@ plans), or launch with a pinned build.
 **Where it was told.**
 [../packages/system/README.md](../packages/system/README.md) "Seen live"
 (the 2026-09-10 scoped bake item);
-[../packages/gcloud-runtime-plugin/README.md](../packages/gcloud-runtime-plugin/README.md)
+[../packages/gcloud-runtime-plugin/README.md](https://github.com/infrastructurebuilder/cs-image-system-google-cloud/blob/v0.2.0/packages/gcloud-runtime-plugin/README.md)
 "When it fails" (the `family/imgfile-basic-dask` item);
-[../packages/tf-gcp-plugin/README.md](../packages/tf-gcp-plugin/README.md)
+[../packages/tf-gcp-plugin/README.md](https://github.com/infrastructurebuilder/cs-image-system-google-cloud/blob/v0.2.0/packages/tf-gcp-plugin/README.md)
 "When it fails" (the `data.google_compute_image.family` item);
 [../packages/tf-ebs-instance-plugin/README.md](../packages/tf-ebs-instance-plugin/README.md)
 "Failures that have happened" (the 2026-09-10 item).
@@ -1636,7 +1636,7 @@ instance:gce-test`.
 **Where it was told.**
 [../packages/ansible-plugin/README.md](../packages/ansible-plugin/README.md)
 "When it fails" (the two 2026-09-10 items);
-[../packages/tf-gcp-plugin/README.md](../packages/tf-gcp-plugin/README.md)
+[../packages/tf-gcp-plugin/README.md](https://github.com/infrastructurebuilder/cs-image-system-google-cloud/blob/v0.2.0/packages/tf-gcp-plugin/README.md)
 "When it fails" (the "post-bake suite failed `import dask`" item).
 
 ### A GCE bake disconnected at the last scriptlet of the update transaction
@@ -1657,7 +1657,7 @@ bake alone.
 **Date.** 2026-09-10.
 
 **Where it was told.**
-[../packages/gcloud-runtime-plugin/README.md](../packages/gcloud-runtime-plugin/README.md)
+[../packages/gcloud-runtime-plugin/README.md](https://github.com/infrastructurebuilder/cs-image-system-google-cloud/blob/v0.2.0/packages/gcloud-runtime-plugin/README.md)
 "When it fails" (the `Script disconnected unexpectedly` item).
 
 ### InvocationDoesNotExist right after send_command
@@ -1771,10 +1771,10 @@ expired session" item);
 (the "2026-09-08 and 2026-09-09" item);
 [../packages/aws-runtime-plugin/README.md](../packages/aws-runtime-plugin/README.md)
 "Seen live" (the 2026-09-08 session item);
-[../packages/gcloud-runtime-plugin/README.md](../packages/gcloud-runtime-plugin/README.md)
+[../packages/gcloud-runtime-plugin/README.md](https://github.com/infrastructurebuilder/cs-image-system-google-cloud/blob/v0.2.0/packages/gcloud-runtime-plugin/README.md)
 "When it fails" (the 2026-09-08 `No valid credential sources` item) and
 its prerequisites ("A live AWS session as well", "found live 2026-09-08");
-[../packages/tf-gcp-plugin/README.md](../packages/tf-gcp-plugin/README.md)
+[../packages/tf-gcp-plugin/README.md](https://github.com/infrastructurebuilder/cs-image-system-google-cloud/blob/v0.2.0/packages/tf-gcp-plugin/README.md)
 "When it fails" (the 2026-09-08 `tofu plan` of the `tofu-gce` root item).
 
 ### A verify assert as the runner's last step failed the run after the teardown
@@ -1815,7 +1815,7 @@ seconds of the change. The prerequisites say so.
 **Date.** 2026-09-09.
 
 **Where it was told.**
-[../packages/gcloud-runtime-plugin/README.md](../packages/gcloud-runtime-plugin/README.md)
+[../packages/gcloud-runtime-plugin/README.md](https://github.com/infrastructurebuilder/cs-image-system-google-cloud/blob/v0.2.0/packages/gcloud-runtime-plugin/README.md)
 "When it fails" (the `read_passphrase` item) and its prerequisites ("found
 live 2026-09-09").
 
@@ -1875,7 +1875,7 @@ disagree with its record. A `create_tags` or `setLabels` refusal in
 **Where it was told.**
 [../packages/aws-runtime-plugin/README.md](../packages/aws-runtime-plugin/README.md)
 "Seen live" (the 2026-09-08 tags item);
-[../packages/gcloud-runtime-plugin/README.md](../packages/gcloud-runtime-plugin/README.md)
+[../packages/gcloud-runtime-plugin/README.md](https://github.com/infrastructurebuilder/cs-image-system-google-cloud/blob/v0.2.0/packages/gcloud-runtime-plugin/README.md)
 "When it fails" (the `fingerprint differs` item).
 
 ### The IAP tunnel lagged behind a healthy build VM
@@ -1897,7 +1897,7 @@ recurs.
 **Date.** 2026-09-08 (first seen 2026-09-07).
 
 **Where it was told.**
-[../packages/gcloud-runtime-plugin/README.md](../packages/gcloud-runtime-plugin/README.md)
+[../packages/gcloud-runtime-plugin/README.md](https://github.com/infrastructurebuilder/cs-image-system-google-cloud/blob/v0.2.0/packages/gcloud-runtime-plugin/README.md)
 "When it fails" (the `4047: Failed to lookup instance` item and the
 2026-09-07 dask bake item).
 
@@ -1919,9 +1919,9 @@ teardown), which is the intended one.
 **Date.** 2026-09-08.
 
 **Where it was told.**
-[../packages/gcloud-runtime-plugin/README.md](../packages/gcloud-runtime-plugin/README.md)
+[../packages/gcloud-runtime-plugin/README.md](https://github.com/infrastructurebuilder/cs-image-system-google-cloud/blob/v0.2.0/packages/gcloud-runtime-plugin/README.md)
 "When it fails" (the "launch record of `unbound`" item);
-[../packages/tf-gcp-plugin/README.md](../packages/tf-gcp-plugin/README.md)
+[../packages/tf-gcp-plugin/README.md](https://github.com/infrastructurebuilder/cs-image-system-google-cloud/blob/v0.2.0/packages/tf-gcp-plugin/README.md)
 "When it fails" (the "first ephemeral verification failed" item).
 
 ### Hook plugins loaded after the lifecycle names were resolved
@@ -1966,7 +1966,7 @@ means a third spelling: read `serial_console` in the evidence
 **Date.** 2026-09-07.
 
 **Where it was told.**
-[../packages/gcloud-runtime-plugin/README.md](../packages/gcloud-runtime-plugin/README.md)
+[../packages/gcloud-runtime-plugin/README.md](https://github.com/infrastructurebuilder/cs-image-system-google-cloud/blob/v0.2.0/packages/gcloud-runtime-plugin/README.md)
 "When it fails" (the `gce-verify` item).
 
 ### The GCS teardown died wiping an empty bucket
@@ -1987,7 +1987,7 @@ apply succeeds.
 **Date.** 2026-09-07.
 
 **Where it was told.**
-[../packages/tf-gcp-plugin/README.md](../packages/tf-gcp-plugin/README.md)
+[../packages/tf-gcp-plugin/README.md](https://github.com/infrastructurebuilder/cs-image-system-google-cloud/blob/v0.2.0/packages/tf-gcp-plugin/README.md)
 "When it fails" (the "teardown died wiping an empty bucket" item).
 
 ### Every GCE bake timed out waiting for SSH after a firewall rule was removed
@@ -2009,7 +2009,7 @@ project's firewall rules and the runner's IAM bindings, in that order.
 **Date.** 2026-09-06.
 
 **Where it was told.**
-[../packages/gcloud-runtime-plugin/README.md](../packages/gcloud-runtime-plugin/README.md)
+[../packages/gcloud-runtime-plugin/README.md](https://github.com/infrastructurebuilder/cs-image-system-google-cloud/blob/v0.2.0/packages/gcloud-runtime-plugin/README.md)
 "When it fails" (the 2026-09-06 item);
 [../packages/packer-plugin/README.md](../packages/packer-plugin/README.md)
 "When it fails" ("GCE bakes timed out 'waiting for SSH' after the default
@@ -2061,7 +2061,7 @@ run it again with the record intact if the record and the plan disagree.
 instance" item);
 [../packages/tf-ebs-instance-plugin/README.md](../packages/tf-ebs-instance-plugin/README.md)
 "Failures that have happened" (the "tearing down the first GCE instance"
-item); [../packages/tf-gcp-plugin/README.md](../packages/tf-gcp-plugin/README.md)
+item); [../packages/tf-gcp-plugin/README.md](https://github.com/infrastructurebuilder/cs-image-system-google-cloud/blob/v0.2.0/packages/tf-gcp-plugin/README.md)
 "When it fails" (the "undeclaring the last GCE instance" item).
 
 ### The GCE bake and boot disks were 200 GB
@@ -2083,7 +2083,7 @@ default-os README's "40 GB on `gcloud-east1`" is stale: both trees say
 **Date.** 2026-09-05.
 
 **Where it was told.**
-[../packages/gcloud-runtime-plugin/README.md](../packages/gcloud-runtime-plugin/README.md)
+[../packages/gcloud-runtime-plugin/README.md](https://github.com/infrastructurebuilder/cs-image-system-google-cloud/blob/v0.2.0/packages/gcloud-runtime-plugin/README.md)
 "When it fails" (the "instance boot disk was 200 GB" item);
 [../packages/default-os-plugin/README.md](../packages/default-os-plugin/README.md)
 "When it fails" (the "GCE bake disk was 200 GB" item).
@@ -2107,7 +2107,7 @@ by an older tree: regenerate.
 **Date.** 2026-09-05.
 
 **Where it was told.**
-[../packages/gcloud-runtime-plugin/README.md](../packages/gcloud-runtime-plugin/README.md)
+[../packages/gcloud-runtime-plugin/README.md](https://github.com/infrastructurebuilder/cs-image-system-google-cloud/blob/v0.2.0/packages/gcloud-runtime-plugin/README.md)
 "When it fails" (the "every SSH/IAP session ... refused" item);
 [../packages/packer-plugin/README.md](../packages/packer-plugin/README.md)
 "When it fails" ("First SSH to a GCE image refused after the bake").
@@ -2131,7 +2131,7 @@ the hook, not the playbook.
 **Date.** 2026-09-05.
 
 **Where it was told.**
-[../packages/gcloud-runtime-plugin/README.md](../packages/gcloud-runtime-plugin/README.md)
+[../packages/gcloud-runtime-plugin/README.md](https://github.com/infrastructurebuilder/cs-image-system-google-cloud/blob/v0.2.0/packages/gcloud-runtime-plugin/README.md)
 "When it fails" (the "ansible tasks died `unreachable`" item);
 [../packages/ansible-plugin/README.md](../packages/ansible-plugin/README.md)
 "When it fails" (the 2026-09-05 item).
@@ -2159,9 +2159,9 @@ root is the other place to look.
 
 **Where it was told.** [DAILY_DRIVER.md](DAILY_DRIVER.md) section 6 (the
 `data disks mounted` failed row);
-[../packages/tf-gcp-plugin/README.md](../packages/tf-gcp-plugin/README.md)
+[../packages/tf-gcp-plugin/README.md](https://github.com/infrastructurebuilder/cs-image-system-google-cloud/blob/v0.2.0/packages/tf-gcp-plugin/README.md)
 "When it fails" (the "pd was attached but not mounted" item);
-[../packages/gcloud-runtime-plugin/README.md](../packages/gcloud-runtime-plugin/README.md)
+[../packages/gcloud-runtime-plugin/README.md](https://github.com/infrastructurebuilder/cs-image-system-google-cloud/blob/v0.2.0/packages/gcloud-runtime-plugin/README.md)
 "When it fails" (the `gce_data` sentence of the underscores item);
 [../packages/base/README.md](../packages/base/README.md) "Failures that
 have happened" (the `_gce_device_name` clause of the ledger-shape item).
@@ -2242,7 +2242,7 @@ would bake as different users.
 **Date.** 2026-09-04.
 
 **Where it was told.**
-[../packages/gcloud-runtime-plugin/README.md](../packages/gcloud-runtime-plugin/README.md)
+[../packages/gcloud-runtime-plugin/README.md](https://github.com/infrastructurebuilder/cs-image-system-google-cloud/blob/v0.2.0/packages/gcloud-runtime-plugin/README.md)
 "When it fails" (the 2026-09-04 item);
 [../packages/default-os-plugin/README.md](../packages/default-os-plugin/README.md)
 "When it fails" (the 2026-09-04 "SSH authentication failed" item).
@@ -2317,9 +2317,9 @@ names distinct in `[a-z0-9-]`.
 **Date.** 2026-09-03.
 
 **Where it was told.**
-[../packages/tf-gcp-plugin/README.md](../packages/tf-gcp-plugin/README.md)
+[../packages/tf-gcp-plugin/README.md](https://github.com/infrastructurebuilder/cs-image-system-google-cloud/blob/v0.2.0/packages/tf-gcp-plugin/README.md)
 "When it fails" (the 2026-09-03 item);
-[../packages/gcloud-runtime-plugin/README.md](../packages/gcloud-runtime-plugin/README.md)
+[../packages/gcloud-runtime-plugin/README.md](https://github.com/infrastructurebuilder/cs-image-system-google-cloud/blob/v0.2.0/packages/gcloud-runtime-plugin/README.md)
 "When it fails" (the "underscores in GCE names" item).
 
 ### A GCE bake fell through to a 1 GB machine
@@ -2338,7 +2338,7 @@ declares it on the entry; the fixture bakes on `e2-small`.
 **Date.** 2026-09-03.
 
 **Where it was told.**
-[../packages/gcloud-runtime-plugin/README.md](../packages/gcloud-runtime-plugin/README.md)
+[../packages/gcloud-runtime-plugin/README.md](https://github.com/infrastructurebuilder/cs-image-system-google-cloud/blob/v0.2.0/packages/gcloud-runtime-plugin/README.md)
 "When it fails" (the "dask bake fell through" item);
 [../packages/packer-plugin/README.md](../packages/packer-plugin/README.md)
 "When it fails" ("A GCE dask bake fell through to a 1 GB machine");

@@ -1337,7 +1337,10 @@ itself needs is short.
   image builder, no OS builder, no storage, group, user, instance or mod
   builder and no state backend; every one comes from a plugin that
   subclasses a base here and registers through the contract's entry
-  points. The plugin READMEs say what each needs:
+  points. The plugin READMEs say what each needs (the Google Cloud
+  family's three, `gcloud-runtime-plugin`, `gcs-state-plugin` and
+  `tf-gcp-plugin`, are in its own repository, from which it is
+  released):
   [ansible-plugin](../ansible-plugin/README.md),
   [aws-runtime-plugin](../aws-runtime-plugin/README.md),
   [bash-mod-plugin](../bash-mod-plugin/README.md),
