@@ -75,7 +75,7 @@ def test_the_aws_client_config_passes_the_declared_values_through():
 
 
 def test_a_runtime_needing_no_declaration_still_works():
-    """GCE authenticates with Application Default Credentials and declares
+    """A runtime that authenticates by ambient credentials declares
     nothing; the base class is the empty case, not a special case."""
     c = CredentialsBase()
     assert c.as_dict() == {} and not c

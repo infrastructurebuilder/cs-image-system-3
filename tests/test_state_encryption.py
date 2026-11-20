@@ -45,4 +45,4 @@ def test_every_emitted_backend_configuration_encrypts():
             assert re.search(r"^path\s*=", text, flags=re.M) and "encrypt" not in text, path.relative_to(GOLDEN)
         else:
             assert re.search(r"^encrypt\s*=\s*true$", text, flags=re.M), path.relative_to(GOLDEN)
-    assert types.get("s3", 0) >= 7 and types.get("local", 0) >= 2, types
+    assert types.get("s3", 0) >= 4 and types.get("local", 0) >= 2, types

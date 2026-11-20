@@ -51,8 +51,7 @@ def test_every_root_resolves_a_location_the_run_records_and_the_emission_carries
     assert _errors(fixture_run.ctx) == []
     assert fixture_run.run("all", apply=False).ok
     rec = _records(fixture_run)
-    assert set(rec) >= {"aws-ebs", "aws-efs", "aws-s3", "gcp-pd", "gcp-gcs", "open-tofu", "tofu-gce",
-                        "oktagroups", "okta-tf-users"}
+    assert set(rec) >= {"aws-ebs", "aws-efs", "aws-s3", "open-tofu", "oktagroups", "okta-tf-users"}
     assert rec["aws-ebs"] == {"backend": "s3-east1", "type": "s3", "location": f"{EAST1}/aws_ebs.tfstate",
                               "bucket": "my-east1-tfstate-bucket", "key": "statefiles/csia/aws_ebs.tfstate",
                               "region": "us-east-1", "encrypt": True, "use_lockfile": True, "profile": "noaa",
@@ -88,7 +87,7 @@ def test_the_chain_reads_the_runtimes_backend_when_the_root_is_silent(tmp_path, 
     assert fixture_run.run(["identity", "storage", "instance-image"], apply=False).ok
     rec = _records(fixture_run)
     assert rec["aws-ebs"]["backend"] == "s3-east1"                # inherited from aws-east2-runtime
-    assert rec["gcp-pd"]["backend"] == "s3-east2"                 # gcloud-east1 is silent: the default
+    assert rec["docker-volume"]["backend"] == "s3-east2"          # docker-fixture is silent: the default
     assert rec["open-tofu"]["backend"] == "s3-east2"              # names its own
     assert rec["oktagroups"]["backend"] == "local-dev"            # names its own, a different type
 
@@ -279,28 +278,6 @@ def test_begin_needs_a_record_and_the_backend_file(migration):
     assert begin(migration.ctx, "ws", migration.tofu, None, "r1", migration.root) == 2
     assert begin(migration.ctx, "never-generated", migration.tofu, Path("ws.tfbackend.hcl"), "r1", migration.root, new_location=NEW) == 2
     assert finish(migration.ctx, "ws", "r1", migration.root) == 2                              # begin did not run
-
-
-# ------------------------------------------------------------------- the gcs type
-
-def test_the_gcs_backend_is_declared_bound_to_nothing_and_its_commented_twin_loads_as_nothing(tmp_path, monkeypatch):
-    """The fixture declares `gcs-east1` (cfg/state-gcm.yml) and no root binds
-    to it, so it registers, renders, and moves nothing in the golden; the
-    live tree carries the same file with every line commented out, which
-    loads as no declaration at all."""
-    from cs_image_system.hashicorp_utils.collector import terraform_collector
-    fixture_run = FixtureRun(tmp_path, monkeypatch)
-    reg = terraform_collector(fixture_run.ctx).resolve_backend("gcs-east1")
-    assert reg is not None and reg.type == "gcs" and reg.settings["bucket"] == "csis-sandbox-tfstate"
-    assert str(reg.state_location("gcp-pd")) == "gcs://csis-sandbox-tfstate/statefiles/csia/gcp_pd/default.tfstate"
-    assert fixture_run.run("all", apply=False).ok
-    assert not [ws for ws, rec in _records(fixture_run).items() if rec["backend"] == "gcs-east1"]
-    root = copy_config(tmp_path / "live-shape")
-    source = (root / "cfg" / "state-gcm.yml").read_text().splitlines()
-    (root / "cfg" / "state-gcm.yml").write_text("\n".join(f"# {line}" if line and not line.startswith("#") else line or "#" for line in source) + "\n")
-    assert not [line for line in (root / "cfg" / "state-gcm.yml").read_text().splitlines() if not line.startswith("#")]
-    live = FixtureRun(tmp_path / "live-shape", monkeypatch, config_root=root)
-    assert terraform_collector(live.ctx).resolve_backend("gcs-east1") is None
 
 
 def test_the_same_name_under_two_types_is_not_a_collision_but_two_roots_on_one_directory_are():

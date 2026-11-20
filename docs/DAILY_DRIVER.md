@@ -1310,13 +1310,13 @@ declares.
   [configuration](../packages/aws-runtime-plugin/README.md#configuration-reference) ·
   [tests](../packages/aws-runtime-plugin/README.md#what-it-tests-and-verifies) ·
   [failures](../packages/aws-runtime-plugin/README.md#when-it-fails)
-- [gcloud-runtime-plugin](../packages/gcloud-runtime-plugin/README.md): the
+- [gcloud-runtime-plugin](https://github.com/infrastructurebuilder/cs-image-system-google-cloud/blob/develop/packages/gcloud-runtime-plugin/README.md): the
   GCE context: ADC and impersonation, IAP sessions, labels, the cost
   posture.
-  [prerequisites](../packages/gcloud-runtime-plugin/README.md#prerequisites-and-integration) ·
-  [configuration](../packages/gcloud-runtime-plugin/README.md#configuration-reference) ·
-  [tests](../packages/gcloud-runtime-plugin/README.md#what-it-tests-and-verifies) ·
-  [failures](../packages/gcloud-runtime-plugin/README.md#when-it-fails)
+  [prerequisites](https://github.com/infrastructurebuilder/cs-image-system-google-cloud/blob/develop/packages/gcloud-runtime-plugin/README.md#prerequisites-and-integration) ·
+  [configuration](https://github.com/infrastructurebuilder/cs-image-system-google-cloud/blob/develop/packages/gcloud-runtime-plugin/README.md#configuration-reference) ·
+  [tests](https://github.com/infrastructurebuilder/cs-image-system-google-cloud/blob/develop/packages/gcloud-runtime-plugin/README.md#what-it-tests-and-verifies) ·
+  [failures](https://github.com/infrastructurebuilder/cs-image-system-google-cloud/blob/develop/packages/gcloud-runtime-plugin/README.md#when-it-fails)
 - [docker-plugin](../packages/docker-plugin/README.md): a
   durable host's container daemon as a runtime: images in the
   daemon's store, builds named by tags, bakes through `docker exec`.
@@ -1381,15 +1381,15 @@ declares.
   [configuration](../packages/tf-ebs-instance-plugin/README.md#configuration-reference) ·
   [tests](../packages/tf-ebs-instance-plugin/README.md#what-it-tests-and-verifies) ·
   [failures](../packages/tf-ebs-instance-plugin/README.md#when-it-fails)
-- [tf-gcp-plugin](../packages/tf-gcp-plugin/README.md): the GCE instance and
+- [tf-gcp-plugin](https://github.com/infrastructurebuilder/cs-image-system-google-cloud/blob/develop/packages/tf-gcp-plugin/README.md): the GCE instance and
   storage pieces.
-  [prerequisites](../packages/tf-gcp-plugin/README.md#prerequisites-and-integration) ·
-  [configuration](../packages/tf-gcp-plugin/README.md#configuration-reference) ·
-  [tests](../packages/tf-gcp-plugin/README.md#what-it-tests-and-verifies) ·
-  [failures](../packages/tf-gcp-plugin/README.md#when-it-fails)
+  [prerequisites](https://github.com/infrastructurebuilder/cs-image-system-google-cloud/blob/develop/packages/tf-gcp-plugin/README.md#prerequisites-and-integration) ·
+  [configuration](https://github.com/infrastructurebuilder/cs-image-system-google-cloud/blob/develop/packages/tf-gcp-plugin/README.md#configuration-reference) ·
+  [tests](https://github.com/infrastructurebuilder/cs-image-system-google-cloud/blob/develop/packages/tf-gcp-plugin/README.md#what-it-tests-and-verifies) ·
+  [failures](https://github.com/infrastructurebuilder/cs-image-system-google-cloud/blob/develop/packages/tf-gcp-plugin/README.md#when-it-fails)
 - [tf-s3-state-plugin](../packages/tf-s3-state-plugin/README.md),
   [local-state-plugin](../packages/local-state-plugin/README.md),
-  [gcs-state-plugin](../packages/gcs-state-plugin/README.md): where a root's
+  [gcs-state-plugin](https://github.com/infrastructurebuilder/cs-image-system-google-cloud/blob/develop/packages/gcs-state-plugin/README.md): where a root's
   state lives, and how it moves.
   [s3: prerequisites](../packages/tf-s3-state-plugin/README.md#prerequisites-and-integration) ·
   [s3: configuration](../packages/tf-s3-state-plugin/README.md#configuration-reference) ·
@@ -1397,8 +1397,8 @@ declares.
   [s3: failures](../packages/tf-s3-state-plugin/README.md#when-it-fails) ·
   [local: configuration](../packages/local-state-plugin/README.md#configuration-reference) ·
   [local: failures](../packages/local-state-plugin/README.md#when-it-fails) ·
-  [gcs: configuration](../packages/gcs-state-plugin/README.md#configuration-reference) ·
-  [gcs: failures](../packages/gcs-state-plugin/README.md#when-it-fails)
+  [gcs: configuration](https://github.com/infrastructurebuilder/cs-image-system-google-cloud/blob/develop/packages/gcs-state-plugin/README.md#configuration-reference) ·
+  [gcs: failures](https://github.com/infrastructurebuilder/cs-image-system-google-cloud/blob/develop/packages/gcs-state-plugin/README.md#when-it-fails)
 - [contract-example-plugin](../packages/contract-example-plugin/README.md):
   the proof of the contract: OpenTofu's `inmem` state backend
   as a plugin written against nothing but the contract, subclassing nothing of
@@ -1453,7 +1453,7 @@ repository as `cs-image-system-testconfig` for that purpose alone;
 cuts a release to the index (the recipe wraps `scripts/release.py`, which
 also records the release as a row of [CHANGES.md](CHANGES.md)), on
 `main` alone, and is run from `develop`: the recipe checks out `main`,
-fast-forwards it to `develop`, syncs the venv (`uv sync --all-extras`),
+fast-forwards it to `develop`, syncs the venv (`uv sync --all-extras --no-extra gcloud --no-extra all`),
 cuts the release, pushes `main` with its tag, checks out `develop`,
 fast-forwards it to `main`, pushes it and syncs the venv again, so the
 release walk is the one command and the login halfway. Run from `main`

@@ -19,9 +19,9 @@ and the bases have no `csis_name()`. What it does declare is one entry
 point, `cs_image_system.plugins.hooks`, through which the core discovers
 the [run hooks](#the-run-hooks) that check and record state locations; a
 tree with no terraform roots installs the same hooks and they find
-nothing to say. The three provider root plugins of the workspace
+nothing to say. The three provider root plugins
 ([tf-ebs-instance-plugin](../tf-ebs-instance-plugin/README.md) for AWS,
-[tf-gcp-plugin](../tf-gcp-plugin/README.md) for Google Cloud,
+[tf-gcp-plugin](https://github.com/infrastructurebuilder/cs-image-system-google-cloud/blob/develop/packages/tf-gcp-plugin/README.md) for Google Cloud, in its own repository and installed with the `gcloud` extra,
 [docker-plugin](../docker-plugin/README.md) for a container
 daemon) subclass the two bases, and the identity roots of
 [okta-opa-plugin](../okta-opa-plugin/README.md) mix in the root mixin.
@@ -258,9 +258,9 @@ and nameable: which provider and how it is configured, which module,
 what the module call carries, how the launch script reaches the machine,
 which address a replacement or a detach names. So the root lives here,
 once, as two provider-neutral bases, and a provider's root plugin
-subclasses a base and answers its hooks. The three root plugins of the
-workspace ([tf-ebs-instance-plugin](../tf-ebs-instance-plugin/README.md)
-for AWS, [tf-gcp-plugin](../tf-gcp-plugin/README.md) for Google Cloud,
+subclasses a base and answers its hooks. The three root plugins
+([tf-ebs-instance-plugin](../tf-ebs-instance-plugin/README.md)
+for AWS, [tf-gcp-plugin](https://github.com/infrastructurebuilder/cs-image-system-google-cloud/blob/develop/packages/tf-gcp-plugin/README.md) for Google Cloud, in its own repository,
 [docker-plugin](../docker-plugin/README.md) for a container
 daemon) are each such a subclass, and no root plugin depends on another
 provider's root plugin: installing the GCE or the container root
@@ -542,7 +542,7 @@ are the ones the operator sees fail.
   the lock service and the credentials belong to the state plugin whose
   kind renders the backend file ([tf-s3-state-plugin](../tf-s3-state-plugin/README.md),
   [local-state-plugin](../local-state-plugin/README.md),
-  [gcs-state-plugin](../gcs-state-plugin/README.md)). This package only
+  [gcs-state-plugin](https://github.com/infrastructurebuilder/cs-image-system-google-cloud/blob/develop/packages/gcs-state-plugin/README.md)). This package only
   writes what the kind returns into `.tfbackend.hcl` and hands the file
   to `init`. A real run's `init -reconfigure -backend-config=<file>`
   therefore needs a live session for that backend (an AWS SSO session
@@ -566,7 +566,7 @@ are the ones the operator sees fail.
 `TofuInstanceBuilderBase` and `TofuStorageBuilderBase` and register
 `TofuVersionChecker`: [tf-ebs-instance-plugin](../tf-ebs-instance-plugin/README.md)
 (AWS, which also depends on `aws-runtime-plugin` for its boto3 session),
-[tf-gcp-plugin](../tf-gcp-plugin/README.md) (Google Cloud) and
+[tf-gcp-plugin](https://github.com/infrastructurebuilder/cs-image-system-google-cloud/blob/develop/packages/tf-gcp-plugin/README.md) (Google Cloud) and
 [docker-plugin](../docker-plugin/README.md) (a container daemon).
 Each depends on this package and on its own runtime plugin, and on no
 other provider's root plugin. A provider's prerequisites (the account,

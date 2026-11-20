@@ -10,7 +10,7 @@ not "stopped", off is not drift, and a machine started for a bounded task goes
 back off even when the task explodes.
 
 The clouds are faked at the plugin seam: what is under test is the vocabulary
-and the rules, not boto3 or google.cloud.
+and the rules, not boto3.
 """
 from __future__ import annotations
 
@@ -62,28 +62,13 @@ def test_ec2_states_map_onto_our_words(raw, expected):
     assert AwsCloudBuilder._EC2_POWER[raw] == expected
 
 
-@pytest.mark.parametrize(("raw", "expected"), [
-    ("RUNNING", ps.RUNNING),
-    ("PROVISIONING", ps.STARTING),
-    ("STAGING", ps.STARTING),
-    ("SUSPENDED", ps.SUSPENDED),
-    ("TERMINATED", ps.STOPPED),
-])
-def test_gce_states_map_onto_our_words(raw, expected):
-    from cs_image_system.gcloud_runtime.gcp_runtime_builders import GCPCloudBuilder
-    assert GCPCloudBuilder._GCE_POWER[raw] == expected
-
-
-def test_gce_terminated_means_stopped_not_gone():
-    """The trap the shared vocabulary exists to defuse: on GCE TERMINATED is
-    a machine that can be started again, and on EC2 the same word is a
-    machine that no longer exists. A caller reading raw provider spellings
-    would get this exactly backwards."""
+def test_ec2_terminated_means_gone():
+    """The trap the shared vocabulary exists to defuse: on EC2 TERMINATED is
+    a machine that no longer exists, where another provider's same word can
+    be a machine that can be started again. A caller reading raw provider
+    spellings would get one of them backwards."""
     from cs_image_system.aws_runtime.aws_runtime_builders import AwsCloudBuilder
-    from cs_image_system.gcloud_runtime.gcp_runtime_builders import GCPCloudBuilder
-    assert GCPCloudBuilder._GCE_POWER["TERMINATED"] == ps.STOPPED
     assert AwsCloudBuilder._EC2_POWER["terminated"] == ps.ABSENT
-    assert ps.exists(GCPCloudBuilder._GCE_POWER["TERMINATED"])
     assert not ps.exists(AwsCloudBuilder._EC2_POWER["terminated"])
 
 

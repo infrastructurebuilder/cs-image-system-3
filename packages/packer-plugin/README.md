@@ -287,7 +287,7 @@ images with no mutual dependencies):
 | [run-base-image.sh](../../tests/fixtures/golden/generated/base-image/run-base-image.sh) | `packer build .` in each block directory. |
 
 The GCE builder `pckr-gce-ans` emits the same set of files under
-[base-image/pckr-gce-ans/image-generation/block-000](../../tests/fixtures/golden/generated/base-image/pckr-gce-ans/image-generation/block-000);
+[base-image/pckr-gce-ans/image-generation/block-000](https://github.com/infrastructurebuilder/cs-image-system-google-cloud/tree/develop/tests/golden/generated/base-image/pckr-gce-ans/image-generation/block-000);
 its source file holds a `source "googlecompute"` block with `image_name`,
 `image_family`, `image_labels`, `use_iap`, `preemptible`, `disk_size`.
 
@@ -472,7 +472,7 @@ needs the IAP firewall rule (`35.235.240.0/20` -> `tcp:22`) and
 `roles/iap.tunnelResourceAccessor` on the RUNNER service account, not only
 on the operators; without it every bake times out "waiting for SSH". The
 build VM keeps its ephemeral external IP for egress (`omit_external_ip` is
-never emitted). Details: [gcloud-runtime-plugin](../gcloud-runtime-plugin/README.md)
+never emitted). Details: [gcloud-runtime-plugin](https://github.com/infrastructurebuilder/cs-image-system-google-cloud/blob/develop/packages/gcloud-runtime-plugin/README.md)
 and the GCP section of [OPERATIONS.md](../../docs/OPERATIONS.md).
 
 **The age identity, for encrypted values.** An admin public key (or any
@@ -909,7 +909,7 @@ Failures the code raises:
   (`PackerPluginConfig`).
 - Runtime plugins that supply the source blocks:
   [aws-runtime-plugin](../aws-runtime-plugin),
-  [gcloud-runtime-plugin](../gcloud-runtime-plugin).
+  [gcloud-runtime-plugin](https://github.com/infrastructurebuilder/cs-image-system-google-cloud/tree/develop/packages/gcloud-runtime-plugin).
 - Modification plugins whose provisioners land in the build file:
   [ansible-plugin](../ansible-plugin),
   [bash-mod-plugin](../bash-mod-plugin).

@@ -92,8 +92,6 @@ build {
       "sudo yum install -y amazon-efs-utils || sudo yum install -y nfs-utils",
     ]
   }
-  # storage type 'gcs' declared but has no plugin on runtime aws-east2-runtime: nothing to bake here
-  # storage type 'pd' declared but has no plugin on runtime aws-east2-runtime: nothing to bake here
   # storage type 's3' prerequisites
   provisioner "shell" {
     only   = ["amazon-ebs.basic-rh-10"]

@@ -22,30 +22,6 @@ instances:
     run: 2026_08_26t12_00_00
     session: exec
     user_data_sha256: 2d715466c934e1a924c1ec083cd5cec16f4044df2d873caaae11af328fcef012
-  gce-test:
-    build: unbound
-    enrollment:
-      enrollment: sftd-token
-      server_label: sftd.tx.group=coops
-    ephemeral: false
-    group: coops
-    hostname: gce-test-001
-    identity_type: okta
-    image: imgfile-basic-dask
-    launched: false
-    machine_type: e2-micro
-    mounts:
-    - builder: gcp-pd
-      device: /dev/disk/by-id/google-gce-data
-      group: coops
-      mount_point: /mnt/gce-data
-      public_read: false
-      share_mode: '2770'
-      storage: gce_data
-      type: pd
-    run: 2026_08_26t12_00_00
-    session: iap
-    user_data_sha256: 62eea533831b56b6eb6c7c3165bc7d9a27dae0f7981d0c67c00c50130819ceb3
   test:
     build: unbound
     enrollment:

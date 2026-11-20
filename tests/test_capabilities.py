@@ -264,7 +264,10 @@ def test_chain_inherits_the_root_stamp(tmp_path, monkeypatch):
         assert chain == ["imgfile-basic-cloudflow", "imgfile-basic-dask"] and root == "basic-rh-10"
         caps = effective_capabilities(run.ctx, img)
         assert caps is not None
-        assert caps.identity_types == ["okta"] and caps.storage_types == ["ebs", "efs", "gcs", "pd", "s3"]
+        declared = next(o for o in yaml.safe_load((run.config_root / "cfg" / "os-builders.yml").read_text())["os_builders"]
+                        if o["name"] == "basic-rh-10")["storage_types"]
+        assert caps.identity_types == ["okta"] and caps.storage_types == sorted(declared)   # the root's, as declared
+        assert {"ebs", "efs", "s3"} <= set(caps.storage_types)
         assert caps.source == "declaration"
     finally:
         run.restore_cwd()

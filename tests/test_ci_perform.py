@@ -13,8 +13,9 @@ and a `--commit` after a scoped run deletes nothing under any builder
 directory. The runner scripts describe THIS run and may change; the closing
 full record in CI restores them. The facts a runtime exposes (its builders
 and emission directories) are what the CI job compares across records to
-know whether the GCE runtime's declarations changed, and what the prune
-keeps.
+know whether another runtime's declarations changed, and what the prune
+keeps. The fixture's two runtimes with emission are AWS (the scope here)
+and its docker runtime (the other).
 """
 from __future__ import annotations
 
@@ -25,7 +26,9 @@ import pytest
 from harness import FixtureRun, copy_config, tree
 
 AWS = "aws-east2-runtime"
-GCE = "gcloud-east1"
+OTHER = "docker-fixture"
+#: the other runtime's builders, each an emission directory of its own
+OTHER_BUILDERS = ("pckr-docker", "tofu-docker", "docker-volume")
 
 
 def _git(cwd: Path, *args: str) -> str:
@@ -67,8 +70,8 @@ def test_a_scoped_run_keeps_the_other_runtimes_roots_and_its_commit_deletes_noth
     full = run.run("all", apply=True, commit=True)
     assert full.ok, full.error
     before = _builder_files(run.generated)
-    gce_before = {k: v for k, v in before.items() if any(f"/{b}/" in f"/{k}" for b in ("pckr-gce-ans", "tofu-gce", "gcp-pd", "gcp-gcs", "gcp-filestore"))}
-    assert gce_before, "the fixture emits GCE roots"
+    other_before = {k: v for k, v in before.items() if any(f"/{b}/" in f"/{k}" for b in OTHER_BUILDERS)}
+    assert other_before, "the fixture emits the docker runtime's roots"
 
     run = make()
     run.ctx.only_runtime_scope = AWS
@@ -77,12 +80,12 @@ def test_a_scoped_run_keeps_the_other_runtimes_roots_and_its_commit_deletes_noth
     run.ctx.only_runtime_scope = None
 
     after = _builder_files(run.generated)
-    for path, content in gce_before.items():
+    for path, content in other_before.items():
         assert after.get(path) == content, f"{path} was pruned or changed by a run scoped to {AWS}"
     changes = _git(config, "show", "--name-status", "--format=", "HEAD").split("\n")
     deleted = [ln for ln in changes if ln.startswith("D\t")]
     assert not [d for d in deleted if d.split("\t", 1)[1].count("/") >= 3], deleted   # nothing under a builder directory
-    assert not any("pckr-gce-ans" in d or "tofu-gce" in d or "gcp-" in d for d in deleted), deleted
+    assert not any(b in d for b in OTHER_BUILDERS for d in deleted), deleted
 
 
 def test_an_unscoped_run_still_wipes_and_regenerates_each_lifecycle(repo):
@@ -105,7 +108,7 @@ def test_out_of_scope_builder_dirs_name_the_other_runtimes_builders(repo):
     run.ctx.only_runtime_scope = AWS
     dirs = out_of_scope_builder_dirs(run.ctx)
     run.ctx.only_runtime_scope = None
-    assert {"pckr-gce-ans", "tofu-gce", "gcp-pd", "gcp-gcs"} <= dirs
+    assert set(OTHER_BUILDERS) <= dirs
     assert not any(d in dirs for d in ("pckr-ebs-ans", "open-tofu", "aws-ebs", "aws-efs", "aws-s3"))
 
 
@@ -114,21 +117,21 @@ def test_runtime_facts_carry_builders_and_emission_directories(repo):
     make, _ = repo
     run = make()
     assert run.run("all", apply=False).ok
-    gce = builders_on_runtime(run.ctx, GCE)
-    assert gce["image"] == ["pckr-gce-ans"] and gce["instance"] == ["tofu-gce"]
-    assert {"gcp-gcs", "gcp-pd"} <= set(gce["storage"])
-    dirs = emission_dirs(run.ctx, GCE)
-    assert "base-image/pckr-gce-ans" in dirs and "instance-image/tofu-gce" in dirs and "storage/gcp-pd" in dirs
+    other = builders_on_runtime(run.ctx, OTHER)
+    assert other["image"] == ["pckr-docker"] and other["instance"] == ["tofu-docker"]
+    assert {"docker-volume"} <= set(other["storage"])
+    dirs = emission_dirs(run.ctx, OTHER)
+    assert "base-image/pckr-docker" in dirs and "instance-image/tofu-docker" in dirs and "storage/docker-volume" in dirs
     assert all((run.generated / d).is_dir() for d in dirs)
     assert not any("pckr-ebs-ans" in d or "aws-" in d for d in dirs)
-    facts = describe_runtime(run.ctx, GCE)
-    assert facts["builders"] == gce and facts["emission"] == dirs
+    facts = describe_runtime(run.ctx, OTHER)
+    assert facts["builders"] == other and facts["emission"] == dirs
 
 
 def test_a_scoped_retention_disposes_within_its_runtime_alone(repo, monkeypatch):
     """The retention lifecycle's deferred command carries ``--runtime`` under
     a runtime scope: CI performs on AWS with an identity that must never
-    write to the GCE runtime."""
+    write to another runtime."""
     from cs_image_system.base.lifecycles import all_lifecycles
     from cs_image_system.engine import retention
     make, _ = repo
@@ -136,7 +139,7 @@ def test_a_scoped_retention_disposes_within_its_runtime_alone(repo, monkeypatch)
     assert run.run(["storage"], apply=False).ok
     lifecycle = next(lc for lc in all_lifecycles() if lc.value == retention.RETENTION_LIFECYCLE.name)
     captured: list[list[str]] = []
-    monkeypatch.setattr(retention, "ephemeral_runtimes", lambda ctx: [GCE])
+    monkeypatch.setattr(retention, "ephemeral_runtimes", lambda ctx: [OTHER])
     monkeypatch.setattr(retention, "transient_storages_on_ephemeral_runtimes", lambda ctx: [])
     # the consuming module's name (retention imports it at top level: patch where it is read)
     monkeypatch.setattr(retention, "system_cli_executable_with_config", lambda ctx, args, wd: captured.append(list(args)) or ["true"])

@@ -267,12 +267,10 @@ def test_the_settle_writes_the_runner_and_does_not_use_it(builds: dict[str, str]
             assert "cloud-init status --wait" in block
 
 
-def test_the_aws_bakes_wait_for_systems_manager_and_the_gce_ones_do_not(builds: dict[str, str]):
+def test_the_aws_bakes_wait_for_systems_manager(builds: dict[str, str]):
     aws = "".join(t for p, t in builds.items() if "pckr-ebs-ans" in p)
-    gce = "".join(t for p, t in builds.items() if "pckr-gce-ans" in p)
-    assert aws and gce
+    assert aws
     assert "Systems Manager" in aws and "ssm-document-work[e]r" in aws
-    assert "Systems Manager" not in gce and "ssm-document" not in gce
 
 
 def test_every_package_step_the_system_emits_runs_through_the_runner(builds: dict[str, str]):

@@ -14,8 +14,7 @@ runtime and an image's declarations put into them.
   RHEL major is refused at load;
 * an image's ``variables`` become packer variables, typed; one packer
   cannot take is refused by name; two images giving one variable the same
-  value declare it once and different values are refused; an image
-  builder's machine type sits between the entry and the runtime;
+  value declare it once and different values are refused;
 * a packer string default is quoted and a ``QString`` prints quoted.
 
 History: stage 63 dead-code items 2, 4, 5 and 10, low-hanging item 3.
@@ -128,7 +127,6 @@ def test_the_entry_disk_size_is_the_bake_disk_and_the_fingerprints(tmp_path: Pat
         rhel9 = ctx.os_builders["basic-rhel-9"]
         assert bake_disk_size(ctx, rhel9, "aws-east2-runtime") == 150
         assert bake_disk_size(ctx, ctx.os_builders["basic-rh-10"], "aws-east2-runtime") == 200   # the OS builder's
-        assert bake_disk_size(ctx, ctx.os_builders["basic-rh-10"], "gcloud-east1") == 10          # the runtime wins
         assert run.run(["base-image"], apply=False).ok
         src = "".join(p.read_text() for p in run.generated.rglob("*source-basic-rhel-9*.pkr.hcl"))
         assert "volume_size           = 150" in src or "volume_size = 150" in src, src
@@ -215,28 +213,6 @@ def test_two_images_giving_one_variable_different_values_are_refused(tmp_path: P
     try:
         summary = run.run(["base-image", "instance-image"], apply=False)
         assert not summary.ok and "flavour" in str(summary.error), summary.error
-    finally:
-        run.restore_cwd()
-
-
-def test_an_image_builders_machine_type_sits_between_the_entry_and_the_runtime(tmp_path: Path, monkeypatch):
-    root = copy_config(tmp_path)
-    _edit(root / "cfg" / "image-builders.yml",
-          lambda d: next(b for b in d["image_builders"] if b["name"] == "pckr-gce-ans").update(
-              default_machine_type="e2-highmem-2"))
-
-    def drop_entry_machine(d):
-        dask = next(i for i in d["images"] if i["name"] == "imgfile-basic-dask")
-        for r in dask.get("runtimes") or []:
-            r.pop("machine_type", None)
-            r.pop("default_machine_type", None)
-    _edit(root / "images" / "image1.yaml", drop_entry_machine)
-    run = FixtureRun(tmp_path, monkeypatch, config_root=root)
-    try:
-        assert run.run(["base-image", "instance-image"], apply=False).ok
-        src = "".join(p.read_text() for p in run.generated.rglob("*source-imgfile-basic-dask*.pkr.hcl")
-                      if "pckr-gce-ans" in str(p))
-        assert "e2-highmem-2" in src, src
     finally:
         run.restore_cwd()
 

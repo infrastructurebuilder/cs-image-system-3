@@ -254,7 +254,7 @@ The three `ensure` lines (package, file, command) come first, then the two
 | [csis-mods/imgfile-basic-dask/02-derivative-setup/](../../tests/fixtures/golden/generated/instance-image/pckr-ebs-ans/image-generation/block-000/csis-mods/imgfile-basic-dask/02-derivative-setup/MANIFEST.yaml) `MANIFEST.yaml`, `run.sh`, `inline.sh`, `mod_image.sh` | The local bundle entry the Packer plugin writes for this item (`operation: bash`, `idempotent: unknown`, `files: [mod_image.sh, inline.sh]`). |
 
 The GCE builder's root
-([pckr-gce-ans/.../block-000](../../tests/fixtures/golden/generated/instance-image/pckr-gce-ans/image-generation/block-000/pckr-gce-ans-image-generation-block-000-build.pkr.hcl))
+([pckr-gce-ans/.../block-000](https://github.com/infrastructurebuilder/cs-image-system-google-cloud/blob/develop/tests/golden/generated/instance-image/pckr-gce-ans/image-generation/block-000/pckr-gce-ans-image-generation-block-000-build.pkr.hcl))
 carries the same two blocks with `only = ["googlecompute.imgfile-basic-dask"]`.
 
 ## Example configuration

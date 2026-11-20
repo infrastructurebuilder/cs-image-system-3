@@ -2,7 +2,7 @@
 # Every entry is checked by `validate` and by every run: the binary must exist
 # (an absolute path, or a name on PATH) and, when `version` is given, the version its checker
 # reads must satisfy the PEP 440 specifier set. The checker is looked up under the entry's
-# name first (packer, tofu, gcloud, aws-cli, ansible-playbook and bash have their own), then
+# name first (packer, tofu, aws-cli, ansible-playbook and bash have their own), then
 # its type; the default type, `executable`, is the generic checker (`--version`, the first
 # dotted number). The floors are what CI's runners and the operator's machine ran in 2026-09.
 executables:
@@ -12,9 +12,6 @@ executables:
   - name: packer
     version: ">=1.14"          # CI's setup action installs the latest (1.16 today) and bakes with it; the operator runs 1.14
     binary: /usr/local/bin/packer
-  - name: gcloud
-    binary: /usr/local/bin/gcloud
-    version: ">=500"        # the Google Cloud SDK version, not the core component's date
   - name: ansible-playbook
     binary: /usr/local/bin/ansible-playbook
     version: ">=2.16"       # ansible-core

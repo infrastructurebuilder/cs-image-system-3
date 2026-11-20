@@ -55,20 +55,6 @@ def no_cloud(monkeypatch):
     monkeypatch.setattr(aws_utils, "get_vpc_map_and_default_vpc_id",
                         lambda session_config: ({v: {"subnets": []} for v in vpcs}, "default",
                                                 _AnySecurityGroups()))
-    # The gcloud runtime carries a real project now: stub its network
-    # discovery too, config-derived (subnet ids are data, not test literals).
-    import yaml as _yaml
-
-    from cs_image_system.gcloud_runtime import gcp_utils
-
-    def _gcp_network_map(session_config, clients=None):
-        d = _yaml.safe_load((FIXTURE_CONFIG / "cfg" / "runtime-builders.yml").read_text()) or {}
-        subnets = [{"subnet_id": s.get("subnet_id")}
-                   for r in d.get("runtime_builders", []) if r.get("type") == "gcloud"
-                   for s in (r.get("networking", {}) or {}).get("subnets") or []]
-        return ({"default": {"subnets": subnets}}, "default", {})
-
-    monkeypatch.setattr(gcp_utils, "get_network_map_and_default_network", _gcp_network_map)
     # the fixture's docker runtime names a daemon that exists nowhere: its
     # pull is answered here as the clouds' queries are
     from cs_image_system.docker_runtime.docker_runtime_builders import DockerContainerBuilder
@@ -178,13 +164,10 @@ def test_image_to_source_emits_psi_backed_data_block(monkeypatch, cwd_guard, tmp
     """
     monkeypatch.setenv("USER", "testuser")
 
-    # Stub the cloud queries: no EC2/GCE calls during resolution.
+    # Stub the cloud queries: no EC2 calls during resolution.
     from cs_image_system.aws_runtime.aws_runtime_builders import AwsCloudBuilder
-    from cs_image_system.gcloud_runtime.gcp_runtime_builders import GCPCloudBuilder
     monkeypatch.setattr(AwsCloudBuilder, "query_provider_image",
                         lambda self, osb: ("ami-0feedfacecafebeef", "amazon", {}))
-    monkeypatch.setattr(GCPCloudBuilder, "query_provider_image",
-                        lambda self, osb: ("debian-11-v1", "debian-cloud", {}))
 
     # This test's premise is a base image that still NEEDS a bake (an
     # os-resolved base attached to the image builder). Since convergent bakes
@@ -203,6 +186,11 @@ def test_image_to_source_emits_psi_backed_data_block(monkeypatch, cwd_guard, tmp
     from cs_image_system.engine.config_loader import read_config_and_transform
     ctx = read_config_and_transform(cast(Any, types.SimpleNamespace(obj={})),
                                     root, False)
+    # every other runtime the fixture declares answers a placeholder: only
+    # the AWS emission is asserted here
+    for rtb in ctx.runtime_builders.values():
+        if not isinstance(rtb, AwsCloudBuilder):
+            monkeypatch.setattr(type(rtb), "query_provider_image", lambda self, osb: ("vendor-image", "vendor", {}))
 
     from cs_image_system.contract.lifecycle import ExecutionLifecyclePhase
     from cs_image_system.engine.commands.resolve import predefined_resolve
@@ -243,13 +231,11 @@ def test_execution_run_defers_base_images_no_query_no_build(monkeypatch, cwd_gua
     monkeypatch.setenv("USER", "testuser")
 
     from cs_image_system.aws_runtime.aws_runtime_builders import AwsCloudBuilder
-    from cs_image_system.gcloud_runtime.gcp_runtime_builders import GCPCloudBuilder
 
     def _no_query(self, osb):
         raise AssertionError(
             "execution runs must not query the provider for base images")
     monkeypatch.setattr(AwsCloudBuilder, "query_provider_image", _no_query)
-    monkeypatch.setattr(GCPCloudBuilder, "query_provider_image", _no_query)
     from cs_image_system.docker_runtime.docker_runtime_builders import DockerContainerBuilder
     monkeypatch.setattr(DockerContainerBuilder, "query_provider_image", _no_query)
 
@@ -269,6 +255,8 @@ def test_execution_run_defers_base_images_no_query_no_build(monkeypatch, cwd_gua
     from cs_image_system.engine.config_loader import read_config_and_transform
     ctx = read_config_and_transform(cast(Any, types.SimpleNamespace(obj={})),
                                     root, False)
+    for rtb in ctx.runtime_builders.values():                 # whichever runtimes the fixture declares
+        monkeypatch.setattr(type(rtb), "query_provider_image", _no_query)
 
     from cs_image_system.contract.lifecycle import ExecutionLifecyclePhase
     from cs_image_system.engine.commands.resolve import predefined_resolve

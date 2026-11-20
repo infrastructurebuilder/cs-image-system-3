@@ -6,8 +6,8 @@
 exactly as long as its declaration.
 
 * deleting the entry is the demise: the next storage run plans the
-  whitelisted destroy of the UNDECLARED storage (wipe first for a bucket)
-  and records the tombstone with action `undeclared`;
+  whitelisted destroy of the UNDECLARED storage and records the
+  tombstone with action `undeclared`;
 * a tombstone keeps history, not the name: a re-declared name is a new
   GENERATION (action `regenerate`), never a refused resurrection;
 * single-attach cardinality stays a configuration error, and the refusal
@@ -79,54 +79,49 @@ def prepared(tmp_path: Path, monkeypatch):
 
 def test_a_declared_storage_with_a_tombstone_is_a_new_generation(prepared):
     root, make = prepared
-    _record(root, "gce_data", "destroyed", {"builder": "gcp-pd", "type": "pd"})
+    _record(root, "mnt_data", "destroyed", {"builder": "aws-ebs", "type": "ebs"})
     run = make()
     summary = run.run(["storage"], apply=True)          # no "cannot be resurrected"
     assert summary.ok, summary.error
-    tf = "\n".join(p.read_text() for p in (run.generated / "storage" / "gcp-pd").rglob("*.tf"))
-    assert 'module "storage_gce_data"' in tf              # created again
+    tf = "\n".join(p.read_text() for p in (run.generated / "storage" / "aws-ebs").rglob("*.tf"))
+    assert 'module "storage_mnt_data"' in tf              # created again
     from cs_image_system.contract.lifecycles import Lifecycle
     from cs_image_system.engine.read_models import record_storage_transitions
-    run.ctx.config["apply_storage"] = ["gcloud-east1"]
+    run.ctx.config["apply_storage"] = ["aws-east2-runtime"]
     record_storage_transitions(run.ctx, Lifecycle.STORAGE)
     ms = run.ctx.meta_state
-    assert ms.storage_state("gce_data") == "active"
-    assert ms.storage_generation("gce_data") == 2
-    last = ms.storage_states()["gce_data"]["history"][-1]
+    assert ms.storage_state("mnt_data") == "active"
+    assert ms.storage_generation("mnt_data") == 2
+    last = ms.storage_states()["mnt_data"]["history"][-1]
     assert last["action"] == "regenerate" and last["generation"] == 2
-    assert ms.storage_read_model()["storages"]["gce_data"]["generation"] == 2
+    assert ms.storage_read_model()["storages"]["mnt_data"]["generation"] == 2
 
 
 def test_an_undeclared_storage_is_a_whitelisted_destroy_with_its_wipe(prepared):
     root, make = prepared
-    _record(root, "gce_bucket", "active",
-            {"builder": "gcp-gcs", "type": "gcs", "bucket_name": "csis-sandbox-86233086783-default-bucket"})
     _record(root, "mnt_data", "active", {"builder": "aws-ebs", "type": "ebs"})
     _undeclare_instance(root, "test2")                   # test2 attached mnt_data
-    _undeclare_storage(root, "gce_bucket")
     _undeclare_storage(root, "mnt_data")
     run = make()
-    assert not any(s.get_name() in ("gce_bucket", "mnt_data") for s in run.ctx.storages)
+    assert not any(s.get_name() == "mnt_data" for s in run.ctx.storages)
     summary = run.run(["storage"], apply=True)
     assert summary.ok, summary.error                     # N22 is gone: not an error
     script = (run.generated / "storage" / "run-storage.sh").read_text()
     gates = _gates(script)
-    assert "--allow-destroy module.storage_gce_bucket" in gates["gcp-gcs/storage-generation"]
     assert "--allow-destroy module.storage_mnt_data" in gates["aws-ebs/storage-generation"]
-    assert "bash wipe-gce_bucket.sh" in script
-    wipe = (run.generated / "storage" / "gcp-gcs" / "storage-generation" / "wipe-gce_bucket.sh").read_text()
-    assert "gs://csis-sandbox-86233086783-default-bucket/**" in wipe
     # the module call is absent (that IS the destroy); the root still exists
-    tf = "\n".join(p.read_text() for p in (run.generated / "storage" / "gcp-gcs").rglob("*.tf"))
-    assert 'module "storage_gce_bucket"' not in tf and "backend" in tf
+    tf = "\n".join(p.read_text() for p in (run.generated / "storage" / "aws-ebs").rglob("*.tf"))
+    assert 'module "storage_mnt_data"' not in tf and "backend" in tf
     from cs_image_system.contract.lifecycles import Lifecycle
     from cs_image_system.engine.read_models import record_storage_transitions
-    run.ctx.config["apply_storage"] = ["gcp-gcs"]        # only the bucket's root applied
-    record_storage_transitions(run.ctx, Lifecycle.STORAGE)
     ms = run.ctx.meta_state
-    assert ms.storage_state("gce_bucket") == "destroyed"
-    assert ms.storage_states()["gce_bucket"]["history"][-1]["action"] == "undeclared"
+    run.ctx.config["apply_storage"] = ["aws-s3"]         # another root applied
+    record_storage_transitions(run.ctx, Lifecycle.STORAGE)
     assert ms.storage_state("mnt_data") == "active"      # its root only planned
+    run.ctx.config["apply_storage"] = ["aws-ebs"]        # only the volume's root applied
+    record_storage_transitions(run.ctx, Lifecycle.STORAGE)
+    assert ms.storage_state("mnt_data") == "destroyed"
+    assert ms.storage_states()["mnt_data"]["history"][-1]["action"] == "undeclared"
 
 
 def test_an_undeclared_storage_whose_record_names_no_root_is_refused(prepared):
@@ -166,67 +161,6 @@ def _set_storage_state(root: Path, name: str, state: str) -> None:
                 changed = True
         if changed:
             p.write_text(yaml.safe_dump(d, sort_keys=False))
-
-
-def test_archiving_a_pd_snapshots_first_and_destroys_the_disk(prepared):
-    root, make = prepared
-    _undeclare_instance(root, "gce-test")                  # archived requires no attachments (N21)
-    _record(root, "gce_data", "active", {"builder": "gcp-pd", "type": "pd"})
-    _set_storage_state(root, "gce_data", "archived")
-    run = make()
-    summary = run.run(["storage"], apply=True)
-    assert summary.ok, summary.validation_errors or summary.error
-    script = (run.generated / "storage" / "run-storage.sh").read_text()
-    lines = [ln for ln in command_lines(script) if ln.split('"')[1] == "gcp-pd/storage-generation"]
-    archive = next(i for i, ln in enumerate(lines) if "bash archive-gce-data.sh" in ln)
-    plan = next(i for i, ln in enumerate(lines) if "plan -input=false" in ln)
-    assert archive < plan
-    assert "--allow-destroy module.storage_gce_data" in next(ln for ln in lines if "gate-plan" in ln)
-    body = (run.generated / "storage" / "gcp-pd" / "storage-generation" / "archive-gce-data.sh").read_text()
-    assert 'gcloud compute disks snapshot "gce-data" --snapshot-names "csis-gce-data-archive"' in body
-    assert "already exists" in body                        # idempotent across attempts
-    tf = "\n".join(p.read_text() for p in (run.generated / "storage" / "gcp-pd").rglob("*.tf"))
-    assert 'module "storage_gce_data"' not in tf and "ARCHIVED" in tf
-    # the recorded transition carries the archive name
-    from cs_image_system.contract.lifecycles import Lifecycle
-    from cs_image_system.engine.read_models import record_storage_transitions
-    run.ctx.config["apply_storage"] = ["gcloud-east1"]
-    record_storage_transitions(run.ctx, Lifecycle.STORAGE)
-    entry = run.ctx.meta_state.storage_states()["gce_data"]
-    assert entry["state"] == "archived" and entry["facts"]["archive"] == "csis-gce-data-archive"
-
-
-def test_restoring_a_pd_creates_it_from_the_snapshot_then_deletes_the_snapshot(prepared):
-    root, make = prepared
-    _record(root, "gce_data", "archived", {"builder": "gcp-pd", "type": "pd", "archive": "csis-gce-data-archive"})
-    run = make()                                            # declared active (the fixture)
-    run.ctx.config["apply_storage"] = ["gcloud-east1"]
-    summary = run.run(["storage"], apply=True)
-    assert summary.ok, summary.validation_errors or summary.error
-    tf = "\n".join(p.read_text() for p in (run.generated / "storage" / "gcp-pd").rglob("*.tf"))
-    assert 'snapshot = "csis-gce-data-archive"' in tf
-    lines = [ln for ln in command_lines((run.generated / "storage" / "run-storage.sh").read_text())
-             if ln.split('"')[1] == "gcp-pd/storage-generation"]
-    apply_i = next(i for i, ln in enumerate(lines) if "apply -input=false tfplan" in ln)
-    restore = next(i for i, ln in enumerate(lines) if "bash restore-gce-data.sh" in ln)
-    assert restore > apply_i
-    body = (run.generated / "storage" / "gcp-pd" / "storage-generation" / "restore-gce-data.sh").read_text()
-    assert 'gcloud compute snapshots delete "csis-gce-data-archive"' in body
-    assert "--allow-destroy" not in next(ln for ln in lines if "gate-plan" in ln)
-
-
-def test_destroying_an_archived_pd_deletes_the_archive_and_whitelists_nothing(prepared):
-    root, make = prepared
-    _undeclare_instance(root, "gce-test")
-    _record(root, "gce_data", "archived", {"builder": "gcp-pd", "type": "pd", "archive": "csis-gce-data-archive"})
-    _set_storage_state(root, "gce_data", "destroyed")
-    run = make()
-    summary = run.run(["storage"], apply=True)
-    assert summary.ok, summary.validation_errors or summary.error
-    lines = [ln for ln in command_lines((run.generated / "storage" / "run-storage.sh").read_text())
-             if ln.split('"')[1] == "gcp-pd/storage-generation"]
-    assert any("bash unarchive-gce-data.sh" in ln for ln in lines)
-    assert "--allow-destroy" not in next(ln for ln in lines if "gate-plan" in ln)   # no disk to destroy
 
 
 def test_archived_is_refused_where_the_builder_cannot_archive(prepared):

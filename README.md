@@ -85,8 +85,8 @@ The plugins, discovered through Python entry points, one package each:
 
 - [aws-runtime-plugin](packages/aws-runtime-plugin/README.md) — the `aws`
   runtime: profiles, regions, VPCs and subnets. `[aws]`
-- [gcloud-runtime-plugin](packages/gcloud-runtime-plugin/README.md) — the
-  `gcloud` runtime: projects, zones and networks. `[gcloud]`
+- [gcloud-runtime-plugin](https://github.com/infrastructurebuilder/cs-image-system-google-cloud/blob/develop/packages/gcloud-runtime-plugin/README.md) — the
+  `gcloud` runtime: projects, zones and networks. `[gcloud]`, in the Google Cloud family's own repository
 - [docker-plugin](packages/docker-plugin/README.md) — the
   `docker` runtime (a host's container daemon), and containers and
   named volumes on it through OpenTofu's docker provider. `[docker]`
@@ -104,12 +104,12 @@ The plugins, discovered through Python entry points, one package each:
   POSIX groups and users on the machines, with declared ids. **bare**
 - [tf-ebs-instance-plugin](packages/tf-ebs-instance-plugin/README.md) —
   the OpenTofu instance and storage builders for AWS. `[aws]`
-- [tf-gcp-plugin](packages/tf-gcp-plugin/README.md) — the OpenTofu
-  instance and storage builders for Google Cloud. `[gcloud]`
+- [tf-gcp-plugin](https://github.com/infrastructurebuilder/cs-image-system-google-cloud/blob/develop/packages/tf-gcp-plugin/README.md) — the OpenTofu
+  instance and storage builders for Google Cloud. `[gcloud]`, in the Google Cloud family's own repository
 - [tf-s3-state-plugin](packages/tf-s3-state-plugin/README.md) — the `s3`
   state backend. `[aws]`
-- [gcs-state-plugin](packages/gcs-state-plugin/README.md) — the `gcs`
-  state backend. `[gcloud]`
+- [gcs-state-plugin](https://github.com/infrastructurebuilder/cs-image-system-google-cloud/blob/develop/packages/gcs-state-plugin/README.md) — the `gcs`
+  state backend. `[gcloud]`, in the Google Cloud family's own repository
 - [local-state-plugin](packages/local-state-plugin/README.md) — the
   `local` state backend: a state file on disk. **bare**
 - [contract-example-plugin](packages/contract-example-plugin/README.md) —

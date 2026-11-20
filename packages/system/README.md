@@ -800,7 +800,7 @@ whole workflow through `run --all`, the aliases, the exit codes of `run`,
 and [`test_emit_by_reference.py`](../../tests/test_emit_by_reference.py)
 (`encrypt`, `decrypt`, `decrypt --json`),
 [`test_scoped_runs.py`](../../tests/test_scoped_runs.py),
-[`test_gce_cycle.py`](../../tests/test_gce_cycle.py) and
+[`test_gce_cycle.py`](https://github.com/infrastructurebuilder/cs-image-system-google-cloud/blob/develop/tests/pipeline/test_gce_cycle.py) and
 [`test_runtime_facts.py`](../../tests/test_runtime_facts.py)
 (`apply-check`), [`test_detach.py`](../../tests/test_detach.py)
 (`gate-plan --require-unmounted`),
@@ -1320,7 +1320,7 @@ warnings and goes on.
   [okta-opa-plugin](../okta-opa-plugin/README.md) (`export-gids`,
   `prune-attachments`, `identity-attributes`),
   [tf-ebs-instance-plugin](../tf-ebs-instance-plugin/README.md) and
-  [tf-gcp-plugin](../tf-gcp-plugin/README.md) (`verify instance`,
+  [tf-gcp-plugin](https://github.com/infrastructurebuilder/cs-image-system-google-cloud/blob/develop/packages/tf-gcp-plugin/README.md) (`verify instance`,
   `unmount storage`), [hashicorp-utils](../hashicorp-utils/README.md)
   (the gated sequence, `state-migration`).
 - [The Justfile](../../Justfile): `just cli`, `preflight`, `test-mods`,

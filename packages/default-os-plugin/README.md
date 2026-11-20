@@ -351,7 +351,7 @@ files, under
   `check-update` guarded targeted update of `openssl`, and the package
   manifest. `basic-rhel-9` shows the same without a targeted package.
   `my-deb-12` declares no policy and gets no update provisioner.
-- [pckr-gce-ans-image-generation-block-000-build.pkr.hcl](../../tests/fixtures/golden/generated/base-image/pckr-gce-ans/image-generation/block-000/pckr-gce-ans-image-generation-block-000-build.pkr.hcl):
+- [pckr-gce-ans-image-generation-block-000-build.pkr.hcl](https://github.com/infrastructurebuilder/cs-image-system-google-cloud/blob/develop/tests/golden/generated/base-image/pckr-gce-ans/image-generation/block-000/pckr-gce-ans-image-generation-block-000-build.pkr.hcl):
   the same `basic-rh-10` provisioner scoped to `googlecompute.basic-rh-10`.
 - [pckr-ebs-ans-image-generation-source-basic-rh-10-block-000.pkr.hcl](../../tests/fixtures/golden/generated/base-image/pckr-ebs-ans/image-generation/block-000/pckr-ebs-ans-image-generation-source-basic-rh-10-block-000.pkr.hcl):
   the resolved vendor image (`image-id` and `owners` in the `data
@@ -435,7 +435,7 @@ bake does not surprise anyone.
 
 | Prerequisite | Why | How the plugin finds it |
 |---|---|---|
-| A vendor image visible to the runtime's credentials | The base image bakes FROM it. The query (or, for a pinned `image_id`, the lookup by id) is made by the runtime plugin at resolution, with the credentials that plugin configures (an AWS profile, GCP application default credentials); this plugin only supplies the inputs. | `owners` and `query` on the OS builder, overridden key by key by the entry's `owners` and `query`; the runtime's `default_owners` are appended. An entry's `image_id` replaces the query with a lookup of that one image (on GCE still searched in the entry's owner projects). Which runtime: the entry's `image_builder`, whose image builder names its runtime. See [aws-runtime-plugin](../aws-runtime-plugin/README.md) and [gcloud-runtime-plugin](../gcloud-runtime-plugin/README.md) for the credential fields. |
+| A vendor image visible to the runtime's credentials | The base image bakes FROM it. The query (or, for a pinned `image_id`, the lookup by id) is made by the runtime plugin at resolution, with the credentials that plugin configures (an AWS profile, GCP application default credentials); this plugin only supplies the inputs. | `owners` and `query` on the OS builder, overridden key by key by the entry's `owners` and `query`; the runtime's `default_owners` are appended. An entry's `image_id` replaces the query with a lookup of that one image (on GCE still searched in the entry's owner projects). Which runtime: the entry's `image_builder`, whose image builder names its runtime. See [aws-runtime-plugin](../aws-runtime-plugin/README.md) and [gcloud-runtime-plugin](https://github.com/infrastructurebuilder/cs-image-system-google-cloud/blob/develop/packages/gcloud-runtime-plugin/README.md) for the credential fields. |
 | A sudo-capable login on the vendor image | Every update command runs through `sudo`; packer connects as this user with a temporary key. | The bake-user order (CONFIGURATION 5.1.1): the image's entry, then this OS builder's entry `ssh_username`, its `config_username`, the runtime's `ssh_username` and `default_config_username`, and last the runtime's family default: on AWS `family: debian` -> `admin`, `ubuntu` -> `ubuntu`, anything else -> `ec2-user`; on GCE `packer`, because `googlecompute` creates the account from metadata keys. |
 | `sudo` on the image | The command lists are written with `sudo` on every line, Alpine included. | Nothing configurable; an image without `sudo` (an Alpine that ships only `doas`) fails at the first command. |
 | Network egress from the bake machine to the package repositories | `apt-get`, `dnf` and `apk` fetch metadata and packages during the bake. On a cloud vendor RHEL/Alma image that is the RHUI or vendor mirror; on Debian/Ubuntu the vendor mirrors. | The runtime's networking (subnet, NAT, security groups), not this plugin. |
@@ -662,7 +662,7 @@ below links its entry where one exists.
 
 ## Related
 
-- [aws-runtime-plugin](../aws-runtime-plugin/README.md) and [gcloud-runtime-plugin](../gcloud-runtime-plugin/README.md): how each runtime turns an entry's `owners` and `query` into a vendor image.
+- [aws-runtime-plugin](../aws-runtime-plugin/README.md) and [gcloud-runtime-plugin](https://github.com/infrastructurebuilder/cs-image-system-google-cloud/blob/develop/packages/gcloud-runtime-plugin/README.md): how each runtime turns an entry's `owners` and `query` into a vendor image.
 - Base classes: [os_builder_model.py](../base/src/cs_image_system/base/models/os_builder_model.py), [os_builder_runtime_config.py](../base/src/cs_image_system/base/models/os_builder_runtime_config.py), [update_policy.py](../base/src/cs_image_system/base/models/update_policy.py), [base_image.py](../base/src/cs_image_system/base/models/base_image.py), [builder_base_os.py](../base/src/cs_image_system/base/basic/builder_base_os.py).
 - [docs/DESIGN.md](../../docs/DESIGN.md) for the capability axes (`identity_types`, `storage_types`) and the admin user; [docs/PLUGINS.md](../../docs/PLUGINS.md) for the package index.
 - [The configuration reference](../../docs/CONFIGURATION.md) -- every field of the YAML this plugin reads, with an example.

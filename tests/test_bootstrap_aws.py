@@ -107,8 +107,8 @@ def test_the_aws_plugin_contributes_the_section_and_the_tree_decides_whether_it_
     assert [s.name for s in bs.discover()][:2] == ["github", "aws"]          # GitHub first, then the plugins' by name
     aws_tree = _starter_copy(tmp_path)
     assert _section().wanted_default(bs.gather(aws_tree, gh=False)) is True
-    other = tmp_path / "gce"
-    shutil.copytree(RENDERED() / "standard-gce", other)
+    other = tmp_path / "docker"                                                # a tree with no AWS runtime and no s3 backend
+    shutil.copytree(RENDERED() / "standard-docker", other)
     facts = bs.gather(other, git=False, gh=False)
     uses_aws = runtime_of_type(facts, "aws") is not None or default_state_backend(facts, "s3") is not None
     assert _section().wanted_default(facts) is uses_aws                       # the gate asks the tree, not a constant

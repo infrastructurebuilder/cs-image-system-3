@@ -237,7 +237,7 @@ Files it causes to exist beside the Packer root
 | [csis-mods/imgfile-basic-dask/01-dask-setup-jeffy/](../../tests/fixtures/golden/generated/instance-image/pckr-ebs-ans/image-generation/block-000/csis-mods/imgfile-basic-dask/01-dask-setup-jeffy/MANIFEST.yaml) `MANIFEST.yaml`, `run.sh`, `setup_dask.yml` | The local bundle entry the Packer plugin writes for this item. |
 
 The GCE builder's root
-([pckr-gce-ans/.../block-000](../../tests/fixtures/golden/generated/instance-image/pckr-gce-ans/image-generation/block-000/pckr-gce-ans-image-generation-block-000-build.pkr.hcl))
+([pckr-gce-ans/.../block-000](https://github.com/infrastructurebuilder/cs-image-system-google-cloud/blob/develop/tests/golden/generated/instance-image/pckr-gce-ans/image-generation/block-000/pckr-gce-ans-image-generation-block-000-build.pkr.hcl))
 carries the same provisioners with `only = ["googlecompute.imgfile-basic-dask"]`
 and `user = "packer"`.
 

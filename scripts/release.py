@@ -30,7 +30,7 @@ passes; then one line names the local annotated tags origin lacks, which stay
 behind, or says none -- never a refusal); from
 ``develop``, the move: the release branch checked out and fast-forwarded to
 ``develop`` (refused, on ``develop``, when it cannot be); the resync of the
-venv (``uv sync --all-extras``: a branch switch and a moved lock leave the
+venv (``uv sync --all-extras --no-extra gcloud --no-extra all``: a branch switch and a moved lock leave the
 venv behind the checkout); then the probes that need the venv (it is in
 step with the lock; every package whose version the release does not move
 is fresh on the index or held there as this tree's build; for PyPI, docker
@@ -129,7 +129,7 @@ SURFACE = ("a declared surface of the SDK and its baseline disagree (above): an 
            "recorded (`just surface-record`) -- nothing was changed")
 DEVELOP = "develop"
 REMOTE = "origin"
-SYNC = ("uv", "sync", "--all-extras")
+SYNC = ("uv", "sync", "--all-extras", "--no-extra", "gcloud", "--no-extra", "all")
 #: the dry form's lines, after "release: ": one per branch move, push and resync the real form would make
 WOULD = "dry -- would run: {command}"
 #: the refusals of the move from develop, after "release: "
@@ -149,21 +149,21 @@ LEVEL_WITH_ORIGIN = "{remote} holds no commit the local {branches} lacks (fetche
 TAGS_BEHIND = "local annotated tags {remote} lacks stay behind (the ending pushes v{version} alone): {tags}"
 TAGS_UNASKED = ("`git ls-remote --tags {remote}` failed ({reason}), so the local tags {remote} lacks are not named; "
                 "the ending pushes v{version} alone")
-SYNC_FAILED = "`uv sync --all-extras` failed (above) -- nothing was changed"
+SYNC_FAILED = "`uv sync --all-extras --no-extra gcloud --no-extra all` failed (above) -- nothing was changed"
 #: what a refusal or a failure before the bump adds, after "release: ", once the release had moved the checkout
 BACK = "the checkout is back on {branch}, and {cut} is where it was"
 NOT_BACK = "the checkout could not return to {branch} (git checkout {branch}, above); it is on {cut}"
 #: the dry form's venv verdict when it is behind: the real form syncs before it asks
-VENV_WILL_SYNC = "the venv is behind the checkout; the real form syncs it (uv sync --all-extras) before it asks"
+VENV_WILL_SYNC = "the venv is behind the checkout; the real form syncs it (uv sync --all-extras --no-extra gcloud --no-extra all) before it asks"
 #: a failed step of the ending, after "<who>: ": the version is on the index, committed and tagged here
 ENDING_FAILED = ("{version} is on {name}, committed and tagged v{version} here, but `{failed}` failed (above); "
                  "the rest, by hand: {rest}")
 #: the closing lines: what is on the index, what was pushed, and the branch the checkout ends on
 RELEASED = ("release: {version} is on {name}, committed, tagged v{version} and pushed: {pushed}; the checkout is on "
-            "{branch} with its venv synced (uv sync --all-extras); CI checks the pushed tag against the index and "
+            "{branch} with its venv synced (uv sync --all-extras --no-extra gcloud --no-extra all); CI checks the pushed tag against the index and "
             "uploads nothing already there")
 FINISHED = ("release-finish: {version} is on {name} for every project, committed, tagged v{version} and pushed: "
-            "{pushed}; the checkout is on {branch} with its venv synced (uv sync --all-extras)")
+            "{pushed}; the checkout is on {branch} with its venv synced (uv sync --all-extras --no-extra gcloud --no-extra all)")
 #: release-take's lines, after "release-take: "
 TAKE_WORDS = ("main", "yes")
 #: the take's own environment: a tree's take is the recipe of the release it is on, and uv answers an install
@@ -573,7 +573,7 @@ class Family:
 
     def probes(self, index: str, who: str = "release", *, will_sync: bool = False) -> None:
         """What a release needs and full-test only finds out twenty minutes in, asked first and in one line each.
-        For every index: the venv is in step with the lock (`uv sync --all-extras --check`), because every recipe
+        For every index: the venv is in step with the lock (`uv sync --all-extras --no-extra gcloud --no-extra all --check`), because every recipe
         runs `uv run --no-sync` and a venv behind the checkout answers with stale metadata; then, for a release,
         every package whose version the release does not move is fresh on the index or held there as this tree's
         build (`own_versions_or_refuse`: an index never takes a second build under a version, so a changed
@@ -586,9 +586,9 @@ class Family:
         of `release` syncs the venv just before; its dry form (``will_sync``) says a venv behind the checkout
         rather than refusing it, since the real form would sync it first."""
         # the venv asked is the one running this script: the checkout's own, named when it is behind
-        if self.run(["uv", "sync", "--all-extras", "--check"], cwd=REPO).rc != 0:
+        if self.run([*SYNC, "--check"], cwd=REPO).rc != 0:
             if not will_sync:
-                raise Refused(f"{who}: the venv of {REPO} is behind its checkout (uv sync --all-extras --check) -- "
+                raise Refused(f"{who}: the venv of {REPO} is behind its checkout (uv sync --all-extras --no-extra gcloud --no-extra all --check) -- "
                               "`just init` there syncs it -- nothing was changed")
             self.say(f"{who}: {VENV_WILL_SYNC}")
         else:

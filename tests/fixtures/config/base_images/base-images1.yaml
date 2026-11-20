@@ -52,8 +52,7 @@ base_images:
           filters:
             name: "RHEL*"
             root_device_type: ebs
-  # Renamed basic-rhel-8 -> basic-rh-10: GCE bakes Alma 10,
-  # AWS still bakes RHEL 8.10 (parity ignored; migrates forward later)
+  # Renamed basic-rhel-8 -> basic-rh-10; AWS still bakes RHEL 8.10 here
   - name: basic-rh-10
     type: rhel
     family: rhel
@@ -74,15 +73,3 @@ base_images:
             root_device_type: ebs
             architecture: x86_64
             virtualization_type: hvm
-    -   name: gcp-my-rh10
-        runtime: gcloud-east1
-        ssh_username: packer # finding 43: one ssh user for every GCE bake
-        output_image_name: "GCP-RH10-{{ this.name }}-{{ execution.timestamp }}"
-        owners:
-            - almalinux-cloud
-        query:
-          filters:
-            # almalinux-10-v* is the x86_64 line (family almalinux-10);
-            # the ARM images are almalinux-10-arm64-v* (separate family),
-            # which this pattern cannot match -- same trap as finding 39
-            name: "almalinux-10-v*"

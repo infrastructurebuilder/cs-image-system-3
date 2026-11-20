@@ -1734,7 +1734,7 @@ profile, `aws sso login --profile <p>`) then `just full-test-legs`
 
 ### Setting up
 
-`just init` runs `uv sync --all-extras` and installs the pre-commit hook
+`just init` runs `uv sync --all-extras --no-extra gcloud --no-extra all` and installs the pre-commit hook
 (`git config core.hooksPath .githooks`). It is idempotent. Python is run
 as `uv run python`; the CLI as `uv run cs-image-system` (what every recipe
 does). The Justfile here is the DEVELOPER's:
@@ -2070,7 +2070,7 @@ order:
 2. from `develop`, the move: `git checkout main` and `git merge
    --ff-only develop`. A `main` that cannot fast-forward (it holds
    commits `develop` does not) is refused before the checkout, on
-   `develop`; then `uv sync --all-extras`, from every starting branch,
+   `develop`; then `uv sync --all-extras --no-extra gcloud --no-extra all`, from every starting branch,
    because a branch switch rewrites the files the two branches differ in
    and the venv falls behind the checkout (the venv probe refused a
    release once, right after a switch to `main` by hand). From here to
@@ -2081,7 +2081,7 @@ order:
 3. the probes (`release.py probes`, behind the private recipe
    `_release-probes`, one line each, before
    anything changes; the dry form prints the same verdicts): the venv is
-   in step with the lock (`uv sync --all-extras --check`, because every
+   in step with the lock (`uv sync --all-extras --no-extra gcloud --no-extra all --check`, because every
    recipe runs `uv run --no-sync` and a venv behind the checkout answers
    with stale metadata; after the resync it passes, and a refusal names
    the checkout whose venv is behind, for a run whose venv is another
@@ -2161,7 +2161,7 @@ order:
    already holds); then `git
    checkout develop`, `git merge --ff-only main` and `git push origin
    develop`, so `develop` takes `main` back; and last `uv sync
-   --all-extras` again, since the switch and the moved lock left the venv
+   --all-extras --no-extra gcloud --no-extra all` again, since the switch and the moved lock left the venv
    behind once more. From a maintenance branch the ending is `git push
    origin release/<major.minor> v<version>` and the resync; `develop`
    is not touched. The irreversible act is the upload, which comes
@@ -2176,7 +2176,7 @@ committed and tagged locally, and the line names the command that failed
 and every command left, joined with `&&`, to run by hand once its cause
 is fixed. For a refused push of `main` the rest is `git push origin
 main v<version> && git checkout develop && git merge --ff-only main &&
-git push origin develop && uv sync --all-extras`.
+git push origin develop && uv sync --all-extras --no-extra gcloud --no-extra all`.
 
 **The release branch.** `develop` is where work is done and
 `main` is where releases live. `main` is always `develop` plus release
@@ -2668,7 +2668,7 @@ repository's, which the release ships.
 
 | Recipe | What it does | Needs |
 | --- | --- | --- |
-| `init` | `uv sync --all-extras`, then `hooks` | nothing |
+| `init` | `uv sync --all-extras --no-extra gcloud --no-extra all`, then `hooks` | nothing |
 | `build` | sdist + wheel of every workspace member under `dist/` (the system package carries the five starter trees) | nothing |
 | `test` | lint → typecheck → pytest → `test-core` → `test-terraform-alone` → `test-docker-alone`, all blocking (the bar) | nothing |
 | `full-test` | `test`, then `full-test-legs`: the dev-pin resolution check (`scripts/dev-pin-resolves`), the docker legs (`test-mods --strict`, `test-posix-accounts`, `test-bake-steps`, `runner-image`, `test-docker-bake`, `test-docker-cycle`, `test-podman-cycle`, `test-podman-desktop-cycle`) and, gated on `preflight`, a dry `run --all` and `state query --strict` over a copy of the reference configuration | docker, the network, reference configuration, runtime sessions; each leg skips loudly |
@@ -2688,6 +2688,7 @@ repository's, which the release ships.
 | `test-core` | the core's own tests (the contract, the kit, the engine, the command line and the always-installed plugins) in an empty environment that holds a plain `cs-image-system` with no extras, installed from built wheels: no docker, AWS, Google Cloud or Okta plugin. Fails when no test was collected or any was skipped | nothing; the package index for third-party packages |
 | `test-terraform-alone` | the two shared terraform libraries' own tests (`packages/hashicorp-utils/tests`, `packages/tofu-roots/tests`) in an empty environment that holds only the two libraries and what they declare (the kit and the contract), at both ends of the kit range the roots library declares. Fails when no test was collected or any was skipped | nothing; the package index, for third-party packages and to ask which kit versions it holds |
 | `test-docker-alone` | the docker family's own tests ([packages/docker-plugin/tests](../packages/docker-plugin/tests)) in an empty environment that holds only the docker package and what it declares, installed from built wheels, at both ends of the SDK range it declares: at the high end the whole suite, in place and from a copy of the package's directory outside the workspace; at the low end the unit tests and the surface check with the package and the SDK alone. Says for each SDK library whether it came from the index or from this repository's build. Fails when no test was collected or any was skipped | nothing (no daemon: its runs are stubbed); the package index, for third-party packages and to ask which SDK versions it holds |
+| `test-cloud-starters` | the tests of the starters that need every provider, the Google Cloud family's among them ([tests/cloud_starters](../tests/cloud_starters)): the Google Cloud family is released from its own repository and this workspace's venv does not hold it, so it is layered in from the index for this run alone, by the `gcloud` extra's ranges; under the strict session, so a missing family fails instead of skipping | the package index (or uv's cache), for the Google Cloud family |
 | `test-docker-install` | what a person who installs the docker extra gets: `cs-image-system[docker]` installed from the built wheels into an empty environment that holds nothing else, the [standard-docker](examples/standard-docker) starter rendered with the installed command, then the installed `validate` and a dry `run --all` on it. Reports the install, the validation and the dry run each as ran and succeeded, ran and failed, or did not run, and passes only when all three ran and succeeded. `keep=<directory>` leaves the emitted `generated` tree there | `docker`, `packer`, `ansible-playbook`, `bash` and `tofu`; a container daemon that answers; the registry (a dry run resolves the base image with a pull); the package index, for third-party packages |
 | `test-docker-live` | the docker family's tests that need a container daemon ([packages/docker-plugin/tests/live](../packages/docker-plugin/tests/live)): the modification tests of the family's fixture on the docker runtime's own stand-in, a throwaway container on the local daemon. In no default path and no isolated run; a leg of `full-test`. Fails, and never skips, without a daemon | a container daemon that answers; the registry (the container's image is pulled) |
 | `test-one *ARGS` | one pytest expression, each word passed to pytest whole (`-k "a or b"` is one expression) | nothing |

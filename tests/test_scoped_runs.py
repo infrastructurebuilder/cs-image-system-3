@@ -126,12 +126,12 @@ def test_apply_check_works_through_the_real_cli(fixture_run):
     (False, "aws-ebs", (), False),
     (None, "aws-ebs", (), False),
     ([], "aws-ebs", (), False),
-    (["gcloud-east1"], None, (), True),                 # the lifecycle as a whole is "on"
-    (["gcloud-east1"], "gcp-pd", ["gcloud-east1"], True),   # listed by runtime alias
-    (["gcp-pd"], "gcp-pd", ["gcloud-east1"], True),         # listed by root name
-    (["gcloud-east1"], "aws-ebs", ["aws-east2-runtime"], False),
-    ("gcloud-east1", "gcp-pd", ["gcloud-east1"], True),     # a bare string is a one-entry list
-    (["gcp-pd", "open-tofu"], "open-tofu", (), True),
+    (["docker-fixture"], None, (), True),                          # the lifecycle as a whole is "on"
+    (["docker-fixture"], "docker-volume", ["docker-fixture"], True),   # listed by runtime alias
+    (["docker-volume"], "docker-volume", ["docker-fixture"], True),    # listed by root name
+    (["docker-fixture"], "aws-ebs", ["aws-east2-runtime"], False),
+    ("docker-fixture", "docker-volume", ["docker-fixture"], True),     # a bare string is a one-entry list
+    (["docker-volume", "open-tofu"], "open-tofu", (), True),
 ])
 def test_apply_flag_allows(value, root, aliases, expected):
     """The one rule behind apply_<lifecycle>: bool → everything or nothing;
@@ -145,23 +145,23 @@ def test_list_valued_flag_scopes_the_apply_to_the_listed_roots(fixture_run):
     runtime and apply_instances one root, only those roots' sequences carry
     an apply (guarded by an apply-check naming the root); every other root
     of the lifecycle still plans and gates -- nothing is undeclared."""
-    fixture_run.ctx.config["apply_storage"] = ["gcloud-east1"]   # by runtime
-    fixture_run.ctx.config["apply_instances"] = ["tofu-gce"]     # by root name
+    fixture_run.ctx.config["apply_storage"] = ["docker-fixture"]   # by runtime
+    fixture_run.ctx.config["apply_instances"] = ["tofu-docker"]    # by root name
     summary = fixture_run.run(["identity", "storage", "instance-image"], apply=True)
     assert summary.ok, summary.error
     storage = _applies_by_workspace(_script(fixture_run, "storage"))
-    assert {e["root"] for e in storage.values() if e["root"]} == {"gcp-pd", "gcp-gcs"}
+    assert {e["root"] for e in storage.values() if e["root"]} == {"docker-volume"}
     for ws, e in storage.items():
         assert "plan -input=false" not in ws  # (workspace dirs only)
         assert e["apply"] is (e["root"] is not None), ws
-    assert "--root gcp-pd --root-alias gcloud-east1" in _script(fixture_run, "storage")
+    assert "--root docker-volume --root-alias docker-fixture" in _script(fixture_run, "storage")
     instances = _applies_by_workspace(_script(fixture_run, "instance-image"))
-    assert {e["root"] for e in instances.values() if e["root"]} == {"tofu-gce"}
+    assert {e["root"] for e in instances.values() if e["root"]} == {"tofu-docker"}
     for ws, e in instances.items():
         assert e["apply"] is (e["root"] is not None), ws
     script = _script(fixture_run, "instance-image")
-    assert "--root tofu-gce --root-alias gcloud-east1" in script
-    assert "--root open-tofu" not in script and "--root tofu-docker" not in script
+    assert "--root tofu-docker --root-alias docker-fixture" in script
+    assert "--root open-tofu" not in script
     import yaml as _yaml
     declared = _yaml.safe_load((fixture_run.config_root / "cfg" / "instance-builders.yml").read_text())["instance_builders"]
     assert script.count("plan -input=false") == len(declared)  # every root still plans and gates
@@ -179,12 +179,12 @@ def test_storage_transitions_are_recorded_only_for_roots_that_applied(fixture_ru
     fixture_run.ctx.config["apply_storage"] = ["aws-east2-runtime"]
     record_storage_transitions(fixture_run.ctx, Lifecycle.STORAGE)
     # storages are declared by name under a builder (their root): mnt_data is
-    # an aws-ebs storage, gce_data a gcp-pd one, gce_bucket a gcp-gcs one
+    # an aws-ebs storage, container_data a docker-volume one
     assert ms.storage_state("mnt_data") == "active" and ms.storage_state("default-bucket") == "active"
-    assert ms.storage_state("gce_data") is None and ms.storage_state("gce_bucket") is None
-    fixture_run.ctx.config["apply_storage"] = ["gcp-pd"]          # by builder name: one root
+    assert ms.storage_state("container_data") is None
+    fixture_run.ctx.config["apply_storage"] = ["docker-volume"]   # by builder name: one root
     record_storage_transitions(fixture_run.ctx, Lifecycle.STORAGE)
-    assert ms.storage_state("gce_data") == "active" and ms.storage_state("gce_bucket") is None
+    assert ms.storage_state("container_data") == "active"
 
 
 def test_apply_check_refuses_an_unlisted_root(fixture_run, capsys):
@@ -194,16 +194,16 @@ def test_apply_check_refuses_an_unlisted_root(fixture_run, capsys):
     import typer
 
     from cs_image_system.system.cli import apply_check_command
-    _set_flag_in_file(fixture_run, "apply_storage", "[gcloud-east1]")
+    _set_flag_in_file(fixture_run, "apply_storage", "[docker-fixture]")
     os.chdir(fixture_run.config_root / "cfg")
     with pytest.raises(typer.Exit) as e:
         apply_check_command(lifecycle="storage", config_root=None,
                             apply_root="aws-ebs", root_alias=["aws-east2-runtime"])
     assert e.value.exit_code == 3
     err = capsys.readouterr().err
-    assert "apply_storage is ['gcloud-east1'] NOW" in err and "for root 'aws-ebs'" in err
+    assert "apply_storage is ['docker-fixture'] NOW" in err and "for root 'aws-ebs'" in err
     apply_check_command(lifecycle="storage", config_root=None,
-                        apply_root="gcp-pd", root_alias=["gcloud-east1"])
+                        apply_root="docker-volume", root_alias=["docker-fixture"])
     apply_check_command(lifecycle="storage", config_root=None)
 
 
@@ -303,10 +303,10 @@ def test_stale_scripts_of_unrequested_lifecycles_are_skipped(fixture_run):
 def test_only_with_runtime_scopes_to_that_runtime_alone(fixture_run):
     """`--only <image>@<runtime>`: a multi-cloud DAG bakes the same name on
     several runtimes; the qualified form scopes the bake surface to one."""
-    summary = fixture_run.run(["base-image"], apply=True, only=["basic-rh-10@gcloud-east1"])
+    summary = fixture_run.run(["base-image"], apply=True, only=["basic-rh-10@aws-east2-runtime"])
     assert summary.ok, summary.error
     files = [str(p.relative_to(fixture_run.generated)) for p in fixture_run.generated.rglob("*.pkr.hcl")]
-    assert any("pckr-gce-ans" in f for f in files)
-    assert not any("pckr-ebs-ans" in f and "source-" in f for f in files)
+    assert any("pckr-ebs-ans" in f for f in files)
+    assert not any("pckr-docker" in f and "source-" in f for f in files)
     bad = fixture_run.run(["base-image"], apply=True, only=["basic-rh-10@no-such-runtime"])
     assert not bad.ok and "basic-rh-10@no-such-runtime" in (bad.error or "")

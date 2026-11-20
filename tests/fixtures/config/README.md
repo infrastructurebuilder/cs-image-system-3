@@ -7,9 +7,9 @@ a cloud changed, and no run ever commits into it.
 - It carries **no `meta-state/`** (records of live cloud resources) and no
   generated output; `tests/harness.py:copy_config` copies it into a
   temporary directory for every test. Its instance subjects (`test`,
-  `test2`, `gce-test` and `container-test`) are declared in
-  `instances/instances.yaml`; `gce-test` is not ephemeral here, and a test
-  that wants ephemerality declares it.
+  `test2` and `container-test`) are declared in
+  `instances/instances.yaml`; none is ephemeral here, and a test that wants
+  ephemerality declares it.
 - Its container runtime (`docker-fixture`, `cfg/runtime-builders.yml`) names
   a daemon that exists nowhere (`context: csis-fixture-daemon`); the
   harness stubs every daemon call, so the golden pins the docker emission
@@ -30,7 +30,7 @@ a cloud changed, and no run ever commits into it.
 
 The live configuration lives in its own repository
 (`cs-image-system-testconfig`, checked out beside this repo) and is what the
-Justfile's `cloud-*`/`gce-*` recipes drive. Nothing under `tests/` reads it;
+Justfile's `cloud-*` recipes drive. Nothing under `tests/` reads it;
 `tests/test_fixture_independence.py` enforces that.
 
 The rosters here (`groups/users.yaml`, `groups/group-*.yaml`) are encrypted

@@ -683,16 +683,6 @@ def test_the_aws_tunnel_is_ssm_start_ssh_session_with_the_runtimes_region_and_pr
     assert rtb.ssh_proxy_command("not-running") is None
 
 
-def test_the_gce_tunnel_is_iap_on_stdin(monkeypatch):
-    from tests.harness import FIXTURE_CONFIG, load_context, stub_environment
-    stub_environment(monkeypatch)
-    ctx = load_context(FIXTURE_CONFIG)
-    rtb = ctx.runtime_builders["gcloud-east1"]                  # the fixture's GCE runtime: session_mechanism iap
-    cmd = rtb.ssh_proxy_command("gce-test") or []
-    assert cmd[1:5] == ["compute", "start-iap-tunnel", "gce-test", "%p"] and "--listen-on-stdin" in cmd
-    assert cmd[cmd.index("--project") + 1] == "csis-sandbox" and cmd[cmd.index("--zone") + 1] == "us-east1-b"
-
-
 class _Ssh:
     def __init__(self, monkeypatch, out="uid=3202(unity_uniform) gid=3202(unity_uniform) groups=3202(unity_uniform),3101(pxgroup)\n", rc=0):
         from cs_image_system.posix_identity_plugin import ssh_login

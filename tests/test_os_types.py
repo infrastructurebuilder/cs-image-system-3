@@ -18,8 +18,6 @@ from __future__ import annotations
 
 import re
 import subprocess
-from types import SimpleNamespace
-from typing import Any, cast
 
 import pytest
 from harness import FixtureRun, os_type_for_family
@@ -111,8 +109,9 @@ def test_every_types_package_check_stops_a_bake_and_names_the_package(family):
 def test_an_alpine_image_bakes_through_the_hooks(fixture_run):
     """What the fixture's plugins would bake for an alpine base image: the
     posix group's and the ebs storage's prerequisites (nothing to install:
-    no manager at all), the efs and s3 storages' and the runtimes' session
-    agents (apk lines), and the declared package tests (apk's own test).
+    no manager at all), the efs and s3 storages' (apk lines), the AWS
+    runtime's session agent (refused: no apk exists), and the declared
+    package tests (apk's own test).
     Nothing says yum, dnf, apt, dpkg or rpm."""
     from cs_image_system.base.image_tests import declared_test_commands
     ctx = fixture_run.ctx
@@ -130,12 +129,8 @@ def test_an_alpine_image_bakes_through_the_hooks(fixture_run):
     _says_only_apk(efs_lines + s3_lines + efs.verify_commands("alpine") + s3.verify_commands("alpine"))
     # the runtimes' session agents
     aws = next(r for r in ctx.runtime_builders.values() if r.session_mechanism() == "ssm")
-    gcp = next(r for r in ctx.runtime_builders.values() if r.session_mechanism() == "iap")
     with pytest.raises(ValueError, match="no agent package in the apk format"):
         aws.session_agent_commands("alpine")      # Amazon ships no apk of its agent: refused, not guessed
-    gcp_lines = gcp.session_agent_commands("alpine")
-    assert any("sudo apk add --no-cache google-guest-agent" in l for l in gcp_lines)
-    _says_only_apk(gcp_lines)
     # the declared package tests
     checks = declared_test_commands({"packages": ["nfs-utils"]}, os_type=alpine)
     assert checks == [alpine.package_present_check("nfs-utils")]
@@ -143,18 +138,6 @@ def test_an_alpine_image_bakes_through_the_hooks(fixture_run):
     _says_only_apk(checks)
     # the local modification tests' ansible preparation
     assert alpine.ansible_python_install_command() == "command -v python3 >/dev/null 2>&1 || apk add --no-cache python3"
-
-
-def test_the_filestore_storage_bakes_apk_on_alpine():
-    from cs_image_system.tf_gcp_plugin.tf_gcp_storage_builder import TofuFilestoreStorageBuilder
-    # the builder asks the images service for the OS type: the stub's
-    # context carries that one service, answered by the kit's own lookup
-    images = SimpleNamespace(os_type_for_family=os_type_for_family)
-    ctx = SimpleNamespace(services=SimpleNamespace(images=images))
-    stub = cast(Any, SimpleNamespace(get_name=lambda: "fs", _get_context=lambda: ctx))
-    lines = TofuFilestoreStorageBuilder.base_image_prerequisites(stub, "alpine")
-    assert lines[1] == "sudo apk add --no-cache nfs-utils"
-    _says_only_apk(lines)
 
 
 def test_okta_refuses_an_alpine_image_rather_than_guessing(fixture_run):

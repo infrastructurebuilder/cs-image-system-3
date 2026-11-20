@@ -77,9 +77,7 @@ os_builders:
   # disposed with it). family stays rhel (the dnf/RHUI family), family_version 10.
   - name: basic-rh-10
     identity_types: [okta]
-    # pd/gcs added for the GCE runtime; on AWS they emit the
-    # documented 'declared but has no plugin on runtime' note, nothing more
-    storage_types: [ebs, efs, s3, pd, gcs]
+    storage_types: [ebs, efs, s3]
     # in-bake assertions (EXPLORE image tests); the bake fails if any fails
     tests:
       # nfs-utils is what the efs prerequisite installs on RHUI RHEL
@@ -120,31 +118,6 @@ os_builders:
         # no vendor query here -- the image-source catalog's
         # `aws` block for alma-linux is the source (the release's: the
         # AlmaLinux OS Foundation's account, "AlmaLinux OS 10*x86_64*")
-    -   name: gcp-my-rh10
-        image_builder: pckr-gce-ans
-        # finding 43 (found live, first Alma 10 dask bake): without this the
-        # base bake defaulted to the AWS-ism "ec2-user" while the instance
-        # bake fell back to "packer"; at the instance bake's boot the guest
-        # agent (new manager+core-plugin generation) aborts its whole
-        # metadata-ssh-key setup when removing the stale other-name user
-        # fails ("not a member of google-sudoers"), so packer's key is never
-        # provisioned and SSH auth fails. One name for every GCE bake means
-        # the agent only ever updates keys for an existing user.
-        ssh_username: packer
-        # per-runtime tests (finding 40): the builder-level packages test
-        # asserts efs tooling that only AWS bakes install
-        tests:
-          packages: [google-guest-agent]
-          files:
-            - path: /etc/yum.repos.d/oktapam-stable.repo
-              contains: "dist.scaleft.com"
-        # AWS lesson: 1 GB machines OOM under dnf; e2-small for bakes
-        default_machine_type: e2-small
-        # this entry's build-name prefix overrides the OS builder's; the timestamp is appended
-        output_image_name: "noscsb-gcp-rh10-{{ this.name }}"
-        # no vendor query here -- the image-source catalog's
-        # `gcloud` block for alma-linux is the source (the release's:
-        # project almalinux-cloud, family almalinux-10)
   # The base the docker emission bakes from -- AlmaLinux 10
   # as a container (the catalog's `docker` block for alma-linux: almalinux:10,
   # pulled and pinned by digest; the harness answers the pull). posix identity

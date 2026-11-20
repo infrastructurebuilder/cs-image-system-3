@@ -27,9 +27,7 @@ ROW = re.compile(r"^\|\s*`([a-z_]+)`\s*\|\s*([^|]*?)\s*\|")
 def _runtimes():
     from cs_image_system.aws_runtime.aws_runtime_builders import AwsCloudBuilder
     from cs_image_system.docker_runtime.docker_runtime_builders import DockerContainerBuilder
-    from cs_image_system.gcloud_runtime.gcp_runtime_builders import GCPCloudBuilder
-    return [("aws-runtime-plugin", AwsCloudBuilder), ("gcloud-runtime-plugin", GCPCloudBuilder),
-            ("docker-plugin", DockerContainerBuilder)]
+    return [("aws-runtime-plugin", AwsCloudBuilder), ("docker-plugin", DockerContainerBuilder)]
 
 
 def _table(readme: Path) -> dict[str, str]:

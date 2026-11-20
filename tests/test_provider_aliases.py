@@ -28,7 +28,8 @@ from tests.harness import FixtureRun
 
 EC2 = {"instance_id": "i-0169f82844f4cc08d",
        "provider_hostname": "ip-10-26-34-156.us-east-2.compute.internal"}
-GCE = {"instance_id": "1234567890", "provider_hostname": "gce-test.c.csis-sandbox.internal"}
+#: a provider whose hostname's label is the instance's own name
+SELF_NAMED = {"instance_id": "1234567890", "provider_hostname": "coops-model.c.example.internal"}
 
 
 # ------------------------------------------------------------ pure rules
@@ -38,9 +39,9 @@ def test_the_label_is_the_first_part_of_the_provider_hostname():
     assert pa.provider_hostname_label("") is None and pa.provider_hostname_label(None) is None
 
 
-def test_ec2_gives_back_the_ip_name_and_gce_has_nothing_to_give():
+def test_ec2_gives_back_the_ip_name_and_a_self_named_host_has_nothing_to_give():
     assert pa.wanted_aliases(EC2, "coops-model") == ["ip-10-26-34-156"]
-    assert pa.wanted_aliases(GCE, "gce-test") == []      # the label IS the name
+    assert pa.wanted_aliases(SELF_NAMED, "coops-model") == []      # the label IS the name
     assert pa.wanted_aliases(None, "coops-model") == []
     assert pa.wanted_aliases({"provider_hostname": "bad_name.x"}, "n") == []   # not a label
 
@@ -56,8 +57,8 @@ def test_a_suffixed_canonical_name_gives_the_bare_name_back_too():
 def test_every_name_a_record_answers_to_is_a_claim():
     servers = [{"id": "A", "hostname": "coops-model", "canonical_name": "coops-model-003",
                 "alt_names": ["ip-10-26-35-236"]}]
-    claims = pa.claimed_names(servers, {"gce-test"})
-    assert claims == {"gce-test": "declared", "coops-model": "A", "coops-model-003": "A",
+    claims = pa.claimed_names(servers, {"test"})
+    assert claims == {"test": "declared", "coops-model": "A", "coops-model-003": "A",
                       "ip-10-26-35-236": "A"}
 
 

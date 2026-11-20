@@ -13,8 +13,6 @@
     "${workspaceFolder}/packages/docker-plugin/src",
     "${workspaceFolder}/packages/dummy-plugin/src",
     "${workspaceFolder}/packages/engine/src",
-    "${workspaceFolder}/packages/gcloud-runtime-plugin/src",
-    "${workspaceFolder}/packages/gcs-state-plugin/src",
     "${workspaceFolder}/packages/hashicorp-utils/src",
     "${workspaceFolder}/packages/local-state-plugin/src",
     "${workspaceFolder}/packages/okta-opa-plugin/src",
@@ -22,7 +20,6 @@
     "${workspaceFolder}/packages/posix-identity-plugin/src",
     "${workspaceFolder}/packages/system/src",
     "${workspaceFolder}/packages/tf-ebs-instance-plugin/src",
-    "${workspaceFolder}/packages/tf-gcp-plugin/src",
     "${workspaceFolder}/packages/tf-s3-state-plugin/src",
     "${workspaceFolder}/packages/tofu-roots/src"
   ],

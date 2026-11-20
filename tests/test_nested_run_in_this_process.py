@@ -68,9 +68,10 @@ from cs_image_system.engine.commands import run_lifecycles
 TESTS = Path(__file__).resolve().parent
 CHILD = TESTS / "stubbed_cli_child.py"
 
-GCE = "gcloud-east1"                              # the runtime the tests declare ephemeral
+RUNTIME = "aws-east2-runtime"                     # the runtime the tests declare ephemeral
 SCRATCH = "scratch"                               # the storage only an overlay declares
-ROOT_DIRECTORY = "gcp-pd/storage-generation"      # the storage root that owns it, as a step's directory
+BUILDER = "aws-ebs"                               # the storage builder that owns it
+ROOT_DIRECTORY = f"{BUILDER}/storage-generation"   # its root, as a step's directory
 WHITELISTED = ["--allow-destroy", f"module.storage_{SCRATCH}"]
 TEARDOWN = ["run", "storage", "--only", "none", "--no-state-query", "--no-commit"]
 #: the nested load's clock: later than the outer run's, as it is in life
@@ -88,20 +89,20 @@ class Tree(NamedTuple):
 
 
 def _tree(tmp_path: Path, name: str) -> Tree:
-    """A copy of the fixture whose GCE runtime is ephemeral, with the two
+    """A copy of the fixture whose AWS runtime is ephemeral, with the two
     overlays beside it: one declares a storage there, one carries the apply
     flag alone."""
     root = copy_config(tmp_path, name)
     path = root / "cfg" / "runtime-builders.yml"
     doc = yaml.safe_load(path.read_text())
     for runtime in doc["runtime_builders"]:
-        if runtime["name"] == GCE:
+        if runtime["name"] == RUNTIME:
             runtime["ephemeral"] = True
     path.write_text(yaml.safe_dump(doc, sort_keys=False))
     scratch = root / "overlays" / "scratch.yaml"
-    scratch.write_text(yaml.safe_dump({"storages": [{"name": SCRATCH, "type": "gcp-pd", "groups": ["coops"]}]}))
+    scratch.write_text(yaml.safe_dump({"storages": [{"name": SCRATCH, "type": BUILDER, "groups": ["coops"]}]}))
     knobs = root / "overlays" / "knobs.yaml"
-    knobs.write_text(yaml.safe_dump({"config": {"apply_storage": [GCE]}}))
+    knobs.write_text(yaml.safe_dump({"config": {"apply_storage": [RUNTIME]}}))
     return Tree(root, scratch, knobs)
 
 
@@ -385,7 +386,7 @@ def test_the_nested_run_sees_the_storage_undeclared_while_the_run_around_it_stil
     assert nested.overlays == [where.knobs] and nested.overlay_declared == set()
     assert nested.dry_run is False and nested.only_images == set()
     assert nested.working_path == run.ctx.working_path
-    assert nested.config["apply_storage"] == [GCE]
+    assert nested.config["apply_storage"] == [RUNTIME]
     # --- UNDECLARED there: the plan of its root is the whitelisted destroy
     assert SCRATCH not in {storage.get_name() for storage in nested.storages}
     gate = steps.gate_of(nested)
@@ -397,7 +398,7 @@ def test_the_nested_run_sees_the_storage_undeclared_while_the_run_around_it_stil
     assert SCRATCH in {storage.get_name() for storage in run.ctx.storages}
     assert ("storages", SCRATCH) in run.ctx.overlay_declared
     assert run.ctx.overlays == [where.scratch, where.knobs]
-    assert [storage.get_name() for storage in run.ctx.storage_builders["gcp-pd"].model._storages].count(SCRATCH) == 1
+    assert [storage.get_name() for storage in run.ctx.storage_builders[BUILDER].model._storages].count(SCRATCH) == 1
 
 
 def test_the_run_around_it_and_the_process_are_as_they_were_when_the_nested_run_returns(torn_down):
@@ -624,12 +625,12 @@ def test_through_the_console_entry_the_command_keeps_its_typer_context_its_loggi
     directory = os.getcwd()
     result = CliRunner().invoke(app, ["--root-dir", str(where.root), "--no-dry-run", "--overlay", str(where.scratch),
                                       "run", "storage", "retention", "--only", "none", "--no-state-query",
-                                      "--apply-runtime", GCE], catch_exceptions=False)
+                                      "--apply-runtime", RUNTIME], catch_exceptions=False)
     assert result.exit_code == 0, result.output
     assert os.getcwd() == directory
     assert steps.code == 0
-    assert steps.teardown == ["--root-dir", str(where.root), "--no-dry-run", *TEARDOWN, "--apply-runtime", GCE]
-    assert steps.nested.overlays == [] and steps.nested.apply_runtime == GCE
+    assert steps.teardown == ["--root-dir", str(where.root), "--no-dry-run", *TEARDOWN, "--apply-runtime", RUNTIME]
+    assert steps.nested.overlays == [] and steps.nested.apply_runtime == RUNTIME
     assert steps.gate_of(steps.nested)[-2:] == WHITELISTED
     # --- the command's typer context, and the run context in it, before and after
     assert steps.before is not None and steps.after is not None
