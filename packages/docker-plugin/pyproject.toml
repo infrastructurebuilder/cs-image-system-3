@@ -4,7 +4,7 @@
 
 [project]
 name = "cs-image-system-docker-plugin"
-version = "0.1.11"
+version = "0.1.12"
 description = "The docker provider: the runtime type for a durable host's container daemon, and the OpenTofu roots for containers and volumes on it"
 readme = "README.md"
 authors = [{ name = "Mykel Alvis", email = "mykelalvis@infrastructurebuilder.org" }]
@@ -33,13 +33,13 @@ dependencies = [
 # can order.
 [project.optional-dependencies]
 test = [
-    "cs-image-system-system[testing]==0.1.11",
-    "cs-image-system-packer-plugin==0.1.11",
-    "cs-image-system-ansible-plugin==0.1.11",
-    "cs-image-system-bash-mod-plugin==0.1.11",
-    "cs-image-system-default-os-plugin==0.1.11",
-    "cs-image-system-local-state-plugin==0.1.11",
-    "cs-image-system-posix-identity-plugin==0.1.11",
+    "cs-image-system-system[testing]==0.1.12",
+    "cs-image-system-packer-plugin==0.1.12",
+    "cs-image-system-ansible-plugin==0.1.12",
+    "cs-image-system-bash-mod-plugin==0.1.12",
+    "cs-image-system-default-os-plugin==0.1.12",
+    "cs-image-system-local-state-plugin==0.1.12",
+    "cs-image-system-posix-identity-plugin==0.1.12",
 ]
 
 [project.urls]

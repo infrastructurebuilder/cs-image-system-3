@@ -4,7 +4,7 @@
 
 [project]
 name = "cs-image-system-posix-identity-plugin"
-version = "0.1.11"
+version = "0.1.12"
 description = "The posix identity plugin: groups, users, memberships, keys and sudo as POSIX accounts on the machines, with ids the configuration declares; alone, or beside Okta for groups"
 readme = "README.md"
 authors = [{ name = "Mykel Alvis", email = "mykelalvis@infrastructurebuilder.org" }]
