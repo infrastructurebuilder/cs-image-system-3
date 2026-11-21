@@ -5,7 +5,8 @@
 
 Each step is a command that passes or fails. Nothing here applies
 anything. Every box runs on your local machine, in a shell at the
-repository root, on the branch `feature/004-kinds-in-metadata`.
+repository root, on `develop` (or a branch that holds it): the feature
+branch's own tree is the code before its merge.
 
 ## What each step proves
 
@@ -14,7 +15,7 @@ repository root, on the branch `feature/004-kinds-in-metadata`.
 | 1 | Declared kinds load, collide and are skipped the same way in every order | Stories 1 to 3; FR-004 to FR-008, FR-010; SC-001 to SC-003 |
 | 2 | No plugin can call the registration any more | FR-002 |
 | 3 | The inference code is gone | Story 4; FR-009; SC-005 |
-| 4 | Nothing moved, and the whole bar holds | FR-003, FR-011; SC-004 |
+| 4 | Nothing moved, and the acceptance tests pass | FR-003, FR-011; SC-004 |
 
 ## Step 1: declared kinds, in every order
 
@@ -51,12 +52,12 @@ grep -n "_shared_kinds\|_restore\|kind_owner\|kind_claimant\|collided_kinds" pac
 
 Expect the single line `searched`.
 
-## Step 4: the bar
+## Step 4: the acceptance tests
 
 About 30 minutes.
 
 ```sh
-# step 4 -- box 1 of 1 -- v1
+# step 4 -- box 1 of 1 -- v2
 just test
 ```
 
