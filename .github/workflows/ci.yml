@@ -258,6 +258,12 @@ jobs:
           TF_VAR_nos_coastal_modeling_cloud_sandbox_secret: ${{ secrets.TF_VAR_NOS_SECRET }}
         run: just fixture-live
 
+      - name: The starters that need every provider
+        # the Google Cloud family is released from its own repository and is not in this venv:
+        # the recipe layers it in from the index; the starters' clouds are stubbed (spec 005, R11)
+        if: steps.gate.outputs.ready == 'true'
+        run: just test-cloud-starters
+
   publish:
     # A pushed `v*` tag publishes the release: to TestPyPI always, to
     # PyPI when the tag is not a development version. `just publish` skips every

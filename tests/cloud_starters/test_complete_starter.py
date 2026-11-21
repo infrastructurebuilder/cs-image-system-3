@@ -2,24 +2,28 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""The ``complete`` starter, with every provider installed.
+"""The starters that declare the Google Cloud family, with every provider installed.
 
-``complete`` declares every provider, the Google Cloud family's among them,
-and that family is released from its own repository: this workspace's venv
-does not hold it, so ``tests/test_docs_examples.py`` cannot load the tree.
-These tests can: ``just test-cloud-starters`` runs them with the family
-layered in from the index by the ``gcloud`` extra's ranges (spec 005,
-research R11). The default collection leaves this directory out
-(``norecursedirs`` in ``pyproject.toml``), and the recipe runs it under the
-strict session, so a missing family fails instead of skipping.
+``standard-gce`` and ``complete`` declare the Google Cloud family, which is
+released from its own repository: this workspace's venv does not hold it,
+so ``tests/test_docs_examples.py`` cannot load either tree. These tests can:
+``just test-cloud-starters`` runs them with the family layered in from the
+index by the ``gcloud`` extra's ranges (spec 005, research R11), a
+``full-test`` leg and a step of CI's ``live`` job. Each starter validates;
+``standard-gce`` dry-runs every lifecycle (FR-012); ``complete`` loads under
+each of its overlays and carries every variation. The default collection leaves
+this directory out (``norecursedirs`` in ``pyproject.toml``), and the recipe
+runs it under the strict session, so a missing family fails instead of
+skipping.
 """
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
 import pytest
 import yaml
-from harness import FIXED_CHECKED_AT, load_context, record_network_facts, stub_environment
+from harness import FIXED_CHECKED_AT, drive_lifecycles, load_context, record_network_facts, stub_environment
 from test_docs_examples import (
     _runtimes,
     _validation_errors,
@@ -43,14 +47,43 @@ def _gcloud(monkeypatch, root: Path) -> None:
     path.write_text(yaml.safe_dump({"runtimes": {**aws, **gce}}, sort_keys=True, default_flow_style=False))
 
 
-def _complete(tmp_path: Path, monkeypatch, rendered_starters: Path, overlays: tuple[str, ...] = ()):
+def _starter(tmp_path: Path, monkeypatch, rendered_starters: Path, name: str, overlays: tuple[str, ...] = ()):
     stub_environment(monkeypatch)
-    root = copy_example(tmp_path, "complete", rendered_starters)
+    # `complete` pins one AWS base by its image id, which a dry run's resolution looks up by id;
+    # the harness answers the vendor query, so the lookup by id is answered here, as the pinned id itself
+    from cs_image_system.aws_runtime.aws_runtime_builders import AwsCloudBuilder
+    monkeypatch.setattr(AwsCloudBuilder, "query_provider_image_by_id",
+                        lambda self, os_builder, image_id: (str(image_id), "self", {}))
+    root = copy_example(tmp_path, name, rendered_starters)
     stub_networks_from(monkeypatch, root)
     _gcloud(monkeypatch, root)
     stub_opa_credentials_from(monkeypatch, root)
     ctx = load_context(root, dry_run=True, overlays=[root / "overlays" / f"{o}.yaml" for o in overlays])
     return root, ctx
+
+
+def _complete(tmp_path: Path, monkeypatch, rendered_starters: Path, overlays: tuple[str, ...] = ()):
+    return _starter(tmp_path, monkeypatch, rendered_starters, "complete", overlays)
+
+
+@pytest.mark.parametrize("name", ["standard-gce"])
+def test_a_google_cloud_starter_validates_and_dry_runs_every_lifecycle(tmp_path, monkeypatch, name, rendered_starters):
+    """FR-012: with the family installed, the Google Cloud starter validates and dry-runs every lifecycle.
+    `complete` validates (the tests below) but does not dry-run: its AWS chain `imgfile-basic-cloudflow`
+    on `aws-east1` names a parent with no build there, which a fresh tree's dry run refuses -- an AWS
+    matter, not the Google Cloud family's, recorded in spec 005's T078."""
+    cwd = os.getcwd()
+    try:
+        root, ctx = _starter(tmp_path, monkeypatch, rendered_starters, name)
+        assert _validation_errors(ctx) == []
+        assert "gcloud" in {rt.model.type_ for rt in ctx.runtime_builders.values()}
+        summary = drive_lifecycles(ctx, "all", apply=False)
+        assert summary.ok, summary.error
+        emitted = {p.relative_to(root / "generated").parts[0] for p in (root / "generated").rglob("*") if p.is_file()}
+        assert {"base-image", "instance-image"} <= emitted, sorted(emitted)
+        assert any("gce" in str(p) for p in (root / "generated").rglob("*.tf")), "no Google Cloud root was emitted"
+    finally:
+        os.chdir(cwd)
 
 
 @pytest.mark.parametrize("overlay", ["apply-identity-and-storage", "gce-cycle-launch", "gce-cycle-decommission",
