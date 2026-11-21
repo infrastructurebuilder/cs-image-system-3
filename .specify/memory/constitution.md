@@ -1,23 +1,27 @@
 <!--
 Sync Impact Report (scratch for review; remove before committing)
 
-Version change: 1.0.0 -> 1.1.0
+Version change: 1.1.0 -> 1.2.0
 Bump: MINOR. A section was materially expanded (Governance: "MINOR when
   a principle or section is added or materially expanded"); no principle
   was removed or redefined.
-Amended: 2026-11-17, by the operator.
+Amended: 2026-11-21, by the operator.
 Modified principles: none
 Added sections: none
-Expanded sections: Additional Constraints, by one constraint: Azure
-  cloud testing is at the operator's cost, under the same rule as the
-  Google Cloud constraint above it, and whatever is created is torn
-  down.
+Expanded sections: Development Workflow, by one bullet: the definition
+  of done for a specification (six conditions, each shown by a command
+  or a record), the states "in progress" and "merged", and its reach:
+  every specification, those written before it included.
 Removed sections: none
 Templates: plan, spec and tasks templates read this file at run time and
   were not modified.
-Deferred items: none.
+Deferred items: specs/README.md's State column and spec 005's status line
+  are to follow the new states (outside this file).
 
 Earlier amendments:
+  1.0.0 -> 1.1.0 (2026-11-17): Additional Constraints gained the Azure
+    cloud testing constraint (the operator's cost; whatever is created
+    is torn down).
   none -> 1.0.0 (2026-11-16): first ratified constitution. Sections
     Users; Core Principles I-X; Additional Constraints; Development
     Workflow; Governance. III, IV, V and the first half of VI restate
@@ -164,6 +168,31 @@ opened.
   finished by a squash-merge with the branch kept. Nothing is committed
   to `main` directly. Nothing is committed or pushed unless the operator
   asks.
+- A specification is **done** when all of the following hold, each shown
+  by a command or a record, not by a reading:
+  1. Every task in its `tasks.md` is checked, and each has a record of
+     what was done and the evidence (a commit, a run, a count).
+  2. `/speckit-converge` was run after the last implementation and
+     appended nothing, or every task it appended is itself done.
+  3. The acceptance it ends in (Principle II) was run at the end and
+     passed: its quickstart walked step by step, each result recorded.
+  4. Its branch is squash-merged into `develop`, the branch kept.
+  5. When its plan names a release, that release is published, every
+     run it started passed, and the reference configuration has taken
+     it with its drift check green. When the plan names none, a release
+     that carries the specification is still preferred where one is
+     possible; if none is cut, the records say why.
+  6. Its `spec.md` status line and its row in `specs/README.md` say
+     **complete**, with the date.
+
+  This holds for every specification, those written before it included.
+  Until all six hold, a specification is **in progress**; one that is
+  merged but not yet done is **merged**. A step that does not apply is
+  named as not applying in its tasks' records rather than left out.
+
+  Rationale: a merge proves the code moved, not that the user was served.
+  Spec 005 was called complete without convergence, the one step the
+  workflow lists that no command enforced.
 - A defect that does not block a named user waits until its code is
   touched for another reason. There are no standing hygiene bundles.
 - `/ATTIC` holds the retired work ledger, the frozen history and past
@@ -188,4 +217,4 @@ document is corrected.
   before it is planned: it names its user and ends in an executable
   acceptance.
 
-**Version**: 1.1.0 | **Ratified**: 2026-11-16 | **Last Amended**: 2026-11-17
+**Version**: 1.2.0 | **Ratified**: 2026-11-16 | **Last Amended**: 2026-11-21
