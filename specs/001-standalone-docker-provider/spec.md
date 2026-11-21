@@ -6,7 +6,7 @@
 
 **Created**: 2026-11-16
 
-**Status**: Merged into `develop` 2026-11-18 (squash), the feature branch kept. Results and departures are in [tasks.md](tasks.md), under Records.
+**Status**: Complete, 2026-11-21, under the constitution's definition of done (1.2.0). Merged into `develop` 2026-11-18 (squash), the feature branch kept; released in 0.1.11; converged again 2026-11-21 (T144 to T150) and its quickstart walked. Results and departures are in [tasks.md](tasks.md), under Records.
 
 **Input**: User description: "One provider family (docker first) builds, tests and versions with only its own declared dependencies, so it can live outside this repository. The docker family is isolated inside this repository; no repository move yet. The kit is the SDK a plugin is written against: it gets a declared public surface and its own version, and a provider pins a range of it."
 

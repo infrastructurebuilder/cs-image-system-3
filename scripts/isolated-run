@@ -70,6 +70,7 @@ did not run is a failure, never a pass. ``--keep DIR`` leaves the emitted
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import shutil
@@ -95,6 +96,7 @@ OURS = "cs-image-system"
 #: the SDK's libraries: what a provider may pin by a range
 SDK = ("cs-image-system-base", "cs-image-system-hashicorp-utils", "cs-image-system-tofu-roots")
 INDEX_JSON = "https://pypi.org/pypi/{name}/json"
+INDEX_VERSION_JSON = "https://pypi.org/pypi/{name}/{version}/json"
 FROM_INDEX = "from the index"
 FROM_BUILD = "from this repository's build (development install)"
 
@@ -104,6 +106,11 @@ class IndexUnasked(RuntimeError):
 
 
 Published = Callable[[str], set[Version]]
+#: filename -> sha256 of every file the index holds for one version of a project
+Digests = Callable[[str, Version], dict[str, str]]
+#: the version line `just sdk-bump` moves for each SDK library
+SDK_LINE = {"cs-image-system-base": "kit", "cs-image-system-hashicorp-utils": "terraform",
+            "cs-image-system-tofu-roots": "terraform"}
 
 
 def published_versions(name: str) -> set[Version]:
@@ -128,6 +135,21 @@ def published_versions(name: str) -> set[Version]:
     return out
 
 
+def published_digests(name: str, version: Version) -> dict[str, str]:
+    """Each file the index holds for ``name`` at ``version``, by filename, with
+    its sha256; :class:`IndexUnasked` when it cannot be asked."""
+    try:
+        with urllib.request.urlopen(INDEX_VERSION_JSON.format(name=name, version=version), timeout=30) as answer:
+            files = json.load(answer).get("urls", [])
+    except urllib.error.HTTPError as e:
+        if e.code == 404:
+            return {}
+        raise IndexUnasked(f"{name} {version}: the index answered {e.code}") from e
+    except (urllib.error.URLError, TimeoutError, ValueError) as e:
+        raise IndexUnasked(f"{name} {version}: {e}") from e
+    return {str(f["filename"]): str((f.get("digests") or {}).get("sha256", "")) for f in files if f.get("filename")}
+
+
 def wheel_version(wheel: Path) -> Version:
     return Version(wheel.name.split("-")[1])
 
@@ -138,9 +160,41 @@ class SdkChoice:
     name: str
     version: Version
     from_index: bool
+    own: bool = False
 
     def said(self) -> str:
-        return f"{self.name} {self.version} {FROM_INDEX if self.from_index else FROM_BUILD}"
+        where = FROM_INDEX if self.from_index else FROM_BUILD
+        return f"{self.name} {self.version} {where}" + (" -- the run's own package, always as built" if self.own else "")
+
+
+def settle(chosen: list[SdkChoice], wheels: dict[str, Path], own: str | None, digests: Digests) -> list[SdkChoice]:
+    """The choices as the run installs them. The run's own package (the one whose directory it tests) is always
+    this repository's build, so its tests run against this checkout's code. Any other library taken from the
+    index at the version this repository also builds must BE this tree's build of it, file for file; otherwise
+    the checkout changed it under a published version, and ``ValueError`` names the bump that moves it."""
+    out: list[SdkChoice] = []
+    for choice in chosen:
+        built = wheel_version(wheels[choice.name])
+        if choice.name == own:
+            out.append(SdkChoice(choice.name, built, False, own=True))
+            continue
+        if choice.from_index and choice.version == built:
+            wheel = wheels[choice.name]
+            held = digests(choice.name, choice.version).get(wheel.name)
+            if held and held != hashlib.sha256(wheel.read_bytes()).hexdigest():
+                raise ValueError(f"{choice.name} {choice.version} on the index is not this tree's build "
+                                 f"({wheel.name} differs): this checkout changed it under a published version -- "
+                                 f"`just sdk-bump {SDK_LINE.get(choice.name, '<line>')} last` moves it")
+        out.append(choice)
+    return out
+
+
+def own_distribution(root: Path) -> str | None:
+    """The distribution whose directory the run tests, from its ``pyproject.toml``."""
+    try:
+        return canonicalize_name(tomllib.loads((root / "pyproject.toml").read_text())["project"]["name"])
+    except (OSError, KeyError, tomllib.TOMLDecodeError):
+        return None
 
 
 def sdk_choices(wanted: Requirement, wheels: dict[str, Path], end: str, published: Published) -> list[SdkChoice]:
@@ -278,13 +332,14 @@ def install_lines(found: dict[str, set[str]], wheels: dict[str, Path]) -> list[s
 
 def run(subject: str, requirement: str, root: Path, tests: Sequence[str], *, copy_outside: bool,
         pytest_config: Path | None = None, sdk_end: str | None = None, published: Published = published_versions,
-        shell: Shell = real_shell, say: Callable[[str], None] = print, work: Path | None = None) -> int:
+        shell: Shell = real_shell, say: Callable[[str], None] = print, work: Path | None = None,
+        digests: Digests = published_digests) -> int:
     """The whole isolated run; 0 when it passes. ``work`` is a directory to
     work in (a temporary one is made and removed when none is given)."""
     if work is None:
         with tempfile.TemporaryDirectory(prefix="csis-isolated-") as td:
             return run(subject, requirement, root, tests, copy_outside=copy_outside, pytest_config=pytest_config,
-                       sdk_end=sdk_end, published=published, shell=shell, say=say, work=Path(td))
+                       sdk_end=sdk_end, published=published, shell=shell, say=say, work=Path(td), digests=digests)
     who = f"isolated-run [{subject}]"
     wheel_dir = work / "wheels"
 
@@ -315,7 +370,7 @@ def run(subject: str, requirement: str, root: Path, tests: Sequence[str], *, cop
     lines = install_lines(found, wheels)
     if sdk_end is not None:
         try:
-            chosen = sdk_choices(wanted, wheels, sdk_end, published)
+            chosen = settle(sdk_choices(wanted, wheels, sdk_end, published), wheels, own_distribution(root), digests)
         except (IndexUnasked, ValueError) as e:
             say(f"{who}: FAILED -- {e}; the tests did not run")
             return 1

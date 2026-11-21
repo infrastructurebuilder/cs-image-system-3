@@ -343,3 +343,39 @@ def test_keep_leaves_the_emitted_tree_and_replaces_nothing(tmp_path: Path):
     again = _InstallShell()
     rc, results, _said = _install_check(tmp_path, again, keep=keep)          # the tree is there already: refused
     assert rc == 1 and results[I.INSTALL] == I.NOT_RUN and again.calls == []
+
+
+# ------------------------------------------------------------ the run's own package, and a changed SDK library
+
+def test_the_runs_own_package_is_always_this_repositorys_build(tmp_path: Path):
+    """spec 001, FR-026 and SC-011 (T144): a library tested in isolation is tested as THIS checkout built it,
+    even when its version is published; the other SDK libraries still follow their range's end."""
+    from packaging.version import Version
+    wheels = _sdk_wheels(tmp_path / "wheels", "0.2.1")
+    published = I.SdkChoice("cs-image-system-base", Version("0.2.1"), True)
+    root = tmp_path / "base"
+    root.mkdir()
+    (root / "pyproject.toml").write_text('[project]\nname = "cs-image-system-base"\n')
+    [own] = I.settle([published], wheels, I.own_distribution(root), lambda name, version: {})
+    assert (own.from_index, own.own, str(own.version)) == (False, True, "0.2.1")
+    assert I.FROM_BUILD in own.said() and "the run's own package" in own.said()
+    [other] = I.settle([published], wheels, "cs-image-system-tofu-roots", lambda name, version: {})
+    assert other == published, "another library at a published version still comes from the index"
+
+
+def test_a_published_sdk_version_this_tree_changed_refuses_the_run_naming_the_bump(tmp_path: Path):
+    """spec 001, FR-013 and its first edge case (T146): an SDK library taken from the index at the version this
+    repository also builds must be this tree's build of it, file for file."""
+    import hashlib
+
+    from packaging.version import Version
+    wheels = _sdk_wheels(tmp_path / "wheels", "0.2.1")
+    wheel = wheels["cs-image-system-base"]
+    ours = hashlib.sha256(wheel.read_bytes()).hexdigest()
+    choice = I.SdkChoice("cs-image-system-base", Version("0.2.1"), True)
+    assert I.settle([choice], wheels, None, lambda name, version: {wheel.name: ours}) == [choice]   # the same build
+    assert I.settle([choice], wheels, None, lambda name, version: {}) == [choice]                   # nothing to compare
+    with pytest.raises(ValueError, match="sdk-bump kit last"):
+        I.settle([choice], wheels, None, lambda name, version: {wheel.name: "0" * 64})
+    older = I.SdkChoice("cs-image-system-base", Version("0.2.0"), True)                        # another version: not ours
+    assert I.settle([older], wheels, None, lambda name, version: {wheel.name: "0" * 64}) == [older]
