@@ -97,7 +97,8 @@ def test_live_proves_the_fixture_read_only_and_is_gated():
         if s.get("id") != "gate":
             assert s.get("if") == "steps.gate.outputs.ready == 'true'", s.get("name")
     commands = [run for name, run in _run_steps(live) if not name.startswith(_PLUMBING)]
-    assert commands == ["just init", "just fixture-live"]
+    # the starters that need every provider run beside it, with the Google Cloud family from the index (spec 005)
+    assert commands == ["just init", "just fixture-live", "just test-cloud-starters"]
     creds = [s for s in live["steps"] if (s.get("uses") or "").startswith("aws-actions/")]
     assert [c["with"]["role-to-assume"] for c in creds] == ["${{ secrets.AWS_ROLE_ARN }}"]
     proof = next(s for s in live["steps"] if "run" in s and s["run"].strip() == "just fixture-live")

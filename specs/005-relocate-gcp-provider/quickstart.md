@@ -38,7 +38,8 @@ under the strict session (no `strict:` line).
 A few minutes. The two starters that declare Google Cloud are not
 rendered there: they declare other providers too, so this repository
 tests them with every provider installed (`just test-cloud-starters`,
-part of `just test`, with the family taken from the index; research R11).
+with the family taken from the index: a `full-test` leg and a step of CI's
+`live` job; research R11).
 
 ```sh
 # step 2 -- box 1 of 1 -- v2

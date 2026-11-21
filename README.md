@@ -149,8 +149,10 @@ configuration repositories the release ships and `init-config` writes
 out: `complete`, `standard-aws`, `standard-aws-posix`, `standard-docker`
 and `standard-gce`. Two of them, `standard-gce` and `complete`, declare
 the Google Cloud family; their tests are under `tests/cloud_starters/`,
-which `just test` runs with the Google Cloud family layered in from the package
-index for that run alone. The reference configuration is its own
+which `just test-cloud-starters` runs with the Google Cloud family layered
+in from the package index for that run alone: a `full-test` leg and a step
+of CI's `live` job, never part of `just test`, whose runs hold no Google
+Cloud package. The reference configuration is its own
 repository, `cs-image-system-testconfig`, which stands alone with its own
 `Justfile` and CI; it is checked out beside this one (`CSIS_CONFIG_ROOT`
 overrides) for the system's own live proofs only, and the tests never

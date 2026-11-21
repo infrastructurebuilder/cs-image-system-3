@@ -55,14 +55,13 @@ build:
 	@uv build --all-packages
 
 # The fast suite, every check blocking: lint (ruff), type-check (pyright), the
-# unit tests (the golden emission included), the starters that need every
-# provider with the Google Cloud family from the index (`test-cloud-starters`),
-# the core's own suite with no provider installed (`test-core`), the two terraform libraries' own suites
+# unit tests (the golden emission included), the core's own suite with no
+# provider installed (`test-core`), the two terraform libraries' own suites
 # with nothing but themselves (`test-terraform-alone`) and the docker family's
 # own suite in an environment that holds only that package
 # (`test-docker-alone`). The local acceptance bar; `verify` is its alias.
-[doc("The fast suite, all blocking: lint (ruff), type-check (pyright), the unit tests, the starters that need every provider, then the core, the terraform libraries and the docker family each alone; `verify` is its alias")]
-test: lint typecheck pytest test-cloud-starters test-core test-terraform-alone test-docker-alone
+[doc("The fast suite, all blocking: lint (ruff), type-check (pyright), the unit tests, then the core, the terraform libraries and the docker family each alone; `verify` is its alias")]
+test: lint typecheck pytest test-core test-terraform-alone test-docker-alone
 
 # Everything `test` does plus the slow and external legs: the
 # modification tests under docker (`test-mods --strict`), and -- only when
@@ -200,6 +199,9 @@ full-test-legs:
 	# TestPyPI, nothing else from it (read-only; needs the network, not a session)
 	echo "full-test: a development pin resolves with the starters' install line (dev-pin-resolves)"
 	uv run --no-sync python scripts/dev-pin-resolves || { echo "full-test: FAILED dev-pin-resolves"; status=1; }
+	# the starters that declare the Google Cloud family, with it layered in from the index (needs the network)
+	echo "full-test: the starters that need every provider, the Google Cloud family from the index (test-cloud-starters)"
+	just test-cloud-starters || { echo "full-test: FAILED test-cloud-starters"; status=1; }
 	# not gated on the daemon: the usual install must deliver a docker provider that runs, so a daemon
 	# that does not answer FAILS this leg (it and test-docker-live, below, are the legs here that never report SKIPPED)
 	echo "full-test: cs-image-system[docker] installed alone validates and dry-runs the docker starter (test-docker-install)"
@@ -737,13 +739,14 @@ gcloud-with:
 	@uv run --no-sync python scripts/with-released-families --print
 
 # The starters that need every provider, the Google Cloud family's among them (tests/cloud_starters,
-# left out of the default collection; part of `test`): the family is released from its own repository
+# left out of the default collection; a `full-test` leg and a step of CI's `live` job, never `test`, whose
+# runs hold no Google Cloud package): the family is released from its own repository
 # and this workspace's venv does not hold it, so it is layered in from the index for this run alone
 # (scripts/with-released-families), under the strict session, so a family that is absent fails instead
 # of skipping (spec 005, research R11). The index (or uv's cache); no cloud session: the starters'
 # clouds are stubbed, as every starter test's are. A starter's runtimes name placeholder accounts,
 # so an installed command could not validate one without a real account's `validate --online`.
-[doc("The starters that need every provider (tests/cloud_starters), with the Google Cloud family from the index, strict; part of `test`")]
+[doc("The starters that need every provider (tests/cloud_starters), with the Google Cloud family from the index, strict; a full-test leg and CI live")]
 test-cloud-starters:
 	#!/usr/bin/env bash
 	set -euo pipefail

@@ -6,7 +6,7 @@
 
 **Created**: 2026-11-18
 
-**Status**: Merged, 2026-11-20; not yet complete under the constitution's definition of done (1.2.0), which also asks for a `/speckit-converge` run. Phase 1 merged into `develop` 2026-11-19 from `feature/005-prepare`; phases 2 to 4 merged 2026-11-20 from `feature/005-relocate-gcp-provider` (`0ba7077a`); the family released from `cs-image-system-google-cloud` at 0.2.0, this repository released without it at 0.1.12, the reference took it with its drift check green, and one live GCE cycle passed. Records are in [tasks.md](tasks.md).
+**Status**: Complete, 2026-11-21, under the constitution's definition of done (1.2.0): every task recorded, `/speckit-converge` run twice (the first appended T077 to T082, the second nothing), the quickstart walked, the release carrying it out. Phase 1 merged into `develop` 2026-11-19 from `feature/005-prepare`; phases 2 to 4 merged 2026-11-20 from `feature/005-relocate-gcp-provider` (`0ba7077a`); the family released from `cs-image-system-google-cloud` at 0.2.0, this repository released without it at 0.1.12, the reference took it with its drift check green, and one live GCE cycle passed. Records are in [tasks.md](tasks.md).
 
 ## Clarifications
 
@@ -292,10 +292,14 @@ neither publishes a version that its own acceptance tests did not prove.
   the family installed from its own release.
 - **SC-004**: One release of the system and one of the family are each
   cut without touching the other repository.
-- **SC-005**: This workspace holds three packages fewer, its source
-  and test lines fall by at least the family's own, and the golden
-  files that left it are all present, unchanged, in the family's
-  repository.
+- **SC-005**: This workspace holds three packages fewer; its source
+  lines fall by the family's own less what the move itself adds here
+  (the strict session, the stubs the family ships), and its test lines
+  by at least the family's own; and the golden files that left it are
+  all present in the family's repository, each read file by file and
+  differing only by what the family's fixture decides (its `gcs`
+  backend and its POSIX group, research R7). *(Amended 2026-11-21 by
+  the operator, at convergence: T079.)*
 - **SC-006**: Live Google Cloud cycles run for the move: at most the
   ones needed to prove it, with nothing they stood up left standing.
 
