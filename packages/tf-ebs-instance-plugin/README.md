@@ -28,7 +28,8 @@ the address a detach destroys, the security group as the resource the
 root lets go once no instance is declared, and the module arguments
 tabled below; the storage side adds the boto3 lookups and the AWS CLI
 transition scripts. The GCE root (`tofu-gce`, in
-[cs-image-system-tf-gcp-plugin](../tf-gcp-plugin/README.md)) and the
+[cs-image-system-tf-gcp-plugin](https://github.com/infrastructurebuilder/cs-image-system-google-cloud/blob/develop/packages/tf-gcp-plugin/README.md),
+the Google Cloud family's, released from its own repository) and the
 container root (`tofu-docker`, in
 [cs-image-system-docker-plugin](../docker-plugin/README.md)) are
 sibling subclasses of the same bases, not subclasses of this package,
@@ -598,7 +599,7 @@ Instance root (`open-tofu`), under
 
 | File | Content |
 |---|---|
-| [open-tofu-instance-generation.tf](../../tests/fixtures/golden/generated/instance-image/open-tofu/instance-generation/open-tofu-instance-generation.tf) | `terraform {}` with `required_providers` and `backend "s3" {}`; `provider "aws"` (region `us-east-2`, profile `noaa`, alias `open_tofu`); `variable "test_ami_id"`, `variable "test2_ami_id"`, `variable "enrollment_token"`; `data "terraform_remote_state"` for `aws_efs`, `aws_ebs`, `aws_s3`, `gcp_pd`, `gcp_gcs`, `oktagroups`; `data "aws_vpc"` and `resource "aws_security_group" "csis_instances"` |
+| [open-tofu-instance-generation.tf](../../tests/fixtures/golden/generated/instance-image/open-tofu/instance-generation/open-tofu-instance-generation.tf) | `terraform {}` with `required_providers` and `backend "s3" {}`; `provider "aws"` (region `us-east-2`, profile `noaa`, alias `open_tofu`); `variable "test_ami_id"`, `variable "test2_ami_id"`, `variable "enrollment_token"`; `data "terraform_remote_state"` for `aws_efs`, `aws_ebs`, `aws_s3`, `docker_volume`, `oktagroups`; `data "aws_vpc"` and `resource "aws_security_group" "csis_instances"` |
 | [open-tofu-instance-generation-instance-test2.tf](../../tests/fixtures/golden/generated/instance-image/open-tofu/instance-generation/open-tofu-instance-generation-instance-test2.tf) | `module "instance_test2"` calling `../../../../../tfmodules/aws_instance` with `ami_id = var.test2_ami_id`, `ami_name_pattern = "imgfile-basic-dask-pckr-ebs-ans*"`, `instance_type = "t3.medium"`, the security groups, `subnet_id`, `iam_instance_profile`, `user_data = templatefile(...)`, and `ebs_volumes` for `mnt_data` on `/dev/xvdf` |
 | [open-tofu-instance-generation-instance-test.tf](../../tests/fixtures/golden/generated/instance-image/open-tofu/instance-generation/open-tofu-instance-generation-instance-test.tf) | the same shape for `test`, with no storages |
 | [user-data-test2.sh.tftpl](../../tests/fixtures/golden/generated/instance-image/open-tofu/instance-generation/user-data-test2.sh.tftpl) | the launch script: hostname, the `mnt_data` mount at `/mnt/data`, the `coops` subtree with mode `2770`, the enrollment block |
@@ -1180,7 +1181,7 @@ the tests named and the sources on this package.
 | meta-state claims a build the instance never ran ([the entry](../../docs/INCIDENTS.md#a-pin-was-re-bound-to-a-new-series-head-without-replacing-the-instance)) | A pin may move only with a replacement. The post-finalize hook binds from what actually booted when the parent was deferred, and the state query reports `booted image <x> != pinned build <y>` as `changed`. | `upgrade instance` onto the intended build. |
 | A torn-down ephemeral keeps its launch record ([the entry](../../docs/INCIDENTS.md#a-verify-assert-as-the-runners-last-step-failed-the-run-after-the-teardown)) | A `verify assert` as the runner's last step fails the script before the after-apply hook runs; under `on_failure: teardown` the verdict fails the run from `forget_ephemerals`, after the record is forgotten ([test_ephemeral.py](../../tests/test_ephemeral.py)). | `forget instance <name>` for a record left by an older tree. |
 | A run scoped to AWS fails on the GCE instance root's plan ([the entry](../../docs/INCIDENTS.md#a-run-scoped-to-aws-failed-on-the-gce-instance-roots-plan)) | Under `--only-runtime` (explicit or implied by `--apply-runtime`) another runtime's instance and storage roots emit nothing, and the out-of-scope instance builder's finalize hooks do nothing either. | Scope the run. |
-| `No resolved provider-specific images for instances; modules will use their name-pattern fallback` on a scoped run ([the entry](../../docs/INCIDENTS.md#every-scoped-run-warned-about-images-it-was-never-going-to-launch)) | Both finalize hooks return early for a root outside the runtime scope, so the line is never logged for a root the scope left empty ([test_gcp_runtime.py](../../tests/test_gcp_runtime.py), `test_an_out_of_scope_instance_root_writes_no_tfvars`). On an in-scope root it is expected when nothing baked this run. | Nothing. |
+| `No resolved provider-specific images for instances; modules will use their name-pattern fallback` on a scoped run ([the entry](../../docs/INCIDENTS.md#every-scoped-run-warned-about-images-it-was-never-going-to-launch)) | Both finalize hooks return early for a root outside the runtime scope, so the line is never logged for a root the scope left empty ([test_gcp_runtime.py](https://github.com/infrastructurebuilder/cs-image-system-google-cloud/blob/develop/tests/pipeline/test_gcp_runtime.py), `test_an_out_of_scope_instance_root_writes_no_tfvars`). On an in-scope root it is expected when nothing baked this run. | Nothing. |
 | Two S3 storages on one builder report the same bucket ([the entry](../../docs/INCIDENTS.md#two-s3-storages-on-one-builder-reported-the-same-bucket)) | The state query asks for the storage's own bucket (its `bucket_name`, else the builder's, else its name), never the builder's alone ([test_storage_state_machine.py](../../tests/test_storage_state_machine.py), `test_the_s3_lookup_asks_for_the_storages_own_bucket`). | Name each storage's bucket. |
 | `forces replacement, 1 to add, 1 to destroy` on a data volume after a subnet change ([the entry](../../docs/INCIDENTS.md#a-zone-change-planned-to-destroy-a-data-volume)) | A zone must be declared, never inferred from the subnet: a subnet, a storage and an instance may declare `availability_zone`, `validate` refuses an incompatible set naming each claimant, and the EBS builder passes the declared zone to the module ([test_availability_zones.py](../../tests/test_availability_zones.py)). The gate still refuses the destroy as unwhitelisted. | Declare the zones; move data by archive and restore. |
 | `mount.efs` cannot resolve the filesystem's DNS name; `verify instance` fails on the mount ([the entry](../../docs/INCIDENTS.md#no-instance-could-mount-an-efs-storage)) | An EFS filesystem needs mount targets. The module creates one per zone and a security group for them, and the builder passes the runtime's private subnets (one per zone) and `addl_security_groups` as the clients; with no `networking`, no private subnets or no `addl_security_groups` on the runtime, the call carries none of the three and the filesystem is unmountable ([test_storage_module_calls.py](tests/test_storage_module_calls.py)). | Check the emitted `<B>-storage-generation-storage-<label>.tf` for `mount_target_subnet_ids`. |
@@ -1337,10 +1338,11 @@ Each with the message or symptom, what it means, where to look, what to do.
   [tofu_storage_builder.py](../tofu-roots/src/cs_image_system/tofu_roots/tofu_storage_builder.py),
   [tofu_models.py](../tofu-roots/src/cs_image_system/tofu_roots/tofu_models.py)),
   what the bases own, the full hook table and the version checker.
-- [cs-image-system-tf-gcp-plugin](../tf-gcp-plugin/README.md) and
+- [cs-image-system-tf-gcp-plugin](https://github.com/infrastructurebuilder/cs-image-system-google-cloud/blob/develop/packages/tf-gcp-plugin/README.md) and
   [cs-image-system-docker-plugin](../docker-plugin/README.md): the
   GCE and container roots, sibling subclasses of the same bases; neither
-  depends on this package.
+  depends on this package. The GCE root is the Google Cloud family's, in
+  its own repository.
 - [cs-image-system-tf-s3-state-plugin](../tf-s3-state-plugin/README.md): the
   S3 state backend the `state_configuration` field names.
 - [cs-image-system-aws-runtime-plugin](../aws-runtime-plugin/README.md): the

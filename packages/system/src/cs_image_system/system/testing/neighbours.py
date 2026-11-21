@@ -52,6 +52,6 @@ def broken_neighbour(monkeypatch: Any, *, plugin_type: str = "runtime", name: st
     wanted = group
     monkeypatch.setattr(loader, "entry_points", with_the_neighbour)
     # a discovery of this test's own: the process's is put back, as it was, when the test ends
-    monkeypatch.setattr(loader, "_discovery", cache(loader.discover))
+    monkeypatch.setattr(loader, "_discovery", cache(loader._discover_and_register))
     loader.discover_plugins()
     return loader.unusable_plugins()

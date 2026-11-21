@@ -27,7 +27,7 @@ from . import sft_login
 from .okta_opa_tf_group_models import OktaTfGroupBuilderModel
 from .okta_tf_models import OKTATF
 from .opa_attributes import OPA_GROUP_ATTRIBUTES, validate_opa_attributes
-from .sftd_launch import SFTD_TOKEN  # importing it registers the kind's launch steps
+from .sftd_launch import SFTD_TOKEN  # the kind this builder issues; declared in the metadata
 
 #: the identity type a `posix:` delegate must be (the posix identity plugin's;
 #: named, never imported -- no plugin imports another)

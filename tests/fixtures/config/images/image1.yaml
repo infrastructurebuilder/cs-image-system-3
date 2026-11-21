@@ -24,10 +24,6 @@ images:
     group: coops # owning group (V2 Q4): identifies the identity type via the group's builder
     runtimes:
       - image_builder: pckr-ebs-ans
-      - image_builder: pckr-gce-ans # GCP readiness
-        # bake size (finding 41): the dask mods OOM a 1-2 GB machine -- the
-        # AWS lesson (t3.medium) in GCE form; e2-medium = 4 GB
-        machine_type: e2-medium
         # source_image: imgfile-basic-cloudflow # Because it's the default
     tags:
       dask: "true"
@@ -54,7 +50,7 @@ images:
           - run: "python3 -c 'import dask'"
         files:
           - path: /var/lib/csis/launch-applied
-        mounts: [/mnt/gce-data]
+        mounts: [/mnt/data]
     # a build whose post-bake tests pass is released for `default`
     # by the same run's release lifecycle (before retention, which keeps it)
     release:

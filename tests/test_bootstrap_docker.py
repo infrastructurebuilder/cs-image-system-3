@@ -56,7 +56,7 @@ def _tree(tmp_path: Path, **runtime) -> Path:
 
 
 def test_the_docker_plugin_contributes_the_section_and_a_docker_tree_wants_it(tmp_path: Path):
-    assert [s.name for s in bs.discover()] == ["github", "aws", "docker", "gcp", "okta"]
+    assert [s.name for s in bs.discover()] == ["github", "aws", "docker", "okta"]
     assert _section().title == "Container host"
     docker = bs.gather(_tree(tmp_path), git=False, gh=False)
     assert _section().wanted_default(docker) is True
@@ -86,7 +86,7 @@ def test_the_default_runtime_no_longer_prefers_a_cloud_by_name():
     facts.runtimes[1]["is_default"] = True
     assert first_runtime_name(facts) == "cloud"                                      # the marked default always wins
     facts = Facts(config_root=Path("."), runtimes=[
-        {"name": "far", "type": "docker", "host": "tcp://far.example:2376"}, {"name": "near", "type": "gcloud"}])
+        {"name": "far", "type": "docker", "host": "tcp://far.example:2376"}, {"name": "near", "type": "aws"}])
     assert first_runtime_name(facts) == "near"                                       # the first CI can reach
     assert first_unreachable_runtime_name(facts) == "far"
     assert first_unreachable_runtime_name(Facts(config_root=Path("."), runtimes=[{"name": "c", "type": "aws"}])) is None

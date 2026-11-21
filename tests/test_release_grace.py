@@ -44,7 +44,7 @@ def test_the_series_head_under_its_own_proof_is_allowed_and_refused_when_the_pro
     image, runtime = str(inst.image), str(inst.runtime)
     ctx.config["require_released_builds"] = True
     _build(ms, "ami-old", image, runtime)
-    ms.record_image_test("ami-old", {"ok": True, "run": "r0", "instance": "gce-test", "runtime": runtime, "checks": []})
+    ms.record_image_test("ami-old", {"ok": True, "run": "r0", "instance": "test2", "runtime": runtime, "checks": []})
     release(ctx, image, "ami-old")
     ms.bind_instance("test2", "ami-old", ctx.run_id)
     assert validate_released_pins(ctx, []) == [], "a released pin needs no grace"

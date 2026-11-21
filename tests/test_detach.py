@@ -19,8 +19,9 @@ import yaml
 
 from tests.harness import FixtureRun, command_lines, copy_config
 
-GCE_ROOT = "tofu-gce/instance-generation"
 AWS_ROOT = "open-tofu/instance-generation"
+#: the subject: the fixture's AWS instance with a mount (test2 mounts mnt_data at /mnt/data)
+INSTANCE, STORAGE, MOUNT_POINT = "test2", "mnt_data", "/mnt/data"
 
 
 def _launched_with_params(root: Path, name: str, build: str, params: dict) -> None:
@@ -78,42 +79,42 @@ def _record_current_mounts(run: FixtureRun, root: Path, name: str, build: str) -
 def test_dropping_a_mount_is_allowed_and_planned_as_a_detach_after_an_unmount(prepared):
     root, make = prepared
     probe = make()
-    mounts = _record_current_mounts(probe, root, "gce-test", "dask-gce-1")
-    assert [m["storage"] for m in mounts] == ["gce_data"]
-    _drop_mount(root, "gce-test", "gce_data")
+    mounts = _record_current_mounts(probe, root, INSTANCE, "ami-dask-1")
+    assert [m["storage"] for m in mounts] == [STORAGE]
+    _drop_mount(root, INSTANCE, STORAGE)
     run = make()
-    run.ctx.config["apply_instances"] = ["gcloud-east1"]
+    run.ctx.config["apply_instances"] = ["aws-east2-runtime"]
     summary = run.run(["instance-image"], apply=True, only=["none"])
     assert summary.ok, summary.validation_errors or summary.error      # N26 allows a mount removal
-    lines = _lines_in((run.generated / "instance-image" / "run-instance-image.sh").read_text(), GCE_ROOT)
-    unmount = next(i for i, ln in enumerate(lines) if "unmount storage --instance gce-test --storage gce_data" in ln)
+    lines = _lines_in((run.generated / "instance-image" / "run-instance-image.sh").read_text(), AWS_ROOT)
+    unmount = next(i for i, ln in enumerate(lines) if f"unmount storage --instance {INSTANCE} --storage {STORAGE}" in ln)
     plan = next(i for i, ln in enumerate(lines) if "plan -input=false" in ln)
     gate = next(ln for ln in lines if "gate-plan" in ln)
     assert unmount < plan
-    assert "--mount-point /mnt/gce-data" in lines[unmount] and "--root-dir" in lines[unmount]
-    assert "--require-unmounted gce-test:gce_data" in gate
-    assert "--allow-destroy" not in gate                                  # GCE: an in-place attribute
+    assert f"--mount-point {MOUNT_POINT}" in lines[unmount] and "--root-dir" in lines[unmount]
+    assert f"--require-unmounted {INSTANCE}:{STORAGE}" in gate
+    # (AWS: the attachment is a resource, so its destroy is whitelisted -- the AWS test below)
     # the record keeps the mount until the detach applied
-    assert [m["storage"] for m in run.ctx.meta_state.launch_params()["gce-test"]["mounts"]] == ["gce_data"]
-    tf = "\n".join(p.read_text() for p in (run.generated / "instance-image" / "tofu-gce").rglob("*.tf"))
-    assert "gce_data" not in tf.split('module "instance_gce_test"', 1)[1].split("}", 1)[0] or True
+    assert [m["storage"] for m in run.ctx.meta_state.launch_params()[INSTANCE]["mounts"]] == [STORAGE]
+    tf = "\n".join(p.read_text() for p in (run.generated / "instance-image" / "open-tofu").rglob("*.tf"))
+    assert STORAGE not in tf.split(f'module "instance_{INSTANCE}"', 1)[1].split("}", 1)[0] or True
     # after the apply the record drops it
     from cs_image_system.base.launch_params import record_detachments
     from cs_image_system.contract.lifecycles import Lifecycle
     record_detachments(run.ctx, Lifecycle.INSTANCE_IMAGE)
-    rec = run.ctx.meta_state.launch_params()["gce-test"]
+    rec = run.ctx.meta_state.launch_params()[INSTANCE]
     assert rec["mounts"] == [] and rec["launched"] is True and rec["launched_run"] == "r0"
 
 
 def test_any_other_launch_parameter_change_is_still_refused(prepared):
     root, make = prepared
     probe = make()
-    _record_current_mounts(probe, root, "gce-test", "dask-gce-1")
-    _drop_mount(root, "gce-test", "gce_data")
+    _record_current_mounts(probe, root, INSTANCE, "ami-dask-1")
+    _drop_mount(root, INSTANCE, STORAGE)
     p = root / "instances" / "instances.yaml"
     d = yaml.safe_load(p.read_text())
     for i in d["instances"]:
-        if i["name"] == "gce-test":
+        if i["name"] == INSTANCE:
             i["image"] = "imgfile-basic-cloudflow"          # a real change alongside the detach
     p.write_text(yaml.safe_dump(d, sort_keys=False))
     run = make()
@@ -146,14 +147,14 @@ def test_gate_plan_requires_the_unmount_receipt(tmp_path, monkeypatch):
     plan.write_text(json.dumps({"resource_changes": []}))
     monkeypatch.chdir(tmp_path)
     with pytest.raises(typer.Exit) as e:
-        gate_plan_command(plan_json=plan, require_unmounted=["gce-test:gce_data"])
+        gate_plan_command(plan_json=plan, require_unmounted=[f"{INSTANCE}:{STORAGE}"])
     assert e.value.exit_code == 3
-    write_receipt(tmp_path, "gce-test", "gce_data", False, {"exit_status": 1})
+    write_receipt(tmp_path, INSTANCE, STORAGE, False, {"exit_status": 1})
     with pytest.raises(typer.Exit) as e:                              # a FAILED unmount is no receipt
-        gate_plan_command(plan_json=plan, require_unmounted=["gce-test:gce_data"])
+        gate_plan_command(plan_json=plan, require_unmounted=[f"{INSTANCE}:{STORAGE}"])
     assert e.value.exit_code == 3
-    write_receipt(tmp_path, "gce-test", "gce_data", True, {"exit_status": 0})
-    gate_plan_command(plan_json=plan, require_unmounted=["gce-test:gce_data"])   # passes
+    write_receipt(tmp_path, INSTANCE, STORAGE, True, {"exit_status": 0})
+    gate_plan_command(plan_json=plan, require_unmounted=[f"{INSTANCE}:{STORAGE}"])   # passes
 
 
 def test_operator_confirmation_is_a_receipt_with_their_name(prepared, tmp_path, monkeypatch):
@@ -161,51 +162,47 @@ def test_operator_confirmation_is_a_receipt_with_their_name(prepared, tmp_path, 
     root, make = prepared
     run = make()
     monkeypatch.setenv("USER", "avery.alpha")
-    result = unmount_storage(run.ctx, "gce-test", "gce_data", "/mnt/gce-data", tmp_path, confirm=True)
+    result = unmount_storage(run.ctx, INSTANCE, STORAGE, MOUNT_POINT, tmp_path, confirm=True)
     assert result == {"ok": True, "method": "operator-confirmation", "operator": "avery.alpha"}
-    receipt = read_receipt(tmp_path, "gce-test", "gce_data")
+    receipt = read_receipt(tmp_path, INSTANCE, STORAGE)
     assert receipt is not None
-    assert receipt["ok"] and receipt["confirmed_by"] == "avery.alpha" and receipt["mount_point"] == "/mnt/gce-data"
+    assert receipt["ok"] and receipt["confirmed_by"] == "avery.alpha" and receipt["mount_point"] == MOUNT_POINT
 
 
-def test_gce_unmount_runs_over_the_iap_tunnel_and_writes_the_receipt(prepared, monkeypatch):
-    import subprocess
-    from types import SimpleNamespace
-
+def test_unmount_runs_over_the_runtimes_session_and_writes_the_receipt(prepared, monkeypatch):
+    from cs_image_system.aws_runtime.aws_runtime_builders import AwsCloudBuilder
     from cs_image_system.engine.commands.unmount import read_receipt, unmount_script, unmount_storage
     root, make = prepared
     run = make()
-    calls: list[list[str]] = []
+    calls: list[tuple[str, str]] = []
 
-    def fake_run(cmd, **kw):
-        calls.append(cmd)
-        return SimpleNamespace(returncode=0, stdout="unmounted: /mnt/gce-data\n", stderr="")
-    monkeypatch.setattr(subprocess, "run", fake_run)
-    result = unmount_storage(run.ctx, "gce-test", "gce_data", "/mnt/gce-data", root / "ws")
+    def session(self, name, script, timeout=300):
+        calls.append((name, script))
+        return 0, f"unmounted: {MOUNT_POINT}\n"
+    monkeypatch.setattr(AwsCloudBuilder, "run_session_command", session)
+    result = unmount_storage(run.ctx, INSTANCE, STORAGE, MOUNT_POINT, root / "ws")
     assert result["ok"] and result["method"] == "session"
-    cmd = calls[-1]
-    # the runtime's declared gcloud, not a bare name from PATH
-    assert cmd[:4] == ["/usr/local/bin/gcloud", "compute", "ssh", "gce-test"] and "--tunnel-through-iap" in cmd
-    assert "--project" in cmd and "csis-sandbox" in cmd and "us-east1-b" in cmd
-    script = cmd[cmd.index("--command") + 1]
-    assert script == unmount_script("/mnt/gce-data")
+    # the instance's own runtime runs the unmount script on the instance
+    name, script = calls[-1]
+    assert name == INSTANCE
+    assert script == unmount_script(MOUNT_POINT)
     assert 'umount "$MP"' in script and "/etc/fstab" in script and "still mounted" in script
-    receipt = read_receipt(root / "ws", "gce-test", "gce_data")
+    receipt = read_receipt(root / "ws", INSTANCE, STORAGE)
     assert receipt is not None
-    assert receipt["ok"] and receipt["runtime"] == "gcloud-east1" and receipt["exit_status"] == 0
+    assert receipt["ok"] and receipt["runtime"] == "aws-east2-runtime" and receipt["exit_status"] == 0
     # a failed unmount raises and leaves a failed receipt
-    monkeypatch.setattr(subprocess, "run", lambda cmd, **kw: SimpleNamespace(returncode=1, stdout="", stderr="busy"))
+    monkeypatch.setattr(AwsCloudBuilder, "run_session_command", lambda self, name, script, timeout=300: (1, "busy"))
     with pytest.raises(RuntimeError, match="failed"):
-        unmount_storage(run.ctx, "gce-test", "gce_data", "/mnt/gce-data", root / "ws")
-    failed = read_receipt(root / "ws", "gce-test", "gce_data")
+        unmount_storage(run.ctx, INSTANCE, STORAGE, MOUNT_POINT, root / "ws")
+    failed = read_receipt(root / "ws", INSTANCE, STORAGE)
     assert failed is not None and failed["ok"] is False
 
 
 def test_pending_detach_keeps_the_record_until_applied_on_a_dry_run(prepared):
     root, make = prepared
     probe = make()
-    _record_current_mounts(probe, root, "gce-test", "dask-gce-1")
-    _drop_mount(root, "gce-test", "gce_data")
+    _record_current_mounts(probe, root, INSTANCE, "ami-dask-1")
+    _drop_mount(root, INSTANCE, STORAGE)
     run = make()
     assert run.run(["instance-image"], apply=True, only=["none"]).ok     # dry run, flag off
-    assert [m["storage"] for m in run.ctx.meta_state.launch_params()["gce-test"]["mounts"]] == ["gce_data"]
+    assert [m["storage"] for m in run.ctx.meta_state.launch_params()[INSTANCE]["mounts"]] == [STORAGE]

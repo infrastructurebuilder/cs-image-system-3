@@ -19,6 +19,7 @@ from importlib.metadata import version
 from pathlib import Path
 
 import pytest
+from starter_support import starters_this_workspace_renders
 from typer.testing import CliRunner
 
 from cs_image_system.system import starters
@@ -49,7 +50,7 @@ def test_version_answers_before_anything_loads(tmp_path: Path):
 def test_every_starter_init_asks_the_command_for_its_version(rendered_starters: Path):
     from test_starter_recipes import dry_run
     assert EXAMPLE_STARTERS == sorted(starters.STARTERS), "every starter under docs/examples is one the release carries"
-    for name in starters.STARTERS:
+    for name in starters_this_workspace_renders():
         init = dry_run(rendered_starters / name, "init")
         assert "--version" in init, f"{name}: init no longer asks --version"
 

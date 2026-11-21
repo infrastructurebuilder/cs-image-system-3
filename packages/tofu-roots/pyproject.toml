@@ -4,7 +4,7 @@
 
 [project]
 name = "cs-image-system-tofu-roots"
-version = "0.2.0"
+version = "0.2.1"
 description = "The provider-neutral terraform roots: the root mixin and the instance and storage root bases every OpenTofu root plugin subclasses"
 readme = "README.md"
 authors = [{ name = "Mykel Alvis", email = "mykelalvis@infrastructurebuilder.org" }]
@@ -12,12 +12,12 @@ license = "Apache-2.0"
 license-files = ["LICENSE"]
 requires-python = ">=3.13"
 dependencies = [
-    "cs-image-system-contract>=0.4,<0.5",
+    "cs-image-system-contract>=0.5,<0.6",
     # the kit, by range: this library is written against the kit's declared surface, as a provider is, and is
     # proven alone at both ends of the range (`just test-terraform-alone`); its sibling on the same version
     # line stays exact
     "cs-image-system-base>=0.2,<0.3",
-    "cs-image-system-hashicorp-utils==0.2.0",
+    "cs-image-system-hashicorp-utils==0.2.1",
     "pydantic>=2.13",
 ]
 

@@ -19,7 +19,7 @@ import pytest
 import yaml
 
 from tests.harness import FixtureRun, copy_config, module_path, modules_inside
-from tests.starter_support import RENDERED
+from tests.starter_support import RENDERED, starters_this_workspace_renders
 
 
 def _under(base: str):
@@ -37,11 +37,11 @@ from cs_image_system.engine.bootstrap.questions import Question, Refused, Render
 
 REPO = Path(__file__).resolve().parents[1]
 EXAMPLES = REPO / "docs" / "examples"
-TREES = ("standard-aws", "standard-gce", "complete", "standard-aws-posix", "standard-docker")
+TREES = starters_this_workspace_renders()   # the starters whose providers are installed here (spec 005, R11)
 
 GITHUB_ANSWERS = {"github": {
     "wanted": True, "repository": "acme/widgets", "default_branch": "develop", "production_branch": "main",
-    "protect_production": True, "perform_runtime": "aws-east2-runtime", "guard_runtime": "gcloud-east1",
+    "protect_production": True, "perform_runtime": "aws-east2-runtime", "guard_runtime": "docker-host",
     "secrets_dir": "_uncommitted/secrets"}}
 
 
@@ -185,7 +185,12 @@ def test_the_secrets_script_names_every_guide_secret_and_no_value(tmp_path: Path
     body = guide[guide.index("### 3.7 The secrets"):]
     body = body[:body.index("\n### ", 1)]
     names = set(re.findall(r"^\| `([A-Z0-9_]+)` \|", body, flags=re.M))
-    assert names and all(f"from_file {n}" in script or f"from_output {n} " in script for n in names), names
+    # the guide names every family's secrets; the script sets those of the installed sections (a family
+    # released from its own repository, such as the Google Cloud family, adds its own where it is installed)
+    from cs_image_system.engine.bootstrap.github import secrets_union
+    installed = {s.name for s in secrets_union(bs.discover())}
+    shown = names & installed
+    assert shown and all(f"from_file {n}" in script or f"from_output {n} " in script for n in shown), shown
     assert 'DIR="${SECRETS_DIR:-_uncommitted/secrets}"' in script and 'REPO="${REPO:-acme/widgets}"' in script
     assert "AKIA" not in script and "BEGIN" not in script             # no value, ever
 
@@ -247,9 +252,8 @@ def test_the_secrets_keep_the_order_a_committed_root_has():
     from cs_image_system.engine.bootstrap.github import secrets_union
     from cs_image_system.engine.bootstrap.questions import Secret
     assert [s.name for s in secrets_union(bs.discover())] == [
-        "AWS_ROLE_ARN", "AWS_APPLY_ROLE_ARN", "GCP_WORKLOAD_IDENTITY_PROVIDER", "GCP_SERVICE_ACCOUNT",
-        "GCP_APPLY_SERVICE_ACCOUNT", "OKTA_API_PRIVATE_KEY", "TF_VAR_KEY", "TF_VAR_SECRET", "CSIS_CONFIG_IDENTITY",
-        "DOCKER_HOST_SSH_KEY", "DOCKER_HOST_KNOWN_HOSTS", "CSIS_PROOF_SSH_KEY"]
+        "AWS_ROLE_ARN", "AWS_APPLY_ROLE_ARN", "OKTA_API_PRIVATE_KEY", "TF_VAR_KEY", "TF_VAR_SECRET",
+        "CSIS_CONFIG_IDENTITY", "DOCKER_HOST_SSH_KEY", "DOCKER_HOST_KNOWN_HOSTS", "CSIS_PROOF_SSH_KEY"]
     assert Secret("X", "file").order == 100                     # a section that picks no place comes after them all
     # an output replacing a file keeps the file's place, whichever the script met first
     from cs_image_system.engine.bootstrap.hcl import render_root
@@ -278,15 +282,15 @@ def test_the_actions_variables_are_the_union_of_the_wanted_sections_variables():
         ("github", "PERFORM_RUNTIME"), ("github", "GUARD_RUNTIME"), ("zeta", "ZETA_ZONE"), ("zeta", "ZETA_EMPTY")]
     wanted = {**GITHUB_ANSWERS, "zeta": {"wanted": True, "zone": "z-1", "nothing": ""}}
     assert actions_variables([github, zeta], wanted) == {
-        "PERFORM_RUNTIME": "aws-east2-runtime", "GUARD_RUNTIME": "gcloud-east1", "ZETA_ZONE": "z-1"}
+        "PERFORM_RUNTIME": "aws-east2-runtime", "GUARD_RUNTIME": "docker-host", "ZETA_ZONE": "z-1"}
     assert actions_variables([github, zeta], {**wanted, "zeta": {"wanted": False, "zone": "z-1"}}) == {
-        "PERFORM_RUNTIME": "aws-east2-runtime", "GUARD_RUNTIME": "gcloud-east1"}   # not wanted: nothing of its own
+        "PERFORM_RUNTIME": "aws-east2-runtime", "GUARD_RUNTIME": "docker-host"}   # not wanted: nothing of its own
     files = render_files([github, zeta], wanted, module_source=_under("../../tfmodules"))
     tfvars = files["bootstrap.auto.tfvars"]
-    assert re.search(r'github_actions_variables\s*=\s*\{\n\s*"GUARD_RUNTIME"\s*=\s*"gcloud-east1"\n\s*"PERFORM_RUNTIME"\s*=\s*'
+    assert re.search(r'github_actions_variables\s*=\s*\{\n\s*"GUARD_RUNTIME"\s*=\s*"docker-host"\n\s*"PERFORM_RUNTIME"\s*=\s*'
                      r'"aws-east2-runtime"\n\s*"ZETA_ZONE"\s*=\s*"z-1"\n\}', tfvars), tfvars
     readme = files["README.md"]
-    assert "Actions variables: PERFORM_RUNTIME=aws-east2-runtime, GUARD_RUNTIME=gcloud-east1, ZETA_ZONE=z-1" in readme
+    assert "Actions variables: PERFORM_RUNTIME=aws-east2-runtime, GUARD_RUNTIME=docker-host, ZETA_ZONE=z-1" in readme
     assert "REPLACE-ME: PERFORM_RUNTIME, GUARD_RUNTIME, ZETA_ZONE and ZETA_EMPTY are set" in readme
     # the installed AWS section declares the region variable the AWS workflows read, from its own region answer
     installed = {s.name: s for s in bs.discover()}
@@ -296,7 +300,7 @@ def test_the_actions_variables_are_the_union_of_the_wanted_sections_variables():
 
 @pytest.mark.skipif(shutil.which("tofu") is None, reason="tofu not installed")
 def test_the_generated_root_validates_with_tofu(tmp_path: Path):
-    from tests.test_gcp_runtime import private_plugin_cache
+    from tests.harness import private_plugin_cache
     root = _starter_copy(tmp_path)
     bs.write_answers(root / bs.ANSWERS_FILE, GITHUB_ANSWERS)
     bs.regenerate(root)
@@ -511,7 +515,7 @@ def test_the_command_runs_without_loading_and_refuses_by_name_under_quiet(tmp_pa
     assert "by hand" in res.output and "tofu apply" in res.output
     # the closing lines say who terraform acts as -- for THIS tree's sections, before the commands
     assert "  export GITHUB_TOKEN=$(gh auth token)" in res.output
-    assert "GOOGLE_OAUTH_ACCESS_TOKEN" not in res.output and "AWS_PROFILE" not in res.output     # GitHub alone
+    assert "AWS_PROFILE" not in res.output     # GitHub alone
     assert res.output.index("export GITHUB_TOKEN") < res.output.index("cd generated/bootstrap && tofu init")
     answers = yaml.safe_load((root / bs.ANSWERS_FILE).read_text())
     assert answers["sections"]["github"]["repository"] == "acme/widgets"

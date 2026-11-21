@@ -49,10 +49,13 @@ just golden-regen        # -> uv run python tests/golden.py
 
 ## The other goldens
 
-This one is the **shared** golden: every provider's emission for one
-configuration that declares them all. Two smaller ones pin a part of the
-system by itself, each from a fixture of its own, and each is compared
-the same way:
+This one is the **shared** golden: the emission of every provider this
+repository holds, AWS and docker beside the core's own builders, for one
+configuration that declares them all. It holds no Google Cloud emission:
+the Google Cloud family is released from its own repository, and its
+fixture and golden live there (below). Two smaller ones here pin a part
+of the system by itself, each from a fixture of its own, and each is
+compared the same way:
 
 - the core's, [packages/system/tests/golden/](packages/system/tests/golden/):
   what the core emits with no provider installed
@@ -63,6 +66,14 @@ the same way:
   nothing else (`just golden-regen docker`). The same test compares it
   with only the docker package installed and with every provider
   installed beside it.
+
+The Google Cloud family's golden is in its own repository,
+[cs-image-system-google-cloud](https://github.com/infrastructurebuilder/cs-image-system-google-cloud/tree/develop/tests/golden):
+what the `gcloud` runtime, its GCE roots and the `gcs` backend emit for
+the Google Cloud family's own fixture. When the Google Cloud family moved there
+([specification 005](specs/005-relocate-gcp-provider/spec.md)), that
+golden was compared file by file with the GCE part of this one, and this
+one lost exactly its GCE files and lines.
 
 ## How it is enforced
 
@@ -82,7 +93,8 @@ This is the project's strongest safety net. A change that touches a hundred
 files can be accepted on one fact: the golden came back byte-identical.
 That is a far stronger statement than "the tests pass": it says the
 system's output did not move by a single byte, on every runtime the
-fixture declares, so the change cannot have altered what would be applied
+fixture declares (AWS and docker; GCE is the Google Cloud family's own
+golden's to prove), so the change cannot have altered what would be applied
 to a cloud account or a container host. Ports of the model layer, replacements of the mapping
 layer and repository-wide renames have all been accepted that way.
 

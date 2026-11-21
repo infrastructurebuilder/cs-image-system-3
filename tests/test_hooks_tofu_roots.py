@@ -91,6 +91,6 @@ def test_with_the_plugin_the_summary_carries_the_evidence_and_the_records_exist(
     assert summary.ok, summary.error
     declared = {s["name"] for s in next(iter(yaml.safe_load((fixture_run.config_root / "cfg" / "storage-builders.yml").read_text()).values()))}
     assert set(summary.state_bindings["storage"]) == declared                 # every storage root the fixture declares, no other
-    assert {"aws-ebs", "aws-efs", "aws-s3", "gcp-pd", "gcp-gcs"} <= declared
+    assert {"aws-ebs", "aws-efs", "aws-s3"} <= declared
     assert summary.state_bindings["base-image"] == {}
     assert (fixture_run.meta_state / "state-locations.yaml").is_file()

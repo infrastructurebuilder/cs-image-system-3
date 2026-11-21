@@ -15,7 +15,6 @@ from __future__ import annotations
 
 import logging
 import types
-from pathlib import Path
 from typing import Any, cast
 
 import pytest
@@ -213,84 +212,6 @@ def test_a_plugin_whose_class_does_not_conform_is_refused_skipped_and_the_others
     assert len(lines) == 1 and "short (cs-image-system-short-plugin)" in lines[0]
 
 
-# ------------------------------------------------------------ kinds a plugin registers by a call of its own
-
-@pytest.fixture
-def kinds(monkeypatch: pytest.MonkeyPatch) -> types.SimpleNamespace:
-    """The contract's two shared registries, the test's own for its length:
-    the enrollment kinds empty, the field kinds as the system has them."""
-    from cs_image_system.contract import enrollment, field_kinds
-    monkeypatch.setattr(enrollment, "_KINDS", {})
-    monkeypatch.setattr(field_kinds, "_HANDLERS", dict(field_kinds._HANDLERS))
-    return types.SimpleNamespace(enrollment=enrollment, field_kinds=field_kinds)
-
-
-def _registering(name: str, register) -> Any:
-    """A plugin that registers a kind when it loads, as an identity
-    plugin's module does at import."""
-    md = PluginMetadata(services={WORD: [cast(Any, _CheckerOne)]}, namespace=name)
-
-    def load() -> Any:
-        register()
-        return lambda: md
-    return types.SimpleNamespace(name=name, dist=types.SimpleNamespace(name=f"cs-image-system-{name}-plugin"), load=load)
-
-
-def _enrolls(kinds, name: str, kind: str = "token") -> Any:
-    return _registering(name, lambda: kinds.enrollment.register_enrollment_kind(
-        kind, script_lines=lambda params: [name], ansible_tasks=lambda params: []))
-
-
-def test_two_plugins_registering_one_enrollment_kind_are_both_skipped_and_the_kind_is_neithers(
-        monkeypatch, caplog, kinds):
-    found, unusable, lines = _discover(monkeypatch, caplog, _enrolls(kinds, "alpha"), _enrolls(kinds, "beta"),
-                                       _enrolls(kinds, "gamma", kind="another"))
-    assert found == ["gamma"] and kinds.enrollment.registered_kinds() == ["another"]
-    assert sorted(u.plugin for u in unusable) == ["alpha", "beta"]
-    assert all(u.cause == loader.COLLIDES and u.claim == "enrollment kind 'token'" for u in unusable)
-    assert len(lines) == 1 and "alpha" in lines[0] and "beta" in lines[0] and "enrollment kind 'token'" in lines[0]
-
-
-def test_neither_enrollment_kind_wins_whichever_plugin_was_found_first(monkeypatch, caplog, kinds):
-    for first, second in (("alpha", "beta"), ("beta", "alpha")):
-        kinds.enrollment._KINDS.clear()
-        found, _unusable, _lines = _discover(monkeypatch, caplog, _enrolls(kinds, first), _enrolls(kinds, second))
-        assert found == [] and kinds.enrollment.registered_kinds() == []
-
-
-def test_two_plugins_registering_one_field_kind_are_both_skipped(monkeypatch, caplog, kinds):
-    def handles(name: str) -> Any:
-        return _registering(name, lambda: kinds.field_kinds.register_field_kind("shiny", kinds.field_kinds.FieldKindHandler()))
-    found, unusable, lines = _discover(monkeypatch, caplog, handles("alpha"), handles("beta"),
-                                       _point("sound", _CheckerOne, namespace="sound"))
-    assert found == ["sound"] and kinds.field_kinds.get_field_kind_handler("shiny") is None
-    assert sorted(u.plugin for u in unusable) == ["alpha", "beta"]
-    assert len(lines) == 1 and "alpha" in lines[0] and "beta" in lines[0] and "field kind 'shiny'" in lines[0]
-
-
-def test_a_plugin_that_replaces_one_of_the_systems_own_field_kinds_is_skipped_and_the_kind_put_back(
-        monkeypatch, caplog, kinds):
-    own = kinds.field_kinds.FieldKindHandler()
-    kinds.field_kinds._HANDLERS["own"] = own
-    grabby = _registering("grabby", lambda: kinds.field_kinds.register_field_kind("own", kinds.field_kinds.FieldKindHandler()))
-    found, unusable, lines = _discover(monkeypatch, caplog, grabby, _point("sound", _CheckerOne, namespace="sound"))
-    assert found == ["sound"] and kinds.field_kinds.get_field_kind_handler("own") is own
-    [skipped] = unusable
-    assert skipped.plugin == "grabby" and skipped.cause == loader.COLLIDES and skipped.claim == "field kind 'own'"
-    assert len(lines) == 1 and "grabby" in lines[0] and "field kind 'own'" in lines[0]
-
-
-def test_what_a_refused_plugin_registered_on_the_way_is_taken_back(monkeypatch, caplog, kinds):
-    refused = _enrolls(kinds, "nameless")
-    refused.dist = None
-    md = PluginMetadata(services={WORD: [cast(Any, _CheckerOne)]})          # and its metadata names no namespace
-    refused.load = lambda: (kinds.enrollment.register_enrollment_kind(
-        "token", script_lines=lambda p: [], ansible_tasks=lambda p: []), lambda: md)[1]
-    found, unusable, _lines = _discover(monkeypatch, caplog, refused)
-    assert found == [] and [u.cause for u in unusable] == [loader.REFUSED]
-    assert kinds.enrollment.registered_kinds() == []
-
-
 # ------------------------------------------------------------ an image-source block for another plugin's runtime
 
 def _runtime(name: str, blocks: tuple[str, ...]) -> Any:
@@ -449,16 +370,6 @@ def test_whatever_else_a_registry_refuses_skips_the_plugin_it_refused_and_never_
     loader.load_plugins(reg)                                   # what discovery left loads without raising
 
 
-def test_a_kind_three_plugins_claim_is_nobodys_whichever_order_they_are_found_in(monkeypatch, caplog, kinds):
-    import itertools
-    for order in itertools.permutations(("alpha", "beta", "gamma")):
-        kinds.enrollment._KINDS.clear()
-        caplog.clear()
-        found, unusable, _lines = _discover(monkeypatch, caplog, *(_enrolls(kinds, name) for name in order))
-        assert found == [] and kinds.enrollment.registered_kinds() == [], order
-        assert sorted(u.plugin for u in unusable) == ["alpha", "beta", "gamma"], order
-
-
 def test_a_refusal_is_written_on_one_line_however_many_shortfalls_it_has(monkeypatch, caplog):
     class _TwoShortfalls(_NotAGroupBuilder):
         pass
@@ -470,31 +381,7 @@ def test_a_refusal_is_written_on_one_line_however_many_shortfalls_it_has(monkeyp
     assert len(lines) == 1 and "\n" not in lines[0]                  # and the record is still one line
 
 
-# ------------------------------------------------------------ what is left behind, and who is named
-
-def _enrolls_and_builds(kinds, name: str, kind: str, builder: type) -> Any:
-    """A plugin that registers an enrollment kind when it is imported and
-    names ``builder`` for the shared model class."""
-    md = PluginMetadata(services={WORD: [cast(Any, _CheckerOne)]},
-                        builders_for_models={cast(Any, _Model): cast(Any, builder)}, namespace=name)
-
-    def load() -> Any:
-        kinds.enrollment.register_enrollment_kind(kind, script_lines=lambda p: [], ansible_tasks=lambda p: [])
-        return lambda: md
-    return types.SimpleNamespace(name=name, dist=types.SimpleNamespace(name=f"cs-image-system-{name}-plugin"), load=load)
-
-
-def test_a_plugin_skipped_once_the_plugins_are_settled_leaves_none_of_its_kinds_registered(monkeypatch, caplog, kinds):
-    """Two plugins that disagree over a model's builder are found only when
-    every plugin has loaded; what each registered on import is taken back,
-    and a bystander's kind stays."""
-    found, unusable, _lines = _discover(monkeypatch, caplog,
-                                        _enrolls_and_builds(kinds, "alpha", "token-a", _BuilderOne),
-                                        _enrolls_and_builds(kinds, "beta", "token-b", _BuilderTwo),
-                                        _enrolls(kinds, "gamma", kind="token-c"))
-    assert found == ["gamma"] and sorted(u.plugin for u in unusable) == ["alpha", "beta"]
-    assert kinds.enrollment.registered_kinds() == ["token-c"]
-
+# ------------------------------------------------------------ who is named
 
 def _injecting(name: str, model_name: str) -> Any:
     model = type(model_name, (), {})
@@ -527,144 +414,3 @@ def test_a_cause_that_runs_over_several_lines_is_written_on_one(monkeypatch, cap
                                        _raising("broken", ValueError("2 validation errors\n  field a\n    missing")))
     assert found == [] and "\n" not in broken.detail
     assert len(lines) == 1 and "\n" not in lines[0] and "field a missing" in lines[0]
-
-
-# ------------------------------------------------------------ a library two plugins share
-
-SHARED_LIBRARY = '''
-from cs_image_system.contract import enrollment
-
-
-def script_lines(params):
-    return ["shared"]
-
-
-def ansible_tasks(params):
-    return []
-
-
-enrollment.register_enrollment_kind("shared-kind", script_lines=script_lines, ansible_tasks=ansible_tasks)
-'''
-
-
-def _sharing(name: str, *, breaks: bool = False, builder: type | None = None, own_kind: str | None = None) -> Any:
-    """A plugin, with an entry point of its own package, that imports the
-    shared library (which registers ``shared-kind`` the first time it is
-    imported and never again) and may register a kind of its own."""
-    md = PluginMetadata(services={WORD: [cast(Any, _CheckerOne)]},
-                        builders_for_models={cast(Any, _Model): cast(Any, builder)} if builder else {}, namespace=name)
-
-    def load() -> Any:
-        import importlib
-        importlib.import_module("csis_test_shared_library")
-        if own_kind:
-            from cs_image_system.contract import enrollment
-            enrollment.register_enrollment_kind(own_kind, script_lines=lambda p: [], ansible_tasks=lambda p: [])
-        if breaks:
-            raise ImportError("the plugin's own module is broken")
-        return lambda: md
-    return types.SimpleNamespace(name=name, value=f"{__name__}:{name}",
-                                 dist=types.SimpleNamespace(name=f"cs-image-system-{name}-plugin"), load=load)
-
-
-@pytest.fixture
-def shared_library(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, kinds) -> None:
-    import sys
-    (tmp_path / "csis_test_shared_library.py").write_text(SHARED_LIBRARY)
-    monkeypatch.syspath_prepend(str(tmp_path))
-    monkeypatch.delitem(sys.modules, "csis_test_shared_library", raising=False)
-
-
-@pytest.mark.parametrize("when", ["while it loads", "at settling"])
-def test_a_skipped_plugin_takes_back_its_own_kinds_and_leaves_a_shared_librarys(monkeypatch, caplog, kinds,
-                                                                              shared_library, when: str):
-    """Two plugins import one library that registers a kind when it is first
-    imported. The first one to import it is skipped: its own kind goes, and
-    the library's stays for the other, which loads and needs it."""
-    if when == "while it loads":
-        first = _sharing("alpha", breaks=True, own_kind="alpha-kind")
-        others = [_sharing("gamma")]
-    else:
-        first = _sharing("alpha", builder=_BuilderOne, own_kind="alpha-kind")
-        others = [_sharing("beta", builder=_BuilderTwo), _sharing("gamma")]
-    found, unusable, _lines = _discover(monkeypatch, caplog, first, *others)
-    assert "gamma" in found and "alpha" in {u.plugin for u in unusable}
-    assert kinds.enrollment.registered_kinds() == ["shared-kind"]
-
-
-LIBRARY_REGISTERING = '''
-from cs_image_system.contract import enrollment
-
-
-def script_lines(params):
-    return ["{name}"]
-
-
-def ansible_tasks(params):
-    return []
-
-
-enrollment.register_enrollment_kind("disputed", script_lines=script_lines, ansible_tasks=ansible_tasks)
-'''
-
-
-def _through(name: str, library: str | None) -> Any:
-    """A plugin that registers the kind ``disputed``: through ``library``
-    (a module that registers it on import), or itself when none is named."""
-    md = PluginMetadata(services={WORD: [cast(Any, _CheckerOne)]}, namespace=name)
-
-    def load() -> Any:
-        if library is None:
-            from cs_image_system.contract import enrollment
-            enrollment.register_enrollment_kind("disputed", script_lines=lambda p: [name], ansible_tasks=lambda p: [])
-        else:
-            import importlib
-            importlib.import_module(library)
-        return lambda: md
-    return types.SimpleNamespace(name=name, value=f"{__name__}:{name}",
-                                 dist=types.SimpleNamespace(name=f"cs-image-system-{name}-plugin"), load=load)
-
-
-@pytest.fixture
-def two_libraries(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, kinds) -> None:
-    import sys
-    for library in ("csis_test_library_x", "csis_test_library_y"):
-        (tmp_path / f"{library}.py").write_text(LIBRARY_REGISTERING.replace("{name}", library))
-        monkeypatch.delitem(sys.modules, library, raising=False)
-    monkeypatch.syspath_prepend(str(tmp_path))
-
-
-@pytest.mark.parametrize("first, second", [
-    ("csis_test_library_x", "csis_test_library_y"),          # both sides through a library
-    ("csis_test_library_x", None),                           # one through a library, one itself
-    (None, "csis_test_library_x"),                           # the same, the other way round
-])
-def test_a_kind_claimed_through_a_library_is_a_collision_naming_both_whichever_is_found_first(
-        monkeypatch, caplog, kinds, two_libraries, first, second):
-    import sys
-    for names in (("aaa", "bbb"), ("bbb", "aaa")):           # discovery reads by name: the names set the order
-        kinds.enrollment._KINDS.clear()
-        for library in ("csis_test_library_x", "csis_test_library_y"):
-            sys.modules.pop(library, None)
-        caplog.clear()
-        found, unusable, lines = _discover(monkeypatch, caplog, _through(names[0], first), _through(names[1], second))
-        assert found == [] and sorted(u.plugin for u in unusable) == ["aaa", "bbb"], (names, first, second)
-        assert len(lines) == 1 and "aaa" in lines[0] and "bbb" in lines[0] and "system itself" not in lines[0]
-        assert kinds.enrollment.registered_kinds() == []
-
-
-def test_a_renderer_that_is_a_partial_over_the_plugins_own_function_is_the_plugins(monkeypatch, caplog, kinds):
-    import functools
-
-    def render(params, *, suffix):
-        return [suffix]
-
-    def load() -> Any:
-        kinds.enrollment.register_enrollment_kind("partial-kind", script_lines=functools.partial(render, suffix="x"),
-                                                  ansible_tasks=lambda p: [])
-        raise ImportError("the plugin's own module is broken")
-    point = types.SimpleNamespace(name="partial", value=f"{__name__}:partial",
-                                  dist=types.SimpleNamespace(name="cs-image-system-partial-plugin"), load=load)
-    found, [skipped], _lines = _discover(monkeypatch, caplog, point)
-    assert found == [] and skipped.plugin == "partial"
-    assert kinds.enrollment.registered_kinds() == []                 # unwrapped to this module: taken back

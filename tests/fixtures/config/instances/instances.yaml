@@ -6,13 +6,13 @@
 # public_read).
 instances:
   # The suite's three instance subjects, in this order (tests address them by
-  # position): test and test2 (the AWS t3.medium shapes) and gce-test.
+  # position): test and test2 (the AWS t3.medium shapes).
   # The harness once injected them from tests/fixtures/test_instances.yaml;
   # now the fixture declares them itself. This
   # tree is owned by the tests and no run ever applies it, so a dormant
   # declaration costs nothing here -- the LIVE configuration keeps its own
-  # decisions (test/test2 absent, gce-test `ephemeral: true`). gce-test is
-  # NOT ephemeral here: a test that wants ephemerality declares it.
+  # decisions (test/test2 absent). No subject is ephemeral here: a test that
+  # wants ephemerality declares it.
   - name: test
     machine_type: t3.medium
     image: imgfile-basic-cloudflow
@@ -28,16 +28,8 @@ instances:
     storages:
       - name: mnt_data
         mount_point: /mnt/data
-  - name: gce-test
-    image: imgfile-basic-dask
-    runtime: gcloud-east1
-    type: tofu-gce
-    description: First GCE instance (GCP readiness); free-tier e2-micro
-    storages:
-      - name: gce_data
-        mount_point: /mnt/gce-data
   # The fourth subject, a container on the fixture's docker
-  # runtime (the first three keep their positions). Its hostname is the
+  # runtime (the first two keep their positions). Its hostname is the
   # platform's `<name>-NNN`; nothing here reaches a daemon.
   - name: container-test
     image: imgfile-container

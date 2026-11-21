@@ -191,8 +191,6 @@ jobs:
         id: gate
         env:
           HAVE_AWS_ROLE_ARN: ${{ secrets.AWS_ROLE_ARN != '' }}
-          HAVE_GCP_WORKLOAD_IDENTITY_PROVIDER: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER != '' }}
-          HAVE_GCP_SERVICE_ACCOUNT: ${{ secrets.GCP_SERVICE_ACCOUNT != '' }}
           HAVE_OKTA_API_PRIVATE_KEY: ${{ secrets.OKTA_API_PRIVATE_KEY != '' }}
           HAVE_TF_VAR_NOS_KEY: ${{ secrets.TF_VAR_NOS_KEY != '' }}
           HAVE_TF_VAR_NOS_SECRET: ${{ secrets.TF_VAR_NOS_SECRET != '' }}
@@ -204,12 +202,12 @@ jobs:
           # is configured-and-broken -- a FAILURE that names them. The fixture's age
           # identity is committed beside it, so no identity secret is needed here.
           missing=""; present=0
-          for name in AWS_ROLE_ARN GCP_WORKLOAD_IDENTITY_PROVIDER GCP_SERVICE_ACCOUNT OKTA_API_PRIVATE_KEY TF_VAR_NOS_KEY TF_VAR_NOS_SECRET; do
+          for name in AWS_ROLE_ARN OKTA_API_PRIVATE_KEY TF_VAR_NOS_KEY TF_VAR_NOS_SECRET; do
             have="HAVE_$name"
             if [ "${!have}" = true ]; then present=$((present + 1)); else missing="$missing $name"; fi
           done
           if [ "$present" -eq 0 ]; then
-            echo "live: SKIPPED -- no live secret is configured, so no step runs (AWS_ROLE_ARN: a federated READ-ONLY AWS role (EC2 describe for `validate --online`); GCP_WORKLOAD_IDENTITY_PROVIDER / GCP_SERVICE_ACCOUNT: the read-only GCP identity (the gcloud runtime discovers its network under `validate --online`); OKTA_API_PRIVATE_KEY / TF_VAR_NOS_KEY / TF_VAR_NOS_SECRET: the Okta triple the Okta workspace asserts at load)"
+            echo "live: SKIPPED -- no live secret is configured, so no step runs (AWS_ROLE_ARN: a federated READ-ONLY AWS role (EC2 describe for `validate --online`); OKTA_API_PRIVATE_KEY / TF_VAR_NOS_KEY / TF_VAR_NOS_SECRET: the Okta triple the Okta workspace asserts at load)"
             { echo "## live: SKIPPED"; echo "No live secret is configured; no step ran. A green conclusion here is not proof that anything ran."; } >> "$GITHUB_STEP_SUMMARY"
             echo "ready=false" >> "$GITHUB_OUTPUT"
           elif [ -n "$missing" ]; then
@@ -243,13 +241,6 @@ jobs:
             "$AWS_ACCESS_KEY_ID" "$AWS_SECRET_ACCESS_KEY" "$AWS_SESSION_TOKEN" > ~/.aws/credentials
           chmod 600 ~/.aws/credentials
 
-      - name: Federated GCP credentials
-        if: steps.gate.outputs.ready == 'true'
-        uses: google-github-actions/auth@v3
-        with:
-          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
-          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
-
 
 
 
@@ -266,6 +257,12 @@ jobs:
           TF_VAR_nos_coastal_modeling_cloud_sandbox_key: ${{ secrets.TF_VAR_NOS_KEY }}
           TF_VAR_nos_coastal_modeling_cloud_sandbox_secret: ${{ secrets.TF_VAR_NOS_SECRET }}
         run: just fixture-live
+
+      - name: The starters that need every provider
+        # the Google Cloud family is released from its own repository and is not in this venv:
+        # the recipe layers it in from the index; the starters' clouds are stubbed (spec 005, R11)
+        if: steps.gate.outputs.ready == 'true'
+        run: just test-cloud-starters
 
   publish:
     # A pushed `v*` tag publishes the release: to TestPyPI always, to

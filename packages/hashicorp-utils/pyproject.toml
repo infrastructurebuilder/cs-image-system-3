@@ -4,7 +4,7 @@
 
 [project]
 name = "cs-image-system-hashicorp-utils"
-version = "0.2.0"
+version = "0.2.1"
 description = "A library, not a plugin, on nothing but the contract: HCL rendering and the per-run terraform and packer collectors for the plugins that emit OpenTofu roots and Packer templates"
 readme = "README.md"
 authors = [{ name = "Mykel Alvis", email = "mykelalvis@infrastructurebuilder.org" }]
@@ -12,7 +12,7 @@ license = "Apache-2.0"
 license-files = ["LICENSE"]
 requires-python = ">=3.13"
 dependencies = [
-    "cs-image-system-contract>=0.4,<0.5",
+    "cs-image-system-contract>=0.5,<0.6",
     "packaging>=26.2",
     "pydantic>=2.13",
     "python-hcl2>=8.1",

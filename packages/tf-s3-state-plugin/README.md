@@ -178,7 +178,8 @@ Nothing else changes: the collector, the roots mixin, the runner header,
 the location record and the migration operation render whatever the kind
 returns. The `local` and `gcs` types
 ([local-state-plugin](../local-state-plugin/README.md),
-[gcs-state-plugin](../gcs-state-plugin/README.md)) were added this way.
+[gcs-state-plugin](https://github.com/infrastructurebuilder/cs-image-system-google-cloud/blob/develop/packages/gcs-state-plugin/README.md),
+now the Google Cloud family's, in its own repository) were added this way.
 
 ## The builder
 
@@ -262,18 +263,15 @@ sources, and `init` runs bare.
 From the frozen golden emission over the test fixture. The fixture binds
 its storage roots to `s3-east1`, its instance roots to `s3-east2` and
 its identity roots to the `local` backend `local-dev`, so
-there is one partial configuration per root; the seven S3 ones all carry
+there is one partial configuration per root; the four S3 ones all carry
 `encrypt = true` and `use_lockfile = true`:
 
 | Workspace | File |
 |---|---|
 | `open-tofu` (AWS instances) | [open-tofu-instance-generation.tfbackend.hcl](../../tests/fixtures/golden/generated/instance-image/open-tofu/instance-generation/open-tofu-instance-generation.tfbackend.hcl) |
-| `tofu-gce` (GCE instances) | [tofu-gce-instance-generation.tfbackend.hcl](../../tests/fixtures/golden/generated/instance-image/tofu-gce/instance-generation/tofu-gce-instance-generation.tfbackend.hcl) |
 | `aws-ebs` | [aws-ebs-storage-generation.tfbackend.hcl](../../tests/fixtures/golden/generated/storage/aws-ebs/storage-generation/aws-ebs-storage-generation.tfbackend.hcl) |
 | `aws-efs` | [aws-efs-storage-generation.tfbackend.hcl](../../tests/fixtures/golden/generated/storage/aws-efs/storage-generation/aws-efs-storage-generation.tfbackend.hcl) |
 | `aws-s3` | [aws-s3-storage-generation.tfbackend.hcl](../../tests/fixtures/golden/generated/storage/aws-s3/storage-generation/aws-s3-storage-generation.tfbackend.hcl) |
-| `gcp-pd` | [gcp-pd-storage-generation.tfbackend.hcl](../../tests/fixtures/golden/generated/storage/gcp-pd/storage-generation/gcp-pd-storage-generation.tfbackend.hcl) |
-| `gcp-gcs` | [gcp-gcs-storage-generation.tfbackend.hcl](../../tests/fixtures/golden/generated/storage/gcp-gcs/storage-generation/gcp-gcs-storage-generation.tfbackend.hcl) |
 
 The two identity roots' files,
 [oktagroups-group-generation.tfbackend.hcl](../../tests/fixtures/golden/generated/identity/oktagroups/group-generation/oktagroups-group-generation.tfbackend.hcl)
@@ -295,13 +293,13 @@ profile = "noaa"
 
 The consumer side, in
 [open-tofu-instance-generation.tf](../../tests/fixtures/golden/generated/instance-image/open-tofu/instance-generation/open-tofu-instance-generation.tf):
-the empty `backend "s3" {}` inside `terraform {}`, and six
-`data "terraform_remote_state"` blocks. Five (`aws_efs`, `aws_ebs`,
-`aws_s3`, `gcp_pd`, `gcp_gcs`) carry `backend = "s3"` and a `config`
-naming the PRODUCER's bucket (`s3-east1`'s), its state file under the
-producer's prefix, the region and the profile; the sixth (`oktagroups`)
-carries `backend = "local"` and a `path`, because the identity root keeps
-its state on disk.
+the empty `backend "s3" {}` inside `terraform {}`, and five
+`data "terraform_remote_state"` blocks. Three (`aws_efs`, `aws_ebs`,
+`aws_s3`) carry `backend = "s3"` and a `config` naming the PRODUCER's
+bucket (`s3-east1`'s), its state file under the producer's prefix, the
+region and the profile; the other two (`docker_volume`, `oktagroups`)
+carry `backend = "local"` and a `path`, because those roots keep their
+state on disk.
 
 The runner scripts,
 [run-storage.sh](../../tests/fixtures/golden/generated/storage/run-storage.sh)
@@ -711,10 +709,12 @@ arrive from tofu; the rest are the load's and `validate`'s refusals.
 ## Related
 
 - [cs-image-system-tf-ebs-instance-plugin](../tf-ebs-instance-plugin/README.md)
-  and [cs-image-system-tf-gcp-plugin](../tf-gcp-plugin/README.md): the
+  and [cs-image-system-tf-gcp-plugin](https://github.com/infrastructurebuilder/cs-image-system-google-cloud/blob/develop/packages/tf-gcp-plugin/README.md)
+  (the Google Cloud family's, in its own repository): the
   consumers whose `state_configuration:` names a backend.
 - [cs-image-system-local-state-plugin](../local-state-plugin/README.md) and
-  [cs-image-system-gcs-state-plugin](../gcs-state-plugin/README.md): the
+  [cs-image-system-gcs-state-plugin](https://github.com/infrastructurebuilder/cs-image-system-google-cloud/blob/develop/packages/gcs-state-plugin/README.md)
+  (the Google Cloud family's, in its own repository): the
   other two backend types, built on the same collector contract.
 - [contract state.py](../contract/src/cs_image_system/contract/state.py):
   `BackendRegistration`, `StateLocation`, the `BackendKindProtocol` this

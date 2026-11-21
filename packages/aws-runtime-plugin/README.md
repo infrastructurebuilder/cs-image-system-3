@@ -1125,7 +1125,7 @@ when the installed version is below it.
 
 ## Related
 
-- [gcloud-runtime-plugin](../gcloud-runtime-plugin/README.md): the other runtime type, with the same hook surface on Compute Engine.
+- [gcloud-runtime-plugin](https://github.com/infrastructurebuilder/cs-image-system-google-cloud/blob/develop/packages/gcloud-runtime-plugin/README.md): the other cloud runtime type, with the same hook surface on Compute Engine; the Google Cloud family's, released from its own repository.
 - [default-os-plugin](../default-os-plugin/README.md): the OS builders whose runtime entries this plugin resolves to AMIs.
 - [packer-plugin](../packer-plugin/README.md): the image builder that asks this plugin for the `amazon-ebs` source and the session provisioners.
 - [tf-ebs-instance-plugin](../tf-ebs-instance-plugin/README.md): the instance and storage roots that read this model's networking, profile and session profile.

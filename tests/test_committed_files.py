@@ -25,15 +25,19 @@ from pathlib import Path
 import pytest
 import yaml
 from harness import REPO, FixtureRun
+from starter_support import extras_a_starter_needs, starters_this_workspace_renders
 
 from cs_image_system.contract.constants import RUN_LOCAL_FILENAMES
 from cs_image_system.engine.meta_state import commit_meta_state
 
 GOLDEN = REPO / "tests" / "fixtures" / "golden"
 EXAMPLES = REPO / "docs" / "examples"
-STARTERS = sorted(p.name for p in EXAMPLES.iterdir() if (p / "cfg").is_dir() and not p.name.startswith("_"))
+# the starters this workspace renders: those whose providers are installed here (spec 005, R11)
+STARTERS = sorted(starters_this_workspace_renders())
 SKELETON = EXAMPLES / "_skeleton"           # the .gitignore every starter carries
-TREES_WITH_OPA = ("complete", "standard-aws", "standard-gce")
+# every starter whose source declares the Okta plugin's words (read as written: no plugin needed)
+TREES_WITH_OPA = sorted(p.name for p in EXAMPLES.iterdir()
+                        if (p / "cfg").is_dir() and not p.name.startswith("_") and "okta" in extras_a_starter_needs(p.name))
 
 IGNORED = [".gh_token", ".envrc", ".private_key.pem", ".private_key.json", ".age-identity-ci", ".DS_Store",
            ".tofu-plugin-cache/x", "generated/x/.terraform/y", "key.pem", "_private/x", "a.tfstate", "x.tfvars"]

@@ -34,23 +34,25 @@ from harness import (
 )
 
 FACTS = Path("meta-state") / "runtime-facts.yaml"
+AWS_RUNTIMES = {"aws-east2-runtime", "aws-east1", "west1"}
+
+
+def _cloud_runtimes(root: Path) -> set[str]:
+    """Every runtime the tree declares except the container one: the
+    runtimes whose networking is discovered and recorded."""
+    d = yaml.safe_load((root / "cfg" / "runtime-builders.yml").read_text())
+    return {r["name"] for r in d["runtime_builders"] if r.get("type") != "docker"}
 
 
 def _forbid_discovery(monkeypatch) -> list[str]:
     """Every cloud discovery call raises; the journal says which one was made."""
     from cs_image_system.aws_runtime import aws_utils
-    from cs_image_system.gcloud_runtime import gcp_utils
     calls: list[str] = []
 
     def aws(session_config):
         calls.append("aws")
         raise AssertionError("a load reached EC2 (get_vpc_map_and_default_vpc_id)")
-
-    def gcp(session_config, clients=None):
-        calls.append("gcp")
-        raise AssertionError("a load reached Compute (get_network_map_and_default_network)")
     monkeypatch.setattr(aws_utils, "get_vpc_map_and_default_vpc_id", aws)
-    monkeypatch.setattr(gcp_utils, "get_network_map_and_default_network", gcp)
     return calls
 
 
@@ -77,7 +79,6 @@ def test_loading_the_fixture_never_reaches_a_cloud(tmp_path: Path, monkeypatch):
     assert calls == []
     # the record the harness wrote was adopted: the `default` networks are the recorded ones
     assert ctx.runtime_builders["west1"].model.networking.network == "default"
-    assert ctx.runtime_builders["gcloud-east1"].model.networking.network == "default"
     assert ctx.runtime_builders["aws-east2-runtime"].model.networking.network == "vpc-0c78d0d63b7a100df"
     assert ctx.network_facts_problems == []
     assert _errors(ctx) == []
@@ -132,11 +133,9 @@ def test_discover_writes_the_record_and_the_next_offline_load_adopts_it(tmp_path
     ctx = load_context(root)
     assert _errors(ctx)
     recorded = network_facts.discover(ctx)                   # ONLINE (the harness's stubs answer)
-    assert set(recorded) == {"aws-east2-runtime", "gcloud-east1", "aws-east1", "west1"}
+    assert set(recorded) == _cloud_runtimes(root) and AWS_RUNTIMES <= set(recorded)
     assert recorded["west1"]["network"] == "default" and recorded["west1"]["security_groups"] == []
     assert recorded["aws-east2-runtime"]["security_groups"] == ["sg-03015ec107ae5f81a"]
-    assert recorded["gcloud-east1"]["subnets"] == ["projects/csis-sandbox/regions/us-east1/subnetworks/default"]
-    assert "security_groups" not in recorded["gcloud-east1"]
     on_disk = yaml.safe_load((root / FACTS).read_text())
     assert on_disk == {"runtimes": recorded}
     # small and public-safe: the ids the tree declares, never the account's inventory
@@ -236,7 +235,7 @@ def test_a_network_that_changed_since_the_record_is_stale_too(tmp_path: Path, mo
 
 def test_the_record_is_derived_from_the_tree_and_the_hooks_are_optional(tmp_path: Path, monkeypatch):
     """The base builder's hooks answer nothing: a runtime without them (the
-    harness's record covers only aws and gcloud) is neither asked nor judged."""
+    harness's record covers only the cloud runtimes) is neither asked nor judged."""
     from cs_image_system.base.basic.builder_base_runtime import RuntimeBuilderBase
     from cs_image_system.base.network_facts import coverage_problems, facts_of
     assert RuntimeBuilderBase.network_facts(object()) == {}         # type: ignore[arg-type]
@@ -250,7 +249,7 @@ def test_the_record_is_derived_from_the_tree_and_the_hooks_are_optional(tmp_path
     assert "records nothing" in coverage_problems("r", {}, declared_network="vpc-1", subnets=["subnet-a"])[0]
     root = copy_config(tmp_path)
     written = yaml.safe_load(record_network_facts(root).read_text())["runtimes"]
-    assert set(written) == {"aws-east2-runtime", "gcloud-east1", "aws-east1", "west1"}
+    assert set(written) == _cloud_runtimes(root) and AWS_RUNTIMES <= set(written)
 
 
 # ------------------------------------------------------------ (f) preflight over a loaded tree
@@ -277,7 +276,7 @@ def test_preflight_loads_the_configuration_offline_and_exits_as_documented(tmp_p
     # conftest: an empty AWS dir, no ADC -- every session absent: exit 2
     result = _preflight(monkeypatch, root)
     assert result.exit_code == 2, result.output
-    assert "aws-east2-runtime" in result.output and "gcloud-east1" in result.output
+    assert "aws-east2-runtime" in result.output
     assert "EXPIRED" in result.output and calls == []
     # static keys and an ADC: present, NOT JUDGED, exit 0, never "every session present"
     adc = tmp_path / "adc.json"

@@ -15,13 +15,15 @@ so.
 The enrollment token arrives by reference -- the template variable
 ``enrollment_token`` (``launch_vocabulary.ENROLLMENT_TOKEN_VARIABLE``),
 supplied at apply time and never recorded.
+
+The plugin declares this kind in its metadata (``OktaTypes.enrollment_kinds``);
+importing this module registers nothing.
 """
 
 from __future__ import annotations
 
 from typing import Any
 
-from cs_image_system.contract.enrollment import register_enrollment_kind
 from cs_image_system.contract.launch_vocabulary import ENROLLMENT_TOKEN_VARIABLE
 
 SFTD_TOKEN = "sftd-token"
@@ -56,5 +58,3 @@ def ansible_tasks(params: dict[str, Any]) -> list[dict[str, Any]]:
          "when": supplied},
     ]
 
-
-register_enrollment_kind(SFTD_TOKEN, script_lines=script_lines, ansible_tasks=ansible_tasks)

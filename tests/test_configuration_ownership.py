@@ -18,7 +18,6 @@ History: stage 93 (the walk's F47 and F53).
 from __future__ import annotations
 
 from pathlib import Path
-from types import SimpleNamespace
 from typing import Any
 
 import pytest
@@ -28,7 +27,6 @@ from tests.harness import FixtureRun, copy_config
 OURS = "cs-image-action-test"          # the fixture's top-level id
 THEIRS = "cs-image-system-walk"
 AWS = "aws-east2-runtime"
-GCE = "gcloud-east1"
 
 
 @pytest.fixture
@@ -169,44 +167,6 @@ def test_aws_machine_lookups_skip_another_configurations_machine(run, monkeypatc
     assert rtb.instance_tags("test2") == {"Name": "test2"}
     assert rtb.retag_instance("test2", {"csis_config": OURS}) is True
     assert ec2.tagged == (["i-legacy"], [{"Key": "csis_config", "Value": OURS}])
-
-
-def test_gce_lookups_and_inventory_tell_ours_from_theirs(run, monkeypatch):
-    from cs_image_system.gcloud_runtime.gcp_runtime_builders import GCPCloudBuilder
-    rtb = run.ctx.runtime_builders[GCE]
-    assert isinstance(rtb, GCPCloudBuilder)
-    assert rtb._theirs(SimpleNamespace(labels={"csis_config": THEIRS}))
-    assert not rtb._theirs(SimpleNamespace(labels={"csis_config": OURS}))
-    assert not rtb._theirs(SimpleNamespace(labels={}))
-    # a machine of our name whose labels are theirs reads as absent
-    class Client:
-        def get(self, project, zone, instance):
-            return SimpleNamespace(status="RUNNING", labels={"csis_config": THEIRS}, hostname="", id="1")
-    monkeypatch.setattr(GCPCloudBuilder, "_instances_client", lambda self: (Client(), "p", "z"))
-    assert rtb.query_instance_power_state("gce-test") == "absent"
-    assert rtb.query_instance_identity("gce-test") is None
-    assert rtb.instance_tags("gce-test") == {"csis_config": THEIRS}
-
-
-def test_emptiness_leaves_another_configurations_things_alone_and_names_the_unlabelled(run, monkeypatch):
-    from cs_image_system.engine.commands.runtime_facts import emptiness
-    from cs_image_system.gcloud_runtime.gcp_runtime_builders import GCPCloudBuilder
-    monkeypatch.setattr(GCPCloudBuilder, "inventory", lambda self: {
-        "instances": ["walk-gce-1", "scratch"], "images": ["team-node-x"],
-        "disks": ["gce-data", "their-data", "old-scratch"], "buckets": ["csis-sandbox-86233086783-default-bucket", "their-bucket"],
-        "owners": {"instances": {"walk-gce-1": THEIRS, "scratch": OURS}, "images": {"team-node-x": THEIRS},
-                   "disks": {"their-data": THEIRS, "gce-data": OURS}, "buckets": {"their-bucket": THEIRS}}})
-    result = emptiness(run.ctx, GCE)
-    assert result["leftovers"] == {"instances": ["scratch"], "images": [], "disks": ["old-scratch"], "buckets": []}
-    assert result["elsewhere"] == {"instances": {THEIRS: 1}, "images": {THEIRS: 1}, "disks": {THEIRS: 1}, "buckets": {THEIRS: 1}}
-    assert result["unlabelled"] == {"disks": ["old-scratch"]}
-    assert not result["empty"]
-    # with nothing of ours beyond the declared storages, theirs alone does not make the runtime un-empty
-    monkeypatch.setattr(GCPCloudBuilder, "inventory", lambda self: {
-        "instances": ["walk-gce-1"], "images": [], "disks": ["gce-data"], "buckets": ["csis-sandbox-86233086783-default-bucket"],
-        "owners": {"instances": {"walk-gce-1": THEIRS}}})
-    result = emptiness(run.ctx, GCE)
-    assert result["empty"] and result["elsewhere"] == {"instances": {THEIRS: 1}}
 
 
 # ------------------------------------------------------------ 3. relabel learns the new kinds

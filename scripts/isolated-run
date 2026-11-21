@@ -197,16 +197,13 @@ class Counts:
 
 def verdict(counts: Counts | None) -> tuple[bool, str]:
     """Whether a run passes, and the one line that says why. ``None``: the
-    tests did not run at all."""
+    tests did not run at all. The rule is the test kit's strict session's
+    (``cs_image_system.system.testing.strict``), so an isolated run here and
+    a provider's own bar elsewhere cannot disagree."""
     if counts is None:
         return False, "the tests did not run"
-    if counts.collected == 0:
-        return False, "no test was collected"
-    if counts.failed:
-        return False, f"{counts.failed} of {counts.collected} failed"
-    if counts.skipped:
-        return False, f"{counts.skipped} of {counts.collected} were skipped (a skipped test is a test that did not run)"
-    return True, f"{counts.passed} passed, 0 skipped"
+    from cs_image_system.system.testing.strict import verdict as strict_verdict
+    return strict_verdict(counts.collected, counts.skipped, counts.failed)
 
 
 def read_counts(junit: Path) -> Counts | None:

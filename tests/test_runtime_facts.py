@@ -16,7 +16,9 @@ import pytest
 
 from tests.harness import FixtureRun, command_lines, copy_config
 
-GCE = "gcloud-east1"
+AWS = "aws-east2-runtime"
+#: the AWS runtime's bucket, by the name the cloud knows it by
+BUCKET = "noscsb-csis-test-514190660293-default-bucket"
 
 
 @pytest.fixture
@@ -30,72 +32,83 @@ def run(tmp_path: Path, monkeypatch):
 
 def test_describe_reads_the_runtime_facts_from_the_configuration(run):
     from cs_image_system.engine.commands.runtime_facts import describe_runtime
-    facts = describe_runtime(run.ctx, GCE)
-    assert facts["project_id"] == "csis-sandbox" and facts["zone"] == "us-east1-b"
-    assert facts["images"] == ["basic-rh-10", "imgfile-basic-dask"]
-    assert facts["storages"]["gce_data"]["cloud_name"] == "gce-data"
-    assert facts["storages"]["gce_bucket"]["cloud_name"] == "csis-sandbox-86233086783-default-bucket"
-    assert facts["instances"] == ["gce-test"] and facts["ephemeral"] is False   # copies start non-ephemeral
+    facts = describe_runtime(run.ctx, AWS)
+    assert facts["account_id"] == "514190660293" and facts["region"] == "us-east-2"
+    assert facts["images"] == ["my-deb-12", "basic-rhel-9", "basic-rh-10", "imgfile-basic-cloudflow",
+                               "imgfile-basic-dask", "imgfile-data-science", "imgfile-basic-cloudflow-two",
+                               "imgfile-basic-dask-two", "imgfile-posix", "imgfile-basic-cloudflow-notdocker"]
+    assert facts["storages"]["mnt_data"]["cloud_name"] == "mnt_data"
+    assert facts["storages"]["default-bucket"]["cloud_name"] == BUCKET
+    assert facts["instances"] == ["test", "test2"] and facts["ephemeral"] is False   # the fixture's AWS runtime is not
     with pytest.raises(ValueError, match="unknown runtime"):
         describe_runtime(run.ctx, "nowhere")
 
 
 def test_emptiness_is_reality_minus_the_declared_storages(run, monkeypatch):
+    """The subtraction is the core's; the inventory is the runtime's. The AWS
+    runtime lists none of its own (the next test), so the inventory it would
+    answer is stubbed here."""
+    from cs_image_system.aws_runtime.aws_runtime_builders import AwsCloudBuilder
     from cs_image_system.engine.commands.runtime_facts import emptiness
-    from cs_image_system.gcloud_runtime.gcp_runtime_builders import GCPCloudBuilder
-    monkeypatch.setattr(GCPCloudBuilder, "inventory", lambda self: {
-        "instances": [], "images": [], "disks": ["gce-data"], "buckets": ["csis-sandbox-86233086783-default-bucket"]})
-    result = emptiness(run.ctx, GCE)
-    assert result["empty"] and result["declared_storages"] == ["csis-sandbox-86233086783-default-bucket", "gce-data"]
-    monkeypatch.setattr(GCPCloudBuilder, "inventory", lambda self: {
-        "instances": ["gce-test"], "images": ["basic-rh-10-x"], "disks": ["gce-data", "scratch"],
-        "buckets": ["csis-sandbox-86233086783-default-bucket"]})
-    result = emptiness(run.ctx, GCE)
+    monkeypatch.setattr(AwsCloudBuilder, "inventory", lambda self: {
+        "instances": [], "images": [], "disks": ["mnt_data", "efs-storage"], "buckets": [BUCKET]})
+    result = emptiness(run.ctx, AWS)
+    assert result["empty"] and result["declared_storages"] == ["efs-storage", "mnt_data", BUCKET]
+    monkeypatch.setattr(AwsCloudBuilder, "inventory", lambda self: {
+        "instances": ["test2"], "images": ["ami-0basicrh10x"], "disks": ["mnt_data", "scratch"],
+        "buckets": [BUCKET]})
+    result = emptiness(run.ctx, AWS)
     assert not result["empty"]
-    assert result["leftovers"] == {"instances": ["gce-test"], "images": ["basic-rh-10-x"], "disks": ["scratch"],
+    assert result["leftovers"] == {"instances": ["test2"], "images": ["ami-0basicrh10x"], "disks": ["scratch"],
                                    "buckets": []}
 
 
 def test_a_runtime_without_an_inventory_refuses(run, monkeypatch):
     from cs_image_system.engine.commands.runtime_facts import emptiness
     with pytest.raises(NotImplementedError, match="cannot list its inventory"):
-        emptiness(run.ctx, "aws-east2-runtime")
+        emptiness(run.ctx, AWS)
 
 
 def test_only_runtime_is_the_bake_filter_for_everything_baked_there(run):
-    from cs_image_system.engine.commands.runtime_facts import images_on_runtime
-    only = [f"{img}@{GCE}" for img in images_on_runtime(run.ctx, GCE)]
-    assert only == [f"basic-rh-10@{GCE}", f"imgfile-basic-dask@{GCE}"]
+    from cs_image_system.engine.commands.runtime_facts import builders_on_runtime, images_on_runtime
+    only = [f"{img}@{AWS}" for img in images_on_runtime(run.ctx, AWS)]
+    assert only == [f"{img}@{AWS}" for img in ("my-deb-12", "basic-rhel-9", "basic-rh-10", "imgfile-basic-cloudflow",
+                                               "imgfile-basic-dask", "imgfile-data-science", "imgfile-basic-cloudflow-two",
+                                               "imgfile-basic-dask-two", "imgfile-posix",
+                                               "imgfile-basic-cloudflow-notdocker")]
     summary = run.run(["base-image", "instance-image"], apply=True, only=only)
     assert summary.ok, summary.error
     files = [str(p.relative_to(run.generated)) for p in run.generated.rglob("*source-*.pkr.hcl")]
-    assert files and all("pckr-gce" in f for f in files)
+    # every bake is one of the runtime's own image builders' (two bake on AWS: pckr-ebs-ans, some-other-builder)
+    bakers = builders_on_runtime(run.ctx, AWS)["image"]
+    assert files and all(f.split("/")[1] in bakers for f in files), files
+    assert any("pckr-ebs" in f for f in files)
 
 
 def test_apply_runtime_lets_that_runtimes_roots_apply_and_the_check_carries_it(run, capsys):
     import typer
 
     from cs_image_system.system.cli import apply_check_command
-    run.ctx.apply_runtime = GCE
+    run.ctx.apply_runtime = AWS
     for key in ("apply_storage", "apply_instances"):
-        run.ctx.config[key] = [GCE]
+        run.ctx.config[key] = [AWS]
     summary = run.run(["storage", "instance-image"], apply=True, only=["none"])
     assert summary.ok, summary.error
     lines = command_lines((run.generated / "storage" / "run-storage.sh").read_text())
     checks = [ln for ln in lines if "apply-check" in ln]
-    assert checks and all(f"--apply-runtime {GCE}" in ln for ln in checks)
-    assert {ln.split("--root ")[1].split()[0] for ln in checks} == {"gcp-pd", "gcp-gcs"}
+    assert checks and all(f"--apply-runtime {AWS}" in ln for ln in checks)
+    assert {ln.split("--root ")[1].split()[0] for ln in checks} == {"aws-ebs", "aws-efs", "aws-s3"}
     # the execution-time check honours the knob without any config flag
     os.chdir(run.config_root / "cfg")
-    apply_check_command(lifecycle="storage", config_root=None, apply_root="gcp-pd",
-                        root_alias=[GCE], apply_runtime=GCE)
-    with pytest.raises(typer.Exit) as e:
-        apply_check_command(lifecycle="storage", config_root=None, apply_root="aws-ebs",
-                            root_alias=["aws-east2-runtime"], apply_runtime=GCE)
+    apply_check_command(lifecycle="storage", config_root=None, apply_root="aws-ebs",
+                        root_alias=[AWS], apply_runtime=AWS)
+    with pytest.raises(typer.Exit) as e:                                   # another runtime's root
+        apply_check_command(lifecycle="storage", config_root=None, apply_root="docker-volume",
+                            root_alias=["docker-fixture"], apply_runtime=AWS)
     assert e.value.exit_code == 3
     with pytest.raises(typer.Exit) as e:                                   # identity is not a runtime root
         apply_check_command(lifecycle="identity", config_root=None, apply_root="oktagroups",
-                            apply_runtime=GCE)
+                            apply_runtime=AWS)
     assert e.value.exit_code == 3
 
 

@@ -81,6 +81,23 @@ def test_the_engine_the_command_line_and_another_plugin_are_found(tmp_path: Path
     assert [r for _, r in _reasons(_plugin(tmp_path, line + "\n"))] == [reason]
 
 
+@pytest.mark.parametrize("line", [
+    "from cs_image_system.contract.enrollment import _install",
+    "from cs_image_system.contract.field_kinds import FK, _HANDLERS",
+    "from cs_image_system.contract._hidden import thing",
+])
+def test_an_underscore_name_from_the_contract_is_private_to_it(tmp_path: Path, line: str):
+    assert [r for _, r in _reasons(_plugin(tmp_path, line + "\n"))] == [check.CONTRACT_PRIVATE]
+
+
+def test_a_public_contract_name_passes_and_a_plugins_tests_may_reach_the_contracts_own(tmp_path: Path):
+    assert check.findings(_plugin(tmp_path, "from cs_image_system.contract.enrollment import EnrollmentKind\n")) == []
+    tests = tmp_path / "tests"
+    tests.mkdir()
+    (tests / "test_it.py").write_text("from cs_image_system.contract.enrollment import _install\n")
+    assert check.findings(tests, own=["cs_image_system.mine"], family=[], tests=True) == []
+
+
 def test_a_plugin_named_as_family_may_be_imported(tmp_path: Path):
     src = _plugin(tmp_path, "from cs_image_system.someone_else.models import Theirs\n")
     assert check.findings(src, family=["cs_image_system.someone_else"]) == []

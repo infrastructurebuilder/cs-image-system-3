@@ -12,7 +12,7 @@ at discovery with the field named. A bare ``type:`` word resolves when one
 class answers to it, whatever the namespaces carrying it; different
 classes under one word are ambiguous, and the error names every qualified
 form (``<namespace>/<name>``), which resolves directly. The same class
-under several namespaces is one registration (three terraform roots, one
+under several namespaces is one registration (two terraform roots, one
 version checker); a different class under one key is the collision.
 """
 from __future__ import annotations
@@ -128,16 +128,15 @@ def test_validate_reports_the_ambiguous_word_as_one_configuration_error(two_plug
     assert "1 error(s)" in failure.lines[1]
 
 
-# --------------------------------------------------- the same class under three namespaces
+# ----------------------------------------------------- the same class under two namespaces
 
 ROOTS = {"tf-ebs-instance": "cs_image_system.tf_ebs_instance_plugin.main",
-         "tf-gcp": "cs_image_system.tf_gcp_plugin.main",
          "tf-docker": "cs_image_system.tf_docker_plugin.main"}
 
 
-def test_the_same_class_under_three_namespaces_is_one_registration():
+def test_the_same_class_under_two_namespaces_is_one_registration():
     """The version checker every terraform-root plugin carries, so a tree
-    with roots on one provider alone still has its tool checked: three keys,
+    with roots on one provider alone still has its tool checked: two keys,
     one class, and the bare word resolves to it (not ambiguous)."""
     from cs_image_system.tofu_roots.tofu_instance_builder import TofuVersionChecker
     reg = Registry()
@@ -160,7 +159,7 @@ def test_the_installed_roots_resolve_the_checker_by_the_bare_word():
     from cs_image_system.tofu_roots.tofu_instance_builder import TofuVersionChecker
     reg = installed_registry()
     assert reg.get_model(VCT.VERSION_CHECKER, WORD) is TofuVersionChecker
-    assert reg.get_model(VCT.VERSION_CHECKER, f"tf-gcp/{WORD}") is TofuVersionChecker
+    assert reg.get_model(VCT.VERSION_CHECKER, f"tf-docker/{WORD}") is TofuVersionChecker
     # the installed instance-builder word is one root's alone, so bare and qualified agree
     aws_root = reg.get_model(VCT.INSTANCE_BUILDER_MODEL, WORD)
     assert aws_root is not None and reg.get_model(VCT.INSTANCE_BUILDER_MODEL, f"tf-ebs-instance/{WORD}") is aws_root
@@ -263,9 +262,9 @@ def test_a_bare_word_stays_bare_and_a_qualified_word_keeps_its_namespace():
     nor a qualified one to the bare word."""
     from cs_image_system.base.registry import bare_name, split_qualified
     assert split_qualified(WORD) == (None, WORD)
-    assert split_qualified(f"tf-gcp/{WORD}") == ("tf-gcp", WORD)
-    assert bare_name(f"tf-gcp/{WORD}") == WORD == bare_name(WORD)
-    assert RegistrationKey(VCT.VERSION_CHECKER, "tf-gcp", WORD).qualified == f"tf-gcp/{WORD}"
+    assert split_qualified(f"tf-docker/{WORD}") == ("tf-docker", WORD)
+    assert bare_name(f"tf-docker/{WORD}") == WORD == bare_name(WORD)
+    assert RegistrationKey(VCT.VERSION_CHECKER, "tf-docker", WORD).qualified == f"tf-docker/{WORD}"
 
 
 def test_the_default_word_keeps_its_meaning(two_plugins: Registry):

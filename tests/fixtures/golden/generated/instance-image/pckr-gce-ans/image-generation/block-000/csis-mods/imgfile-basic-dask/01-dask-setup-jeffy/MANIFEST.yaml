@@ -1,9 +1,0 @@
-content_hash: d9434c2f2907c2a08c3c1baa74f1cf30088ded4220eec41d8128fdfb58d47079
-files:
-- setup_dask.yml
-idempotent: ansible
-image: imgfile-basic-dask
-name: dask-setup-jeffy
-operation: ansible
-run: 2026_08_26t12_00_00
-type: ansible-default

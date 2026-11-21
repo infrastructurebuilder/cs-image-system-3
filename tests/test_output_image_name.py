@@ -11,9 +11,8 @@ gets the default names (``<image>-<image builder>``, a base image
 ``<OS builder>-<runtime>``). ``validate`` refuses a prefix that carries the
 run's timestamp (an ``execution.timestamp`` template, rendered at load),
 two prefixes on one runtime of which one begins the other as the runtime
-makes them (the ``<prefix>*`` lookups would cross; two that collapse to one
-GCE name are the same case), and a full name the runtime cannot take
-(AWS's AMI name rules; GCE's 63 characters). The frozen fixture declares
+makes them (the ``<prefix>*`` lookups would cross), and a full name the
+runtime cannot take (AWS's AMI name rules). The frozen fixture declares
 its names without the timestamp, and the golden carries them.
 
 History: stage 105 (the names stage 22.3 had commented out).
@@ -22,13 +21,21 @@ from __future__ import annotations
 
 import logging
 import re
+from collections import Counter
 from pathlib import Path
 
 import yaml
 from harness import FIXED_TIMESTAMP, copy_config, load_context, stub_environment
 
 REPO = Path(__file__).resolve().parents[1]
-AWS, GCE = "aws-east2-runtime", "gcloud-east1"
+AWS = "aws-east2-runtime"
+#: the names the fixture's OS builders and their AWS entries declare
+DECLARED = ['"{{ this.name }}-{{ this.family }}-{{ this.family_version }}"',
+            '"AWS-{{ this.display_name }}-{{ this.parent.family }}-{{ this.parent.family_version }}"',
+            '"NOSCSB-{{ this.name }}-{{ this.family }}-{{ this.family_version }}"',
+            '"NOSCSB-AWS-RHEL9-{{ this.name }}"',
+            '"{{ this.name }}-{{ this.family }}-{{ this.family_version }}"',
+            '"NOSCSB-AWS-RH10-{{ this.parent.name }}-{{ this.name }}"']
 
 
 def _edit(path: Path, fn) -> None:
@@ -78,10 +85,10 @@ def test_the_shadowing_property_is_gone_and_the_field_is_real_at_three_levels():
     assert callable(getattr(OsBuilderModel, "get_output_image_name", None))
 
 
-def test_the_fixture_declares_the_seven_names_without_a_timestamp():
+def test_the_fixture_declares_its_names_without_a_timestamp():
     text = (REPO / "tests" / "fixtures" / "config" / "cfg" / "os-builders.yml").read_text()
     declared = re.findall(r'^\s+output_image_name: (".*")$', text, re.M)
-    assert len(declared) == 7, declared
+    assert not Counter(DECLARED) - Counter(declared), declared
     assert not any("execution" in d for d in declared)
     assert not re.search(r"^\s+# output_image_name", text, re.M), "stage 22.3's commented lines are gone"
 
@@ -94,9 +101,6 @@ def test_the_fixtures_prefixes_resolve_as_declared_and_have_no_finding(tmp_path:
     assert aws["OS builder 'basic-rhel-9'"] == ("NOSCSB-AWS-RHEL9-aws-my-rhel9", True)
     assert aws["OS builder 'basic-rh-10'"] == ("NOSCSB-AWS-RH10-basic-rh-10-aws-my-rhel8", True)
     assert aws["image 'imgfile-basic-dask'"] == ("imgfile-basic-dask-pckr-ebs-ans", False)
-    gce = _names(ctx, GCE)
-    assert gce["OS builder 'basic-rh-10'"] == ("noscsb-gcp-rh10-gcp-my-rh10", True)
-    assert gce["image 'imgfile-basic-dask'"] == ("imgfile-basic-dask-pckr-gce-ans", False)
     with caplog.at_level(logging.INFO, logger="cs_image_system.engine.commands.validate"):
         assert _findings(ctx) == []
     lines = [r.getMessage() for r in caplog.records if r.getMessage().startswith("image name:")]
@@ -110,7 +114,7 @@ def test_a_tree_that_declares_nothing_keeps_todays_names(tmp_path: Path, monkeyp
     f.write_text(re.sub(r"^\s+output_image_name: .*\n", "", f.read_text(), flags=re.M))
     stub_environment(monkeypatch)
     ctx = load_context(root)
-    for runtime, who in ((AWS, "OS builder 'my-deb-12'"), (AWS, "OS builder 'basic-rh-10'"), (GCE, "OS builder 'basic-rh-10'")):
+    for runtime, who in ((AWS, "OS builder 'my-deb-12'"), (AWS, "OS builder 'basic-rh-10'")):
         osb = who.split("'")[1]
         assert _names(ctx, runtime)[who] == (f"{osb}-{runtime}", False)
     assert _names(ctx, AWS)["image 'imgfile-basic-dask-two'"] == ("imgfile-basic-dask-two-pckr-ebs-ans", False)
@@ -145,7 +149,6 @@ def test_an_images_entry_names_its_builds_and_the_deferred_lookup(tmp_path: Path
     rtb = ctx.runtime_builders[AWS]
     psi = rtb.create_provider_specific_image_deferred(image=ctx.images_map["imgfile-basic-dask"], subconfig=sub)
     assert psi.deferred_name_pattern == "coops-dask-pckr-ebs-ans"
-    assert ctx.images_map["imgfile-basic-dask"]._runtime_map[GCE].get_image_output_name() == "imgfile-basic-dask-pckr-gce-ans"
 
 
 # ------------------------------------------------------------------ the rules
@@ -191,44 +194,27 @@ def test_a_prefix_that_begins_anothers_on_one_runtime_is_refused(tmp_path: Path,
     assert AWS in found[0] and "'imgfile-basic-dask-pckr-ebs-ans-two'" in found[0]
 
 
-def test_two_names_that_collapse_to_one_gce_name_are_refused_and_aws_keeps_case(tmp_path: Path, monkeypatch):
-    root = copy_config(tmp_path)
-    _declare(root, "imgfile-basic-dask", "pckr-gce-ans", "NOSCSB.GCP.RH10.GCP.MY.RH10")
-    stub_environment(monkeypatch)
-    ctx = load_context(root)
-    found = _findings(ctx)
-    assert len(found) == 1, found
-    assert f"OS builder 'basic-rh-10' and image 'imgfile-basic-dask' on runtime {GCE}" in found[0]
-    assert "collapse" in found[0]
-    assert ctx.runtime_builders[GCE].image_name_as_made("NOSCSB.GCP.RH10.GCP.MY.RH10") == "noscsb-gcp-rh10-gcp-my-rh10"
-    assert ctx.runtime_builders[AWS].image_name_as_made("NOSCSB.GCP") == "NOSCSB.GCP"
-
-
 def test_a_name_the_runtime_cannot_take_is_refused_naming_the_rule(tmp_path: Path, monkeypatch):
     root = copy_config(tmp_path)
 
     _declare(root, "imgfile-basic-dask", "pckr-ebs-ans", "dask:head")
-    _declare(root, "imgfile-basic-dask", "pckr-gce-ans", "x" * 60)
     stub_environment(monkeypatch)
     ctx = load_context(root)
     found = _findings(ctx)
-    assert len(found) == 2, found
+    assert len(found) == 1, found
     aws = next(f for f in found if f"on runtime {AWS}" in f)
     assert f"'dask:head-{FIXED_TIMESTAMP}'" in aws and "':'" in aws
-    gce = next(f for f in found if f"on runtime {GCE}" in f)
-    assert "63" in gce
 
 
 def test_the_runtime_rules_themselves():
     from cs_image_system.base.basic.builder_base_runtime import RuntimeBuilderBase
-    aws_rule = __import__("cs_image_system.aws_runtime.aws_runtime_builders", fromlist=["AwsCloudBuilder"]).AwsCloudBuilder.image_name_problem
-    gce_rule = __import__("cs_image_system.gcloud_runtime.gcp_runtime_builders", fromlist=["GCPCloudBuilder"]).GCPCloudBuilder.image_name_problem
+    aws = __import__("cs_image_system.aws_runtime.aws_runtime_builders", fromlist=["AwsCloudBuilder"]).AwsCloudBuilder
+    aws_rule = aws.image_name_problem
     short = aws_rule(None, "ab")
     assert short and "3 to 128" in short and "'ab'" in short
     assert "3 to 128" in (aws_rule(None, "a" * 129) or "")
     assert aws_rule(None, "Fine (name) [v1] a.b/c-d'e@f_g") is None
-    assert gce_rule(None, "Any Case Is Fine-20260826-120000") is None
-    assert gce_rule(None, "a" * 64) is not None
+    assert aws.image_name_as_made(None, "NOSCSB.AWS.RH10") == "NOSCSB.AWS.RH10"              # AWS keeps case
     assert RuntimeBuilderBase.image_name_problem(None, "anything at all!") is None            # type: ignore[arg-type]
     assert RuntimeBuilderBase.image_name_as_made(None, "As Is") == "As Is"                   # type: ignore[arg-type]
 

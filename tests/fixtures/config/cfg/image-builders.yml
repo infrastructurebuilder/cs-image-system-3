@@ -33,20 +33,6 @@ image_builders:
       - name: ansible
         source: github.com/hashicorp/ansible
         version: '>= 1.0.0'
-  # GCP readiness: GCE bakes via the googlecompute source
-  - name: pckr-gce-ans
-    type: packer-gce
-    runtime: gcloud-east1
-    executable: packer
-    # `parameters: [build, .]` is not a field -- argv the packer plugin assembles itself;
-    # the field is retired (a module call's inputs are a storage builder's `variables:`)
-    required_plugins:
-      - name: googlecompute
-        source: github.com/hashicorp/googlecompute
-        version: '>= 1.0.0'
-      - name: ansible
-        source: github.com/hashicorp/ansible
-        version: '>= 1.0.0'
   # Bakes on the fixture's docker runtime (packer's docker
   # source; the result committed and tagged on the daemon)
   - name: pckr-docker

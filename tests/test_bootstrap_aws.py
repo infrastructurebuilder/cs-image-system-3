@@ -107,8 +107,8 @@ def test_the_aws_plugin_contributes_the_section_and_the_tree_decides_whether_it_
     assert [s.name for s in bs.discover()][:2] == ["github", "aws"]          # GitHub first, then the plugins' by name
     aws_tree = _starter_copy(tmp_path)
     assert _section().wanted_default(bs.gather(aws_tree, gh=False)) is True
-    other = tmp_path / "gce"
-    shutil.copytree(RENDERED() / "standard-gce", other)
+    other = tmp_path / "docker"                                                # a tree with no AWS runtime and no s3 backend
+    shutil.copytree(RENDERED() / "standard-docker", other)
     facts = bs.gather(other, git=False, gh=False)
     uses_aws = runtime_of_type(facts, "aws") is not None or default_state_backend(facts, "s3") is not None
     assert _section().wanted_default(facts) is uses_aws                       # the gate asks the tree, not a constant
@@ -284,7 +284,7 @@ def test_the_module_says_what_the_guide_says():
 
 @pytest.mark.skipif(shutil.which("tofu") is None, reason="tofu not installed")
 def test_the_root_with_both_sections_validates_with_tofu(tmp_path: Path):
-    from tests.test_gcp_runtime import private_plugin_cache
+    from tests.harness import private_plugin_cache
     root, out = _root(tmp_path, oidc=True, read=True, write=True, bucket=True, profile=False)
     modules_inside(root)
     env = {**os.environ, "TF_PLUGIN_CACHE_DIR": str(private_plugin_cache(tmp_path, [out, module_path("bootstrap_aws")]))}

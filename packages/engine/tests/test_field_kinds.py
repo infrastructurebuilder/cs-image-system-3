@@ -16,7 +16,7 @@ from cs_image_system.contract.constants import FIELD_KIND, NO_MODEL_ID, VCT
 
 
 def test_custom_field_kind_dispatched_through_all_hooks(clean_registry):
-    """A plugin can register a brand-new kind + handler and the engine's resolver drives it."""
+    """A brand-new kind + handler, once entered, is driven by the engine's resolver."""
     calls = []
 
     class ShoutHandler(field_kinds.FieldKindHandler):
@@ -33,7 +33,8 @@ def test_custom_field_kind_dispatched_through_all_hooks(clean_registry):
                 return True
             return False
 
-    field_kinds.register_field_kind("shout", ShoutHandler())
+    # a test may enter a kind directly; a plugin declares it in its metadata (test_declared_kinds.py)
+    field_kinds._install("shout", ShoutHandler())
     try:
         @dataclass
         class Gadget:

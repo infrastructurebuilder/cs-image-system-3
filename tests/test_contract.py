@@ -503,7 +503,7 @@ def test_the_collector_pulls_the_declared_backends_from_the_context(tmp_path, mo
     col = terraform_collector(ctx)
     assert terraform_collector(ctx) is col, "one collector per run context"
     declared = {b.type for b in col._backends.values()}
-    assert {"s3", "local", "gcs"} <= declared, declared
+    assert {"s3", "local"} <= declared, declared
     default = col.resolve_backend(None)
     assert default is not None and default.is_default
     col.reset()

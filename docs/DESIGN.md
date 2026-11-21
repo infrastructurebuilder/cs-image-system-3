@@ -1149,9 +1149,12 @@ tree: the plugin loader, the configuration reader, the resolver, the
 finalizer, the lifecycle runner and its commands, meta-state on disk,
 the state query, releases, retention, the bootstrap. The line between
 them is measured, not drawn: the kit is exactly the closure of what the
-plugins and the terraform roots import from the core, over every edge
+plugins and the terraform roots in this repository import from the core,
+over every edge
 (top-level, function-local and `TYPE_CHECKING`), and the engine is the
-rest; `tests/test_import_closure.py` computes both sets and holds each
+rest (a plugin released from another repository, as the Google Cloud
+family is, is held instead to the kit's declared surface);
+`tests/test_import_closure.py` computes both sets and holds each
 package to its set, and `tests/test_contract.py` holds the direction
 (the kit imports nothing of the engine, no plugin imports the engine).
 So a runtime installs with the contract and the kit alone, and the
@@ -1175,6 +1178,12 @@ addresses a replacement or a detach names. No root plugin depends on another
 provider's root plugin, so the GCE and container roots install without
 the AWS root, its runtime or its SDK
 ([the stage index](CHANGES.md#s120)).
+The GCE roots are the Google Cloud family's `tf-gcp-plugin`, which since
+[specification 005](../specs/005-relocate-gcp-provider/spec.md) is
+released from the Google Cloud family's own repository,
+[cs-image-system-google-cloud](https://github.com/infrastructurebuilder/cs-image-system-google-cloud);
+it subclasses the same bases through the released `tofu-roots`, named by a
+range.
 
 **Reversibility (the operator's condition), and the commitment.** The
 split may have had to be undone if it interfered with later work; what

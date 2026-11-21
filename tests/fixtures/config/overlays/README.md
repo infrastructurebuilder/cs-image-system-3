@@ -11,19 +11,13 @@ generated under an overlay applies only under that overlay; a named overlay
 that is missing is a refusal, not a skip.
 
 These are **test devices** in the frozen fixture. The live configuration
-carries no overlays, and no Justfile recipe names one: `just
-gce-decommission` passes `--undeclare instance:gce-test` instead, the same
-undeclare as a flag.
+carries no overlays, and no Justfile recipe names one; a decommission
+recipe passes `--undeclare instance:<name>` instead, the same undeclare as a
+flag.
 
-- `gce-cycle-launch.yaml` — declares `gce-test` and allows the GCE instance
-  root to apply (the launch leg's shape).
-- `gce-cycle-decommission.yaml` — undeclares `gce-test` for one invocation
-  and lets the GCE instance root apply: the overlay `undeclare` form that
+- `aws-cycle-decommission.yaml` — undeclares `test2` for one invocation and
+  lets the AWS instance root apply: the overlay `undeclare` form that
   `--undeclare` reproduces.
-- `gce-cycle-storage-teardown.yaml` — requests `gce_data` / `gce_bucket`
-  `destroyed` for one invocation; by rule a cycle never destroys a
-  config-declared storage, so no recipe uses it — it is the pattern a test
-  uses for a storage the test itself declared.
 
 The overlays that drove the live proofs are frozen under
 `ATTIC/history/overlays/` as evidence, not configuration.

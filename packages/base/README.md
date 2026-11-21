@@ -485,7 +485,7 @@ and applies `get_regex()`. The result is compared with the executable's
 | ------ | ------- | -------------- |
 | Run hooks | entry point group `cs_image_system.plugins.hooks`; `HookSet` in [`commands/run_lifecycles.py`](../engine/src/cs_image_system/engine/commands/run_lifecycles.py) | `validators` (return error strings; any error aborts the run), `after_generate`, `before_apply`, `after_apply` (real runs only), `on_summary`, `state_bindings` (answer `{lifecycle: {workspace: state file}}`, merged into the runner-script headers and the summary's `state_bindings`; the tofu-roots plugin answers for the terraform roots), and `lifecycles` (a list of `LifecycleSpec`). |
 | Lifecycles | `register_lifecycle(LifecycleSpec)` in [`lifecycles.py`](src/cs_image_system/base/lifecycles.py) | A lifecycle with its own phases, builder classifications, directory and runner script, positioned after an existing one. |
-| Field kinds | `register_field_kind(name, FieldKindHandler)` in the contract's [`field_kinds.py`](../contract/src/cs_image_system/contract/field_kinds.py) | A late-binding behaviour for fields carrying `field_kind` metadata: `contribute_context`, `resolve`, `upgrade`. |
+| Field kinds | declared in the plugin's metadata, `field_kinds` (`{name: FieldKindHandler}`; a property to override on `AbstractPluginMetadata`), and registered by the system in the contract's [`field_kinds.py`](../contract/src/cs_image_system/contract/field_kinds.py) once the plugin is accepted | A late-binding behaviour for fields carrying `field_kind` metadata: `contribute_context`, `resolve`, `upgrade`. |
 | Resolution passes | `register_resolution_pass(name, fn, order)` in [`helpers/resolution_stages.py`](../engine/src/cs_image_system/engine/helpers/resolution_stages.py) | A string-stage pass over the raw YAML document. Built in: `interpolate` (order 10) and `scope-this` (order 20). |
 | Item kinds | `register_item_kind(ItemKind)` in [`config_loader.py`](../engine/src/cs_image_system/engine/config_loader.py) | A new domain-item collection: directory, model class, owning builder classification, attach function, optional validation. |
 
@@ -1314,7 +1314,7 @@ itself needs is short.
 - **The contract, in its compatible series.** Every model and builder
   base here implements a protocol of the
   [contract](../contract/README.md), and every constant, field helper and
-  phase is imported from it; the pin is `>=0.4,<0.5`, the range every
+  phase is imported from it; the pin is `>=0.5,<0.6`, the range every
   package of the workspace declares.
 - **Nothing of the engine, and nothing of hashicorp-utils.** No module
   here imports the engine, by any edge, and the kit imports no terraform
@@ -1337,7 +1337,10 @@ itself needs is short.
   image builder, no OS builder, no storage, group, user, instance or mod
   builder and no state backend; every one comes from a plugin that
   subclasses a base here and registers through the contract's entry
-  points. The plugin READMEs say what each needs:
+  points. The plugin READMEs say what each needs (the Google Cloud
+  family's three, `gcloud-runtime-plugin`, `gcs-state-plugin` and
+  `tf-gcp-plugin`, are in its own repository, from which it is
+  released):
   [ansible-plugin](../ansible-plugin/README.md),
   [aws-runtime-plugin](../aws-runtime-plugin/README.md),
   [bash-mod-plugin](../bash-mod-plugin/README.md),
@@ -1345,14 +1348,14 @@ itself needs is short.
   [default-os-plugin](../default-os-plugin/README.md),
   [docker-plugin](../docker-plugin/README.md),
   [dummy-plugin](../dummy-plugin/README.md),
-  [gcloud-runtime-plugin](../gcloud-runtime-plugin/README.md),
-  [gcs-state-plugin](../gcs-state-plugin/README.md),
+  [gcloud-runtime-plugin](https://github.com/infrastructurebuilder/cs-image-system-google-cloud/blob/develop/packages/gcloud-runtime-plugin/README.md),
+  [gcs-state-plugin](https://github.com/infrastructurebuilder/cs-image-system-google-cloud/blob/develop/packages/gcs-state-plugin/README.md),
   [local-state-plugin](../local-state-plugin/README.md),
   [okta-opa-plugin](../okta-opa-plugin/README.md),
   [packer-plugin](../packer-plugin/README.md),
   [posix-identity-plugin](../posix-identity-plugin/README.md),
   [tf-ebs-instance-plugin](../tf-ebs-instance-plugin/README.md),
-  [tf-gcp-plugin](../tf-gcp-plugin/README.md),
+  [tf-gcp-plugin](https://github.com/infrastructurebuilder/cs-image-system-google-cloud/blob/develop/packages/tf-gcp-plugin/README.md),
   [tf-s3-state-plugin](../tf-s3-state-plugin/README.md).
 
 ## Configuration reference

@@ -30,7 +30,7 @@ passes; then one line names the local annotated tags origin lacks, which stay
 behind, or says none -- never a refusal); from
 ``develop``, the move: the release branch checked out and fast-forwarded to
 ``develop`` (refused, on ``develop``, when it cannot be); the resync of the
-venv (``uv sync --all-extras``: a branch switch and a moved lock leave the
+venv (``uv sync --all-extras --no-extra gcloud --no-extra all``: a branch switch and a moved lock leave the
 venv behind the checkout); then the probes that need the venv (it is in
 step with the lock; every package whose version the release does not move
 is fresh on the index or held there as this tree's build; for PyPI, docker
@@ -123,13 +123,19 @@ UNBUMPED = ("a package whose version the release does not move changed since the
             "nothing was changed")
 UNASKED = ("the index could not be asked whether it holds this tree's build of every package whose version the "
            "release does not move, or one could not be built (above); nothing is guessed -- nothing was changed")
+#: the released-elsewhere probe's refusals, after "<who>: ", below scripts/with-released-families' own lines
+ELSEWHERE_UNMET = ("the umbrella's extras name a family released from its own repository by a range PyPI holds no "
+                   "release inside (above), so an install of that extra would fail -- release the family, or move the "
+                   "range in pyproject.toml -- nothing was changed")
+ELSEWHERE_UNASKED = ("PyPI could not be asked whether it holds a release inside each range the umbrella's extras name "
+                     "for a family released from its own repository (above); nothing is guessed -- nothing was changed")
 #: the surface probe's refusal, after "<who>: ", below `just surface-check`'s own lines
 SURFACE = ("a declared surface of the SDK and its baseline disagree (above): an entry removed or altered needs a new "
            "middle number (`just sdk-bump <line> middle`, then `just surface-record`); an entry added needs only to be "
            "recorded (`just surface-record`) -- nothing was changed")
 DEVELOP = "develop"
 REMOTE = "origin"
-SYNC = ("uv", "sync", "--all-extras")
+SYNC = ("uv", "sync", "--all-extras", "--no-extra", "gcloud", "--no-extra", "all")
 #: the dry form's lines, after "release: ": one per branch move, push and resync the real form would make
 WOULD = "dry -- would run: {command}"
 #: the refusals of the move from develop, after "release: "
@@ -149,21 +155,21 @@ LEVEL_WITH_ORIGIN = "{remote} holds no commit the local {branches} lacks (fetche
 TAGS_BEHIND = "local annotated tags {remote} lacks stay behind (the ending pushes v{version} alone): {tags}"
 TAGS_UNASKED = ("`git ls-remote --tags {remote}` failed ({reason}), so the local tags {remote} lacks are not named; "
                 "the ending pushes v{version} alone")
-SYNC_FAILED = "`uv sync --all-extras` failed (above) -- nothing was changed"
+SYNC_FAILED = "`uv sync --all-extras --no-extra gcloud --no-extra all` failed (above) -- nothing was changed"
 #: what a refusal or a failure before the bump adds, after "release: ", once the release had moved the checkout
 BACK = "the checkout is back on {branch}, and {cut} is where it was"
 NOT_BACK = "the checkout could not return to {branch} (git checkout {branch}, above); it is on {cut}"
 #: the dry form's venv verdict when it is behind: the real form syncs before it asks
-VENV_WILL_SYNC = "the venv is behind the checkout; the real form syncs it (uv sync --all-extras) before it asks"
+VENV_WILL_SYNC = "the venv is behind the checkout; the real form syncs it (uv sync --all-extras --no-extra gcloud --no-extra all) before it asks"
 #: a failed step of the ending, after "<who>: ": the version is on the index, committed and tagged here
 ENDING_FAILED = ("{version} is on {name}, committed and tagged v{version} here, but `{failed}` failed (above); "
                  "the rest, by hand: {rest}")
 #: the closing lines: what is on the index, what was pushed, and the branch the checkout ends on
 RELEASED = ("release: {version} is on {name}, committed, tagged v{version} and pushed: {pushed}; the checkout is on "
-            "{branch} with its venv synced (uv sync --all-extras); CI checks the pushed tag against the index and "
+            "{branch} with its venv synced (uv sync --all-extras --no-extra gcloud --no-extra all); CI checks the pushed tag against the index and "
             "uploads nothing already there")
 FINISHED = ("release-finish: {version} is on {name} for every project, committed, tagged v{version} and pushed: "
-            "{pushed}; the checkout is on {branch} with its venv synced (uv sync --all-extras)")
+            "{pushed}; the checkout is on {branch} with its venv synced (uv sync --all-extras --no-extra gcloud --no-extra all)")
 #: release-take's lines, after "release-take: "
 TAKE_WORDS = ("main", "yes")
 #: the take's own environment: a tree's take is the recipe of the release it is on, and uv answers an install
@@ -558,6 +564,21 @@ class Family:
                 self.say(line)
         raise Refused(f"{who}: {UNASKED}", 2)
 
+    def released_elsewhere_or_refuse(self, who: str) -> None:
+        """scripts/with-released-families --check pypi, its lines said: every range by which the umbrella's
+        extras name a family released from its own repository (the Google Cloud family) holds a release on
+        PyPI. PyPI whatever the release's own index: the family is released there, and an install from
+        TestPyPI takes what TestPyPI lacks from PyPI. Exit 1 is a range nothing on PyPI meets (the extra could
+        not be installed); any other failure is refused as "could not ask" (exit 2), never guessed."""
+        done = self.run(["uv", "run", "--no-sync", "python", str(HERE / "with-released-families"), "--check", "pypi"],
+                        cwd=self.root)
+        for line in (done.out + done.err).splitlines():
+            if line.strip():
+                self.say(line)
+        if done.rc == 0:
+            return
+        raise Refused(f"{who}: {ELSEWHERE_UNMET if done.rc == 1 else ELSEWHERE_UNASKED}", 1 if done.rc == 1 else 2)
+
     def surfaces_or_refuse(self, who: str) -> None:
         """`just surface-check`: each SDK library (the kit, the two terraform libraries) keeps its version rule
         against its committed baseline. An entry of a declared surface removed or altered while the library's
@@ -573,11 +594,13 @@ class Family:
 
     def probes(self, index: str, who: str = "release", *, will_sync: bool = False) -> None:
         """What a release needs and full-test only finds out twenty minutes in, asked first and in one line each.
-        For every index: the venv is in step with the lock (`uv sync --all-extras --check`), because every recipe
+        For every index: the venv is in step with the lock (``SYNC`` with `--check`), because every recipe
         runs `uv run --no-sync` and a venv behind the checkout answers with stale metadata; then, for a release,
         every package whose version the release does not move is fresh on the index or held there as this tree's
         build (`own_versions_or_refuse`: an index never takes a second build under a version, so a changed
-        package without its own bump would be refused at the upload, after the gate). For a PyPI release
+        package without its own bump would be refused at the upload, after the gate), and every family released
+        from its own repository is on PyPI inside the range the extras name (`released_elsewhere_or_refuse`).
+        For a PyPI release
         also: docker answers, the live configuration is present and every runtime session of it is present
         (`just preflight`, the gate full-test itself uses: without it the live legs would be skipped, which a
         release cannot accept) and how many minutes the soonest-expiring session has left
@@ -586,15 +609,16 @@ class Family:
         of `release` syncs the venv just before; its dry form (``will_sync``) says a venv behind the checkout
         rather than refusing it, since the real form would sync it first."""
         # the venv asked is the one running this script: the checkout's own, named when it is behind
-        if self.run(["uv", "sync", "--all-extras", "--check"], cwd=REPO).rc != 0:
+        if self.run([*SYNC, "--check"], cwd=REPO).rc != 0:
             if not will_sync:
-                raise Refused(f"{who}: the venv of {REPO} is behind its checkout (uv sync --all-extras --check) -- "
+                raise Refused(f"{who}: the venv of {REPO} is behind its checkout ({' '.join(SYNC)} --check) -- "
                               "`just init` there syncs it -- nothing was changed")
             self.say(f"{who}: {VENV_WILL_SYNC}")
         else:
             self.say(f"{who}: {VENV_OK}")
         if who == "release":
             self.own_versions_or_refuse(index, who)
+            self.released_elsewhere_or_refuse(who)
             self.surfaces_or_refuse(who)
         if who != "release":
             return
@@ -615,8 +639,9 @@ class Family:
             raise Refused(f"{who}: a runtime session of the live configuration is absent or expired (`just preflight` "
                           "says which) -- full-test's live legs would be skipped; log in -- nothing was changed")
         # how long the soonest-expiring session has left; a login lasts one hour and a PyPI release takes nearly
-        # all of it
-        asked = self.run(["uv", "run", "--no-sync", "python", str(HERE / "session-minutes-left"), str(root)],
+        # all of it; the tree may declare a family released from its own repository, layered in for the probe
+        asked = self.run(["uv", "run", "--no-sync", "python", str(HERE / "with-released-families"),
+                          "python", str(HERE / "session-minutes-left"), str(root)],
                          cwd=self.root)
         left = asked.out.strip() if asked.rc == 0 else ""
         try:

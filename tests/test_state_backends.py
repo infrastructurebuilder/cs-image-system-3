@@ -149,7 +149,7 @@ def test_the_flag_off_is_refused_naming_every_root_that_reads_a_producer(tmp_pat
     instance_roots = {e["name"] for e in yaml.safe_load((cfg / "instance-builders.yml").read_text())["instance_builders"]}
     storage_roots = {e["name"] for e in yaml.safe_load((cfg / "storage-builders.yml").read_text())["storage_builders"]}
     assert instance_roots <= consumers <= instance_roots | storage_roots, errors
-    assert {"aws-ebs", "aws-efs", "gcp-pd"} <= consumers, errors
+    assert {"aws-ebs", "aws-efs"} <= consumers, errors
     by_root = {re.search(r"the root '([^']+)'", e).group(1): e for e in errors}   # type: ignore[union-attr]
     assert "'oktagroups'" in by_root["aws-ebs"] and "'aws-ebs'" in by_root["open-tofu"]
 

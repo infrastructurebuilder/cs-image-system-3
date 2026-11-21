@@ -30,7 +30,7 @@ from harness import FIXTURE_CONFIG, copy_config, load_context, stub_environment
 
 from cs_image_system.contract.image import QUERY_KEYS, ImageQuery
 
-AWS_RUNTIME, GCE_RUNTIME = "aws-east2-runtime", "gcloud-east1"
+AWS_RUNTIME = "aws-east2-runtime"
 ALMA_AWS_ACCOUNT = "764336703387"
 
 
@@ -103,25 +103,20 @@ def test_the_release_catalog_knows_the_families_the_plugins_serve():
 
 
 #: every (family, versions, runtime type, query) the release catalog carried
-#: when it was one file in the base package: the split by runtime must lose
-#: none of them and invent none
+#: for this repository's runtimes (aws, docker) when it was one file in the
+#: base package: the split by runtime must lose none of them and invent none
 CATALOG_BEFORE_THE_SPLIT: list[tuple[str, tuple[str, ...], str, dict]] = [
     ('rhel', (), 'aws', {'publisher': ['309956199498'], 'name': 'RHEL-{version}*x86_64*', 'root_device': 'ebs', 'virtualization': 'hvm'}),
-    ('rhel', (), 'gcloud', {'publisher': ['rhel-cloud'], 'family': 'rhel-{version}'}),
     ('rhel', (), 'docker', {'publisher': ['library'], 'name': 'rockylinux', 'version': '{version}'}),
     ('rhel', ('10',), 'docker', {'publisher': ['library'], 'name': 'almalinux', 'version': '{version}'}),
     ('alma-linux', (), 'aws', {'publisher': ['764336703387'], 'name': 'AlmaLinux OS {version}*x86_64*', 'root_device': 'ebs', 'virtualization': 'hvm'}),
-    ('alma-linux', (), 'gcloud', {'publisher': ['almalinux-cloud'], 'family': 'almalinux-{version}'}),
     ('alma-linux', (), 'docker', {'publisher': ['library'], 'name': 'almalinux', 'version': '{version}'}),
     ('rocky-linux', (), 'aws', {'publisher': ['792107900819'], 'name': 'Rocky-{version}-EC2-Base*x86_64*', 'root_device': 'ebs', 'virtualization': 'hvm'}),
-    ('rocky-linux', (), 'gcloud', {'publisher': ['rocky-linux-cloud'], 'family': 'rocky-linux-{version}'}),
     ('rocky-linux', (), 'docker', {'publisher': ['library'], 'name': 'rockylinux', 'version': '{version}'}),
-    ('centos-stream', (), 'gcloud', {'publisher': ['centos-cloud'], 'family': 'centos-stream-{version}'}),
     ('centos-stream', (), 'docker', {'publisher': ['quay.io/centos'], 'name': 'centos', 'version': 'stream{version}'}),
     ('fedora', (), 'aws', {'publisher': ['125523088429'], 'name': 'Fedora-Cloud-Base*{version}*x86_64*', 'root_device': 'ebs', 'virtualization': 'hvm'}),
     ('fedora', (), 'docker', {'publisher': ['library'], 'name': 'fedora', 'version': '{version}'}),
     ('debian', (), 'aws', {'publisher': ['136693071363'], 'name': 'debian-{version}-amd64-*', 'root_device': 'ebs'}),
-    ('debian', (), 'gcloud', {'publisher': ['debian-cloud'], 'family': 'debian-{version}'}),
     ('debian', (), 'docker', {'publisher': ['library'], 'name': 'debian', 'version': '{version}'}),
     ('ubuntu', (), 'aws', {'publisher': ['099720109477'], 'name': 'ubuntu/images/hvm-ssd*/ubuntu-*-{version}*-amd64-server-*', 'root_device': 'ebs'}),
     ('ubuntu', (), 'docker', {'publisher': ['library'], 'name': 'ubuntu', 'version': '{version}'}),
@@ -133,11 +128,12 @@ IS_BEFORE_THE_SPLIT = {"alma-linux": "rhel", "rocky-linux": "rhel", "centos-stre
 def test_the_split_catalog_merges_back_to_exactly_what_the_one_file_held():
     from cs_image_system.base.image_sources import packaged_default_entries
     from cs_image_system.engine.loader import installed_registry
-    entries = packaged_default_entries(installed_registry().runtime_builder_classes())
+    ours = {word: cls for word, cls in installed_registry().runtime_builder_classes().items() if word in ("aws", "docker")}
+    entries = packaged_default_entries(ours)
     merged = {(e.family, tuple(e.versions), rt) for e in entries for rt in e.sources}
-    assert len(CATALOG_BEFORE_THE_SPLIT) == 19
+    assert len(CATALOG_BEFORE_THE_SPLIT) == 14
     assert merged == {(f, v, rt) for f, v, rt, _ in CATALOG_BEFORE_THE_SPLIT}
-    assert sum(len(e.sources) for e in entries) == 19                       # no block counted twice
+    assert sum(len(e.sources) for e in entries) == 14                       # no block counted twice
     for f, v, rt, q in CATALOG_BEFORE_THE_SPLIT:
         entry = next(e for e in entries if e.family == f and tuple(e.versions) == v)
         assert entry.sources[rt] == q, (f, v, rt)
@@ -147,7 +143,6 @@ def test_the_split_catalog_merges_back_to_exactly_what_the_one_file_held():
 
 @pytest.mark.parametrize("package, runtime_type", [
     ("cs_image_system.aws_runtime.aws_runtime_builders", "aws"),
-    ("cs_image_system.gcloud_runtime.gcp_runtime_builders", "gcloud"),
     ("cs_image_system.docker_runtime.docker_runtime_builders", "docker"),
 ])
 def test_each_runtime_ships_only_its_own_blocks(package: str, runtime_type: str):
@@ -209,12 +204,9 @@ def test_the_tree_layer_lands_on_the_releases_and_a_version_on_the_generic(ctx):
     debian = cat.block("debian", "12", "aws")
     assert debian is not None and debian.publisher == ("self", "amazon", "136693071363")   # the fixture's layer
     assert debian.name == "debian-12-amd64-*" and debian.root_device == "ebs"
-    assert _block(cat, "debian", "12", "gcloud").family == "debian-12"                    # the release's, untouched
     assert container_reference(_block(cat, "rhel", "9", "docker")) == "rockylinux:9"
     assert container_reference(_block(cat, "rhel", "10", "docker")) == "almalinux:10"      # the version entry lands
     assert _block(cat, "rhel", "10", "aws").name == "RHEL-10*x86_64*"                      # the generic still answers
-    assert _block(cat, "alma-linux", "10", "gcloud").to_mapping() == {"family": "almalinux-10", "publisher": ["almalinux-cloud"]}
-    assert cat.block("ubuntu", "24", "gcloud") is None                                     # GCE: declare it
 
 
 def test_a_family_is_what_the_catalog_says_it_is(ctx):
@@ -248,8 +240,6 @@ def test_the_effective_query_is_the_catalog_under_the_declarations(ctx):
     assert aws.runtime_type() == "aws"
     assert aws.image_query().to_mapping() == {"name": "AlmaLinux OS 10*x86_64*", "publisher": [ALMA_AWS_ACCOUNT],
                                               "virtualization": "hvm", "root_device": "ebs"}
-    gce = _entry(ctx, "basic-rh-10", "pckr-gce-ans")
-    assert gce.image_query().to_mapping() == {"family": "almalinux-10", "publisher": ["almalinux-cloud"]}
     # a declared query lands on the catalog's block; declared owners replace its publisher
     rhel9 = _entry(ctx, "basic-rhel-9", "pckr-ebs-ans")
     assert rhel9.image_query().to_mapping() == {"name": "RHEL-9.5*x86_64*", "publisher": ["self", "amazon"],
@@ -258,20 +248,16 @@ def test_the_effective_query_is_the_catalog_under_the_declarations(ctx):
     assert rhel9.get_query() == rhel9.image_query().to_mapping()
 
 
-def test_each_runtime_translates_the_same_query_into_its_own_words(ctx):
+def test_the_aws_runtime_translates_the_query_into_its_own_words(ctx):
     aws = ctx.runtime_builders[AWS_RUNTIME]
     native = aws.translate_image_query(_entry(ctx, "basic-rh-10", "pckr-ebs-ans").image_query())
     assert native == {"owners": [ALMA_AWS_ACCOUNT],
                       "filters": {"name": "AlmaLinux OS 10*x86_64*", "root-device-type": "ebs",
                                   "virtualization-type": "hvm", "state": "available"},
                       "most_recent": True}
-    gce = ctx.runtime_builders[GCE_RUNTIME]
-    native = gce.translate_image_query(_entry(ctx, "basic-rh-10", "pckr-gce-ans").image_query())
-    assert native["projects"] == ["almalinux-cloud"] and native["terms"] == {"family": "almalinux-10", "status": "READY"}
-    assert native["filter"] == '(family = "almalinux-10") AND (status = "READY")'
-    assert "root_device" in aws.supported_query_keys() and "root_device" not in gce.supported_query_keys()
-    assert "family" in gce.supported_query_keys() and "family" not in aws.supported_query_keys()
-    assert set(QUERY_KEYS) > aws.supported_query_keys() | gce.supported_query_keys()
+    assert "root_device" in aws.supported_query_keys()
+    assert "family" not in aws.supported_query_keys()
+    assert set(QUERY_KEYS) > aws.supported_query_keys()
 
 
 def test_the_fingerprint_hashes_the_effective_query(ctx):
@@ -291,10 +277,9 @@ def test_validate_prints_every_resolved_query_in_both_vocabularies(ctx, caplog):
     lines = [r.getMessage() for r in caplog.records if r.getMessage().startswith("image source:")]
     assert any(ln.startswith("image source:") and "'basic-rh-10'" in ln and AWS_RUNTIME in ln and "name=AlmaLinux OS 10*x86_64*" in ln
                and "'root-device-type': 'ebs'" in ln for ln in lines), lines
-    assert any(f"on runtime {GCE_RUNTIME} (gcloud): family=almalinux-10" in ln for ln in lines), lines
     declared = {rt["name"] for rt in yaml.safe_load((FIXTURE_CONFIG / "cfg" / "runtime-builders.yml").read_text())["runtime_builders"]}
     named = {ln.split(" on runtime ")[1].split(" ")[0] for ln in lines}
-    assert len(lines) >= 4 and named <= declared and {AWS_RUNTIME, GCE_RUNTIME} <= named, lines   # one line per (OS builder, runtime)
+    assert len(lines) >= 4 and named <= declared and AWS_RUNTIME in named, lines   # one line per (OS builder, runtime)
 
 
 def _errors(tmp_path, monkeypatch, change) -> list[str]:
@@ -304,15 +289,6 @@ def _errors(tmp_path, monkeypatch, change) -> list[str]:
     _edit_os_builders(root, change)
     c = load_context(root)
     return [str(e) for e in check_image_sources(c)]
-
-
-def test_validate_refuses_a_key_the_runtime_cannot_translate(tmp_path, monkeypatch):
-    def change(entries):
-        rh = next(e for e in entries if e["name"] == "basic-rh-10")
-        next(r for r in rh["runtimes"] if r["name"] == "gcp-my-rh10")["query"] = {"filters": {"root_device_type": "ebs"}}
-    errors = _errors(tmp_path, monkeypatch, change)
-    assert len(errors) == 1 and "basic-rh-10" in errors[0] and "(gcloud)" in errors[0]
-    assert "cannot translate image query key(s) root_device" in errors[0] and "native:" in errors[0]
 
 
 def test_validate_refuses_an_unknown_key_by_name_and_place(tmp_path, monkeypatch):

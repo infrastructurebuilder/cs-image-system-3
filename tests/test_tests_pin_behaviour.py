@@ -48,7 +48,7 @@ import pytest
 REPO = Path(__file__).resolve().parents[1]
 
 # measured at the end of the behaviour-naming rewrite (the root suite and the packages' tests together)
-SENTENCE_PINS_MAX = 37
+SENTENCE_PINS_MAX = 26
 DOC_PINS_MAX = 27
 SLACK = 8                                # a fall larger than this asks for the constant to come down
 

@@ -49,21 +49,6 @@ storage_builders:
       tags:
         Project: MyProject
         Environment: Development
-  # GCP readiness: pd + gcs only -- Filestore is excluded by
-  # user decision (1 TiB minimum; file.googleapis.com stays un-enabled)
-  - name: gcp-pd
-    type: tf-gcp-pd
-    executable: open-tofu-1
-    runtime: gcloud-east1
-    state_configuration: s3-east1   # the storage roots keep their state in the second backend
-    size: 30 # the entire Always-Free standard-PD allotment
-    disk_type: pd-standard # the free tier is standard only (pd-balanced bills)
-  - name: gcp-gcs
-    type: tf-gcp-gcs
-    executable: open-tofu-1
-    runtime: gcloud-east1
-    state_configuration: s3-east1   # the storage roots keep their state in the second backend
-    bucket_name: csis-sandbox-86233086783-default-bucket
   # Named docker volumes on the fixture's docker runtime,
   # mounted by the platform; the root inherits the runtime's backend (local-dev)
   - name: docker-volume
@@ -73,13 +58,6 @@ storage_builders:
     variables:
       tags:
         project: MyProject
-  # - name: gcp-pd
-  #   type: gcp-pd
-  #   runtime: gcp-my-deb-12 # Refers to the runtime builder named gcp-my-deb-12
-  #   variables:
-  #     volume_type: pd-standard
-  #     size: 10 # Size in GB
-  #     encrypted: true
   #     labels:
   #       project: my-project
   #       environment: development

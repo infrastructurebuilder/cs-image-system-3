@@ -7,7 +7,9 @@
 longer keeps -- beyond `retention.keep` per image / `retention_keep` per
 runtime, or everything on an `ephemeral: true` runtime -- never a build an
 instance is pinned to or was launched from (retention debt, reported).
-Declared storages are never touched.
+Declared storages are never touched. Proven on the fixture's AWS runtime
+(aws-east2-runtime), with a second AWS runtime (aws-east1) as the other
+runtime whose builds must stay put.
 """
 from __future__ import annotations
 
@@ -18,8 +20,8 @@ import yaml
 
 from tests.harness import FixtureRun, command_lines, copy_config
 
-GCE = "gcloud-east1"
-AWS = "aws-east2-runtime"
+AWS = "aws-east2-runtime"          # the runtime under test
+OTHER = "aws-east1"                # another runtime, holding builds of the same series
 
 
 def _seed_builds(root: Path, builds: list[tuple[str, str, str, str]]) -> None:
@@ -28,7 +30,7 @@ def _seed_builds(root: Path, builds: list[tuple[str, str, str, str]]) -> None:
     ms.mkdir(exist_ok=True)
     common = {"parent": "vendor", "chain": [], "mods": [], "local_mods": False, "update": None,
               "input_fingerprint": "0" * 64, "tests": {"assertions": 0, "in_bake": True},
-              "capabilities": {"identity_types": ["okta"], "storage_types": ["pd", "gcs"]}}
+              "capabilities": {"identity_types": ["okta"], "storage_types": ["ebs", "efs", "s3"]}}
     (ms / "lineage.yaml").write_text(yaml.safe_dump({"builds": [
         {"build_id": b, "name": b, "series": s, "runtime": r, "run": run, **common} for b, s, r, run in builds
     ]}, sort_keys=True))
@@ -56,12 +58,12 @@ def _set_image(root: Path, name: str, **fields) -> None:
 
 
 BUILDS = [
-    ("dask-gce-1", "imgfile-basic-dask", GCE, "2026_09_01t00_00_00_000000"),
-    ("dask-gce-2", "imgfile-basic-dask", GCE, "2026_09_02t00_00_00_000000"),
-    ("dask-gce-3", "imgfile-basic-dask", GCE, "2026_09_03t00_00_00_000000"),
-    ("base-gce-1", "basic-rh-10", GCE, "2026_09_01t00_00_00_000000"),
-    ("ami-dask-1", "imgfile-basic-dask", AWS, "2026_09_01t00_00_00_000000"),
-    ("ami-dask-2", "imgfile-basic-dask", AWS, "2026_09_02t00_00_00_000000"),
+    ("ami-0dask0001", "imgfile-basic-dask", AWS, "2026_09_01t00_00_00_000000"),
+    ("ami-0dask0002", "imgfile-basic-dask", AWS, "2026_09_02t00_00_00_000000"),
+    ("ami-0dask0003", "imgfile-basic-dask", AWS, "2026_09_03t00_00_00_000000"),
+    ("ami-0base0001", "basic-rh-10", AWS, "2026_09_01t00_00_00_000000"),
+    ("ami-0e1dask01", "imgfile-basic-dask", OTHER, "2026_09_01t00_00_00_000000"),
+    ("ami-0e1dask02", "imgfile-basic-dask", OTHER, "2026_09_02t00_00_00_000000"),
 ]
 
 
@@ -88,37 +90,37 @@ def test_retention_keeps_the_newest_n_and_reports_debt(prepared):
     _set_image(root, "imgfile-basic-dask", retention={"keep": 1})
     run = make()
     disposable, debt = retention_plan(run.ctx)
-    # keep 1 per runtime: the two older GCE dask builds and the older AWS one
-    assert [b["build_id"] for b in disposable] == ["ami-dask-1", "dask-gce-1", "dask-gce-2"]
+    # keep 1 per runtime: the older dask build on the other runtime and the two older here
+    assert [b["build_id"] for b in disposable] == ["ami-0e1dask01", "ami-0dask0001", "ami-0dask0002"]
     assert debt == []
-    assert "base-gce-1" not in {b["build_id"] for b in disposable}      # no retention declared
+    assert "ami-0base0001" not in {b["build_id"] for b in disposable}      # no retention declared
     # a pinned build is debt, never disposed
-    run.ctx.meta_state.bind_instance("gce-test", "dask-gce-1", run.ctx.run_id)
+    run.ctx.meta_state.bind_instance("test2", "ami-0dask0001", run.ctx.run_id)
     disposable, debt = retention_plan(run.ctx)
-    assert [b["build_id"] for b in disposable] == ["ami-dask-1", "dask-gce-2"]
-    assert [(b["build_id"], why) for b, why in debt][0][0] == "dask-gce-1"
+    assert [b["build_id"] for b in disposable] == ["ami-0e1dask01", "ami-0dask0002"]
+    assert [(b["build_id"], why) for b, why in debt][0][0] == "ami-0dask0001"
 
 
 def test_an_ephemeral_runtime_keeps_nothing_and_the_other_runtime_is_untouched(prepared):
     from cs_image_system.engine.commands.dispose import retention_plan
     root, make = prepared
     _seed_builds(root, BUILDS)
-    _set_runtime(root, GCE, ephemeral=True)
+    _set_runtime(root, AWS, ephemeral=True)
     run = make()
     disposable, debt = retention_plan(run.ctx)
-    assert {b["build_id"] for b in disposable} == {"dask-gce-1", "dask-gce-2", "dask-gce-3", "base-gce-1"}
-    assert not any(b["runtime"] == AWS for b in disposable)
+    assert {b["build_id"] for b in disposable} == {"ami-0dask0001", "ami-0dask0002", "ami-0dask0003", "ami-0base0001"}
+    assert not any(b["runtime"] == OTHER for b in disposable)
     # runtime-level default applies where the image declares none
-    _set_runtime(root, GCE, ephemeral=False, retention_keep=2)
+    _set_runtime(root, AWS, ephemeral=False, retention_keep=2)
     run = make()
-    disposable, _ = retention_plan(run.ctx, runtime=GCE)
-    assert [b["build_id"] for b in disposable] == ["dask-gce-1"]
+    disposable, _ = retention_plan(run.ctx, runtime=AWS)
+    assert [b["build_id"] for b in disposable] == ["ami-0dask0001"]
 
 
 def test_the_closing_lifecycle_emits_the_disposal_after_release(prepared):
     root, make = prepared
     _seed_builds(root, BUILDS)
-    _set_runtime(root, GCE, ephemeral=True)
+    _set_runtime(root, AWS, ephemeral=True)
     run = make()
     summary = run.run("all", apply=True, only=["none"])
     assert summary.ok, summary.error
@@ -140,24 +142,24 @@ def test_no_retention_declared_means_no_closing_script(prepared):
 
 
 def test_retention_disposal_deletes_only_the_disposable_builds(prepared, monkeypatch):
+    from cs_image_system.aws_runtime.aws_runtime_builders import AwsCloudBuilder
     from cs_image_system.engine.commands.dispose import dispose_images
-    from cs_image_system.gcloud_runtime.gcp_runtime_builders import GCPCloudBuilder
     deleted: list[str] = []
-    monkeypatch.setattr(GCPCloudBuilder, "dispose_image", lambda self, b: deleted.append(b) or True)
+    monkeypatch.setattr(AwsCloudBuilder, "dispose_image", lambda self, b: deleted.append(b) or True)
     root, make = prepared
-    _seed_builds(root, [b for b in BUILDS if b[2] == GCE])
+    _seed_builds(root, [b for b in BUILDS if b[2] == AWS])
     _set_image(root, "imgfile-basic-dask", retention={"keep": 1})
     run = make(dry_run=False)
-    run.ctx.meta_state.bind_instance("gce-test", "dask-gce-1", run.ctx.run_id)
+    run.ctx.meta_state.bind_instance("test2", "ami-0dask0001", run.ctx.run_id)
     results = dispose_images(run.ctx, retention=True)
-    assert deleted == ["dask-gce-2"] and [r.build_id for r in results] == ["dask-gce-2"]
-    assert {b["build_id"] for b in run.ctx.meta_state.builds()} == {"dask-gce-1", "dask-gce-3", "base-gce-1"}
+    assert deleted == ["ami-0dask0002"] and [r.build_id for r in results] == ["ami-0dask0002"]
+    assert {b["build_id"] for b in run.ctx.meta_state.builds()} == {"ami-0dask0001", "ami-0dask0003", "ami-0base0001"}
 
 
 def test_retention_values_are_validated(prepared):
     root, make = prepared
     _set_image(root, "imgfile-basic-dask", retention={"keep": -1})
-    _set_runtime(root, GCE, retention_keep=-3)          # a non-int fails at structuring, before validation
+    _set_runtime(root, AWS, retention_keep=-3)          # a non-int fails at structuring, before validation
     run = make()
     summary = run.run(["instance-image"], apply=False, only=["none"])
     assert not summary.ok
@@ -171,12 +173,12 @@ def test_transient_storages_on_an_ephemeral_runtime_are_torn_down_by_the_closing
     destroyed by THIS run's closing phase -- a storage run without the
     declaring overlay -- not left for the next run."""
     root = copy_config(tmp_path)
-    _set_runtime(root, GCE, ephemeral=True)
+    _set_runtime(root, AWS, ephemeral=True)
     overlay = root / "overlays" / "scratch.yaml"
-    overlay.write_text("storages:\n  - name: scratch\n    type: gcp-pd\n    groups: [coops]\n"
-                       "config:\n  apply_storage: [gcloud-east1]\n")
+    overlay.write_text("storages:\n  - name: scratch\n    type: aws-ebs\n    groups: [coops]\n"
+                       f"config:\n  apply_storage: [{AWS}]\n")
     knobs = root / "overlays" / "knobs.yaml"
-    knobs.write_text("config:\n  apply_instances: [gcloud-east1]\n")
+    knobs.write_text(f"config:\n  apply_instances: [{AWS}]\n")
     run = FixtureRun(tmp_path, monkeypatch, config_root=root, overlays=[overlay, knobs])
     try:
         assert ("storages", "scratch") in run.ctx.overlay_declared
