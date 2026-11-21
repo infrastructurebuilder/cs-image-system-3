@@ -37,8 +37,8 @@ under the strict session (no `strict:` line).
 
 A few minutes. The two starters that declare Google Cloud are not
 rendered there: they declare other providers too, so this repository
-tests them where every provider is installed (`just test-cloud-starters`
-in CI's `live` job; research R11).
+tests them with every provider installed (`just test-cloud-starters`,
+part of `just test`, with the family taken from the index; research R11).
 
 ```sh
 # step 2 -- box 1 of 1 -- v2
@@ -52,11 +52,13 @@ Expect every leg reported as passed, and `full-test: passed` last.
 About 30 minutes.
 
 ```sh
-# step 3 -- box 1 of 2 -- v1
-grep -rln "gcloud_runtime\|tf_gcp_plugin\|gcs_state_plugin" --include='*.py' packages src tests scripts; echo "searched"
+# step 3 -- box 1 of 2 -- v2
+grep -rln "gcloud_runtime\|tf_gcp_plugin\|gcs_state_plugin" --include='*.py' packages src tests scripts | grep -v '^tests/cloud_starters/'; echo "searched"
 ```
 
-Expect the single line `searched`.
+Expect the single line `searched`. `tests/cloud_starters` is left out
+on purpose: it imports the family's own test stubs, and runs only with
+the family layered in from the index (`just test-cloud-starters`).
 
 ```sh
 # step 3 -- box 2 of 2 -- v1
@@ -83,11 +85,15 @@ its drift check always does.
 
 **YOUR DECISION**: this reads the reference with the family installed
 from its release, by the reference's own pin. Take the release with
-`just take` first (default: the phase 3 release).
+`just take` first (default: the phase 3 release). Name the installed
+release as the command: a development checkout's venv does not hold the
+family the reference declares.
 
 ```sh
-# step 5 -- box 1 of 1 -- v1
-cd ../cs-image-system-testconfig && just config-drift
+# step 5 -- box 1 of 1 -- v2
+cd ../cs-image-system-testconfig && CSIS="$HOME/.local/bin/cs-image-system" just config-drift
 ```
 
-Expect exit 0, with no change that is the tree's own.
+Expect exit 0, with no change that is the tree's own. After any run
+that applied (a cycle), `just record` comes first: a scoped run's
+committed emission is not the whole tree's.

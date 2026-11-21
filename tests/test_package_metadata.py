@@ -493,9 +493,15 @@ def test_the_index_probe_reads_versions_from_json_and_html_and_exits_by_knowledg
 SDK_LINES: dict[str, set[str]] = dict(zip(("kit", "terraform"), SDK_VERSION_LINES, strict=True))
 
 
-@pytest.mark.parametrize(("line", "part", "new"), [("kit", "last", "0.2.1"), ("kit", "middle", "0.3.0"),
-                                                   ("terraform", "last", "0.2.1"), ("terraform", "middle", "0.3.0")])
-def test_an_sdk_line_moves_alone_with_every_exact_pin_on_it_and_no_range(tree: Path, line: str, part: str, new: str):
+def _next(version: str, part: str) -> str:
+    """The version `part` makes of `version`: `last` raises the last number, `middle` the middle one."""
+    major, middle, last = (int(n) for n in version.split("."))
+    return f"{major}.{middle}.{last + 1}" if part == "last" else f"{major}.{middle + 1}.0"
+
+
+@pytest.mark.parametrize(("line", "part"), [("kit", "last"), ("kit", "middle"), ("terraform", "last"),
+                                            ("terraform", "middle")])
+def test_an_sdk_line_moves_alone_with_every_exact_pin_on_it_and_no_range(tree: Path, line: str, part: str):
     """`just sdk-bump <line> <part>`, over a copy of the tree: the line's members take the new version and so
     does every exact pin on them; the workspace's version, the contract, the other line and every range (a
     provider's on the SDK, every dependent's on the contract) are untouched."""
@@ -503,7 +509,8 @@ def test_an_sdk_line_moves_alone_with_every_exact_pin_on_it_and_no_range(tree: P
     shutil.copy(REPO / config, tree / config)
     before = {p: tomllib.loads(p.read_text())["project"] for p in tree.rglob("pyproject.toml")}
     old = own_versions(tree)
-    assert {old[m] for m in SDK_LINES[line]} == {"0.2.0"}, "the case is written for a line at 0.2.0"
+    (current,) = {old[m] for m in SDK_LINES[line]}                  # one version for the whole line
+    new = _next(current, part)
     r = _bump(tree, "bump", "--config-file", config, part)
     assert r.returncode == 0, r.stdout + r.stderr
     moved = SDK_LINES[line]

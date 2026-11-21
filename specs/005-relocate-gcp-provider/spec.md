@@ -6,7 +6,7 @@
 
 **Created**: 2026-11-18
 
-**Status**: In progress. Phase 1 (prepare here) merged into `develop` 2026-11-19 from `feature/005-prepare`; phases 2 to 4 continue on `feature/005-relocate-gcp-provider`. Records are in [tasks.md](tasks.md).
+**Status**: Merged, 2026-11-20; not yet complete under the constitution's definition of done (1.2.0), which also asks for a `/speckit-converge` run. Phase 1 merged into `develop` 2026-11-19 from `feature/005-prepare`; phases 2 to 4 merged 2026-11-20 from `feature/005-relocate-gcp-provider` (`0ba7077a`); the family released from `cs-image-system-google-cloud` at 0.2.0, this repository released without it at 0.1.12, the reference took it with its drift check green, and one live GCE cycle passed. Records are in [tasks.md](tasks.md).
 
 ## Clarifications
 

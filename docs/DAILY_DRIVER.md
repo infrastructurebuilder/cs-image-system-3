@@ -1541,9 +1541,12 @@ from the package index for each command, since this workspace does not
 hold it; its cycles, like any team's, run from its own `Justfile` (`cd
 ../cs-image-system-testconfig && just cloud-cycle gcloud-east1`), which
 the release shipped and `init-config` wrote. When `CSIS` in that tree's
-`.envrc` points at this checkout's `.venv/bin/cs-image-system` (the
-arrangement for a checkout beside the tree), the command is a
-development install, and a committing run there (`just record`, a
+`.envrc` points at this checkout's command (the arrangement for a
+checkout beside the tree: `CSIS="uv run --project <checkout> --no-sync
+python <checkout>/scripts/with-released-families cs-image-system"`, since
+the checkout's venv does not hold the Google Cloud family the tree
+declares, and `<checkout>/.venv/bin/cs-image-system` alone no longer loads
+it), the command is a development install, and a committing run there (`just record`, a
 `cloud-*` recipe that runs), like a committing `lineage restamp`, is
 refused before it generates: the tree pins a
 release in `.csis-version`, and a checkout is not that release even when
