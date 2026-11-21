@@ -72,9 +72,10 @@ done; echo "compared"
 Expect `DIFFERENT: instance-image/tofu-docker` and then `compared`,
 and no other `DIFFERENT` line. The one difference is recorded under
 T022 in [tasks.md](tasks.md): in the shared golden the docker instance
-root also carries remote-state blocks for the AWS and Google Cloud
-storage builders, because the shared fixture declares them and the
-family's fixture does not. Every other docker file is byte-identical.
+root also carries remote-state blocks for the AWS storage builders
+(`aws_efs`, `aws_ebs`, `aws_s3`), because the shared fixture declares
+them and the family's fixture does not. (The Google Cloud ones it also
+carried left the shared fixture with spec 005.) Every other docker file is byte-identical.
 
 The other half of "beside every other provider" is step 5: the same
 family suite, against the same golden, passes in the workspace
@@ -171,14 +172,17 @@ just cli config-drift; echo "exit=$?"
 Expect `exit=0`, the same as the result task T003 recorded.
 
 The `standard-docker` starter. Its "before" emission comes from the
-commit this branch started from, checked out beside the repository
-for the purpose. Both emissions must be made on the same day, because
+commit this branch started from, `be648dbb` (task T003's record),
+checked out beside the repository for the purpose. Since the branch
+merged, a merge-base with `develop` is `develop` itself, so the box names
+that commit. A difference that spec 004 or spec 005 made on purpose is
+read against their records, not counted against this specification. Both emissions must be made on the same day, because
 the starter's emission holds the resolved digest of a vendor image.
 About 6 minutes.
 
 ```sh
-# step 7 -- box 2 of 3 -- v1
-base="$(git merge-base develop HEAD)"
+# step 7 -- box 2 of 3 -- v2
+base=be648dbb
 git worktree add --detach "$TMPDIR/csis-001-before" "$base"
 ( cd "$TMPDIR/csis-001-before" && just init \
   && uv run cs-image-system init-config "$TMPDIR/before-tree" --from standard-docker \
