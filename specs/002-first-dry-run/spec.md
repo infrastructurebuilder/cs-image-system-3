@@ -10,6 +10,15 @@
 
 **Input**: User description: "A newcomer with nothing installed reaches a successful dry run by following one page, and CI runs that page's commands."
 
+## Clarifications
+
+### Session 2026-11-21
+
+- Q: In what order do specs 002, 003, 006, 007 and 008 land? → A: 008 first, then 003, then 007; 006 and 002 fit between, and 002, 003 and 006 are carried by one batched release
+- Q: A dry run of the docker starter needs uv, Docker, OpenTofu, Packer and bash 5; the limit was four. → A: Raise the limit to five (FR-002, SC-004 amended)
+- Q: Who walks the page for SC-002? → A: A member of an adopting team, on their own macOS machine, after the next final release that carries the page; recorded under the tasks
+- Q: What happens to the older public repository `cs-image-system-starter-tree`? → A: Its README is replaced by three lines pointing at the quickstart page and the five template repositories, then it is archived
+
 **Users served**: an adopting team (primary); operators who are new to the system.
 
 ## Why
@@ -176,7 +185,8 @@ works.
   prerequisites to a successful dry run of a small example configuration
   on their own machine.
 - **FR-002**: The page MUST state its prerequisites at the top, by name
-  and minimum version, and they MUST be four or fewer.
+  and minimum version, and they MUST be five or fewer. *(Amended
+  2026-11-21: four became five, the operator's decision.)*
 - **FR-003**: Every command on the page MUST be runnable exactly as
   written, in order, with no value for the reader to fill in.
 - **FR-004**: The first install command MUST work before any
@@ -246,8 +256,8 @@ works.
   someone outside the project, and recorded).
 - **SC-003**: The path needs zero cloud accounts, zero logins and zero
   values typed in by the reader.
-- **SC-004**: The page has at most ten commands and at most four
-  prerequisites.
+- **SC-004**: The page has at most ten commands and at most five
+  prerequisites. *(Amended 2026-11-21.)*
 - **SC-005**: A deliberately broken command on the page makes CI fail;
   restoring it makes CI pass.
 - **SC-006**: Each of the five listed first-run failures produces a
@@ -261,7 +271,7 @@ works.
 
 - The example is the docker starter, because it is the only one that
   needs no cloud account. If a dry run of it needs a running container
-  daemon, the daemon counts as one of the four prerequisites.
+  daemon, the daemon counts as one of the five prerequisites.
 - The page covers macOS and Linux. Windows is out of scope.
 - The starter ships a test key for its encrypted example values; using
   it for a first dry run is acceptable because nothing real is protected

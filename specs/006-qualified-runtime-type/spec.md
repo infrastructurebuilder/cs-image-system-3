@@ -10,6 +10,16 @@
 
 **Input**: User description: "A runtime whose type: is written in its qualified form (for example gcloud-runtime/gcloud instead of gcloud) loads, but validation then refuses every OS builder entry on that runtime with 'no image source: the image-source catalog has no `gcloud-runtime/gcloud` block', because the image query asks the image-source catalog for a block under the type word exactly as the configuration wrote it, while the catalog keys its blocks by the bare runtime type. Every other qualified word (instance, storage, state builders) already works. Found by spec 005's test of qualified words (T028) in the Google Cloud family's repository; the cause is in this repository's core, not in any provider. A configuration that writes a qualified runtime type should validate, bake and emit exactly as the bare form does. Serves operators and an adopting team."
 
+*Amended 2026-11-21 (the operator's decision at planning): the input's "Every other qualified word (instance, storage, state builders) already works" holds for instance and image builders only. The qualified words of state backends, OS builders and storage builders load but change the emission; they are a separate specification, written next, not this one's scope.*
+
+## Clarifications
+
+### Session 2026-11-21
+
+- Q: In what order do specs 002, 003, 006, 007 and 008 land? → A: 008 first, then 003, then 007; 006 and 002 fit between, and 002, 003 and 006 are carried by one batched release
+- Q: Does this specification also cover the qualified words of state backends, OS builders and storage builders? → A: No: a separate specification, written next; this one stays on the runtime word
+- Q: Which release carries the fix? → A: One final release batched with specs 002 and 003; then the Google Cloud family's 0.2.1 carrying its new test
+
 A qualified name is one with a '/' with the namespace being the part before the '/' and the name the part after.  Implicit qualifications based on the loading plugin are allowed.
 
 **Users served**: operators (who write a qualified word to say which plugin they mean, or must once two plugins register one bare word); an adopting team (whose tree, copied from a starter or written by hand, may use either form).

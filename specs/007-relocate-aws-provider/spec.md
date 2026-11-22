@@ -10,6 +10,14 @@
 
 ## Clarifications
 
+### Session 2026-11-21
+
+- Q: In what order do specs 002, 003, 006, 007 and 008 land? → A: 008 wholly first (six of the shared fixture's eight images are owned by Okta groups), then 003, then 007; 006 and 002 fit between, and 002, 003 and 006 are carried by one batched release
+- Q: How does the AWS identity move? → A: As spec 005's did: set the secret and the role's trust for `cs-image-system-aws` before its first live dispatch; remove this repository's `AWS_ROLE_ARN` and its trust after phase 3's release reaches `main`
+- Q: The new repository's default branch? → A: `develop`, as the Google Cloud family's
+- Q: A live AWS cycle to prove the move? → A: None
+- Q: Amend the three statements planning found false? → A: Yes, as the plan writes them
+
 ### Session 2026-11-19
 
 - Q: Where does the AWS family go? → A: A new repository of its own,
@@ -49,7 +57,9 @@ reasons this specification must answer:
   roots' state in S3; the CI runner image and the system's own CI carry
   AWS identities; the default starter is `standard-aws`.
 - **No destination exists yet.** Google Cloud's repository existed before
-  its move; AWS's does not.
+  its move; AWS's does not. *(Since 2026-11-19 it exists:
+  `infrastructurebuilder/cs-image-system-aws`, its default branch to become
+  `develop`.)*
 
 The AWS family goes to a new repository of its own,
 `infrastructurebuilder/cs-image-system-aws`, which the operator creates,
@@ -158,9 +168,10 @@ neither builds nor publishes another's packages.
   Google Cloud family alone must say so, not fail obscurely.
 - The default starter is `standard-aws`: a system installed without the
   AWS family must still offer it, or say plainly which extra it needs.
-- The live jobs here (`fixture-live`, the starters' check of spec 005)
-  validate with an AWS identity; they must neither fail nor silently
-  succeed once the AWS family's declarations leave this repository.
+- The live jobs here (`fixture-live`, and the starters' check of spec 005,
+  which uses no cloud identity) must neither fail nor silently succeed
+  once the AWS family's declarations leave this repository. *(Amended
+  2026-11-21: the starters' check takes no AWS identity.)*
 - The AWS family's names are on the package index with many releases;
   its first release from its own repository must not reuse a version the
   index holds.
@@ -197,8 +208,9 @@ neither builds nor publishes another's packages.
 - **FR-008**: Every core behaviour the shared suite proves through AWS
   MUST stay proven here, through the docker family's runtime and roots;
   a behaviour docker cannot show (a capability only a cloud runtime has)
-  MUST be named, and either carried to the AWS family's repository or
-  stated as no longer proven here, with the reason.
+  MUST be named, and either proven here by the test kit's double runtime
+  (research R6 (a)), carried to the AWS family's repository, or stated as
+  no longer proven here, with the reason. *(Amended 2026-11-21.)*
 - **FR-009**: The shared fixture's AWS parts and every golden file that
   leaves or changes MUST be read file by file (Constitution IV).
 - **FR-010**: The system's `aws` and `all` extras MUST keep installing the

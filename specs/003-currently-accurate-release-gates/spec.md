@@ -10,6 +10,17 @@
 
 **Input**: User description: "A release that cannot fool you: a skipped gate fails, the tag is pushed by name, the take waits for the index, a missing CI run is reported at once."
 
+## Clarifications
+
+### Session 2026-11-21
+
+- Q: In what order do specs 002, 003, 006, 007 and 008 land? → A: 008 first, then 003, then 007; 006 and 002 fit between, and 002, 003 and 006 are carried by one batched release
+- Q: Where do full-test's two Podman legs go? → A: Their own recipe, `just test-podman`, which no release gate requires
+- Q: How does the dry-run leg stop passing with the Okta roots unplanned? → A: The `reference` prerequisite requires the `OKTA_API_*` variables set and not empty; the cure in the plugin belongs to spec 008's repository
+- Q: Do the starters' own SKIPPED gates and `_skeleton/Justfile` change too? → A: No; they belong to what an adopting team sees, spec 002's
+- Q: What exit status does a run that passes with exclusions have? → A: 0, its last line saying `passed WITH EXCLUSIONS`
+- Q: Which release carries this specification? → A: One final release batched with specs 002 and 006, taken on the reference's `main` too
+
 **Users served**: operators (the person cutting a release); an adopting team and a plugin author (they install what a release publishes and must be able to trust it).
 
 ## Why
