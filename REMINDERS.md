@@ -92,7 +92,9 @@ changes, and every tree refreshes its modules at its next take, which
 the take now does by itself (stage 112). Plan it as a stage of its
 own then.
 
-- After the next release cycle: (open)
+- After the next release cycle: due since 0.1.11; specified 2026-11-22 as
+  [specification 011](specs/011-engine-owns-its-entry-points/spec.md)
+  (open until it is complete)
 
 ## After specification 008
 
@@ -128,7 +130,9 @@ ignores stand. The question to settle before 1.0: keep them, or make
 the base models generic over the field's type so that no ignore is
 needed (a refactor across base and four plugins).
 
-- Before 1.0: (open)
+- Before 1.0: specified 2026-11-22 as
+  [specification 012](specs/012-narrowed-fields-without-ignores/spec.md)
+  (open until it is complete)
 
 ## GCP account housekeeping (csis-sandbox)
 
