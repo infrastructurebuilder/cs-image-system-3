@@ -11,7 +11,7 @@ asked about is refused, not guessed. A state bucket the bootstrap made stays
 managed by the root through the second interview; one that stood before the
 root is read and never managed. The generated README
 tabulates what the root covers (MADE, READ, ADOPTED, BY HAND) for every
-section, the Okta section audits what it never makes, the write role
+section, a section audits what it never makes, the write role
 carries the read document as a second policy, and the release carries the
 bootstrap modules.
 
@@ -207,6 +207,20 @@ def test_every_sections_coverage_is_a_table_in_the_readme_in_the_audits_words(tm
     for name, section in {s.name: s for s in bs.discover()}.items():
         assert section.render is not None, name
     assert "BY HAND" in (REPO / "docs" / "OPERATIONS.md").read_text()      # the standing audit in the docs
+
+
+def test_a_section_audits_what_it_never_makes():
+    """A section's render names, in the audit the README tabulates, each
+    thing it never makes as BY HAND with its reason (the docker section:
+    the daemon and the network are the team's)."""
+    from cs_image_system.docker_runtime.bootstrap import render
+    for reaches in (True, False):
+        rendered = render({"runtime": "widgets-docker", "ci_reaches": reaches})
+        statuses = {res: status for res, status, _ in rendered.coverage}
+        assert statuses["the daemon of `widgets-docker`"] == "BY HAND"
+        assert statuses["the network the runtime names"] == "BY HAND"
+        assert all(status in COVERAGE_STATUSES for status in statuses.values()), statuses
+        assert all(why for _, _, why in rendered.coverage)
 
 
 def test_the_okta_section_audits_what_it_never_makes():

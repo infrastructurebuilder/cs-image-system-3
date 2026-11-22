@@ -89,8 +89,8 @@ def test_a_local_backend_path_that_is_fine_still_loads():
 def test_a_state_backend_alias_binds(tmp_path: Path, monkeypatch):
     root = copy_config(tmp_path)
     _edit(root / "cfg" / "state-backends-3.yml", lambda d: _backend(d, "local-dev").update(aliases=["on-disk"]))
-    _edit(root / "cfg" / "group-builders.yml",
-          lambda d: next(b for b in d["group_builders"] if b["name"] == "oktagroups").update(
+    _edit(root / "cfg" / "storage-builders.yml",
+          lambda d: next(b for b in d["storage_builders"] if b["name"] == "aws-ebs").update(
               state_configuration="on-disk"))
     stub_environment(monkeypatch)
     ctx = load_context(root)
@@ -152,6 +152,23 @@ def test_the_flag_off_is_refused_naming_every_root_that_reads_a_producer(tmp_pat
     assert {"aws-ebs", "aws-efs"} <= consumers, errors
     by_root = {re.search(r"the root '([^']+)'", e).group(1): e for e in errors}   # type: ignore[union-attr]
     assert "'oktagroups'" in by_root["aws-ebs"] and "'aws-ebs'" in by_root["open-tofu"]
+
+
+def test_the_flag_off_names_each_consumer_and_its_producer(tmp_path: Path, monkeypatch):
+    """The refusal through the storage and instance roots alone: every
+    instance root reads a producer's state, so each is named, and its error
+    names the root it reads; no root outside the storage and instance
+    builders is named as a reader."""
+    root = copy_config(tmp_path)
+    _set_flag(root, False)
+    errors = _state_backend_errors(root, monkeypatch)
+    import re
+    by_root = {re.search(r"the root '([^']+)'", e).group(1): e for e in errors}   # type: ignore[union-attr]
+    cfg = root / "cfg"
+    instance_roots = {e["name"] for e in yaml.safe_load((cfg / "instance-builders.yml").read_text())["instance_builders"]}
+    storage_roots = {e["name"] for e in yaml.safe_load((cfg / "storage-builders.yml").read_text())["storage_builders"]}
+    assert instance_roots <= set(by_root) <= instance_roots | storage_roots, errors
+    assert "'aws-ebs'" in by_root["open-tofu"] and "'docker-volume'" in by_root["tofu-docker"], errors
 
 
 def test_the_flag_on_raises_nothing(tmp_path: Path, monkeypatch):

@@ -71,6 +71,27 @@ def test_a_group_the_provider_could_not_be_asked_about_is_unavailable_not_missin
     assert names[0] not in {d.name for d in sq.group_drift(ctx, groups)}
 
 
+def test_a_provider_with_no_central_record_answers_nothing_and_its_groups_never_drift(run):
+    """The posix group builder keeps no directory to ask: its real
+    ``query_state`` answers ``{}`` -- not "cannot be queried" -- so even a
+    group the read-model records as managed and SEEN is neither drift nor an
+    unavailable line; the group rules only judge a record a provider gives."""
+    ctx = run.ctx
+    model = identity_read_model(ctx)
+    assert model["groups"]["pxgroup"]["managed"] and model["groups"]["pxgroup"]["identity_type"] == "posix"
+    for rec in model["groups"].values():
+        rec["seen"] = True                      # an absence would be hard, for a group a provider answered for
+    ctx.meta_state.write_identity_read_model(model)
+    assert ctx.group_builders["posix-local"].query_state() == {}
+    report = sq.query_state(ctx)
+    assert "pxgroup" not in report.reality["groups"]
+    assert not [d for d in report.drift if d.kind == "group" and d.name == "pxgroup"], report.drift
+    assert not [u for u in report.unavailable if u.startswith(("groups/posix-local", "groups/pxgroup"))], report.unavailable
+    # the same group, had a provider answered it absent, is the hard drift a deletion is
+    [gone] = [d for d in sq.group_drift(ctx, {"pxgroup": {"present": False}}) if d.name == "pxgroup"]
+    assert gone.drift == sq.DRIFT_MISSING and gone.hard
+
+
 def test_the_builder_tells_a_404_from_a_call_that_failed(run, monkeypatch):
     gb = _group_builder(run.ctx)
     names = [g.get_name() for g in gb.get_groups_for_builder()]

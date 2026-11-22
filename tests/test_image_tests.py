@@ -76,6 +76,33 @@ def test_instance_image_bake_verifies_activation_and_declared_tests(fixture_run)
     assert build.index("tx.group: coops") < build.index("in-bake verification for instance image imgfile-basic-dask")
 
 
+def test_a_base_image_declaring_posix_verifies_its_tools_in_the_bake(fixture_run):
+    """The capability checks come from the plugin of each declared type:
+    basic-rhel-9 declares posix, so its verification proves the shadow tools
+    and sudo, and it is still the last provisioner for that source."""
+    assert fixture_run.run(["base-image"], apply=False).ok
+    build = (fixture_run.generated / BASE_BUILD).read_text()
+    sect = _section(build, "base image basic-rhel-9")
+    assert '"set -e",' in sect and "id -u csisadmin" in sect
+    assert "# verify: groupadd, useradd, gpasswd, visudo present" in sect
+    for tool in ("groupadd", "useradd", "gpasswd", "visudo"):
+        assert f"command -v {tool} >/dev/null" in sect, tool
+    assert "command -v visudo" not in _section(build, "base image basic-rh-10"), "basic-rh-10 declares no posix"
+    assert build.rindex('only   = ["amazon-ebs.basic-rhel-9"]') == \
+        sect.index('only   = ["amazon-ebs.basic-rhel-9"]') + build.index("in-bake verification for base image basic-rhel-9")
+
+
+def test_an_instance_image_of_a_posix_group_verifies_its_activation(fixture_run):
+    """imgfile-posix belongs to pxgroup: its verification proves the group
+    stands with its declared gid, after the bake made it."""
+    assert fixture_run.run(["instance-image"], apply=False).ok
+    build = (fixture_run.generated / INST_BUILD).read_text()
+    sect = _section(build, "instance image imgfile-posix")
+    assert '"set -e",' in sect
+    assert "test \\\"$(getent group pxgroup | cut -d: -f3)\\\" = '3101'" in sect
+    assert build.index("groupadd -g 3101 pxgroup") < build.index("in-bake verification for instance image imgfile-posix")
+
+
 def test_tests_spec_is_validated(tmp_path, monkeypatch):
     root = copy_config(tmp_path)
     p = root / "images" / "image1.yaml"

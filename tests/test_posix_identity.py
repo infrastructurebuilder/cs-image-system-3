@@ -122,23 +122,49 @@ def test_a_group_builder_without_an_identity_root_supplies_no_gid_by_default():
     assert GroupBuilderBase.gid_workspace(gb) is None and GroupBuilderBase.gid_expression(gb, "g") is None  # type: ignore[arg-type]
 
 
+def _every_owner_posix(root) -> None:
+    """Make pxgroup the owner of every image and the one allowed group of
+    every storage that names groups, and let every base image declare
+    posix: the storage and instance roots then hold no other group."""
+    for path in sorted((root / "images").glob("*.yaml")):
+        data = yaml.safe_load(path.read_text())
+        for image in data["images"]:
+            image["group"] = "pxgroup"
+        path.write_text(yaml.safe_dump(data, sort_keys=False))
+    for path in sorted((root / "storages").glob("*.yaml")):
+        data = yaml.safe_load(path.read_text())
+        for storage in data["storages"]:
+            if storage.get("groups"):
+                storage["groups"] = ["pxgroup"]
+        path.write_text(yaml.safe_dump(data, sort_keys=False))
+    path = root / "cfg" / "os-builders.yml"
+    data = yaml.safe_load(path.read_text())
+    for builder in data["os_builders"]:
+        if "posix" not in builder.get("identity_types", []):
+            builder["identity_types"] = [*builder.get("identity_types", []), "posix"]
+    path.write_text(yaml.safe_dump(data, sort_keys=False))
+
+
 def test_a_literal_gid_reaches_the_roots_and_no_identity_state_is_read(tmp_path, monkeypatch):
     """The seam posix uses: a builder whose gids are configuration answers
     with the number and no workspace -- the storage and instance roots then
     carry the number and declare no remote state of an identity root."""
-    from cs_image_system.okta_opa_plugin.okta_opa_tf_group_builder import OktaTfGroupBuilder
-    from tests.harness import FixtureRun
-    monkeypatch.setattr(OktaTfGroupBuilder, "gid_workspace", lambda self: None)
-    monkeypatch.setattr(OktaTfGroupBuilder, "gid_expression", lambda self, group: "4242")
-    run = FixtureRun(tmp_path, monkeypatch)
+    from cs_image_system.contract.names import super_safe_name
+    from tests.harness import FixtureRun, copy_config
+    root = copy_config(tmp_path)
+    _every_owner_posix(root)
+    run = FixtureRun(tmp_path, monkeypatch, config_root=root)
     try:
-        assert run.run(["storage", "instance-image"], apply=False).ok
+        summary = run.run(["storage", "instance-image"], apply=False)
+        assert summary.ok, summary.validation_errors
         texts = {p: p.read_text() for sub in ("storage", "instance-image")
                  for p in (run.generated / sub).rglob("*.tf")}
         joined = "\n".join(texts.values())
-        assert "4242" in joined, "the literal gid reached no root"
+        assert "3101" in joined, "the literal gid reached no root"
+        assert '"group_gid" = 3101' in joined, "an instance takes the number as its group's gid"
         assert "outputs.group_gids" not in joined
-        assert not [p for p, t in texts.items() if 'data "terraform_remote_state" "oktagroups"' in t]
+        identity = [f'data "terraform_remote_state" "{super_safe_name(name)}"' for name in run.ctx.group_builders]
+        assert not [p for p, t in texts.items() if any(block in t for block in identity)]
     finally:
         run.restore_cwd()
 
@@ -152,7 +178,7 @@ def _claims(*rows):
 
 def test_two_sides_that_supply_different_ids_for_one_name_are_a_configuration_error():
     from cs_image_system.engine.posix_ids import Claim, resolve_posix_ids
-    r = resolve_posix_ids([Claim("OPA", "group", "coops", 60123, rank=10),
+    r = resolve_posix_ids([Claim("the provider", "group", "coops", 60123, rank=10),
                            Claim("the configuration", "group", "coops", 3000, rank=20)])
     assert r.ids == {} and len(r.problems) == 1
     assert r.problems[0].startswith("group coops:") and "60123" in r.problems[0] and "3000" in r.problems[0]
@@ -161,7 +187,7 @@ def test_two_sides_that_supply_different_ids_for_one_name_are_a_configuration_er
 def test_a_side_with_only_the_name_takes_the_other_sides_id_in_serial_order():
     from cs_image_system.engine.posix_ids import Claim, resolve_posix_ids
     r = resolve_posix_ids([Claim("the configuration", "group", "coops", None, rank=20),
-                           Claim("OPA", "group", "coops", 60123, rank=10),
+                           Claim("the provider", "group", "coops", 60123, rank=10),
                            Claim("the machine", "group", "coops", None, rank=90)])
     assert r.ids == {("group", "coops"): 60123} and r.problems == []
 
@@ -170,7 +196,7 @@ def test_a_name_no_side_supplies_is_refused_unless_a_side_will_supply_it_later()
     from cs_image_system.engine.posix_ids import DEFERRED, Claim, resolve_posix_ids
     r = resolve_posix_ids([Claim("the configuration", "group", "lonely", None)])
     assert len(r.problems) == 1 and r.problems[0].startswith("group lonely:") and "`gid:`" in r.problems[0]
-    r = resolve_posix_ids([Claim("OPA", "group", "coops", DEFERRED, rank=10),
+    r = resolve_posix_ids([Claim("the provider", "group", "coops", DEFERRED, rank=10),
                            Claim("the configuration", "group", "coops", None, rank=20)])
     assert r.problems == [] and r.deferred == {("group", "coops")}
 

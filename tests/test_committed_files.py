@@ -123,8 +123,9 @@ def test_packers_manifest_is_run_local(tmp_path, monkeypatch):
 def test_the_sanction_list_is_ignored_by_the_emission_and_is_not_drift(tmp_path, monkeypatch):
     from cs_image_system.contract.constants import DEFAULT_GITIGNORE_ENTRIES
     from cs_image_system.engine.commands.emission import normalise_emission
-    from cs_image_system.okta_opa_plugin.okta_opa_tf_group_builder import OktaTfGroupBuilder
-    name = OktaTfGroupBuilder.SANCTIONED_REMOVALS
+    # the list a runner's step writes beside a gated root's plan, by the name the core
+    # knows it by (the gate's `--allow-destroy-from`, tofu-roots' runner): no plugin named
+    name = "csis-sanctioned-removals.txt"
     assert name in DEFAULT_GITIGNORE_ENTRIES
     run = FixtureRun(tmp_path, monkeypatch)
     try:

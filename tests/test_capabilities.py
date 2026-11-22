@@ -111,9 +111,29 @@ def test_base_image_bakes_admin_user_and_declared_prerequisites_dormant(fixture_
     assert "sftd.yaml" not in build and "tx.group" not in build
 
 
+def test_a_base_image_declaring_posix_bakes_its_prerequisites_and_no_activation(fixture_run):
+    """The prerequisites of a declared identity type are its plugin's, on the
+    base image that declares it (basic-rhel-9 declares posix), and nothing
+    of any group is activated there."""
+    assert fixture_run.run(["base-image"], apply=False).ok
+    build = _base_build(fixture_run)
+    section = build[build.index("# identity type 'posix' prerequisites, dormant"):]
+    section = section[:section.index("\n  # ")]
+    assert 'only   = ["amazon-ebs.basic-rhel-9"]' in section
+    assert "command -v groupadd >/dev/null && command -v useradd >/dev/null" in section
+    declaring = {o["name"] for o in yaml.safe_load((fixture_run.config_root / "cfg" / "os-builders.yml").read_text())
+                 ["os_builders"] if "posix" in (o.get("identity_types") or [])}
+    baked = set()
+    for part in build.split("# identity type 'posix' prerequisites, dormant")[1:]:
+        baked.add(part.split('only   = ["amazon-ebs.', 1)[1].split('"', 1)[0])
+    assert "basic-rhel-9" in baked and baked <= declaring, "only a base image declaring posix bakes its prerequisites"
+    # activation NEVER happens on a base image
+    assert "groupadd -g" not in build and "identity activation" not in build
+
+
 def test_declared_type_without_a_plugin_is_a_hard_failure(tmp_path, monkeypatch):
     run = _prepared(tmp_path, monkeypatch,
-                    lambda root: _set_os_builder(root, "basic-rh-10", identity_types=["okta", "ldap"],
+                    lambda root: _set_os_builder(root, "basic-rh-10", identity_types=["posix", "ldap"],
                                                  storage_types=["ebs", "lustre"]))
     try:
         summary = run.run(["base-image"], apply=False)
@@ -211,6 +231,20 @@ def test_instance_image_bakes_activation_for_its_own_group(fixture_run):
     assert build.index('playbook_file = "setup_dask.yml"') < build.index("tx.group: coops")
 
 
+def test_an_instance_image_of_a_posix_group_bakes_its_own_groups_activation(fixture_run):
+    """imgfile-posix belongs to pxgroup (gid 3101): its bake makes that group
+    and no other image's bake does."""
+    assert fixture_run.run(["instance-image"], apply=False).ok
+    build = _instance_build(fixture_run)
+    start = build.index("# identity activation for owning group 'pxgroup' (posix)")
+    block = build[start:build.index("\n  # ", start)]
+    assert 'only   = ["amazon-ebs.imgfile-posix"]' in block
+    assert "groupadd -g 3101 pxgroup" in block
+    assert build.count("groupadd -g 3101 pxgroup") == 1, "only the image pxgroup owns makes it"
+    # activation is the image's own step, before its in-bake verification
+    assert start < build.index("in-bake verification for instance image imgfile-posix")
+
+
 def test_undeclared_identity_type_breaks_the_cycle(tmp_path, monkeypatch):
     run = _prepared(tmp_path, monkeypatch,
                     lambda root: _set_os_builder(root, "basic-rh-10", identity_types=[]))
@@ -264,9 +298,11 @@ def test_chain_inherits_the_root_stamp(tmp_path, monkeypatch):
         assert chain == ["imgfile-basic-cloudflow", "imgfile-basic-dask"] and root == "basic-rh-10"
         caps = effective_capabilities(run.ctx, img)
         assert caps is not None
-        declared = next(o for o in yaml.safe_load((run.config_root / "cfg" / "os-builders.yml").read_text())["os_builders"]
-                        if o["name"] == "basic-rh-10")["storage_types"]
-        assert caps.identity_types == ["okta"] and caps.storage_types == sorted(declared)   # the root's, as declared
+        root_builder = next(o for o in yaml.safe_load((run.config_root / "cfg" / "os-builders.yml").read_text())["os_builders"]
+                            if o["name"] == "basic-rh-10")
+        declared = root_builder["storage_types"]
+        assert caps.identity_types == sorted(root_builder["identity_types"])        # the root's, as declared
+        assert caps.storage_types == sorted(declared)
         assert {"ebs", "efs", "s3"} <= set(caps.storage_types)
         assert caps.source == "declaration"
     finally:
@@ -305,6 +341,88 @@ def test_launch_parameters_are_generated_by_reference_and_recorded(fixture_run):
     assert rec["enrollment"] == {"enrollment": "sftd-token", "server_label": "sftd.tx.group=coops"}
     assert rec["launched"] is False
     assert "token" not in yaml.safe_dump(rec).replace("sftd-token", "").replace("enrollment.token", "")
+
+
+STUB_KIND = "stub-enrollment"
+
+
+def _declare_stub_kind(monkeypatch) -> None:
+    """A plugin's declared enrollment kind, registered the way the system
+    registers one (``loader.register_declared_kinds``), in a registry
+    of the test's own."""
+    from cs_image_system.contract import enrollment
+    from cs_image_system.contract.enrollment import EnrollmentKind
+    from cs_image_system.contract.launch_vocabulary import ENROLLMENT_TOKEN_VARIABLE as TOKEN
+    from cs_image_system.contract.metadata import PluginMetadata
+    from cs_image_system.engine import loader
+    monkeypatch.setattr(enrollment, "_KINDS", dict(enrollment._KINDS))
+    kind = EnrollmentKind(
+        STUB_KIND,
+        script_lines=lambda p: [f"# stub enrollment for {p['group']}",
+                                f"printf '%s' '${{{TOKEN}}}' > /var/lib/stub/enrollment"],
+        ansible_tasks=lambda p: [{"name": "stub enrollment token", "no_log": True,
+                                  "ansible.builtin.copy": {"dest": "/var/lib/stub/enrollment",
+                                                           "content": "{{ " + TOKEN + " }}"}}])
+    metadata = PluginMetadata(namespace="stub-identity", enrollment_kinds=(kind,))
+    loader.register_declared_kinds((loader.DiscoveredPlugin("other", "stub-identity", "stub-identity",
+                                                            lambda: metadata),))
+
+
+def _posix_launch(tmp_path, monkeypatch) -> FixtureRun:
+    """A fixture copy whose test2 is a machine of imgfile-posix (pxgroup,
+    gid 3101) mounting mnt_data, the posix group builder issuing the
+    declared stub kind at launch."""
+    from cs_image_system.posix_identity_plugin.posix_builders import PosixGroupBuilder
+
+    def mutate(root: Path) -> None:
+        p = root / "instances" / "instances.yaml"
+        data = yaml.safe_load(p.read_text())
+        next(i for i in data["instances"] if i["name"] == "test2")["image"] = "imgfile-posix"
+        _write_yaml(p, data)
+        p = root / "storages" / "storage0.yaml"
+        data = yaml.safe_load(p.read_text())
+        next(s for s in data["storages"] if s["name"] == "mnt_data")["groups"] = ["pxgroup"]
+        _write_yaml(p, data)
+    _declare_stub_kind(monkeypatch)
+    monkeypatch.setattr(PosixGroupBuilder, "launch_parameters",
+                        lambda self, group: {"enrollment": STUB_KIND, "server_label": f"stub.group={group.get_name()}"})
+    return _prepared(tmp_path, monkeypatch, mutate)
+
+
+def test_launch_parameters_with_a_declared_enrollment_kind_are_by_reference_and_recorded(tmp_path, monkeypatch):
+    """The core's part of a launch, on a posix group whose builder issues a
+    declared kind: the gid is the builder's answer (the number, no identity
+    state), the volume and the credential are references, the kind's lines
+    are rendered into the template before the completion marker, and the
+    record carries the kind and no credential."""
+    run = _posix_launch(tmp_path, monkeypatch)
+    try:
+        summary = run.run(["instance-image"], apply=False)
+        assert summary.ok, summary.validation_errors
+        inst = tree(run.generated / "instance-image" / "open-tofu" / "instance-generation")
+        module = inst["open-tofu-instance-generation-instance-test2.tf"]
+        assert 'templatefile("${path.module}/user-data-test2.sh.tftpl"' in module
+        assert '"group_gid" = 3101' in module and "outputs.group_gids" not in module
+        assert 'data.terraform_remote_state.aws_ebs.outputs.storage_mnt_data.volume_id' in module
+        assert "var.enrollment_token" in module
+        tpl = inst["user-data-test2.sh.tftpl"]
+        assert "DEV='/dev/xvdf'" in tpl and "/mnt/data" in tpl
+        assert "chgrp \"$GID\" '/mnt/data/pxgroup'" in tpl and "chmod 2770 '/mnt/data/pxgroup'" in tpl
+        assert "# stub enrollment for pxgroup" in tpl
+        assert tpl.index("printf '%s' '${enrollment_token}' > /var/lib/stub/enrollment") < tpl.index("launch-applied")
+        root = inst["open-tofu-instance-generation.tf"]
+        assert 'variable "enrollment_token"' in root and "sensitive = true" in root
+        lp = yaml.safe_load((run.meta_state / "launch-params.yaml").read_text())
+        rec = lp["instances"]["test2"]
+        assert rec["group"] == "pxgroup" and rec["identity_type"] == "posix"
+        assert rec["mounts"][0] == {"storage": "mnt_data", "type": "ebs", "builder": "aws-ebs",
+                                    "mount_point": "/mnt/data", "group": "pxgroup", "share_mode": "2770",
+                                    "public_read": False, "device": "/dev/xvdf"}
+        assert rec["enrollment"] == {"enrollment": STUB_KIND, "server_label": "stub.group=pxgroup"}
+        assert rec["launched"] is False
+        assert "token" not in yaml.safe_dump(rec)
+    finally:
+        run.restore_cwd()
 
 
 def test_launch_parameters_are_immutable_after_launch(tmp_path, monkeypatch):

@@ -13,6 +13,9 @@
   never a resource, and a lookup-only group never drifts;
 * the OPA client follows the Link header to every page, reads a retirement
   404 from the status code, and a missing OPA key is a real refusal;
+* the core's read-model rules over a posix group: the read-model is
+  structural, a managed group the YAML lost fails the run, an unmanaged
+  one is recorded so and never drifts;
 * the dummy (template) builders return asset sets, keep org and team,
   refuse credentials and write under their own root; the attributes probe
   step carries the configuration.
@@ -136,6 +139,72 @@ def test_unmanaged_group_is_state_rm_never_destroyed(tmp_path, monkeypatch):
         assert not any("tofu destroy" in c or " -destroy" in c or "--allow-destroy " in c for c in cmds)
         model = yaml.safe_load((run.meta_state / "identity.yaml").read_text())
         assert model["groups"]["tcmet"]["managed"] is False
+    finally:
+        run.restore_cwd()
+
+
+# ------------------------------------- the core's read-model rules, on posix
+# The identity read-model (engine/read_models.py) and the rule that a managed
+# group never silently leaves the YAML (engine/validation_rules.py) are the
+# core's; here through the posix identity plugin's group, pxgroup.
+
+def test_the_identity_read_model_of_a_posix_group_is_structural(fixture_run):
+    assert fixture_run.run(["identity"], apply=False).ok
+    model = yaml.safe_load((fixture_run.meta_state / "identity.yaml").read_text())
+    px = model["groups"]["pxgroup"]
+    assert px["identity_type"] == "posix" and px["gid_policy"] == "config-time"
+    assert px["builder"] == "posix-local"
+    assert px["members"] == ["taylor_tango", "unity_uniform"] and px["admins"] == ["taylor_tango"]
+    assert px["managed"] is True and px["is_root"] is False
+    assert {"taylor_tango", "unity_uniform"} <= set(model["users"])
+    assert "gid" not in px, "structural facts only: a gid is the configuration's, never the read-model's"
+    assert not re.search(r"\bgid: \d+", yaml.safe_dump(model))
+
+
+def test_a_posix_group_the_read_model_holds_and_the_yaml_lost_is_a_hard_failure(tmp_path, monkeypatch):
+    def mutate(root: Path):
+        ms = root / "meta-state"
+        ms.mkdir(exist_ok=True)
+        _write_yaml(ms / "identity.yaml", {"groups": {"pxghost": {"managed": True, "builder": "posix-local",
+                                                                  "identity_type": "posix"}}})
+    run = _prepared(tmp_path, monkeypatch, mutate)
+    try:
+        summary = run.run(["identity"], apply=False)
+        assert not summary.ok
+        assert any("'pxghost'" in e and "unmanaged: true" in e for e in summary.validation_errors), \
+            summary.validation_errors
+    finally:
+        run.restore_cwd()
+
+
+def test_an_unmanaged_posix_group_is_recorded_unmanaged_and_never_drifts(tmp_path, monkeypatch):
+    from cs_image_system.engine import state_query
+
+    def mutate(root: Path):
+        p = root / "groups" / "group-pxgroup.yaml"
+        data = yaml.safe_load(p.read_text())
+        data["groups"][0]["unmanaged"] = True
+        _write_yaml(p, data)
+        ms = root / "meta-state"
+        ms.mkdir(exist_ok=True)
+        _write_yaml(ms / "identity.yaml", {"groups": {"pxgroup": {"managed": True, "builder": "posix-local"}}})
+    run = _prepared(tmp_path, monkeypatch, mutate)
+    try:
+        summary = run.run(["identity"], apply=False)
+        assert summary.ok, (summary.error, summary.validation_errors)
+        model = yaml.safe_load((run.meta_state / "identity.yaml").read_text())
+        assert model["groups"]["pxgroup"]["managed"] is False, "kept in the YAML as unmanaged: no longer managed"
+        # whatever a provider would say of it, an unmanaged group is not drift -- even one seen before
+        ms = run.ctx.meta_state
+        recorded = ms.identity_read_model()
+        recorded["groups"]["pxgroup"]["seen"] = True
+        ms.write_identity_read_model(recorded)
+        report = state_query.StateReport(run="test")
+        drift = state_query.group_drift(run.ctx, {"pxgroup": {"present": False}}, report)
+        assert not [d for d in drift if d.name == "pxgroup"], drift
+        recorded["groups"]["pxgroup"]["managed"] = True          # the control: managed, the same answer is hard
+        ms.write_identity_read_model(recorded)
+        assert [d.hard for d in state_query.group_drift(run.ctx, {"pxgroup": {"present": False}}) if d.name == "pxgroup"] == [True]
     finally:
         run.restore_cwd()
 

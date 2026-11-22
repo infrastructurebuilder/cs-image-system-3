@@ -24,11 +24,11 @@ class _Exe:
         self.working_directory: Path | None = None
 
 
-def _phase(value: str = "user-generation"):
+def _phase(value: str = "storage-generation"):
     return cast(Any, SimpleNamespace(value=value))
 
 
-def _root(run: Any, name: str = "okta-tf-users") -> Any:
+def _root(run: Any, name: str = "aws-ebs") -> Any:
     """A root stub in ``run`` (a bare run context: the collector lives there)."""
     stub = SimpleNamespace(
         name=name,
@@ -44,7 +44,7 @@ def _root(run: Any, name: str = "okta-tf-users") -> Any:
     return stub
 
 
-def _root_in_run(run: Any, dry_run: bool, name: str = "okta-tf-users") -> Any:
+def _root_in_run(run: Any, dry_run: bool, name: str = "aws-ebs") -> Any:
     """A root whose run is dry or real, as every real builder can see."""
     run.dry_run = dry_run
     return _root(run, name)
@@ -70,12 +70,12 @@ def test_init_args_without_backend(run, col):
 
 def test_backend_config_path(run):
     p = _root(run)._backend_config_path(_phase())
-    assert p == Path("okta-tf-users/user-generation/okta-tf-users-user-generation.tfbackend.hcl")
+    assert p == Path("aws-ebs/storage-generation/aws-ebs-storage-generation.tfbackend.hcl")
 
 
 def test_terraform_commands_copies_per_command(run):
     root = _root(run)
-    wd = Path("okta-tf-users/user-generation")
+    wd = Path("aws-ebs/storage-generation")
     cmds = root.terraform_commands(_phase(), [["fmt"], ["validate"], ["plan"]], wd)
     assert [c.args for c in cmds] == [["fmt"], ["validate"], ["plan"]]
     assert all(c.working_directory == wd for c in cmds)
