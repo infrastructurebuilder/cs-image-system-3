@@ -1,0 +1,251 @@
+# Tasks: Every machine and every id recorded once, by an identity the system ships
+
+**Input**: [spec.md](spec.md), [plan.md](plan.md), [research.md](research.md),
+[data-model.md](data-model.md), [contracts/registry-and-ids.md](contracts/registry-and-ids.md),
+[quickstart.md](quickstart.md)
+
+**Tests**: requested. The specification ends in executable acceptance
+(Constitution II) and its quickstart names the test files; each story's
+tests are written first and must fail before its code.
+
+## Format: `[ID] [P?] [Story] Description`
+
+- **[P]**: can run in parallel (different files, nothing unfinished it
+  depends on)
+- **[Story]**: the user story it serves (US1 to US7)
+
+## Working rules
+
+- `HERE` is `/Volumes/MiniSSD/git/Work/Lynker/cs-image-system-3`; `REF`
+  is `/Volumes/MiniSSD/git/Work/Lynker/cs-image-system-testconfig`
+  (its `develop`, caught up first; never `main`).
+- **The branch's base, the operator's word of 2026-11-22 ("010 from 008's
+  branch")**: this specification and specification 008's re-hosting (its
+  T035, part 1) live on `feature/008-relocate-okta-plugin`, not yet on
+  `develop`, so `feature/010-posix-server-registry` starts from that
+  branch's tip. It is squash-merged into `develop` first, its squash
+  message naming the specification 008 work it carries;
+  `feature/008-relocate-okta-plugin` then takes `develop` and goes on.
+- Run Python as `uv run --no-sync python`; iterate with `just test-one
+  <paths>`; the acceptance tests are `just test` at every checkpoint.
+- **Nothing is written to Okta or OPA** (D2), and no test reaches either:
+  every Okta call a test makes is stubbed. Never echo a credential.
+- **The golden is the tripwire.** `git status --short tests/fixtures`
+  prints nothing after a task unless the task says the golden moves; a
+  moved golden is read file by file and recorded (Constitution IV).
+- **The contract has its own version.** Every change to
+  `packages/contract` is in T005's 0.6.0; a later change needs its own
+  bump.
+- **Releases are the operator's.** A task marked **RELEASE** stops.
+- A new file in a new folder needs `git add -N` before `just lint`.
+
+## Records
+
+Filled in as tasks complete.
+
+| Task | Record |
+| --- | --- |
+
+---
+
+## Phase 1: Setup
+
+**Purpose**: the branch, the before-state, and the look D3 asks for.
+
+- [ ] T001 Start `feature/010-posix-server-registry` from the tip of `feature/008-relocate-okta-plugin` (Working rules: `git flow feature start 010-posix-server-registry feature/008-relocate-okta-plugin`, or `git switch -c` from it when git-flow refuses a feature base); record the base commit
+- [ ] T002 [P] Record the before-figures in the Records table of `specs/010-posix-server-registry/tasks.md`: source lines, tests, the contract's protocol members (`packages/contract/README.md`'s counts), and the shared golden's file count and tree id (`git rev-parse HEAD:tests/fixtures/golden`)
+- [ ] T003 [P] **The operator's box (D3)**: on one running machine of an Okta group, read-only, `getent group 180007; getent group sft_coops_user; grep -E '^sft[_-]' /etc/group; grep -c '^sft' /etc/passwd`; record the output; it feeds the Okta repository's specification 002 (`REMINDERS.md`), not a task here
+
+---
+
+## Phase 2: Foundational (the contract and the records)
+
+**Purpose**: the questions and the records every story reads. Blocks
+every story.
+
+- [ ] T004 Add to the contract, per [contracts/registry-and-ids.md](contracts/registry-and-ids.md): `record_aliases(group, entry_id, names)`, `keeps_recorded_registry()` and `id_pool()` on `GroupBuilderProtocol` (`packages/contract/src/cs_image_system/contract/group.py`); `id_pool()` on `UserBuilderProtocol` (`user.py`); the optional `address` key of `query_instance_identity`'s answer in `runtime.py`'s docstring; `identity: str = ""` and `external: bool = False` on `Claim` (`identity_vocabulary.py`); on `MetaStateProtocol` (`context.py`) `registered_servers(identity, group)`, `record_server(identity, group, entry)`, `retire_servers(identity, group, hostname)`, `record_server_aliases(identity, group, entry_id, names)`, `recorded_ids()`, `record_ids(document)`
+- [ ] T005 Move the contract to 0.6.0 (`packages/contract/pyproject.toml`), its README's version table and member counts ("Twelve members" of the records becomes eighteen), and every dependent's range to `cs-image-system-contract>=0.6,<0.7` in each workspace `pyproject.toml` that names it; `uv lock`; `just init`
+- [ ] T006 Give the kit's builders the defaults: `record_aliases` returns None (the builder writes aliases by its script), `keeps_recorded_registry` False, `id_pool` None, in `packages/base/src/cs_image_system/base/basic/builder_base_group.py` and `builder_base_user.py`; `just surface-record`; `just sdk-bump kit last`
+- [ ] T007 Add the two records: `SERVERS = "servers.yaml"` and `IDS = "ids.yaml"` in `packages/base/src/cs_image_system/base/meta_ledgers.py` and in `ALL_FILES`; implement the six members in `packages/engine/src/cs_image_system/engine/meta_state.py` by [data-model.md](data-model.md): entries keyed by `instance_id`, sorted by hostname, address, id; `registered_servers` answers None when `servers.yaml` cannot be read and `[]` only for a group with no entry; `retire_servers` returns the removed ids; `record_ids` refuses any change to a recorded id, naming both
+- [ ] T008 [P] Test the records in `tests/test_meta_state.py`: `ALL_FILES` names both; a missing file is an empty record, an unreadable one None; record, replace, retire, aliases; `record_ids` refuses a moved id
+- [ ] T009 [P] Make `query_instance_identity` also answer `address` in `packages/aws-runtime-plugin/src/cs_image_system/aws_runtime/aws_runtime_builders.py` (the private address) and `packages/docker-plugin/src/cs_image_system/docker_runtime/docker_runtime_builders.py` (the container's address on its network), each with a test beside its existing identity test
+- [ ] T010 Checkpoint: `just test` passes; `git status --short tests/fixtures` prints nothing; record it
+
+---
+
+## Phase 3: User Story 1 - A declared id that collides is refused at validation (Priority: P1) 🎯 MVP
+
+**Goal**: every user and group has one id, and a declared id that
+collides with any identity's is refused, naming both.
+
+**Independent Test**: `tests/test_recorded_ids.py`'s story 1 cases
+(quickstart step 1).
+
+### Tests for User Story 1
+
+- [ ] T011 [US1] Write story 1's eight scenarios in `tests/test_recorded_ids.py` (new), with a test-local external identity (a stub group and user builder registered through the test kit, `external=True`, claiming fixed ids) standing in for Okta, whose own claims are the Okta repository's (D3): a POSIX group on an external group's id is refused naming both identities and saying the external id cannot move; a POSIX user on another identity's user id is refused; a recorded name declared with another id is refused naming the recorded id; another group on a user's private-group id is refused naming the user; a clean tree passes with one id each; the POSIX fallback (`abc`, 15001: undeclared takes 15001 and draws nothing; declared 15002 is refused saying it must be 15001); a POSIX name recorded first that an external identity later holds with another id is refused, neither moving; two external identities that collide are refused naming both. Run them: they fail
+
+### Implementation for User Story 1
+
+- [ ] T012 [US1] Widen the rule in `packages/engine/src/cs_image_system/engine/posix_ids.py`: recorded ids resolve first and never move (FR-005); claims carry `identity` and `external`; a non-external (POSIX) claim that knows a name an external claim holds takes the external id, and a different declared id is a problem saying which id it must be (FR-004a); between external claims every clash is a configuration error (FR-004b); an id recorded or retired for one name is never another's (FR-004c); every problem names the id, both names and both identities; a user's private group is named as that user's
+- [ ] T013 [US1] Feed it the records in `packages/engine/src/cs_image_system/engine/commands/validate.py` `check_posix_ids`: the recorded ids (`ctx.meta_state.recorded_ids()`) as a side ranked first; no network call (FR-009a)
+- [ ] T014 [P] [US1] Make the POSIX claims carry `identity=<builder name>`, `external=False` in `packages/posix-identity-plugin/src/cs_image_system/posix_identity_plugin/posix_builders.py`
+- [ ] T015 [US1] Checkpoint: T011 passes; `tests/test_posix_identity.py` passes; record it
+
+---
+
+## Phase 4: User Story 2 - An undeclared id comes from the pool and never drifts (Priority: P1)
+
+**Goal**: an undeclared name draws from its identity's pool, is recorded,
+and keeps its id for good.
+
+**Independent Test**: `tests/test_recorded_ids.py`'s story 2 cases.
+
+### Tests for User Story 2
+
+- [ ] T016 [US2] Write story 2's scenarios in `tests/test_recorded_ids.py`: the lowest free id of the pool that no record, retired record or claim holds; unchanged across added, removed and reordered names; a later matching declaration passes and another fails; an exhausted pool fails naming its bounds; a plain dry run shows the ids and records nothing while a `--commit` dry run and an applying run record them (D1); an external identity's new group is an id to come until read (D2); overlapping pools fail naming both; a recorded id a pool change leaves outside is kept and reported; a pool moved over another identity's recorded id fails; a user and its private group draw one id. Run them: they fail
+
+### Implementation for User Story 2
+
+- [ ] T017 [US2] Add `id_pool: tuple[int, int] = (3000, 59999)` to `PosixGroupBuilderModel` and `PosixUserBuilderModel` in `packages/posix-identity-plugin/src/cs_image_system/posix_identity_plugin/posix_models.py` (refused at load unless `1024 <= min < max`), answered by both builders' `id_pool()` (D4)
+- [ ] T018 [US2] Draw and check pools in `packages/engine/src/cs_image_system/engine/posix_ids.py`: the lowest free id per identity's pool, one pool for users and groups, never a recorded, retired or claimed id; pools that overlap and a pool over another identity's recorded id are problems; a recorded id outside its pool is a note; an exhausted pool is a problem naming the pool; rule 4 ("no side supplies an id") is removed
+- [ ] T019 [US2] Record the ids in `packages/engine/src/cs_image_system/engine/commands/run_lifecycles.py`: after validation, on an applying run or a run with `--commit`, write the resolved ids, the pools and the retired names to `meta-state/ids.yaml` through `record_ids` (a name no longer declared moves to `retired`); a plain dry run logs the ids it would give and writes nothing
+- [ ] T020 [US2] Let an undeclared POSIX group and user take their concrete id: `gid_expression`, `activation_commands` and `accounts_script` in `posix_builders.py` read the resolved id (recorded or drawn) where they read the declared one, and stop raising for an undeclared gid
+- [ ] T021 [US2] Checkpoint: T016 passes; `just test`; if the shared golden moves (a fixture run with `--commit` writing `ids.yaml`), regenerate it, read every file and record it; record the checkpoint
+
+---
+
+## Phase 5: User Story 3 - Okta and POSIX coexist on one machine (Priority: P1)
+
+**Goal**: an external identity's ids are recorded when read and win; a
+third identity joins with no core change.
+
+**Independent Test**: `tests/test_recorded_ids.py`'s story 3 cases, on
+the test-local external identity.
+
+### Tests for User Story 3
+
+- [ ] T022 [US3] Write story 3's scenarios in `tests/test_recorded_ids.py`: an external group's id read for the first time is recorded (`how: read`) and no declared or pooled id may take it; a later read of another id is refused naming both, the record unchanged; an external id read onto a POSIX name's recorded id is refused naming both; a second test-local external identity's claims join the same check with no core change; the external identity's `id_pool()` is recorded (`how: read`). Run them: they fail
+
+### Implementation for User Story 3
+
+- [ ] T023 [US3] Record what an external identity reads, in `posix_ids.py` and `run_lifecycles.py`: its claims with an id are recorded `how: read` on a recording run (T019's rule); a `DEFERRED` claim is an id to come, held against the pools; its `id_pool()` answer is recorded `how: read`
+- [ ] T024 [US3] Checkpoint: T022 passes; record it, naming what the Okta repository's specification 002 must answer (its claims, its pool from the attribute options)
+
+---
+
+## Phase 6: User Story 4 - One name, one machine, for a POSIX group (Priority: P2)
+
+**Goal**: a launched POSIX-owned machine is registered; a second machine
+under its name is refused.
+
+**Independent Test**: the hostname-claim cases on POSIX (quickstart
+step 2).
+
+### Tests for User Story 4
+
+- [ ] T025 [US4] Write story 4's scenarios in `tests/test_posix_registry.py` (new), over a fixture copy whose instance `test` is POSIX-owned (`imgfile-posix`, `pxgroup`) with the runtime's identity stubbed: an applying run registers the machine with its provider id, canonical hostname and address; a second unlaunched instance of that hostname is refused naming the entry; two entries under a launched name are refused naming both; an unreadable `servers.yaml` is refused as unable to check; a dry run reads only the records and writes nothing; a machine launched before the change is registered by the first applying run that finds it; a launch that never came up registers nothing. Run them: they fail
+
+### Implementation for User Story 4
+
+- [ ] T026 [US4] Write the POSIX registry in `packages/posix-identity-plugin/src/cs_image_system/posix_identity_plugin/registry.py` (new) and wire it into `PosixGroupBuilder`: `can_query_servers` True, `keeps_recorded_registry` True, `registered_servers`, `retire_servers_named` and `record_aliases` through the run's records (`self._get_context().meta_state`), `alias_registration_script` None
+- [ ] T027 [US4] Add `register_launched_servers` to `packages/base/src/cs_image_system/base/launch_params.py`, registered in `register()` after `record_detachments` (so before the alias pass): for each launched, in-scope instance whose group's builder keeps a recorded registry, ask `query_instance_identity` and record the entry when it gives a provider id
+- [ ] T028 [US4] Checkpoint: T025 passes; record it
+
+---
+
+## Phase 7: User Story 5 - A decommission leaves nothing behind (Priority: P2)
+
+**Goal**: a decommissioned, replaced or torn-down POSIX machine's entries
+are retired; ids stay.
+
+**Independent Test**: the retirement cases on POSIX.
+
+### Tests for User Story 5
+
+- [ ] T029 [US5] Write story 5's scenarios in `tests/test_posix_registry.py`: a decommission retires every entry under the hostname and says how many; a retirement that fails is said NOT retired with the remedy and the decommission stands; a replacement leaves one entry, the new machine's; an ephemeral teardown retires; the group's and users' recorded ids are unchanged. Run them: they fail
+
+### Implementation for User Story 5
+
+- [ ] T030 [US5] Make `forget_ephemerals` in `launch_params.py` retire the torn-down machine's registration through `_retire_registration` (R3), and word `_retire_registration`'s log lines for any registry ("registration", not "OPA registration")
+- [ ] T031 [US5] Checkpoint: T029 passes; record it, naming the Okta behaviour that changes (an ephemeral Okta machine's OPA entry is now retired)
+
+---
+
+## Phase 8: User Story 6 - A POSIX-owned machine's alias and generation are visible (Priority: P3)
+
+**Goal**: aliases are recorded in the entry, never written on the
+machine; the state query reports registered and booted names.
+
+**Independent Test**: the alias and state-query cases on POSIX.
+
+### Tests for User Story 6
+
+- [ ] T032 [US6] Write story 6's scenarios in `tests/test_posix_registry.py`: a running, registered machine's free aliases land in its entry's `alt_names` and no session command runs; a claimed alias is skipped naming the claimant; a machine launched this run gets its alias without the 300-second wait; the state query reports `registered_as` and `booted_as` and notes a difference; `verify login` on a POSIX machine refuses a duplicate or silent registration before any login. Run them: they fail
+
+### Implementation for User Story 6
+
+- [ ] T033 [US6] In `packages/engine/src/cs_image_system/engine/provider_aliases.py`: when the builder keeps a recorded registry, call `record_aliases` in place of `_write_aliases`, skip `_enrolled_after_launch`, and do not apply "a machine that is off is left off"; the collision rules and the equality short-circuit stay
+- [ ] T034 [US6] In `packages/engine/src/cs_image_system/engine/commands/login_proof.py` `prove_login`: before any login, for every builder that keeps a registry, refuse a group whose registry cannot be asked or holds two entries under the hostname (R12)
+- [ ] T035 [US6] Checkpoint: T032 passes; record it
+
+---
+
+## Phase 9: User Story 7 - The core's proofs no longer need Okta (Priority: P3)
+
+**Goal**: the registry tests specification 008 left run on POSIX.
+
+**Independent Test**: those files pass with no Okta registry stub
+(quickstart step 2).
+
+- [ ] T036 [P] [US7] Re-host on POSIX's recorded registry, keeping what each asserts and dropping its `OktaTfGroupBuilder` monkeypatches: `tests/test_hostname_claims.py`'s 8 registry cases, `tests/test_capabilities.py::test_a_dry_run_never_asks_the_registry_for_a_hostname_claim`, `tests/test_login_proof.py`'s `test_a_duplicate_hostname_fails_before_any_login` and `test_a_silent_registry_is_a_failed_check_not_one_server` (now the core's check, T034)
+- [ ] T037 [P] [US7] Re-host `tests/test_provider_aliases.py`'s 14 hook cases on POSIX: an assertion on the AltNames session script becomes one on the entry's `alt_names`; the three with no POSIX analogue (a session command with no output, the wait for a machine launched this run, a machine that never enrols) are re-expressed for a recorded registry (no session command; no wait; an unregistered machine waits for a run that registers it), each recorded with what it now asserts
+- [ ] T038 [P] [US7] Re-host the registry cases of `tests/test_canonical_names.py` (3), `tests/test_alias_pool.py` (1) and `tests/test_generations.py` (1) on POSIX
+- [ ] T039 [US7] Close the stubs that let six tests reach the fixture's OPA host and the AWS login endpoint (R13: `test_alias_draws.py`, `test_decommission.py`, `test_lineage_pins.py`, `test_ephemeral.py`, `test_convergent_bakes.py`, `test_canonical_names.py`, and those the T035 rerun names): each call they make is answered in-process; check with the connection logger of 2026-11-22 that none remains; record each
+- [ ] T040 [US7] Checkpoint: `just test` passes; record in specification 008's `tasks.md` that its T035, part 2, is done by T036 to T038, file by file
+
+---
+
+## Phase 10: Polish & Cross-Cutting Concerns
+
+- [ ] T041 [P] Correct what the change makes false (plan, "What the change makes false"): `docs/OPERATIONS.md` ("A canonical hostname is claimed once", "What a machine answers to"), `docs/DAILY_DRIVER.md` (the decommission's registration, the aliases), `packages/posix-identity-plugin/README.md`, `packages/base/README.md` (the registry hooks), `packages/engine/README.md` (aliases, retirement), the docstrings and log lines naming "OPA registration" in `launch_params.py`, `builder_base_group.py`, `provider_aliases.py` and `posix_builders.py`, and `tests/test_login_proof.py`'s "the posix plugin keeps none"
+- [ ] T042 [P] Document the ids for an operator in `docs/CONFIGURATION.md` (the `id_pool` field of the POSIX builders) and `docs/OPERATIONS.md` (the two records, the fallback, why an id never moves), each stated once and linked from the other
+- [ ] T043 Measure the budget with T002's method and add a Budget section with the actual figures beside the expected to `specs/010-posix-server-registry/plan.md`, with a reason for any figure outside its range
+- [ ] T044 Run `/speckit-converge`; complete any task it appends
+- [ ] T045 Walk `specs/010-posix-server-registry/quickstart.md` steps 1 to 3 and record each result
+- [ ] T046 **RELEASE** (the operator's, D5): the batched release for specifications 002, 003 and 006 carries this one; record its version and runs
+- [ ] T047 In REF: take T046's release (`just take`), run an applying run and `just record` (quickstart step 4); expect `meta-state/ids.yaml` with every id unchanged from what the machines hold and `meta-state/servers.yaml` with every launched POSIX-owned machine; `just config-drift` green; record it (SC-004, SC-009)
+- [ ] T048 Bring the specification's files up to date: the status line of `spec.md` and the row for 010 in `specs/README.md`, with the date
+
+---
+
+## Dependencies & Execution Order
+
+- **Phase 1** first; T003 is the operator's and blocks nothing here.
+- **Phase 2** blocks every story (the contract, the records).
+- **US1 → US2 → US3** in order: each widens the same rule
+  (`posix_ids.py`).
+- **US4** needs Phase 2 only; **US5** and **US6** need US4's registry.
+- **US7** needs US4 to US6.
+- **Phase 10** after the stories; T046 and T047 are the operator's.
+- Specification 008's T035, part 2, and everything after it there wait
+  for T040.
+
+## Parallel Opportunities
+
+- T002 and T003; T008 and T009 (different packages).
+- T014 beside T012 and T013 (a plugin file against engine files).
+- US4 (the registry) beside US1 to US3 (the ids), once Phase 2 is done:
+  different files but for `posix_builders.py`, which both touch (T014,
+  T020, T026): sequence those three.
+- T036, T037 and T038 (different test files).
+- T041 and T042.
+
+## Implementation Strategy
+
+- **MVP**: Phases 1 to 3 (story 1): every collision refused at
+  validation, with no record written yet beyond what Phase 2 adds.
+- Then story 2 (the pools and the records written), story 3 (external
+  ids recorded), stories 4 to 6 (the registry), story 7 (Okta's stubs
+  gone), and the documents.
+- Each checkpoint runs `just test` and records it.

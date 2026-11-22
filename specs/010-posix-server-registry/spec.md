@@ -157,6 +157,25 @@ and a recorded id never drifts.
   read-only is to be written once the plugin is in its own repository
   (`REMINDERS.md`), and this specification assumes read-only
 
+### Session 2026-11-22 (planning)
+
+- Q (D1): which runs record ids? → A: applying runs and dry runs with
+  `--commit` (the record step, the operator's deliberate record); a plain
+  dry run shows the ids it would give and records nothing
+- Q (D2): how does a new Okta group get its id? → A: Okta assigns it and
+  the system records it when first read (OPA takes no gid at a group's
+  creation, and setting one afterwards would be a write to OPA); story 2,
+  scenario 6 takes its fallback
+- Q (D3): where do the naming rules and the Okta plugin's claims land? →
+  A: a live, read-only look at one enrolled machine first (the operator's
+  box); then the naming rules and the Okta plugin's claims and pool are
+  the Okta repository's specification 002, written once this
+  specification's contract is released. This specification ends with the
+  POSIX side done and the contract able to carry the rest
+- Q (D4): the POSIX pool's default? → A: 3000 to 59999
+- Q (D5): which release? → A: the batched release for specifications 002,
+  003 and 006 if this merges before it is cut, else the next
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - A declared id that collides is refused at validation (Priority: P1)
@@ -516,8 +535,9 @@ repository with the Okta plugin not installed, none of them skipped.
   or will hold, through the contract, and the core MUST check every
   installed plugin's claims together; a plugin added later joins the
   check without a change to the core.
-- **FR-009**: A dry run MUST show the ids it would give and MUST NOT
-  record any.
+- **FR-009**: A dry run without `--commit` MUST show the ids it would
+  give and MUST NOT record any; an applying run, and a dry run with
+  `--commit` (the record step), record them *(amended 2026-11-22, D1)*.
 - **FR-009a**: Validation and dry runs MUST read ids and pools only from
   the tree's records and configuration, with no network call. An external
   identity's pool and the ids it holds MUST be read by an applying run or
@@ -647,9 +667,11 @@ repository with the Okta plugin not installed, none of them skipped.
 - The POSIX identity plugin is already installed with every installation
   of the system; FR-019 keeps it so.
 - The Okta plugin, in its own repository after specification 008, answers
-  the contract's id question for its ids; that change is the Okta
-  repository's, released from there, and this specification names what it
-  must answer.
+  the contract's id and pool questions for its ids in that repository's
+  specification 002, written once this specification's contract is
+  released (D3); this specification names what it must answer, and until
+  then Okta's ids are recorded as the state query reads them
+  *(amended 2026-11-22)*.
 - The POSIX identity's registry holds what the system itself launched; it
   cannot know of a machine another tool made under the same name, as
   Okta's can when that machine enrolls.
