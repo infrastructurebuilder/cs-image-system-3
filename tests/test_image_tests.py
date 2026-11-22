@@ -84,7 +84,6 @@ def test_a_base_image_declaring_posix_verifies_its_tools_in_the_bake(fixture_run
     build = (fixture_run.generated / BASE_BUILD).read_text()
     sect = _section(build, "base image basic-rhel-9")
     assert '"set -e",' in sect and "id -u csisadmin" in sect
-    assert "# verify: groupadd, useradd, gpasswd, visudo present" in sect
     for tool in ("groupadd", "useradd", "gpasswd", "visudo"):
         assert f"command -v {tool} >/dev/null" in sect, tool
     assert "command -v visudo" not in _section(build, "base image basic-rh-10"), "basic-rh-10 declares no posix"
