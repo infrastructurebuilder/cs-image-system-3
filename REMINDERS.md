@@ -2,8 +2,7 @@
 
 Things to check at intervals collect in this file: the standing reviews
 under "Monthly General Items", the questions to settle "Before 1.0" and
-the GCP account housekeeping. The
-system's work in flight stays in [specs/](specs/README.md).
+the GCP account housekeeping. The system's work in flight stays in [specs/](specs/README.md).
 The assistant raises each item when it falls due and records the
 outcome here, so this is the one current page besides docs/CHANGES.md
 and docs/INCIDENTS.md that carries dates by design.
@@ -111,6 +110,22 @@ the take now does by itself (stage 112). Plan it as a stage of its
 own then.
 
 - After the next release cycle: (open)
+
+## After specification 008
+
+### A specification to take the Okta plugin past read-only
+
+**Raise once specification 008 is complete** (the Okta plugin in
+infrastructurebuilder/cs-image-system-okta). The operator, 2026-11-22:
+Okta's part is read-only today (the system looks Okta's users up and
+never writes them) and that remains so for now, but it should change
+soon. Write a specification, in the Okta plugin's own repository, that
+extends the plugin's capabilities past read-only. Weigh with it the
+operator's note of the same day that the Okta plugin should, by default,
+tell Okta's agent to keep user accounts persistent on a machine, unless
+specification 010's research R-names has placed that elsewhere.
+
+- After specification 008: (open)
 
 ## Before 1.0
 
