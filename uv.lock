@@ -853,16 +853,23 @@ dependencies = [
     { name = "typer" },
 ]
 
+[package.optional-dependencies]
+test = [
+    { name = "cs-image-system-system", extra = ["testing"] },
+]
+
 [package.metadata]
 requires-dist = [
     { name = "cryptography", specifier = ">=49.0" },
     { name = "cs-image-system-base", editable = "packages/base" },
     { name = "cs-image-system-contract", editable = "packages/contract" },
     { name = "cs-image-system-hashicorp-utils", editable = "packages/hashicorp-utils" },
+    { name = "cs-image-system-system", extras = ["testing"], marker = "extra == 'test'", editable = "packages/system" },
     { name = "cs-image-system-tofu-roots", editable = "packages/tofu-roots" },
     { name = "pydantic", specifier = ">=2.13" },
     { name = "typer", specifier = ">=0.26" },
 ]
+provides-extras = ["test"]
 
 [[package]]
 name = "cs-image-system-packer-plugin"

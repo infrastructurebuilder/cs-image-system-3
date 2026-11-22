@@ -20,7 +20,7 @@ The harness is a composition. What names no provider is the published test
 kit (``cs_image_system.system.testing``), which a provider's own suite uses
 directly. What stands in for a provider is that provider's own stub
 function where its package ships one (docker, the terraform roots library);
-the stubs for AWS and Okta are kept here, beside the frozen
+the stubs for AWS are kept here (the Okta plugin ships its own), beside the frozen
 fixture that declares all of them.
 """
 from __future__ import annotations
@@ -171,12 +171,8 @@ def plain(value: Any) -> Any:
     return kit.plain(value, FIXTURE_CONFIG / kit.IDENTITY_FILE)
 
 
-def _credentials(monkeypatch) -> None:
-    """Dummy okta / oktapam credentials, so command lists never depend on
-    the developer's shell."""
-    monkeypatch.setenv("OKTA_API_PRIVATE_KEY", "dummy")
-    monkeypatch.setenv("TF_VAR_nos_coastal_modeling_cloud_sandbox_key", "dummy")
-    monkeypatch.setenv("TF_VAR_nos_coastal_modeling_cloud_sandbox_secret", "dummy")
+#: the OPA team the fixture's Okta builders name, as its credential variables spell it
+FIXTURE_TEAM = "nos_coastal_modeling_cloud_sandbox"
 
 
 def _clouds(monkeypatch, retags: list[tuple[str, dict[str, str]]]) -> None:
@@ -206,21 +202,6 @@ def _clouds(monkeypatch, retags: list[tuple[str, dict[str, str]]]) -> None:
                         passing_session(AwsCloudBuilder.run_session_command))
 
 
-def _identity_provider(monkeypatch, retirements: list[tuple[str, str]]) -> None:
-    """The Okta stubs."""
-    from cs_image_system.okta_opa_plugin.okta_opa_tf_group_builder import OktaTfGroupBuilder
-    monkeypatch.setattr(OktaTfGroupBuilder, "query_state",
-                        lambda self: {g.get_name(): {"present": True, "gid": 1}
-                                      for g in self.get_groups_for_builder()})
-    # the server registry ANSWERS here -- an empty, free one -- and
-    # retirements are journaled. Silence would be refused by design (a run
-    # that can launch will not trust an unreachable registry), and the
-    # harness models a reachable OPA, not an absent one.
-    monkeypatch.setattr(OktaTfGroupBuilder, "registered_servers", lambda self, group: [])
-    monkeypatch.setattr(OktaTfGroupBuilder, "retire_servers_named",
-                        lambda self, group, hostname: retirements.append((group, hostname)) or [])
-
-
 def stub_environment(monkeypatch) -> list[str]:
     """Install every stub; returns the command journal.
 
@@ -235,12 +216,13 @@ def stub_environment(monkeypatch) -> list[str]:
     a daemon and the golden pins the docker emission."""
     retags: list[tuple[str, dict[str, str]]] = []
     retirements: list[tuple[str, str]] = []
+    from cs_image_system.okta_opa_plugin import testing as okta_testing
     journal = kit.stub_core(monkeypatch, FIXTURE_CONFIG / kit.IDENTITY_FILE, stubs=(
-        _credentials,
+        lambda mp: okta_testing.credentials(mp, (FIXTURE_TEAM,)),
         lambda mp: _clouds(mp, retags),
         lambda mp: docker_testing.stub(mp, retags),
         roots_testing.stub,
-        lambda mp: _identity_provider(mp, retirements),
+        lambda mp: okta_testing.stub(mp, retirements),
     ))
     stub_environment.retags = retags  # type: ignore[attr-defined]
     stub_environment.retirements = retirements  # type: ignore[attr-defined]

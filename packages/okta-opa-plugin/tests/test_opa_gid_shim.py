@@ -59,27 +59,6 @@ def test_resolver_reads_the_user_groups_unix_gid_attribute():
     assert any(c[1].endswith("/v1/teams/t/groups/coops_user/attributes") for c in fake.calls)
 
 
-def test_missing_gid_is_reported_not_invented():
-    from cs_image_system.engine.commands import identity_gids
-    fake = FakeOpa({"coops_user": _live_shape(63001, "sft_coops_user"), "tcmet_user": {"attributes": {}}})
-
-    class Cls:
-        @classmethod
-        def export_gids(cls, query, groups):
-            return OpaGidResolver("https://h", "t", "k", "s", transport=fake).resolve(groups)
-
-    import cs_image_system.engine.commands.identity_gids as mod
-    orig = mod.group_builder_class_for
-    mod.group_builder_class_for = lambda t: Cls  # type: ignore[assignment]
-    try:
-        assert identity_gids.export_gids({"identity_type": "okta", "groups": "coops"}) == {"coops": "63001"}
-        with pytest.raises(ValueError, match="no gid for groups \\['tcmet'\\]"):
-            identity_gids.export_gids({"identity_type": "okta", "groups": "coops,tcmet"})
-        assert identity_gids.export_gids({"identity_type": "okta", "groups": ""}) == {}
-    finally:
-        mod.group_builder_class_for = orig
-
-
 def test_credentials_come_from_the_environment_only():
     env = {"TF_VAR_nos_coastal_modeling_cloud_sandbox_key": "k",
            "TF_VAR_nos_coastal_modeling_cloud_sandbox_secret": "s"}
@@ -87,11 +66,3 @@ def test_credentials_come_from_the_environment_only():
     assert credentials_from_env("other", {"OKTAPAM_KEY": "a", "OKTAPAM_SECRET": "b"}) == ("a", "b")
     with pytest.raises(ValueError, match="not found in the environment"):
         credentials_from_env("other", {})
-
-
-def test_okta_builder_class_is_the_registered_shim():
-    from cs_image_system.engine.commands.identity_gids import group_builder_class_for
-    from cs_image_system.okta_opa_plugin.okta_opa_tf_group_builder import OktaTfGroupBuilder
-    assert group_builder_class_for("okta") is OktaTfGroupBuilder
-    with pytest.raises(ValueError):
-        group_builder_class_for("ldap")

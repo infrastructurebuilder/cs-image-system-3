@@ -10,6 +10,10 @@
 
 ## Clarifications
 
+### Session 2026-11-22
+
+- Q: About 30 core tests prove hostname claims, provider aliases, the alias pool, canonical names and generations only through the Okta group builder's server registry; what carries them here once the plugin leaves? → A: The POSIX identity plugin gains a server registry and carries them (a feature specified on its own; this specification's T035 waits for it)
+
 ### Session 2026-11-19
 
 - Q: What carries the Okta plugin's instance-side proofs in its own

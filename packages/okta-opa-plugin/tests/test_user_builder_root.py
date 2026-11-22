@@ -10,7 +10,6 @@ from typing import Any, cast
 from unittest import mock
 
 import pytest
-from harness import bare_run
 
 from cs_image_system.base.models.user import User
 from cs_image_system.contract.lifecycle import ExecutionLifecyclePhase
@@ -18,6 +17,7 @@ from cs_image_system.hashicorp_utils.collector import (
     ConfiguredTerraformProvider,
     terraform_collector,
 )
+from cs_image_system.hashicorp_utils.testing import bare_run
 from cs_image_system.okta_opa_plugin.okta_opa_tf_user_builder import OktaTfUserBuilder
 from cs_image_system.okta_opa_plugin.okta_opa_tf_user_models import OktaTfUserBuilderModel
 

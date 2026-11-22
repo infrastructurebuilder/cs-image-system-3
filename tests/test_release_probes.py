@@ -42,6 +42,11 @@ def _stub(bin_dir: Path, name: str, body: str) -> None:
     path.chmod(path.stat().st_mode | stat.S_IXUSR)
 
 
+def _uv_cache_dir() -> str:
+    """The cache the real home's uv uses, asked once per case before the home is replaced."""
+    return subprocess.run(["uv", "cache", "dir"], capture_output=True, text=True, check=True).stdout.strip()
+
+
 def _probes(tmp_path: Path, index: str, *, docker_ok: bool = True, synced: bool = True, config: Path | None = None,
             who: str = "release", own: int = 0, elsewhere: int = 0) -> subprocess.CompletedProcess:
     """The recipe with docker, `uv sync`, scripts/own-versions-current (which would build and ask the
@@ -57,6 +62,10 @@ def _probes(tmp_path: Path, index: str, *, docker_ok: bool = True, synced: bool 
     home = tmp_path / "home"
     home.mkdir(exist_ok=True)
     env = {k: v for k, v in os.environ.items() if not k.startswith(("AWS_", "CSIS_CONFIG_ROOT", "VIRTUAL_ENV"))}
+    # the empty home holds no AWS session, and must not hold an empty uv cache either: the live
+    # configuration's load layers in the families released elsewhere (`uv run --with`), which an empty
+    # cache downloads and builds afresh, minutes of the suite's time for nothing the case asks
+    env.setdefault("UV_CACHE_DIR", _uv_cache_dir())
     env.update({"PATH": f"{bin_dir}:{os.environ['PATH']}", "HOME": str(home),
                 "CSIS_CONFIG_ROOT": str(config or (REPO / "tests" / "fixtures" / "config"))})
     return subprocess.run(["just", "_release-probes", index, who], cwd=REPO, capture_output=True, text=True, env=env, timeout=300)
