@@ -34,7 +34,7 @@ tests are written first and must fail before its code.
   prints nothing after a task unless the task says the golden moves; a
   moved golden is read file by file and recorded (Constitution IV).
 - **The contract has its own version.** Every change to
-  `packages/contract` is in T005's 0.6.0; a later change needs its own
+  `packages/contract` is in T005's 0.5.1 (planned as 0.6.0, plan D7); a later change needs its own
   bump.
 - **Releases are the operator's.** A task marked **RELEASE** stops.
 - A new file in a new folder needs `git add -N` before `just lint`.
@@ -57,6 +57,7 @@ Filled in as tasks complete.
 | T007 | `SERVERS` (`servers.yaml`) and `IDS` (`ids.yaml`) in `meta_ledgers.py` and `ALL_FILES`; the six members in the engine's `MetaState`: entries keyed by `instance_id`, sorted by hostname, address, id; an unreadable `servers.yaml` answers None and every write and retirement over it raises; `record_ids` refuses a changed id for a current or retired name, naming both |
 | T008 | Three cases in `tests/test_meta_state.py`: record, replace by `instance_id`, aliases, retire by hostname; an unreadable registry is None and refuses writes and retirements; a recorded id never changes for a current or a retired name; 15 passed |
 | T009 | `address` in both runtimes' `query_instance_identity`: AWS's `PrivateIpAddress`, docker's address on its network (`NetworkSettings.IPAddress`, else the first network's); `tests/test_instance_identity_address.py` (new, AWS) and the docker family's identity test; 18 passed. Lint clean, pyright 0 errors, `just surface-check` clean |
+| T005 (again) | 2026-11-23, the operator's rule that versions move only their third number (plan D7; "make the contract 0.5.1 after the run"): the contract is 0.5.1, not 0.6.0, and the 18 dependents' ranges are back on `>=0.5,<0.6`; the contract README's 0.5.1 row says why, and a dated note suspends its MINOR rule while the patch-only rule holds. `uv lock` (contract 0.6.0 -> 0.5.1), `just init`; the contract, metadata, extras and records tests 164 passed. The checkpoint run on 0.6.0 had shown the code sound (2,624 passed, pyright 0 errors, the core and high-end isolated runs passed) and failed only at the Terraform libraries' low end, whose published 0.2.0 requires the contract below 0.6 |
 
 ---
 

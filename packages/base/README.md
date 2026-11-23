@@ -1314,7 +1314,7 @@ itself needs is short.
 - **The contract, in its compatible series.** Every model and builder
   base here implements a protocol of the
   [contract](../contract/README.md), and every constant, field helper and
-  phase is imported from it; the pin is `>=0.6,<0.7`, the range every
+  phase is imported from it; the pin is `>=0.5,<0.6`, the range every
   package of the workspace declares.
 - **Nothing of the engine, and nothing of hashicorp-utils.** No module
   here imports the engine, by any edge, and the kit imports no terraform

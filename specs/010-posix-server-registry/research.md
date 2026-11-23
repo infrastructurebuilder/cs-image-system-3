@@ -214,6 +214,8 @@ beside a system on 0.6, and this repository cannot lock on 0.6 while its
 extras take them from the index *(corrected 2026-11-22, at T005: an
 earlier reading said the Okta plugin keeps working; plan D6)*.
 
+*Superseded 2026-11-23 (plan D7): the additions are the PATCH 0.5.1 and the dependents' range stays `>=0.5,<0.6`.*
+
 **Decision**: one contract MINOR (0.6.0) carries the registry's new
 question (`record_aliases`), the records' members, the `Claim` fields,
 the identity question for pools (`id_pool()`, R11) and the runtime

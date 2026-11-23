@@ -26,7 +26,7 @@ declared id draws from its identity's pool, and an id once held is never
 given to another name (R6, R11). Okta's ids and pool are read from OPA,
 read-only, and recorded (R8).
 
-One contract MINOR (0.6.0) carries the additions
+One contract PATCH (0.5.1; planned as the MINOR 0.6.0, D7) carries the additions
 ([contracts/registry-and-ids.md](contracts/registry-and-ids.md)); no
 existing question changes meaning. The Okta plugin's own share (its
 claims and its pool) is the Okta repository's (D3).
@@ -146,11 +146,22 @@ No violation needs justifying.
   it, since no upload token is kept; then this repository locks on 0.6
   (tasks T049 to T052, before T005).
 
+- **D7. No minor versions.** The operator, 2026-11-23: "versions will
+  only increment the patch level, not the minor version ... until we
+  stabilize more". The contract's additions are therefore 0.5.1, not
+  0.6.0, and every dependent's range stays `>=0.5,<0.6`; the kit and the
+  Terraform libraries take their LAST numbers (0.2.2) as planned. In
+  hindsight D6's widening was not needed (the families' 0.2.0 already
+  take any 0.5.x); their 0.2.1 (`>=0.5,<0.7`) stand, harmless. While the
+  rule holds, the contract and the SDK only add: a removed or reshaped
+  member would reach every plugin through its range unguarded, and
+  `just surface-check` refuses one without a middle number. **Taken.**
+
 ## Project Structure
 
 ```text
 packages/contract/src/cs_image_system/contract/
-  group.py, user.py, runtime.py, context.py, identity_vocabulary.py   # the additions (0.6.0)
+  group.py, user.py, runtime.py, context.py, identity_vocabulary.py   # the additions (0.5.1, D7)
 packages/base/src/cs_image_system/base/
   launch_params.py          # register_launched_servers; forget_ephemerals retires
   meta_ledgers.py           # SERVERS, IDS in ALL_FILES

@@ -640,7 +640,7 @@ requires-dist = [
 
 [[package]]
 name = "cs-image-system-contract"
-version = "0.6.0"
+version = "0.5.1"
 source = { editable = "packages/contract" }
 dependencies = [
     { name = "packaging" },

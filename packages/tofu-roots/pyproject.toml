@@ -12,7 +12,7 @@ license = "Apache-2.0"
 license-files = ["LICENSE"]
 requires-python = ">=3.13"
 dependencies = [
-    "cs-image-system-contract>=0.6,<0.7",
+    "cs-image-system-contract>=0.5,<0.6",
     # the kit, by range: this library is written against the kit's declared surface, as a provider is, and is
     # proven alone at both ends of the range (`just test-terraform-alone`); its sibling on the same version
     # line stays exact
