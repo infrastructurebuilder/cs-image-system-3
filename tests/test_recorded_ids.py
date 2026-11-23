@@ -265,3 +265,87 @@ def test_a_pool_below_the_floor_or_upside_down_is_refused_at_load():
 def _problems_pooled(claims, recorded=None, pools=()) -> list[str]:
     return resolve_posix_ids(claims, recorded=recorded, pools=pools).problems
 
+
+
+# --------------------------------------- story 3: an external identity beside POSIX
+
+def _with_external_identities(tmp_path, monkeypatch, holds: dict[str, dict[str, int]],
+                              recorded: dict | None = None):
+    """A fixture copy with one test-local external identity per entry of
+    ``holds`` (builder name -> group name -> the id its provider assigned),
+    the first answering the pool 170000-189999 and each next one the 20,000
+    ids above; ``recorded`` is written as
+    ``meta-state/ids.yaml`` first. Returns the loaded run."""
+    import yaml
+    from external_identity import EXTERNAL_POOL, stub_external_identity
+    from harness import FixtureRun, copy_config
+    stub_external_identity(monkeypatch)
+    root = copy_config(tmp_path)
+    path = root / "cfg" / "group-builders.yml"
+    data = yaml.safe_load(path.read_text())
+    data["group_builders"] += [{"name": name, "type": "test-external", "holds": dict(groups),
+                                "id_pool": [EXTERNAL_POOL[0] + 20000 * n, EXTERNAL_POOL[1] + 20000 * n]}
+                               for n, (name, groups) in enumerate(holds.items())]   # apart, as pools must be
+    path.write_text(yaml.safe_dump(data, sort_keys=False))
+    if recorded is not None:
+        (root / "meta-state" / "ids.yaml").write_text(yaml.safe_dump(recorded, sort_keys=False))
+    return FixtureRun(tmp_path, monkeypatch, config_root=root), root
+
+
+def _validate_and_record(run, record: bool = True) -> list[str]:
+    from cs_image_system.engine.commands.run_lifecycles import settle_ids
+    from cs_image_system.engine.commands.validate import check_posix_ids
+    problems = [str(e) for e in check_posix_ids(run.ctx)]
+    if not problems and record:
+        settle_ids(run.ctx, record=True)
+    return problems
+
+
+def test_an_external_groups_id_read_first_is_recorded_as_read_with_its_pool(tmp_path, monkeypatch):
+    run, _root = _with_external_identities(tmp_path, monkeypatch, {"ext-a": {"coops": 180007}})
+    try:
+        assert _validate_and_record(run) == []
+        doc = run.ctx.meta_state.recorded_ids()
+    finally:
+        run.restore_cwd()
+    assert doc["ids"]["group"]["coops"] == {"id": 180007, "identity": "ext-a", "external": True, "how": "read",
+                                            "recorded_run": doc["ids"]["group"]["coops"]["recorded_run"]}
+    assert doc["pools"]["ext-a"] == {"min": 170000, "max": 189999, "how": "read"}
+    # no declared and no pooled id may take it afterwards
+    assert len(_problems([_posix("group", "pxother", 180007)], recorded=doc)) == 1
+    drawn = resolve_posix_ids([_posix("group", "fresh")], recorded=doc, pools=[Pool(POSIX, 180007, 180008)])
+    assert drawn.ids[("group", "fresh")] == 180008
+
+
+def test_a_later_read_of_another_id_is_refused_and_the_record_kept(tmp_path, monkeypatch):
+    recorded = _recorded(groups={"coops": (180007, "ext-a")})
+    run, root = _with_external_identities(tmp_path, monkeypatch, {"ext-a": {"coops": 180008}}, recorded=recorded)
+    before = (root / "meta-state" / "ids.yaml").read_text()
+    try:
+        problems = _validate_and_record(run)
+    finally:
+        run.restore_cwd()
+    assert len(problems) == 1 and "180007" in problems[0] and "180008" in problems[0] and "ext-a" in problems[0]
+    assert (root / "meta-state" / "ids.yaml").read_text() == before
+
+
+def test_an_external_id_read_onto_a_posix_names_recorded_id_is_refused_naming_both(tmp_path, monkeypatch):
+    recorded = _recorded(groups={"pxgroup": (3101, "posix-local")})
+    run, _root = _with_external_identities(tmp_path, monkeypatch, {"ext-a": {"coops": 3101}}, recorded=recorded)
+    try:
+        problems = _validate_and_record(run, record=False)
+    finally:
+        run.restore_cwd()
+    hit = [p for p in problems if "3101" in p]
+    assert len(hit) == 1 and "coops" in hit[0] and "pxgroup" in hit[0] and "cannot move" in hit[0]
+
+
+def test_a_second_external_identity_joins_the_same_check_with_no_core_change(tmp_path, monkeypatch):
+    run, _root = _with_external_identities(tmp_path, monkeypatch,
+                                           {"ext-a": {"coops": 180007}, "ext-b": {"tcmet": 180007}})
+    try:
+        problems = _validate_and_record(run, record=False)
+    finally:
+        run.restore_cwd()
+    hit = [p for p in problems if "180007" in p]
+    assert len(hit) == 1 and "coops" in hit[0] and "tcmet" in hit[0] and "configuration error" in hit[0]

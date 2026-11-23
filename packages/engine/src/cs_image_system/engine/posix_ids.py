@@ -157,8 +157,11 @@ def resolve_posix_ids(claims: Iterable[Claim], recorded: dict | None = None,
     taken = ({i for c in claims if (i := supplied_id(c)) is not None} | set(out.ids.values())
              | {int(r["id"]) for r in current.values() if isinstance(r.get("id"), int)} | set(retired.values()))
     _draw(pending, pools, taken, out)
+    # a recorded name no builder claims now is held as a retired one is: the
+    # next recording retires it, and its id is never another name's
+    unclaimed = {k: int(r["id"]) for k, r in current.items() if k not in by_name and isinstance(r.get("id"), int)}
     for kind in ("group", "user"):
-        _check_across_names(kind, out, retired, only_derived)
+        _check_across_names(kind, out, {**retired, **unclaimed}, only_derived)
     return out
 
 
@@ -317,7 +320,8 @@ def _check_pools(pools: list[Pool], current: dict[tuple[Kind, str], dict], out: 
 
 def _check_across_names(kind: str, out: Resolution, retired: dict[tuple[Kind, str], int],
                         only_derived: set[tuple[Kind, str]]) -> None:
-    """Two names on one id within ``kind``, and a retired id another name took."""
+    """Two names on one id within ``kind``, and an id recorded for a name no
+    builder declares now (retired, or about to be) that another name took."""
     holders: dict[int, list[tuple[Kind, str]]] = {}
     for (k, name), i in out.ids.items():
         if k == kind:
@@ -331,8 +335,8 @@ def _check_across_names(kind: str, out: Resolution, retired: dict[tuple[Kind, st
         takers = [n for (kk, n) in holders.get(i, []) if n != name]
         if takers:
             out.problems.append(
-                f"{kind} {', '.join(takers)}: id {i} was {name}'s, recorded and retired; an id once held "
-                f"is never another name's (only {name} may take it back)")
+                f"{kind} {', '.join(takers)}: id {i} is recorded for {name}, which no builder declares now; an id "
+                f"once held is never another name's (only {name} may take it back)")
 
 
 def _shared_id(kind: str, i: int, keys: list[tuple[Kind, str]], out: Resolution,
