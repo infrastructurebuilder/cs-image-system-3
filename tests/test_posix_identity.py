@@ -263,7 +263,7 @@ def test_a_posix_tree_loads_and_its_ids_resolve_cleanly(tmp_path, monkeypatch):
     ({"uids": (1000, 3202)}, "user taylor_tango: the configuration declares id 1000, below 1024"),
     ({"uids": (3201, 3201)}, "users taylor_tango, unity_uniform all have id 3201"),
     ({"extra_group": {"name": "taylor_tango", "type": "posix-local", "gid": 3300}},
-     "group taylor_tango: the configuration supplies id 3300 and the configuration (user-private group) supplies 3201"),
+     "group taylor_tango: the configuration (posix-local) supplies id 3300 and the configuration (user-private group) (posix-users) supplies 3201"),
     ({"extra_group": {"name": "Bad.Name", "type": "posix-local", "gid": 3300}}, None),
 ])
 def test_validate_refuses_each_id_problem_by_name(tmp_path, monkeypatch, change, needle):

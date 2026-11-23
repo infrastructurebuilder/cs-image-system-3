@@ -236,7 +236,9 @@ def check_posix_ids(ctx: RunContext) -> list[Exception]:
     """Every POSIX id the configuration's builders claim, resolved
     by the operator's rule (``posix_ids.resolve_posix_ids``): one name with
     two ids is refused naming both sides, a name no side supplies an id for
-    is refused, two names on one id are refused. An id the configuration
+    is refused, two names on one id are refused; the tree's recorded ids
+    (``meta-state/ids.yaml``, read from the records, no network) are a side
+    of their own that never moves. An id the configuration
     declares must be a regular one (at least ``FIRST_REGULAR_ID``), and every
     claimed name must be one a machine accepts (``NAME_RE``). A configuration
     whose builders claim nothing -- no posix builder -- is not checked."""
@@ -247,7 +249,7 @@ def check_posix_ids(ctx: RunContext) -> list[Exception]:
         claims += ub.posix_id_claims()
     if not claims:
         return []
-    messages: list[str] = list(resolve_posix_ids(claims).problems)
+    messages: list[str] = list(resolve_posix_ids(claims, recorded=ctx.meta_state.recorded_ids()).problems)
     for kind, name in sorted({(c.kind, str(c.name)) for c in claims if not c.derived}):
         if not NAME_RE.match(name):
             messages.append(f"{kind} {name}: not a name a machine accepts -- lower case, a letter or "

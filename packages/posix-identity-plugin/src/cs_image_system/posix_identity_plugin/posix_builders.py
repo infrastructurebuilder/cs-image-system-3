@@ -91,7 +91,7 @@ class PosixGroupBuilder(_NoGeneration, GroupBuilderBase[PosixGroupBuilderModel])
         return str(gid) if gid is not None else None
 
     def posix_id_claims(self) -> list[Claim]:
-        return [Claim("the configuration", "group", g.get_name(), _declared_gid(g), rank=20)
+        return [Claim("the configuration", "group", g.get_name(), _declared_gid(g), rank=20, identity=self.get_name())
                 for g in self.get_groups_for_builder()]
 
     # ------------------------------------------------------- the bake
@@ -237,10 +237,10 @@ class PosixUserBuilder(_NoGeneration, UserBuilderBase[PosixUserBuilderModel]):
         for u in self.get_users_for_builder():
             uid = getattr(u, "uid", None)
             uid = uid if isinstance(uid, int) and not isinstance(uid, bool) else None
-            out.append(Claim("the configuration", "user", u.get_name(), uid, rank=20))
+            out.append(Claim("the configuration", "user", u.get_name(), uid, rank=20, identity=self.get_name()))
             # the user-private group: same name, same id
             out.append(Claim("the configuration (user-private group)", "group", u.get_name(), uid, rank=20,
-                             derived=True))
+                             derived=True, identity=self.get_name()))
         return out
 
     def validate_attributes(self, user: User, attributes: dict[str, Any]) -> list[str]:
