@@ -637,6 +637,69 @@ def validate_claimed_hostnames(ctx: "RunContext", requested: list[Lifecycle]) ->
     return errors
 
 
+def register_launched_servers(ctx: "RunContext", lifecycle: Lifecycle) -> None:
+    """After the instance-image runner applied: every launched instance in
+    the apply scope whose group's builder keeps its server registry in the
+    records (``keeps_recorded_registry``) is registered there, from the
+    runtime's own report of the machine (``query_instance_identity``): its
+    provider id, canonical hostname and address. A machine launched this
+    run, and one launched before the registry existed, are registered by
+    the first applying run that finds them; a launch that never came up
+    (no provider id) registers nothing. An entry already as it would be
+    written is left alone, and its aliases are kept. A record that cannot
+    be read is said, never raised: the next applying run registers it."""
+    if lifecycle != Lifecycle.INSTANCE_IMAGE or getattr(ctx, "dry_run", False):
+        return
+    if not apply_enabled(ctx, "instances"):
+        return
+    recorded = ctx.meta_state.launch_params()
+    for instance in ctx.instances:
+        name = instance.get_name()
+        if not apply_enabled(ctx, "instances", str(instance.type_), [str(instance.runtime)]):
+            continue
+        if not (recorded.get(name) or {}).get("launched"):
+            continue
+        image = ctx.images_map.get(str(instance.image))
+        group = str(getattr(image, "group", None) or "") if image is not None else ""
+        gb = group_builder_of(ctx, group) if group else None
+        if gb is None or not gb.keeps_recorded_registry():
+            continue
+        _register_one(ctx, instance, group, gb)
+
+
+def _register_one(ctx: "RunContext", instance: Any, group: str, gb: Any) -> None:
+    """Record ``instance``'s entry in ``group``'s registry, or say why not."""
+    name = instance.get_name()
+    rtb = ctx.runtime_builders.get(str(instance.runtime)) if instance.runtime else None
+    if rtb is None or not rtb.can_query_instance_identity():
+        log.info(f"Instance {name}: its runtime cannot say which machine it is; not registered")
+        return
+    identity = rtb.query_instance_identity(name) or {}
+    provider_id = str(identity.get("instance_id") or "")
+    if not provider_id:
+        log.info(f"Instance {name}: the runtime reports no machine for it; not registered this run")
+        return
+    hostname = canonical_hostname(ctx, instance)
+    servers = gb.registered_servers(group)
+    if servers is None:
+        log.error(f"Instance {name}: group {group!r}'s server registry cannot be read; {hostname!r} is NOT "
+                  "registered (the next applying run registers it once the record reads)")
+        return
+    own = next((s for s in servers if str(s.get("instance_id") or s.get("id") or "") == provider_id), None)
+    entry = {"id": provider_id, "hostname": hostname, "address": str(identity.get("address") or ""),
+             "canonical_name": hostname, "alt_names": sorted((own or {}).get("alt_names") or []),
+             "instance_id": provider_id, "instance": name,
+             "registered_run": str((own or {}).get("registered_run") or ctx.run_id)}
+    if own == entry:
+        return
+    try:
+        ctx.meta_state.record_server(gb.get_name(), group, entry)
+    except Exception as e:  # noqa: BLE001 - said loudly, never fatal to the run
+        log.error(f"Instance {name}: {hostname!r} is NOT registered in group {group!r} ({e})")
+        return
+    log.info(f"Instance {name}: registered as {hostname!r} ({provider_id}) in group {group!r}'s registry")
+
+
 def register(runner) -> None:
     runner.register_after_generate(record_launch_params)
     runner.register_after_apply(mark_launched)
@@ -644,5 +707,6 @@ def register(runner) -> None:
     runner.register_after_apply(forget_ephemerals)
     runner.register_after_apply(record_resizes)        # before record_detachments (it recomputes the record)
     runner.register_after_apply(record_detachments)
+    runner.register_after_apply(register_launched_servers)   # before the alias pass, which reads the entry
     runner.register_validator(validate_immutability)
     runner.register_validator(validate_claimed_hostnames)

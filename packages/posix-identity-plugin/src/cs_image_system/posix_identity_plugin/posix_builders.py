@@ -31,7 +31,7 @@ from cs_image_system.contract.executables import CFExecutables
 from cs_image_system.contract.identity_vocabulary import Claim
 from cs_image_system.contract.lifecycle import ExecutionLifecyclePhase
 
-from . import accounts, ssh_login
+from . import accounts, registry, ssh_login
 from .posix_models import POSIX, PosixGroupBuilderModel, PosixUserBuilderModel
 
 TOOLS = ("groupadd", "useradd", "gpasswd", "visudo")
@@ -168,6 +168,23 @@ class PosixGroupBuilder(_NoGeneration, GroupBuilderBase[PosixGroupBuilderModel])
         return accounts.accounts_script(groups={group: gid}, users=users, members={group: everyone}, keys=keys,
                                         admins={group: admins} if self.model.admin_sudo else None,
                                         shell=self.model.shell)
+
+    # ------------------------------------ the server registry (spec 010)
+    def can_query_servers(self) -> bool:
+        return True
+
+    def keeps_recorded_registry(self) -> bool:
+        """The registry is the configuration's own record (``registry``)."""
+        return True
+
+    def registered_servers(self, group: str) -> list[dict[str, Any]] | None:
+        return registry.registered(self._get_context().meta_state, self.get_name(), group)
+
+    def retire_servers_named(self, group: str, hostname: str) -> list[str]:
+        return registry.retire(self._get_context().meta_state, self.get_name(), group, hostname)
+
+    def record_aliases(self, group: str, entry_id: str, names: list[str]) -> list[str] | None:
+        return registry.record_aliases(self._get_context().meta_state, self.get_name(), group, entry_id, names)
 
     # ----------------------------------- beside another provider (step 5)
     def login_hook_commands(self) -> list[str]:
