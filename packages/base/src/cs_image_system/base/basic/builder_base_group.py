@@ -156,17 +156,21 @@ class GroupBuilderBase(BuilderBase[TGROUP], GroupBuilderProtocol):
 
     # ------------------------------------------------------ server registry
     def can_query_servers(self) -> bool:
-        """Whether this identity provider keeps a registry of enrolled
-        servers that the builder can read and retire (a provider whose agent
-        enrolls the machine does). Gated like
-        the stage-57 runtime hooks: a provider without one makes no claim."""
+        """Whether this identity provider keeps a registry of the servers
+        registered for its groups that the builder can read and retire: one
+        an outside service keeps (a provider whose agent enrolls the machine
+        does), or one kept in the configuration's own records
+        (``keeps_recorded_registry``). Gated like the stage-57 runtime hooks:
+        a provider without one makes no claim."""
         return False
 
     def registered_servers(self, group: str) -> list[dict[str, Any]] | None:
-        """Every server currently enrolled for ``group``, each
-        ``{id, hostname, address}`` -- or ``None`` when the provider could
-        not be ASKED. None is never an empty list: a caller deciding whether
-        a canonical hostname is free must not read silence as freedom."""
+        """Every server currently registered for ``group``, each
+        ``{id, hostname, address}`` and what else the registry records -- or
+        ``None`` when the registry could not be ASKED (a service that did not
+        answer, a record that cannot be read). None is never an empty list: a
+        caller deciding whether a canonical hostname is free must not read
+        silence as freedom."""
         return None
 
     def retire_servers_named(self, group: str, hostname: str) -> list[str]:
@@ -205,7 +209,9 @@ class GroupBuilderBase(BuilderBase[TGROUP], GroupBuilderProtocol):
         provider's own hostname label), idempotently: it prints the
         contract's ``ALIASES_CHANGED`` when it changed the registration and
         ``ALIASES_UNCHANGED`` when the names were already there. ``None``
-        when this provider keeps no registration to alias. Every name has
+        when this provider writes no aliases on the machine: it keeps no
+        registration to alias, or keeps it in the records, where the aliases
+        go through ``record_aliases`` instead. Every name has
         been validated as a hostname label; a name that is not one is a
         ``ValueError``. Default: None."""
         return None

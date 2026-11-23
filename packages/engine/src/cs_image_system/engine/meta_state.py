@@ -556,7 +556,8 @@ class MetaState:
 
     def record_ids(self, document: dict[str, Any]) -> None:
         """Write ``ids.yaml``, refusing any change to an id already recorded
-        (for a current or a retired name), naming both."""
+        (for a current or a retired name), naming both, and any document
+        that leaves a recorded name out."""
         before = self.read(IDS)
         problems: list[str] = []
         for kind in ("group", "user"):
@@ -565,7 +566,10 @@ class MetaState:
             new = {**((document.get("retired") or {}).get(kind) or {}),
                    **{n: r.get("id") for n, r in ((document.get("ids") or {}).get(kind) or {}).items()}}
             for name, was in old.items():
-                if name in new and new[name] != was:
+                if name not in new:
+                    problems.append(f"{kind} {name}: recorded with id {was}, and the new record leaves it out; "
+                                    "a recorded id is never dropped (a removed name is retired)")
+                elif new[name] != was:
                     problems.append(f"{kind} {name}: recorded with id {was}, asked to become {new[name]}; "
                                     "a recorded id does not change")
         if problems:

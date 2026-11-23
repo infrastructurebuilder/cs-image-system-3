@@ -7,10 +7,15 @@ SPDX-License-Identifier: Apache-2.0
 # cs-image-system-posix-identity-plugin
 
 The posix identity plugin: groups and users that exist as **POSIX accounts on
-the machines**, with ids the configuration declares. It registers a group
-builder and a user builder, both `type: posix`, under the identity type
-`posix`. Neither has a terraform root or asks a directory: the configuration
-is the authority, and what it describes is written onto the machines.
+the machines**, each with one id that never changes: the one the
+configuration declares, or, for a name that declares none, one drawn from
+the builder's pool and recorded. It registers a group builder and a user
+builder, both `type: posix`, under the identity type `posix`. Neither has
+a terraform root or asks a directory: the configuration and the
+configuration's own records (`meta-state/`) are the authority, and what
+they describe is written onto the machines. Because no outside service
+knows a posix group's machines, the group builder also keeps the group's
+**server registry** in those records.
 
 Why it exists: on a machine of an Okta-managed group, OPA's agent creates
 each person's account and user-private group, but **never the group that
@@ -21,17 +26,24 @@ belongs to. This plugin makes that group exist, with the right id.
 What it does, and when:
 
 - **At the bake of an instance image** owned by a posix group, the group is
-  created with its declared `gid:` -- or adopted when it already stands with
-  that gid, or the bake stops when it stands with another (a name known to
-  two sides with two ids is a configuration error, the operator's rule).
+  created with its gid (its `gid:`, or the id recorded or drawn for it) --
+  or adopted when it already stands with that gid, or the bake stops when
+  it stands with another (a name known to two sides with two ids is a
+  configuration error, the operator's rule).
 - **A base image** that declares `identity_types: [posix]` checks that the
   shadow tools and sudo are there (`groupadd`, `useradd`, `gpasswd`,
   `visudo`); it installs nothing, since every supported family ships them.
 - **Generated IaC** writes a posix group's gid as the number: there is no
   identity root to read it from, so the storage and instance roots declare
   no remote state for it.
-- **`validate`** resolves every POSIX id the configuration claims (see
-  "Configuration reference").
+- **`validate`** resolves every POSIX id the configuration claims, beside
+  every other identity's (see "Configuration reference"); an applying run
+  or a dry run with `--commit` (`just record`) records them in
+  `meta-state/ids.yaml`, and a plain dry run shows the ids it would give
+  and records nothing.
+- **After every applying instance run**, each launched machine of a posix
+  group is registered in its group's server registry, and its aliases
+  are recorded in its entry ("The server registry", below).
 
 - **After every applying instance run**, each launched, RUNNING machine of
   a posix group gets the group's accounts script over the runtime's session
@@ -50,6 +62,44 @@ What it does, and when:
   A failure is logged as an error naming the machine and never stops the
   run; the next applying run tries again.
 
+## The server registry
+
+A posix group's registry is kept in the configuration's records,
+`meta-state/servers.yaml`, under the group builder's name and the
+group's: one entry per machine, `{id, hostname, address,
+canonical_name, alt_names, instance_id, instance, registered_run}`, the
+shape OPA's registry answers in. The builder answers the core's registry
+questions from it (`can_query_servers`, `registered_servers`,
+`retire_servers_named`, and the two that say the registry is a record:
+`keeps_recorded_registry`, `record_aliases`), so a posix group gets
+what an Okta group gets from OPA, by the core's own rules
+([OPERATIONS.md, "A canonical hostname is claimed once"](../../docs/OPERATIONS.md#a-canonical-hostname-is-claimed-once)):
+
+- **Registered at launch.** An applying instance-image run registers each
+  launched machine of the group from the runtime's own report (its
+  provider id and address) under the hostname it booted with. A machine
+  launched before the registry existed is registered by the first
+  applying run that finds it, with no relaunch.
+- **One name, one machine.** A run that can launch refuses a second
+  machine under a registered name, a launched machine with two entries
+  under its name, and a registry it cannot read (silence is not a free
+  name). A dry run neither asks nor refuses. `verify login` refuses,
+  before any login, a group whose registry cannot be asked or holds two
+  entries under the hostname.
+- **Retired with the machine.** A decommission, a replacement and an
+  ephemeral teardown remove the machine's entries; a retirement that
+  fails is an ERROR saying the entry was NOT retired and that it must be
+  removed from `meta-state/servers.yaml` by hand.
+- **Aliases in the entry.** The core's alias pass writes the machine's
+  aliases (the bare declared name, the pool alias, the provider's own
+  hostname label, each skipped when another entry or the configuration
+  claims it) into the entry's `alt_names`. Nothing runs on the machine
+  for them, so the pass neither asks its power state nor waits for it.
+
+A record that cannot be read answers "could not be asked", never an empty
+registry, and a registration, an alias write or a retirement over it
+fails loudly: none is ever reported as done when it was not.
+
 ## The login proof
 
 `verify login` (CI's perform job runs it) logs into each standing machine
@@ -63,8 +113,9 @@ plugin does -- a shared command, mounted once -- so a tree with posix
 accounts alone has `verify login`:
 
 - **The proof user** is a member or admin declared on a posix user
-  builder with `is_service_account: true`, a `uid:` and its public key in
-  `public_keys:` (the first such member by name). A group without one is
+  builder with `is_service_account: true`, a uid (declared, or drawn from
+  the pool) and its public key in `public_keys:` (the first such member
+  by name). A group without one is
   skipped, naming why.
 - **Its private key** reaches the proof as `CSIS_PROOF_SSH_KEY` (the key
   itself, or a path to it; in CI a repository secret no gate reads).
@@ -109,6 +160,11 @@ delegate makes them exist on the machines:
   admins merged as OPA has them), and the members whose accounts stand at
   that moment joined at once. No account is created: OPA's agent makes
   those.
+- **One account, one id.** A posix user or group whose name an Okta
+  user or group also holds is the same account on the machine, so it
+  takes Okta's id and draws nothing from the posix pool; a posix
+  declaration of another id is refused at `validate`, saying which id it
+  must be ([OPERATIONS.md, "Ids are recorded once"](../../docs/OPERATIONS.md#ids-are-recorded-once)).
 - **`posix_ssh_keys: true`** on the Okta builder also writes each
   member's declared `public_keys:` to `/etc/csis/keys/<user>`, which the
   hook installs at login -- a key path beside OPA's certificates, off by
@@ -128,8 +184,14 @@ delegate makes them exist on the machines:
   declare `identity_types: [posix]` (or list it beside `okta`); `validate`
   refuses an image whose group resolves to an identity type its base does
   not declare.
-- **No credentials, no network, no state.** The builders read the
-  configuration only.
+- **No credentials, no network; state only in the configuration's
+  records.** The builders read the configuration and two files of its
+  `meta-state/`, both committed with it: `ids.yaml`, the recorded ids
+  (written by the core's id rule, not by this plugin), and
+  `servers.yaml`, the group builder's server registry (written by the
+  core's registration, alias and retirement steps through the group
+  builder). Nothing is kept anywhere else, and nothing is asked of a
+  service.
 - **Container runtimes.** `validate` asks each group builder
   `container_runtime_objection()` before it lets an instance image bake
   on a container runtime. This plugin has none: a posix group's accounts
@@ -157,9 +219,11 @@ user_builders:
 |---|---|---|---|
 | `shell` | str | `/bin/bash` | the login shell given to accounts this plugin creates |
 | `admin_sudo` | bool | `true` | a group's `admins` may run anything as root without a password (their accounts have none: keys only); `false` leaves sudo to the operator |
+| `id_pool` | [int, int] | `[3000, 59999]` | on both builders: the first and last id a group without a `gid:` or a user without a `uid:` may be given (the lowest free one, recorded for good); at least 1024 and the first below the last, refused at load otherwise. The posix builders may share one pool; it may not overlap an external identity's pool ([CONFIGURATION.md](../../docs/CONFIGURATION.md#92-group-builders), 9.2 and 9.3) |
 
-A group of a posix builder declares its id as `gid:`; a user of a posix user
-builder declares `uid:` and its keys as `public_keys:`:
+A group of a posix builder may declare its id as `gid:`; a user of a posix
+user builder may declare `uid:`, and declares its keys as `public_keys:`.
+One that declares no id is given one from its builder's `id_pool`:
 
 ```yaml
 groups:
@@ -178,15 +242,24 @@ users:
 ```
 
 The ids, checked at `validate` (the core's `check_posix_ids`, over the
-claims both builders make):
+claims both builders make and every other identity's), by the rule stated
+once in [OPERATIONS.md, "Ids are recorded once"](../../docs/OPERATIONS.md#ids-are-recorded-once):
 
-- every posix group declares a `gid:` and every posix user a `uid:`, each at
-  least 1024 (below that are the system's own accounts; the `Group` model
-  refuses a lower gid when it loads, and the check holds uids to the same
-  floor);
+- a recorded id never changes: a later declaration of another id for the
+  name is refused;
+- a declared id is at least 1024 (below that are the system's own
+  accounts; the `Group` model refuses a lower gid when it loads, and the
+  check holds uids to the same floor);
+- a group or user that declares none takes the lowest id of its builder's
+  `id_pool` that no name holds, declares or once held, and a user and its
+  private group draw one id; a pool with no free id left is refused;
+- a name an external identity (Okta) holds takes that identity's id, and
+  a different declared id is refused;
 - a user's private group takes the user's name and uid, so a declared group
   of the same name with another gid is refused, naming both;
-- two groups with one gid, or two users with one uid, are refused;
+- two groups with one gid, or two users with one uid, are refused, and so
+  is an id once held by a name no longer declared, taken by another name
+  (the same name may take it back);
 - names are POSIX names a machine accepts: lower case, a letter or
   underscore first, at most 32 characters, `.`, `_` and `-` allowed.
 
@@ -200,8 +273,8 @@ A posix group or user that declares `attributes:` is refused: the ids are
   (`getent group <name>`).
 - **At `validate`**: the id rules above, every one named with the sides
   that disagree; and every member or admin of a posix group must be a
-  user of a posix user builder with a `uid:` (the accounts the script
-  creates).
+  user of a posix user builder (the accounts the script creates), its uid
+  declared or drawn.
 - **Its tests**: [`tests/test_posix_accounts.py`](tests/test_posix_accounts.py)
   holds the script's parts as text and checks the whole script parses;
   the system's `tests/test_posix_identity.py` holds the builders, the
@@ -217,13 +290,18 @@ failure's symptom, its meaning and what to do.
 
 | Symptom | Meaning | Do |
 |---|---|---|
-| `group <g>: no side supplies its id ... declare one (gid:)` at `validate` | a posix group or user without an id | declare `gid:` (group) or `uid:` (user) |
+| `group <g>: <builder>'s pool <low>-<high> has no free id left; widen the pool or declare an id` at `validate` | every id of the pool is held, declared or once held | widen `id_pool` (clear of every other identity's pool), or declare `gid:` (group) or `uid:` (user) |
+| `group <g>: recorded with id <a>, and the configuration (...) declares <b>; a recorded id does not change` at `validate` | the YAML gives a recorded name another id | put the recorded id back (`meta-state/ids.yaml`), or leave the id out |
+| `group <g>: ... declares id <b>, but <identity> holds <g> with id <a>; the POSIX identity defers to it, so the id must be <a>` at `validate` | an Okta group or user of the same name holds another id | declare `<a>`, or leave the id out |
+| `group <a>: id <n> is recorded for <b>, which no builder declares now; an id once held is never another name's (only <b> may take it back)` at `validate` | the id belonged to a removed name, whose files may still own it | give the name another id, or leave it out to draw one |
+| `Instance <i>: its registration as '<h>' was NOT retired (<e>); a stale registration will answer to that name until you remove its entry from meta-state/servers.yaml (group '<g>') by hand` (ERROR) | a decommission, replacement or teardown could not rewrite the registry; the forget still happened | delete that entry from `meta-state/servers.yaml` and commit |
+| `instance '<i>': could not check whether canonical hostname '<h>' is already claimed (group '<g>''s server registry did not answer)` at a launching run | `meta-state/servers.yaml` cannot be read | repair the file (it is YAML under git: `git diff` it); a run never launches on silence |
 | `group <g>: the configuration supplies id <a> and the configuration (user-private group) supplies <b>` | a declared group shares its name with a posix user | rename one; a user's private group is the user's name |
 | `groups <a>, <b> all have id <n>` | two names, one id | give each its own |
 | `posix accounts: group <g> has gid <x> here; the configuration says <y>` in a bake's output (exit 3) | the base image already has that group with another gid | change the declared gid, or the base |
 | `posix accounts: gid <n> belongs to group <h> here; the configuration gives it to <g>` (exit 3) | the base image already uses that gid for another group | choose a free gid |
 | `command -v visudo` fails in a base bake | the family lacks sudo | install it in the OS builder's packages |
-| `posix group <g>: <u> has no posix account` at `validate` | a member or admin of a posix group is not a posix user with a uid | declare it on a `type: posix` user builder with a `uid:`, or take it out of the group |
+| `posix group <g>: <u> has no posix account` at `validate` | a member or admin of a posix group is not a user of a posix user builder | declare it on a `type: posix` user builder (its `uid:` declared, or left out to draw one), or take it out of the group |
 | `Instance <i>: the accounts script of group <g> FAILED (exit <n>)` in a run's log, with the script's `posix accounts:` lines above it | the machine refused (a group or user standing with another id) or could not be reached | read the lines; fix the id or the machine; the next applying run tries again |
 | `login proof <i>: proof key: FAILED -- CSIS_PROOF_SSH_KEY is not set` | the proof user's private key is not in the environment (CI: the secret is unset) | set the secret, or take `is_service_account` off if no proof is wanted |
 | `login proof <i>: tunnel: FAILED -- the runtime gives no ssh tunnel to <i>` | the machine is not running, or the runtime has no session mechanism | start it, or declare the runtime's `session_mechanism` |

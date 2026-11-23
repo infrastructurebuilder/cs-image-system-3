@@ -790,14 +790,22 @@ it running.
 **A group without Okta.** A group whose builder is itself `type: posix`
 lives on its machines alone ([CONFIGURATION.md](CONFIGURATION.md),
 11.5 and 11.6; the starter `standard-aws-posix` is a whole tree of
-them). The group declares its `gid:`; each member is a user of a
-`type: posix` user builder with a `uid:` and `public_keys:`. Both ids
-are the configuration's, at least 1024 and the same on every machine,
-because shared storage is owned by number. The group is baked into its
-images with that gid, and after each applying instance run the users,
+them). Each member is a user of a `type: posix` user builder with its
+`public_keys:`. The group may declare its `gid:` and each user its
+`uid:` (at least 1024); one that declares none is given the lowest free
+id of its builder's `id_pool` (3000 to 59999 unless the builder says
+otherwise), and a user and its private group draw one id between them.
+Either way the id is recorded in `meta-state/ids.yaml` by the first
+applying run or `just record`, and from then on it is the same on every
+machine and never changes, because shared storage is owned by number; a
+plain `just dry` shows the ids it would give and records nothing. A
+posix name that an Okta user or group also holds takes Okta's id: it is
+the same account on the machine. The whole rule, with what happens to a
+removed name's id, is in [OPERATIONS.md, "Ids are recorded once"](OPERATIONS.md#ids-are-recorded-once). The group is baked into its
+images with its gid, and after each applying instance run the users,
 their private groups, their keys and the admins' sudo are made true on
-every running machine. Two declarations of one name with different ids
-are refused at `validate`; a machine where the name already stands with
+every running machine. One name with two ids, or two names with one id,
+is refused at `validate`; a machine where the name already stands with
 a different id stops the run there and names both ids. Nothing is ever
 deleted on a machine: an account removed from the YAML stays until it
 is removed by hand, and a group the system once managed stays in the
@@ -805,7 +813,8 @@ YAML, marked `unmanaged: true`, when it is retired (section 4).
 
 **The proof user.** `just ci-login-proof <instance>` proves a posix
 group's access by logging in as its proof user: a member declared
-`is_service_account: true`, with a `uid:` and one public key made for
+`is_service_account: true`, with a uid (declared, or drawn from the
+pool) and one public key made for
 it alone, whose private half reaches the proof as `CSIS_PROOF_SSH_KEY`
 (the key itself, or a path to it; in CI a repository secret,
 [CI_SETUP.md](examples/_skeleton/CI_SETUP.md), 3.7). The
@@ -911,13 +920,22 @@ just cloud-launch <runtime>     # instance-image alone, no re-bake, the runtime'
 
 What a launch does: the machine boots as `<name>-001` (the first
 generation of that name; a replacement later is `-002`), sets its
-hostname, enrolls in OPA with the project's token, mounts its storages,
-records its launch parameters (immutable from now on) in
-`meta-state/launch-params.yaml`, opens generation 1 in
-`meta-state/instance-state.yaml`, and gets its names: the bare declared
-name and the provider's `ip-...` label as aliases, and a memorable name
-from `meta-state/aliases.txt` if the pool has one (the pool's line is
-commented out with what took it and when). Then:
+hostname, mounts its storages, records its launch parameters (immutable
+from now on) in `meta-state/launch-params.yaml`, opens generation 1 in
+`meta-state/instance-state.yaml`, and is registered under its hostname
+in its group's server registry. For an Okta group the registry is OPA's:
+the machine enrolls there itself, with the project's token. For a posix
+group the run registers it in `meta-state/servers.yaml`, one entry per
+machine, from the runtime's report of it. Either way one name is one
+machine: a later launch of another machine under a registered name is
+refused ([OPERATIONS.md](OPERATIONS.md#a-canonical-hostname-is-claimed-once)).
+Then it gets its names: the bare declared name and the provider's
+`ip-...` label as aliases, and a memorable name from
+`meta-state/aliases.txt` if the pool has one (the pool's line is
+commented out with what took it and when). On an Okta group's machine
+the aliases are written into its agent's configuration; on a posix
+group's they are recorded in its registry entry, and nothing runs on the
+machine for them. Then:
 
 ```sh
 just cloud-verify <runtime> <name>       # startup scripts, booted image, mounts, the post-bake tests; recorded
@@ -1069,7 +1087,7 @@ below; this is the order a person meets them.
 | --- | --- | --- |
 | A modification, a test or a package on an image | edit `images/`, `just test-mods --strict`, commit | the bake is due: `just cloud-perform <runtime>` bakes the new build. A durable instance then takes it in ONE command, `just cloud-upgrade <runtime> <instance>`: pin, gated replace, proof on the new machine, release, names, with `require_released_builds` left true throughout. "A model image, end to end: the second release" |
 | The base an image is built from | `parent_policy: follow` re-bakes on its own when the base moves; `pinned` waits for `just cli upgrade image <image>` | then as above |
-| The build an instance runs | `just cli upgrade instance <name> [--to <build>]`, or the `cloud-upgrade` recipe above | `just cloud-launch <runtime>`: the plan carries one `-replace`, the gate whitelists it and the volume attachments; the new machine is the next generation with the next number, the old registration is retired, the names come back once it enrolls |
+| The build an instance runs | `just cli upgrade instance <name> [--to <build>]`, or the `cloud-upgrade` recipe above | `just cloud-launch <runtime>`: the plan carries one `-replace`, the gate whitelists it and the volume attachments; the new machine is the next generation with the next number, the old registration is retired, the names come back once it enrolls (an Okta group's machine) or in the same run, in its registry entry (a posix group's) |
 | The size of a standing machine | edit `machine_type`; `just validate` passes (the one launch parameter that may change in place) | `just cloud-launch <runtime>`: `0 to add, 1 to change, 0 to destroy`, the provider stops, changes and starts the SAME machine; the ledger records a `resized` event on the open generation. "Resizing a durable instance in place" |
 | The machine itself, from nothing, same image | `just cloud-decommission <runtime> <name>` (the gate whitelists exactly that instance), then nothing to edit | `just cloud-launch <runtime>`: the next generation, `<name>-NNN`, a new alias, the pin first-bound to the series head again; every declared storage comes back with its data. "Replacing a durable instance: decommission and redeclare" |
 | Which storage an instance mounts | decommission first (a mount move on a launched instance is refused), then change the `name` under `storages`, declare the new storage if it is new, `just run storage` | `just cloud-launch <runtime>`: the new machine mounts exactly what its declaration names; the storage it left keeps its data until its entry is deleted. OPERATIONS "Storages", "Moving a mount is a replacement" |
@@ -1079,7 +1097,7 @@ below; this is the order a person meets them.
 | Who may log in | edit `members` or `admins` | `just run identity`. A removal OPA still holds is a destroy the plan shows. A membership already gone from OPA (removed in the console, or a roster conformed to OPA by hand) is pruned from terraform state by the runner's `prune-attachments` step, after a backup to `_private/state-backups/`, so the provider's refresh error never blocks the plan |
 | Who is in a group on its machines | edit `members` or `admins`; beside Okta, `just run identity` first, as above | the next applying instance run, `just cloud-launch <runtime>`, rewrites the member list on every running machine (beside Okta) or makes the accounts, keys and sudo true (a posix group). Beside Okta a member added joins at their next login after that run, and one removed is taken out of the group if their account stands then. Never a re-bake, and nothing is deleted: an account dropped from the YAML stays on the machine. Section 3.1; OPERATIONS "Identity" |
 | Stop managing a group | `unmanaged: true` | released from state, never destroyed; deleting the entry is a validation failure. The identity run's pre-plan step decides it from what the state holds when it runs, so a dry run or a `just record` made first changes nothing: look, then run (why that order is safe: [INCIDENTS.md](INCIDENTS.md#a-dry-run-spent-a-groups-release)). A retired posix group stays the same way, and needs no members; its gid stays claimed by the name |
-| Decommission an instance | delete the entry, or `just cli --undeclare instance:<name> run instance-image --only none --apply-runtime <runtime> --commit` for one run | the gate whitelists exactly its destroy; the launch record, pin and OPA registration are forgotten; the pool name it took stays spent |
+| Decommission an instance | delete the entry, or `just cli --undeclare instance:<name> run instance-image --only none --apply-runtime <runtime> --commit` for one run | the gate whitelists exactly its destroy; the launch record and pin are forgotten, and its registration is retired from its group's server registry (OPA's for an Okta group, `meta-state/servers.yaml` for a posix group; a retirement that fails is an ERROR saying how to do it by hand); its users' and groups' ids stay recorded; the pool name it took stays spent |
 | Rotate the admin key | add the new key, bake, upgrade every instance, remove the old key, repeat | "Rotate the admin key" |
 | Move a root's state | change `state_configuration`, `just cli --no-dry-run run <lifecycle> --migrate-state <root>` | backs up, copies, accepts only a clean plan at the new location, records the move |
 | Adopt something made by hand | `just cli state import`; for memberships, `tofu import` then a no-op apply | "Adopt out-of-band group membership". An adopted image counts as current when its tagged fingerprint matches today's inputs, so it is not baked again; it carries no in-bake record, so the release grace does not cover it |
@@ -1159,7 +1177,8 @@ a place the verdict lands. Nothing is taken on faith.
 | `apply_*` | `cfg/_config.yml` | `apply-check` at execution; the gate before it | `run-summary.json` `apply` |
 | `members`, `admins` | `groups/` | the identity apply; the runner's prune step against OPA; the state query's membership diff; the login proof | `meta-state/identity.yaml`; `meta-state/login-proofs.yaml` |
 | `workload_connection`, `workload_role` | `cfg/group-builders.yml` | the CI policy reconcile after the identity apply; the state query's `workload` record; the `perform` job's login | `meta-state/identity.yaml`; `meta-state/login-proofs.yaml` |
-| the canonical hostname, the aliases, the pool | the system's | `validate` (label rules, claimed names, the pool's free lines); the state query's notes; `sft resolve` | `launch-params.yaml`, `instance-state.yaml`, `aliases.txt` |
+| the canonical hostname, the aliases, the pool | the system's | `validate` (label rules, claimed names, the pool's free lines); the state query's notes; `sft resolve` | `launch-params.yaml`, `instance-state.yaml`, `aliases.txt`; a posix group's registry entries in `servers.yaml` |
+| `gid:`, `uid:`, `id_pool` | `groups/`, `cfg/group-builders.yml` | `validate`: one id per name and one name per id across every identity, the pools apart, a recorded id unchanged; the accounts script on each machine | `meta-state/ids.yaml`, written by an applying run or `just record` |
 | the committed emission | `generated/` | `just config-drift`: a dry run against what is committed; minutes, nearly all of it a `tofu init` per root, each said as it happens | exit 1 with the diff |
 | the records against reality | `meta-state/` | `just state-query --strict`, both clouds and the OPA API; the `live` job nightly | `generated/state-report.json` |
 | that nothing published is secret | everything committed | `just public-safe`, the pre-commit hook, the commit gate, the plaintext scan of the run's own decrypted values; the `verify` job | a refusal naming the file and line |
@@ -1219,10 +1238,13 @@ its code is next changed.
 | `workload role '...' is not known to OPA` | the operator's object is missing; `missing`, never hard drift | [CI_SETUP.md, section 3.5, step 2](examples/_skeleton/CI_SETUP.md#35-okta-and-okta-privileged-access) ([INCIDENTS.md](INCIDENTS.md#the-first-ci-policy-reconcile-was-refused-by-hard-drift)) |
 | `sft resolve ...: exit 126` with nothing on stderr | the `sft` client's session lapsed and `--quiet` forbade the browser; the registration half of the proof can already have passed ([INCIDENTS.md](INCIDENTS.md#sft-resolve-exited-126-with-nothing-on-stderr)) | `sft login`, then the proof again; as the workload, the token was missing or refused |
 | `'<name>' has 2 registrations: ...` in a login proof | two servers answer to one canonical hostname | retire the stale one (a replacement does this itself); `sft ssh` would reach either ([INCIDENTS.md](INCIDENTS.md#three-registrations-of-one-hostname-in-opa-one-live)) |
+| `Instance x: its registration as 'h' was NOT retired (...); a stale registration will answer to that name until you ...` (ERROR) | a decommission, replacement or ephemeral teardown could not retire the machine's entry; the forget itself happened | do what the line ends with: for an Okta group, deregister it by hand in OPA; for a posix group, remove its entry from `meta-state/servers.yaml` and commit ([OPERATIONS.md](OPERATIONS.md#a-canonical-hostname-is-claimed-once)) |
+| `group g: recorded with id a, and ... declares b; a recorded id does not change` at `validate` | the YAML gives a name another id than the one recorded for it; ids never move, because storage is owned by number | put the recorded id back (it is in `meta-state/ids.yaml`), or leave the id out ([OPERATIONS.md](OPERATIONS.md#ids-are-recorded-once)) |
+| `group g: ... pool 3000-59999 has no free id left; widen the pool or declare an id` at `validate` | every id of the builder's `id_pool` is held, declared or once held | widen `id_pool` (clear of every other identity's pool), or declare the id |
 | `Instance x: alias 'y' SKIPPED -- already claimed by <id>` | a stale record holds the name | retire that record; the alias comes back on the next applies-on run |
 | `instance <x> verified` for a machine you had switched off, with `STARTING it because verifying instance <x>` above it; `login SKIPPED for <x> (nothing proved)`; `verify <x>: SKIPPED -- the machine is STOPPED` only on a runtime that cannot start machines | someone switched the machine off: a note, not drift. **Verification STARTS it, checks it and stops it again** (section 3.5); the login proof starts nothing and is skipped | nothing, when the log ends `stopping it again`; an `ERROR` there means the machine is now RUNNING and must be stopped by hand. For the login proof, start the machine yourself and run it again ([INCIDENTS.md](INCIDENTS.md#a-stopped-machine-was-reported-as-the-provider-could-not-answer)) |
 | `Instance x: not enrolled within 300s of its launch; no alias this run` | the machine booted this run and sftd had not enrolled in time | the next applies-on run gives the names back ([INCIDENTS.md](INCIDENTS.md#the-first-live-replacement-four-traps-in-one-afternoon)) |
-| `Instance x: not listed in its group's server registry (group 'g'; it has not enrolled); its provider alias waits for a run that finds it listed` (INFO) | a machine launched by an earlier run is running, but no record in its group's registry carries its instance id: sftd never enrolled it there, so there is no record to judge its names beside and nothing is written | `state query` (no `registered_as` for it under `reality.instances`); once sftd has enrolled it, the next applies-on run gives the names back ([OPERATIONS.md](OPERATIONS.md#what-a-machine-answers-to)) |
+| `Instance x: not listed in its group's server registry (group 'g'; it has not enrolled); its provider alias waits for a run that finds it listed` (INFO) | a machine launched by an earlier run is running, but no record in its group's registry carries its instance id: for an Okta group sftd never enrolled it there; for a posix group the run's registration did not happen (an ERROR or INFO line before this one says why). There is no record to judge its names beside, so nothing is written | `state query` (no `registered_as` for it under `reality.instances`); once it is registered, the next applies-on run gives the names back ([OPERATIONS.md](OPERATIONS.md#what-a-machine-answers-to)) |
 | `--locked: another tofu-using command holds ...` (exit 75) | one tofu process at a time; another recipe is running | wait; remove the lock directory only if the process is gone ([INCIDENTS.md](INCIDENTS.md#a-fresh-clones-runner-failed-at-its-first-plan)) |
 | `full-test: passed` above `SKIPPED the credential-gated legs` | the legs did not run: a session was absent | not a pass; source the shell, log in, run again ([INCIDENTS.md](INCIDENTS.md#an-sso-session-profile-was-read-as-absent-for-an-hour)) |
 | `Meta-state commit: never staging generated/.../instances.auto.tfvars` | the instance root's variable file is where it belongs and is never committed by design | nothing; a stray copy under `generated/release/` or `generated/retention/`, left by a run on an old release, is deleted by hand once ([INCIDENTS.md](INCIDENTS.md#the-release-and-retention-runs-left-a-stray-tfvars-file)) |

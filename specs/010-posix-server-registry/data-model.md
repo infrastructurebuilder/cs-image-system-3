@@ -35,9 +35,9 @@ servers:
 ```yaml
 ids:
   group:
-    <name>: {id: <int>, identity: <builder>, external: <bool>, how: declared|pooled|read, recorded_run: <run id>}
+    <name>: {id: <int>, identity: <builder>, external: <bool>, how: declared|pooled|read|restored, recorded_run: <run id>}
   user:
-    <name>: {id: <int>, identity: <builder>, external: <bool>, how: declared|pooled|read, recorded_run: <run id>}
+    <name>: {id: <int>, identity: <builder>, external: <bool>, how: declared|pooled|read|restored, recorded_run: <run id>}
   defers:                               # POSIX names that take an external namesake's id (FR-004a)
     group: {<name>: <external builder>}
     user:  {<name>: <external builder>}
@@ -51,7 +51,7 @@ retired:                                # names removed from the tree: their ids
 | Rule | Source |
 | --- | --- |
 | A recorded id never changes; a change asked for is refused, naming both | FR-005 |
-| A name removed from the tree moves to `retired` with its id; declared again, it takes it back | FR-004c |
+| A name removed from the tree moves to `retired` with its id; declared again, with that id or none, it takes it back (`how: restored`) | FR-004c |
 | An undeclared name gets the lowest id of its identity's pool that no record (current or retired) and no claim holds | FR-004, FR-006 |
 | One pool per identity serves users and groups; a user and its private group draw one id | R11 |
 | An external identity's id is recorded when first read (`how: read`) and wins over any declared or pooled id | FR-007 |

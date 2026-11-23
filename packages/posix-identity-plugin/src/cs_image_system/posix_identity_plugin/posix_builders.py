@@ -5,17 +5,27 @@
 """The posix identity plugin's builders.
 
 The group builder's identity type is ``posix``, its gid policy
-``config-time``: a group's ``gid:`` is declared, the configuration is the
-authority, and generated IaC writes the number (no identity root, no
-remote state). A base image declaring ``identity_types: [posix]`` checks
-that the shadow tools and sudo are there; an instance image owned by a
-posix group BAKES that group (adopted when it already stands equal,
-refused when it stands different). Users, memberships, keys and sudo come
-after launch, from the same accounts script (step 4).
+``config-time``: a group's gid is known before any apply -- its ``gid:``
+when declared, else the id the core recorded for it or draws from the
+builder's ``id_pool`` (an external namesake's id first: the POSIX
+identity is the final fallback) -- and generated IaC writes the number
+(no identity root, no remote state). The configuration and its own
+records (``meta-state/ids.yaml``, written by the core) are the authority.
+A base image declaring ``identity_types: [posix]`` checks that the shadow
+tools and sudo are there; an instance image owned by a posix group BAKES
+that group (adopted when it already stands equal, refused when it stands
+different). Users, memberships, keys and sudo come after launch, from the
+same accounts script (step 4).
 
-The user builder holds users with a declared ``uid:``; each gets a
-user-private group of the same name and id. Neither builder generates
+The user builder holds users, each with a uid found the same way (its
+``uid:``, else recorded or drawn); each gets a user-private group of the
+same name and id, which draws no id of its own. Neither builder generates
 terraform or runs a command of its own in any lifecycle.
+
+The group builder keeps its groups' server registry in the records
+(``meta-state/servers.yaml``, through ``registry``): the core registers
+each machine an applying run launches there, retires its entries with
+the machine and writes its aliases into its entry.
 """
 
 from __future__ import annotations

@@ -119,9 +119,9 @@ def will_replace(ctx: "RunContext", instance: Any) -> bool:
 
 
 def canonical_hostname(ctx: "RunContext", instance: Any) -> str:
-    """The name the machine is given at boot and enrolls in OPA under: the
-    declared name plus its generation, zero-padded to three digits --
-    ``coops-model-003``.
+    """The name the machine is given at boot and is registered under in its
+    group's server registry: the declared name plus its generation,
+    zero-padded to three digits -- ``coops-model-003``.
 
     Two rules, in this order:
 
@@ -362,7 +362,7 @@ def forget_decommissioned(ctx: "RunContext", lifecycle: Lifecycle) -> None:
         # the launch parameters it booted with, BEFORE the launch record is
         # forgotten
         generations.on_gone(ctx, name, why=generations.WHY_DECOMMISSION)
-        # the OPA server registration is the THIRD record of the same
+        # the server registration is the THIRD record of the same
         # launch, and the one that used to outlive the machine. Same
         # hook, same guard -- and a failure to retire is reported, not
         # swallowed, because the whole point is that nothing silently leaves
@@ -582,8 +582,8 @@ def _retire_registration(ctx: "RunContext", name: str, recorded: dict[str, Any])
         log.error(f"Instance {name}: its registration as {hostname!r} was NOT retired ({e}); a stale "
                   f"registration will answer to that name until you {by_hand}")
         return
-    log.info(f"Instance {name}: retired {len(gone)} registration(s) of {hostname!r} in group {group!r}"
-             if gone else f"Instance {name}: no registration of {hostname!r} in group {group!r} to retire")
+    log.info(f"Instance {name}: retired {len(gone)} registration(s) of {hostname!r} in group {group!r} "
+             f"({', '.join(str(g) for g in gone)})" if gone else f"Instance {name}: no registration of {hostname!r} in group {group!r} to retire")
 
 
 def validate_claimed_hostnames(ctx: "RunContext", requested: list[Lifecycle]) -> list[str]:
@@ -601,7 +601,9 @@ def validate_claimed_hostnames(ctx: "RunContext", requested: list[Lifecycle]) ->
     asked the registry and could refuse on silence). And an unreachable
     registry is a refusal saying the claim COULD NOT BE CHECKED -- never
     "the name is free" (silence is not an answer), because an unreachable
-    OPA is exactly when a duplicate would otherwise slip through."""
+    registry is exactly when a duplicate would otherwise slip through. The
+    same holds for a registry kept in the configuration's records: one that
+    cannot be read did not answer."""
     if Lifecycle.INSTANCE_IMAGE not in requested:
         return []
     if not apply_enabled(ctx, "instances") or getattr(ctx, "dry_run", False):
@@ -680,7 +682,12 @@ def _register_one(ctx: "RunContext", instance: Any, group: str, gb: Any, booted_
     name = instance.get_name()
     rtb = ctx.runtime_builders.get(str(instance.runtime)) if instance.runtime else None
     if rtb is None or not rtb.can_query_instance_identity():
-        log.info(f"Instance {name}: its runtime cannot say which machine it is; not registered")
+        # no id to register under, so no claim on the hostname can be held
+        # for this machine: said loudly, never invented (every shipped
+        # runtime reports its machines)
+        log.warning(f"Instance {name}: its runtime cannot say which machine it is, so it is NOT registered in "
+                    f"group {group!r}'s registry and its hostname is not claimed; a second machine under that "
+                    "name would not be refused")
         return
     identity = rtb.query_instance_identity(name) or {}
     provider_id = str(identity.get("instance_id") or "")

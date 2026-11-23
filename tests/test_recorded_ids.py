@@ -349,3 +349,59 @@ def test_a_second_external_identity_joins_the_same_check_with_no_core_change(tmp
         run.restore_cwd()
     hit = [p for p in problems if "180007" in p]
     assert len(hit) == 1 and "coops" in hit[0] and "tcmet" in hit[0] and "configuration error" in hit[0]
+
+
+# --------------------------------------------- convergence (T053, T054, T056, T060)
+
+def _user(name: str, i=None, identity: str = "posix-users") -> list[Claim]:
+    """A POSIX user and its private group, as the user builder claims them."""
+    return [Claim("the configuration", "user", name, i, rank=20, identity=identity),
+            Claim("the configuration (user-private group)", "group", name, i, rank=20, derived=True,
+                  identity=identity)]
+
+
+def test_a_retired_name_declared_again_without_an_id_takes_its_id_back():
+    recorded = _recorded(groups={"other": (3000, POSIX)}, retired={"group": {"g1": 3001}})
+    r = resolve_posix_ids([_posix("group", "g1"), _posix("group", "other")], recorded=recorded, pools=[POOL])
+    assert r.problems == [] and r.ids[("group", "g1")] == 3001
+    doc = ids_document(r, recorded, [POOL], "run-2")
+    assert doc["ids"]["group"]["g1"]["id"] == 3001 and doc["retired"]["group"] == {}
+
+
+def test_a_posix_user_declared_with_its_external_namesakes_id_is_not_refused_for_it():
+    okta = Pool(OKTA, 150000, 199999, external=True)
+    claims = [_external("user", "abc", 150001), *_user("abc", 150001)]
+    assert _problems_pooled(claims, pools=[POOL, Pool("posix-users", 3000, 3010), okta]) == []
+
+
+def test_a_recorded_group_that_becomes_a_users_private_group_keeps_its_id_and_its_record():
+    recorded = _recorded(groups={"abc": (3005, POSIX)})
+    r = resolve_posix_ids(_user("abc"), recorded=recorded, pools=[POOL, Pool("posix-users", 3000, 3010)])
+    assert r.problems == [] and r.ids[("user", "abc")] == r.ids[("group", "abc")] == 3005
+    doc = ids_document(r, recorded, [POOL], "run-2")
+    assert doc["ids"]["group"]["abc"]["id"] == 3005 and doc["ids"]["user"]["abc"]["id"] == 3005
+
+
+def test_a_record_that_leaves_a_recorded_name_out_is_refused(tmp_path):
+    import pytest
+
+    from cs_image_system.engine.meta_state import MetaState
+    ms = MetaState(tmp_path / "meta-state")
+    ms.record_ids(_recorded(groups={"abc": (3005, POSIX)}))
+    with pytest.raises(ValueError, match="abc: recorded with id 3005"):
+        ms.record_ids(_recorded())
+
+
+def test_a_private_group_whose_id_differs_from_its_users_is_refused_naming_both():
+    claims = [_external("user", "abc", 150001), _external("group", "abc", 160000), *_user("abc")]
+    problems = _problems_pooled(claims, pools=[POOL])
+    assert len(problems) == 1 and "150001" in problems[0] and "160000" in problems[0] and OKTA in problems[0]
+
+
+def test_a_recording_run_says_what_it_records_for_the_first_time_and_what_it_retires():
+    from cs_image_system.engine.posix_ids import newly_recorded
+    before = _recorded(groups={"old": (3001, POSIX)})
+    r = resolve_posix_ids([_posix("group", "pxgroup", 3101)], recorded=before, pools=[POOL])
+    lines = newly_recorded(before, ids_document(r, before, [POOL], "run-2"))
+    assert any("pxgroup" in ln and "first time" in ln for ln in lines)
+    assert any("old" in ln and "retired" in ln for ln in lines)

@@ -61,9 +61,10 @@ class PosixGroupBuilderModel(GroupBuilderModel):
 
 @dataclass(kw_only=True, config=CSIS_MODEL_CONFIG)
 class PosixUserBuilderModel(UserBuilderModel):
-    """Users that exist as POSIX accounts: a ``uid`` each, a user-private
-    group of the same name and id, and their ``public_keys`` as the only way
-    in. No directory is asked: the configuration is the authority.
+    """Users that exist as POSIX accounts: a ``uid`` each (declared, or
+    drawn from ``id_pool`` and recorded), a user-private group of the same
+    name and id, and their ``public_keys`` as the only way in. No directory
+    is asked: the configuration and the run's records are the authority.
 
     Attributes:
         id_pool: the ids a user without a ``uid:`` may be given (the lowest

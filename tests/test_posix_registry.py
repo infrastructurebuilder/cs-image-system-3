@@ -126,7 +126,8 @@ def test_a_decommission_retires_every_entry_under_the_name_and_says_how_many(tmp
         lp.forget_decommissioned(run.ctx, Lifecycle.INSTANCE_IMAGE)
     assert run.ctx.meta_state.registered_servers(IDENTITY, GROUP) == [other]
     assert "test" not in run.ctx.meta_state.launch_params()
-    assert any("retired 2 registration(s) of 'test-001'" in r.message for r in caplog.records)
+    [said] = [r.message for r in caplog.records if "retired 2 registration(s) of 'test-001'" in r.message]
+    assert "i-0abc" in said and "i-0def" in said                       # each entry retired is named
 
 
 def test_a_retirement_that_fails_is_said_with_its_remedy_and_the_decommission_stands(tmp_path, monkeypatch,
@@ -182,3 +183,40 @@ def test_a_decommission_leaves_the_recorded_ids_as_they_were(tmp_path, monkeypat
     assert run.ctx.meta_state.registered_servers(IDENTITY, GROUP) == []
     assert (run.meta_state / "ids.yaml").read_text() == before
     assert check_posix_ids(run.ctx) == []
+
+
+# ------------------------------------------- convergence (T057): a stale entry is noted
+
+def test_the_state_query_notes_an_entry_whose_machine_the_runtime_no_longer_reports(tmp_path, monkeypatch,
+                                                                                     cleanup):
+    from cs_image_system.engine import state_query as sq
+    ghost = _entry(id="i-0gone", instance_id="i-0gone", hostname="ghost-001", canonical_name="ghost-001",
+                   instance="ghost")
+    run, _asked = _world(tmp_path, monkeypatch, servers=[_entry(), ghost], answer=None)
+    cleanup.append(run)
+    _launched(run)
+    notes = [n for n in sq.query_state(run.ctx).notes if "is stale" in n]
+    assert len(notes) == 2
+    assert any("i-0abc" in n and "reports no machine" in n for n in notes)
+    assert any("i-0gone" in n and "no longer declared" in n for n in notes)
+
+
+def test_a_registered_machine_the_runtime_reports_is_not_stale(tmp_path, monkeypatch, cleanup):
+    from cs_image_system.engine import state_query as sq
+    run, _asked = _world(tmp_path, monkeypatch, servers=[_entry()])
+    cleanup.append(run)
+    _launched(run)
+    assert [n for n in sq.query_state(run.ctx).notes if "is stale" in n] == []
+
+
+def test_a_runtime_that_cannot_report_its_machine_is_said_loudly_and_registers_nothing(tmp_path, monkeypatch,
+                                                                                      cleanup, caplog):
+    run, _asked = _world(tmp_path, monkeypatch)
+    cleanup.append(run)
+    for rtb in {type(b) for b in run.ctx.runtime_builders.values()}:
+        monkeypatch.setattr(rtb, "can_query_instance_identity", lambda self: False)
+    _launched(run)
+    with caplog.at_level("WARNING"):
+        lp.register_launched_servers(run.ctx, Lifecycle.INSTANCE_IMAGE)
+    assert run.ctx.meta_state.registered_servers(IDENTITY, GROUP) == []
+    assert any("NOT registered" in r.message and r.levelname == "WARNING" for r in caplog.records)

@@ -56,7 +56,7 @@ from cs_image_system.contract.identity_vocabulary import ClaimKind as Kind
 
 #: a name groupadd and useradd take on every supported family: lower case, a
 #: letter or underscore first, at most 32 characters; the dot is allowed
-#: because OPA names its accounts `first.last`
+#: because an identity provider may name its accounts `first.last`
 NAME_RE = re.compile(r"^[a-z_][a-z0-9._-]{0,31}$")
 
 #: ids below this are refused: the system's own accounts live there, and the
@@ -157,6 +157,7 @@ def resolve_posix_ids(claims: Iterable[Claim], recorded: dict | None = None,
     taken = ({i for c in claims if (i := supplied_id(c)) is not None} | set(out.ids.values())
              | {int(r["id"]) for r in current.values() if isinstance(r.get("id"), int)} | set(retired.values()))
     _draw(pending, pools, taken, out)
+    _check_private_groups(out, {k for k, cs in by_name.items() if any(c.derived for c in cs)})
     # a recorded name no builder claims now is held as a retired one is: the
     # next recording retires it, and its id is never another name's
     unclaimed = {k: int(r["id"]) for k, r in current.items() if k not in by_name and isinstance(r.get("id"), int)}
@@ -233,6 +234,11 @@ def _resolve_declared(key: tuple[Kind, str], ordered: list[Claim], retired_id: i
             f"{kind} {name}: once recorded with id {retired_id}, and {_who(c)} declares {i}; "
             "a recorded id does not change")
         return False
+    if retired_id is not None and not supplied and not any(c.id == DEFERRED for c in ordered):
+        out.ids[key] = retired_id          # its own name takes it back (FR-004c), draws nothing
+        out.identities[key] = next((c.identity for c in ordered if c.identity), "")
+        out.hows[key] = "restored"
+        return False
     first = supplied[0] if supplied else None
     clash = next(((c, i) for c, i in supplied[1:] if i != first[1]), None) if first else None
     if first is not None and clash is not None:
@@ -265,6 +271,12 @@ def _draw(pending: list[tuple[tuple[Kind, str], list[Claim]]], pools: list[Pool]
             continue
         if key in out.private_groups:
             continue                       # its user could not resolve; the user's problem says why
+        own_group = ("group", name)
+        if kind == "user" and own_group in out.private_groups and own_group in out.ids:
+            out.ids[key] = out.ids[own_group]    # the user takes its private group's recorded id
+            out.identities[key] = out.identities.get(own_group, "")
+            out.hows[key] = out.hows.get(own_group, "recorded")
+            continue
         identity = next((c.identity for c in ordered if c.identity), "")
         pool = by_identity.get(identity)
         if pool is None:
@@ -281,6 +293,20 @@ def _draw(pending: list[tuple[tuple[Kind, str], list[Claim]]], pools: list[Pool]
         out.ids[key] = i
         out.identities[key] = identity
         out.hows[key] = "pooled"
+
+
+def _check_private_groups(out: Resolution, private: set[tuple[Kind, str]]) -> None:
+    """A user's private group (``private``: every group some user's claims
+    make its private one) has its user's id: one that resolved to another
+    (a deferring user whose namesake group another identity holds under
+    another id, say) is refused, naming both."""
+    for key in sorted(private):
+        user = ("user", key[1])
+        if key in out.ids and user in out.ids and out.ids[key] != out.ids[user]:
+            holder = out.identities.get(key) or "the records"
+            out.problems.append(
+                f"group {key[1]}: user {key[1]}'s private group has id {out.ids[key]} ({holder}), but the user "
+                f"has id {out.ids[user]}; a user's private group shares its user's id, so one of them must change")
 
 
 def _check_pools(pools: list[Pool], current: dict[tuple[Kind, str], dict], out: Resolution) -> None:
@@ -311,6 +337,8 @@ def _check_pools(pools: list[Pool], current: dict[tuple[Kind, str], dict], out: 
     for key, how in sorted(out.hows.items()):
         if how != "declared":
             continue
+        if key in out.private_groups and ("user", key[1]) in out.defers:
+            continue                           # the POSIX fallback's id: its user's, an external namesake's
         i, who = out.ids[key], out.identities.get(key, "")
         for p in pools:
             if p.party != POSIX_PARTY and p.low <= i <= p.high:
@@ -372,6 +400,9 @@ def ids_document(resolution: Resolution, recorded: dict | None, pools: Iterable[
                  "retired": {"group": {}, "user": {}}}
     for (kind, name), i in sorted(resolution.ids.items()):
         if (kind, name) in resolution.private_groups:
+            before = current.get((kind, name))
+            if before is not None:
+                doc["ids"][kind][name] = dict(before)   # recorded before it became a private group: kept
             continue
         before = current.get((kind, name))
         if before is not None and before.get("id") == i:
@@ -404,3 +435,20 @@ def drawn(resolution: Resolution) -> list[str]:
     return [f"{kind} {name} takes id {i} from {resolution.identities.get((kind, name)) or 'its identity'}'s pool"
             for (kind, name), i in sorted(resolution.ids.items())
             if resolution.hows.get((kind, name)) == "pooled" and (kind, name) not in resolution.private_groups]
+
+
+def newly_recorded(before: dict | None, after: dict) -> list[str]:
+    """What a recording run adds to ``ids.yaml``: one line per kind with the
+    names first recorded, and one with the names newly retired."""
+    old, _ = _recorded(before)
+    new, _ = _recorded(after)
+    lines: list[str] = []
+    for kind in ("group", "user"):
+        added = sorted(n for (k, n) in new if k == kind and (k, n) not in old)
+        if added:
+            lines.append(f"recorded {len(added)} {kind} id(s) for the first time: {', '.join(added)}")
+        gone = sorted(set(((after.get("retired") or {}).get(kind) or {}))
+                      - set(((before or {}).get("retired") or {}).get(kind) or {}))
+        if gone:
+            lines.append(f"retired {len(gone)} {kind} name(s), their ids kept: {', '.join(gone)}")
+    return lines

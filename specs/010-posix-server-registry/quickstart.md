@@ -10,8 +10,8 @@ reference configuration's, the operator's.
 About 1 minute.
 
 ```sh
-# step 1 -- box 1 of 1 -- v1
-just test-one tests/test_recorded_ids.py tests/test_posix_ids.py -q
+# step 1 -- box 1 of 1 -- v2
+just test-one tests/test_recorded_ids.py tests/test_posix_identity.py -q
 ```
 
 Expect every case passing: a POSIX id an external identity holds is
@@ -26,8 +26,8 @@ away; a dry run shows ids and records none.
 About 3 minutes.
 
 ```sh
-# step 2 -- box 1 of 1 -- v1
-just test-one tests/test_hostname_claims.py tests/test_provider_aliases.py tests/test_login_proof.py tests/test_canonical_names.py tests/test_alias_pool.py tests/test_generations.py tests/test_capabilities.py -q
+# step 2 -- box 1 of 1 -- v2
+just test-one tests/test_posix_registry.py tests/test_hostname_claims.py tests/test_provider_aliases.py tests/test_login_proof.py tests/test_canonical_names.py tests/test_alias_pool.py tests/test_generations.py tests/test_capabilities.py -q
 ```
 
 Expect every case passing on the POSIX identity's recorded registry,

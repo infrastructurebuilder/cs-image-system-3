@@ -681,6 +681,8 @@ def settle_ids(ctx: RunContext, *, record: bool) -> None:
         document = posix_ids.ids_document(resolution, recorded, pools, ctx.run_id)
         if document != recorded:
             ctx.meta_state.record_ids(document)
+            for line in posix_ids.newly_recorded(recorded, document):
+                log.info(f"ids: {line}")
 
 
 def _plan_bakes(ctx: RunContext, summary: RunSummary, ordered: list[LifecycleLike]) -> None:

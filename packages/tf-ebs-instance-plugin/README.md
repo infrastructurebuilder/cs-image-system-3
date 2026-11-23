@@ -1316,10 +1316,12 @@ Each with the message or symptom, what it means, where to look, what to do.
 - `Instance <name>: the alias pool is EMPTY; launching <hostname> without
   an alias (append names to aliases.txt to refill it)` (warning): the
   launch proceeds; append names.
-- `Instance <name>: its OPA registration as '<h>' was NOT retired (<e>); a
-  stale server will answer to that name until it is deregistered by hand`
-  (error, never fatal to the forget): deregister by hand under the
-  resource group's project.
+- `Instance <name>: its registration as '<h>' was NOT retired (<e>); a
+  stale registration will answer to that name until you <remedy>` (error,
+  never fatal to the forget), where `<remedy>` is "deregister it by hand"
+  for a registry an outside service keeps (Okta's: under the resource
+  group's project) and "remove its entry from meta-state/servers.yaml
+  (group '<g>') by hand" for one kept in the records (the POSIX identity's).
 - State query lines `storages/<B>: ... unavailable` (a lookup raised: a
   permission error, an expired session, no network) and `storage <name>
   recorded <state> but not found in reality [HARD]` (the volume, filesystem

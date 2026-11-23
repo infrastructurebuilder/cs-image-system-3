@@ -78,13 +78,19 @@ No violation needs justifying.
 
 ## Budget
 
-| Measure | Expected | Reason |
-| --- | --- | --- |
-| Source lines | about +700 (the POSIX registry about 150, the id rule about 250, the registration step and alias seam about 120, the records about 150, the contract about 30) | the two guarantees are new |
-| Workspace packages | 0 | |
-| Contract protocol members | +11 (group 3, user 1, the records 6, `Claim` 2 fields; the runtime's `address` a key, not a member) | each is a question a plugin answers or the core asks |
-| Tests | about +40 new; about 30 re-hosted from Okta (specification 008's T035, part 2) | the id rules and the recorded registry |
-| Subtraction | the Okta stubs of the 30 registry tests; the POSIX id rule's fourth rule | |
+Measured 2026-11-23 (T043) by T002's method (tracked `.py` under a
+`src/` directory, test files outside the fixtures, `def test_`
+functions), from `d926b52f` (T002's figures, reproduced exactly) to
+`a7ad0205` (Phase 9's end).
+
+| Measure | Expected | Actual | Reason |
+| --- | --- | --- | --- |
+| Source lines | about +700 (the POSIX registry about 150, the id rule about 250, the registration step and alias seam about 120, the records about 150, the contract about 30) | **+809** (54,308 to 55,117; 22 files, +899 and -90) | the two guarantees are new. Above the estimate by about 16%: the pool checks and the `ids.yaml` document (story 2), `engine/run_ids.py` (the run's resolution, kept once for validation, recording and the builders), and the login proof's registration check (T034), which the estimate did not name |
+| Workspace packages | 0 | 0 (19) | |
+| Contract protocol members | +11 (group 3, user 1, the records 6, `Claim` 2 fields; the runtime's `address` a key, not a member) | **+11 members and 2 fields**: `GroupBuilderProtocol` 40 to 43, `UserBuilderProtocol` 7 to 8, `MetaStateProtocol` 12 to 18, `IdentityServiceProtocol` 3 to 4; `Claim.identity` and `Claim.external` | each is a question a plugin answers or the core asks. One beyond the plan: `resolved_id` (contract 0.5.2, the operator's, T020), so a builder bakes an id it was not given |
+| Tests | about +40 new; about 30 re-hosted from Okta (specification 008's T035, part 2) | **+47 test functions** (2,040 to 2,087; test lines 47,106 to 48,042); **30 re-hosted** (T036 to T038) | the id rules and the recorded registry. Five of story 6's own cases were dropped as duplicates of the re-hosted ones |
+| Subtraction | the Okta stubs of the 30 registry tests; the POSIX id rule's fourth rule | both: no re-hosted case stubs Okta's builder; rule 4 is the pool | |
+| Shared golden files | | 117, unchanged | the fixture's runs record no ids and launch no POSIX machine |
 
 ## What the change makes false
 

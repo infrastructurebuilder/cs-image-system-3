@@ -74,9 +74,9 @@ universal ones are not repeated), as measured over the sources:
 | `ImageBuilderProtocol` | 2 (`build_target_label`, `add_image`) | the packer plugin overrides the first; the loader and resolve call the second; the block paths and `get_images` are the kit's |
 | `InstanceBuilderProtocol` | 1 (`add_instance`) | `tofu-roots` overrides it |
 | `ModBuilderProtocol` | 3 | the three modification hooks the ansible and bash plugins implement and the packer plugin calls |
-| `GroupBuilderProtocol` | 40 | the identity, bake, launch, state-query, login-proof and workload-access hooks the two identity plugins implement, and `add_group_to_builder`, which the loader calls; `add_user_to_builder`, `get_users_for_group`, `get_admins_for_group`, `get_users_for_builder` and `managed_groups` are the kit's |
+| `GroupBuilderProtocol` | 43 | the identity, bake, launch, state-query, login-proof and workload-access hooks the two identity plugins implement, and `add_group_to_builder`, which the loader calls; `add_user_to_builder`, `get_users_for_group`, `get_admins_for_group`, `get_users_for_builder` and `managed_groups` are the kit's |
 | `UserBuilderModelProtocol` | 4 (`email_as_username`, `default_user_description_template`, `email_domain`, `get_user_email_template`) | the posix user model redeclares the first; the core's user item templates read the other three (`{{ builder.get_user_email_template() }}`); `default_user_email_template`, `get_user_description_template` and `get_email_domain` are the kit model's |
-| `UserBuilderProtocol` | 7 | `default_managed`, `validate_user`, the attribute hooks, `posix_id_claims`, `get_users_for_builder`, and `add_user_to_builder`, which the loader calls |
+| `UserBuilderProtocol` | 8 | `default_managed`, `validate_user`, the attribute hooks, `posix_id_claims`, `get_users_for_builder`, and `add_user_to_builder`, which the loader calls |
 | `StateBackendModelProtocol`, `StateBuilderProtocol`, `BackendKindProtocol` | 1, 1, 4 | every state plugin implements them |
 
 The loader holds every class a plugin registers to the protocol of its
@@ -130,7 +130,7 @@ repository runs against itself.
 ### Version
 
 The contract carries a semantic version of its own, independent of the
-workspace's: `0.5.1` now, and 0.x until the operator decides otherwise
+workspace's: `0.5.2` now, and 0.x until the operator decides otherwise
 (the decision of 2026-11-05). What a bump means: a PATCH is a change no
 plugin can observe (a docstring, a test helper); a MINOR, while the
 version is 0.x, is a change a plugin can observe, so a protocol member
