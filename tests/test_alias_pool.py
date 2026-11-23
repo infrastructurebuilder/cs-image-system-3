@@ -25,6 +25,7 @@ from cs_image_system.base import launch_params as lp
 from cs_image_system.contract.lifecycles import Lifecycle
 from cs_image_system.engine import provider_aliases as pa
 from tests.harness import FixtureRun
+from tests.posix_world import GROUP, IDENTITY, entry, launched, posix_world
 
 POOL = "bright-otter\nquiet-heron\n\n# spent-eel  -- instance old as old-001 2026-09-21T10:00:00Z run r0\nred-cod\n"
 
@@ -49,6 +50,23 @@ def real(tmp_path: Path, monkeypatch):
         yield run
     finally:
         run.restore_cwd()
+
+
+@pytest.fixture
+def posix(tmp_path: Path, monkeypatch):
+    """A real run whose ``test`` is POSIX-owned, its server registry kept
+    in the records: ``posix(servers=..., answer=...)`` (see tests.posix_world)."""
+    runs: list[FixtureRun] = []
+
+    def make(**kw: Any) -> FixtureRun:
+        run, _asked = posix_world(tmp_path, monkeypatch, **kw)
+        runs.append(run)
+        return run
+    try:
+        yield make
+    finally:
+        for run in runs:
+            run.restore_cwd()
 
 
 @pytest.fixture
@@ -213,26 +231,12 @@ def test_the_pool_alias_is_one_of_the_names_the_machine_answers_to():
     assert "Bad Name" not in pa.wanted_aliases(identity, "test-002", "test", "Bad Name")
 
 
-def test_the_alias_pass_writes_the_pool_name_onto_the_machine(real, monkeypatch):
-    from cs_image_system.aws_runtime.aws_runtime_builders import AwsCloudBuilder
-    from cs_image_system.base import power_state as ps
-    from cs_image_system.okta_opa_plugin.okta_opa_tf_group_builder import OktaTfGroupBuilder
-    ctx = real.ctx
-    ms = ctx.meta_state
-    rec: dict[str, Any] = dict(ms.launch_params().get("test") or {"group": "coops"})
-    rec.update({"launched": True, "hostname": "test-001", "alias": "bright-otter"})
-    ms.record_launch_params("test", rec)
-    scripts: list[tuple[str, str]] = []
-    identity = {"instance_id": "i-1", "provider_hostname": "ip-10-0-0-1.internal"}
-    monkeypatch.setattr(AwsCloudBuilder, "can_query_instance_identity", lambda s: True)
-    monkeypatch.setattr(AwsCloudBuilder, "query_instance_identity", lambda s, n: dict(identity) if n == "test" else None)
-    monkeypatch.setattr(AwsCloudBuilder, "can_query_instance_power_state", lambda s: True)
-    monkeypatch.setattr(AwsCloudBuilder, "query_instance_power_state", lambda s, n: ps.RUNNING)
-    monkeypatch.setattr(AwsCloudBuilder, "run_session_command",
-                        lambda s, n, script, timeout=300: scripts.append((n, script)) or (0, "ALTNAMES_CHANGED"))
-    monkeypatch.setattr(OktaTfGroupBuilder, "can_query_servers", lambda s: True)
-    monkeypatch.setattr(OktaTfGroupBuilder, "registered_servers",
-                        lambda s, g: [{"id": "live", "hostname": "test-001", "instance_id": "i-1", "alt_names": []}])
-    pa.register_provider_aliases(ctx, Lifecycle.INSTANCE_IMAGE)
-    written = [s for n, s in scripts if n == "test" and s != "true"]
-    assert len(written) == 1 and "  - bright-otter" in written[0] and "  - ip-10-0-0-1" in written[0]
+def test_the_alias_pass_writes_the_pool_name_onto_the_machine(posix):
+    run = posix(answer={"instance_id": "i-1", "provider_hostname": "ip-10-0-0-1.internal", "address": "10.0.0.1"},
+                servers=[entry(id="i-1", instance_id="i-1", hostname="test-001", address="10.0.0.1")])
+    ms = run.ctx.meta_state
+    launched(run, hostname="test-001")
+    ms.record_launch_params("test", {**(ms.launch_params().get("test") or {}), "alias": "bright-otter"})
+    pa.register_provider_aliases(run.ctx, Lifecycle.INSTANCE_IMAGE)
+    [own] = ms.registered_servers(IDENTITY, GROUP) or []
+    assert "bright-otter" in own["alt_names"] and "ip-10-0-0-1" in own["alt_names"]

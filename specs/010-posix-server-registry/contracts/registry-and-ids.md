@@ -1,4 +1,7 @@
-# Contract: the registry and the ids (contract 0.6.0)
+# Contract: the registry and the ids (contract 0.5.1)
+
+*Planned as 0.6.0; a PATCH since the operator's rule of 2026-11-23 that
+versions move only their third number (plan D7).*
 
 **Feature**: [spec.md](../spec.md) | **Research**: [research.md](../research.md)
 

@@ -528,28 +528,30 @@ def test_the_ssm_profile_wins_the_bake_when_both_profiles_are_set(tmp_path: Path
 
 
 def test_a_dry_run_never_asks_the_registry_for_a_hostname_claim(tmp_path: Path, monkeypatch):
+    # the registry asked is the POSIX identity's, kept in the records
+    # (meta-state/servers.yaml); `test` is POSIX-owned and its name is registered
     from cs_image_system.base import launch_params as lp
     from cs_image_system.contract.lifecycles import Lifecycle
-    from cs_image_system.okta_opa_plugin.okta_opa_tf_group_builder import OktaTfGroupBuilder
+    from cs_image_system.posix_identity_plugin.posix_builders import PosixGroupBuilder
+    from tests.posix_world import entry, posix_world
     calls: list[str] = []
+    asked = PosixGroupBuilder.registered_servers
 
     def listen():
         # after the harness installed its own stubs (FixtureRun's stub_environment)
-        monkeypatch.setattr(OktaTfGroupBuilder, "can_query_servers", lambda self: True)
-        monkeypatch.setattr(OktaTfGroupBuilder, "registered_servers", lambda self, g: calls.append(g) or [])
-    run = FixtureRun(tmp_path, monkeypatch)                     # dry
+        monkeypatch.setattr(PosixGroupBuilder, "registered_servers",
+                            lambda self, g: calls.append(g) or asked(self, g))
+    run, _ = posix_world(tmp_path, monkeypatch, dry_run=True, servers=[entry()])   # apply flag on
     try:
         listen()
-        run.ctx.config["apply_instances"] = True
         assert run.ctx.dry_run
         assert lp.validate_claimed_hostnames(run.ctx, [Lifecycle.INSTANCE_IMAGE]) == []
         assert calls == [], "a dry run with the apply flag on made no network call"
     finally:
         run.restore_cwd()
-    real = FixtureRun(tmp_path / "real", monkeypatch, dry_run=False)
+    real, _ = posix_world(tmp_path / "real", monkeypatch, servers=[entry()])
     try:
         listen()
-        real.ctx.config["apply_instances"] = True
         lp.validate_claimed_hostnames(real.ctx, [Lifecycle.INSTANCE_IMAGE])
         assert calls, "a real run that can launch asks the registry"
     finally:

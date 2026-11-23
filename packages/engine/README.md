@@ -88,7 +88,7 @@ Running it:
 | [`read_models.py`](src/cs_image_system/engine/read_models.py) | The read-model writers. |
 | [`release.py`](src/cs_image_system/engine/release.py), [`retention.py`](src/cs_image_system/engine/retention.py) | The `release` and `retention` lifecycles. |
 | [`storage_state.py`](src/cs_image_system/engine/storage_state.py) | The storage state machine. |
-| [`accounts_reconcile.py`](src/cs_image_system/engine/accounts_reconcile.py), [`identity_attributes.py`](src/cs_image_system/engine/identity_attributes.py), [`posix_ids.py`](src/cs_image_system/engine/posix_ids.py), [`workload_access.py`](src/cs_image_system/engine/workload_access.py) | Identity after an apply: accounts on the machines, identity attributes, POSIX ids, workload access. |
+| [`accounts_reconcile.py`](src/cs_image_system/engine/accounts_reconcile.py), [`identity_attributes.py`](src/cs_image_system/engine/identity_attributes.py), [`posix_ids.py`](src/cs_image_system/engine/posix_ids.py), [`workload_access.py`](src/cs_image_system/engine/workload_access.py) | Identity after an apply: accounts on the machines, identity attributes, POSIX ids (resolved across every identity at validation, drawn from a pool when undeclared, and recorded in `meta-state/ids.yaml` by an applying run or a `--commit` dry run; [the rule](../../docs/OPERATIONS.md#ids-are-recorded-once)), workload access. |
 | [`launch_delivery.py`](src/cs_image_system/engine/launch_delivery.py), [`ansible_launch.py`](src/cs_image_system/engine/ansible_launch.py), [`provider_aliases.py`](src/cs_image_system/engine/provider_aliases.py) | The launch script delivered through the session, the ansible-inventory prototype, and the provider names an instance answers to. |
 | [`mod_tests.py`](src/cs_image_system/engine/mod_tests.py) | The local modification tests, over a target a runtime plugin provides. |
 | [`tofu_lock.py`](src/cs_image_system/engine/tofu_lock.py) | One tofu process at a time. |
@@ -619,7 +619,7 @@ README](../base/README.md#other-modules).
 | [`commands/upgrade.py`](src/cs_image_system/engine/commands/upgrade.py), [`commands/dispose.py`](src/cs_image_system/engine/commands/dispose.py), [`commands/restamp.py`](src/cs_image_system/engine/commands/restamp.py), [`commands/relabel.py`](src/cs_image_system/engine/commands/relabel.py), [`commands/unmount.py`](src/cs_image_system/engine/commands/unmount.py), [`commands/runtime_facts.py`](src/cs_image_system/engine/commands/runtime_facts.py), [`commands/identity_gids.py`](src/cs_image_system/engine/commands/identity_gids.py), [`commands/run_scope.py`](src/cs_image_system/engine/commands/run_scope.py) | The operations behind the CLI's `upgrade`, `dispose image`, `lineage restamp`, `lineage relabel`, `unmount storage`, `runtime describe` / `empty`, `identity export-gids`, and the bake scope check. `verify instance` is the kit's ([its README](../base/README.md#other-modules)). |
 | [`in_process.py`](src/cs_image_system/engine/in_process.py) | The seam through which a deferred step that is the system's own CLI runs in the running process: the system package registers its runner (`register_system_cli_runner`), `run_executable` asks for it before it spawns anything, and `names_subcommand` is how a runner tells a nested `run` (which needs a context of its own) from every other step. No runner registered, or a step declined: the step is spawned. |
 | [`ansible_launch.py`](src/cs_image_system/engine/ansible_launch.py) | Renders the same launch parameters as an ansible inventory and playbook: the hostname task, each mount's tasks from its storage builder's `launch_tasks()`, the enrollment kind's tasks; `extra_vars(ctx)` is the playbook's variable list, the same names as the launch template's. |
-| [`provider_aliases.py`](src/cs_image_system/engine/provider_aliases.py) | After a real instance-image apply, gives each launched, running instance that its group's registry lists the names it lost at boot back (the bare declared name, the pool alias, the provider's `ip-...` label), skipping every collision and every silent registry; a machine with no record of its own (none carries its provider id: it has not enrolled) is passed over with an INFO line carrying the module's `NOT_LISTED`, and one this run launched is waited for first, bounded: the core decides the names, the machine and the moment, and the group builder's `alias_registration_script` renders the script that tells its agent (the core reads only the contract's `ALIASES_CHANGED` / `ALIASES_UNCHANGED` from its output); and the `reality.instances` entries and notes of the state report. |
+| [`provider_aliases.py`](src/cs_image_system/engine/provider_aliases.py) | After a real instance-image apply, gives each launched, running instance that its group's registry lists the names it lost at boot back (the bare declared name, the pool alias, the provider's `ip-...` label), skipping every collision and every silent registry; a machine with no record of its own (none carries its provider id: it is not registered) is passed over with an INFO line carrying the module's `NOT_LISTED`: the core decides the names, the machine and the moment. Where the names go is the group builder's: for a registry an agent on the machine keeps, a machine this run launched is waited for first, bounded, and the builder's `alias_registration_script` renders the script that tells its agent (the core reads only the contract's `ALIASES_CHANGED` / `ALIASES_UNCHANGED` from its output); for a registry kept in the records (`keeps_recorded_registry`), the names are written into the machine's entry through `record_aliases`, and nothing runs on the machine, so neither its power state nor its enrolment is waited on. And the `reality.instances` entries and notes of the state report. |
 | [`workload_access.py`](src/cs_image_system/engine/workload_access.py) | After a real identity apply, reconciles each managed group's CI login policy through the group builder and records the outcome in the identity read-model. |
 | [`reserved_names.py`](src/cs_image_system/engine/reserved_names.py) | The read-time refusals: `refuse_reserved_names` (a `name:` at any depth, or an `aliases:` entry, that is a word of `OOPS_DEFAULTS` in any case or spacing, every one listed with the file, the entry's place and the word, `ReservedNameError`) and `refuse_invalid_config_keys` (a key of a document's top-level `config:` that is in `INVALID_CONFIG_KEYS`, `InvalidConfigKeyError`). Called by `read_and_process` for each `cfg/` file, by the item-file reader after decryption, and by `load_overlay`; pure functions of the parsed document, no identity or network. |
 | [`materialize.py`](src/cs_image_system/engine/materialize.py) | The private mirror `_private/` beside `generated/`, at the same depth: a root is copied there with every `ENC[age:...]` marker replaced by its plaintext before a deferred command runs, incrementally; only `.terraform.lock.hcl` is ever copied back. `ensure_ignored` appends `_private/` to the configuration root's `.gitignore`. |
@@ -960,8 +960,12 @@ the roots that applied), `record_launch_params` is generation-time,
 replaced machine's old registration is retired), `forget_decommissioned`
 (pin, launch parameters and registration of an undeclared instance whose
 root applied; generation closed `decommission`), `forget_ephemerals`
-(generation closed `ephemeral`; a `teardown` policy's failed verdict
-raises here), `record_detachments`, `register_provider_aliases`,
+(generation closed `ephemeral`; its registration retired, as a
+decommission's is; a `teardown` policy's failed verdict raises here),
+`record_resizes`, `record_detachments`, `register_launched_servers`
+(each launched machine of a group whose builder keeps its registry in the
+records is registered in `meta-state/servers.yaml`, from the runtime's
+report, under the hostname it booted with), `register_provider_aliases`,
 `reconcile_generations` (the provider's instance id confirms, adopts or
 replaces the open generation), `reconcile_workload_access` (the CI login
 policy per managed group, recorded under `workload` in the read-model;
@@ -1292,7 +1296,10 @@ summary):
   to <n> server(s) in group '<g>' (...); launching would enroll a second
   machine under the same name. Retire the stale registration first` /
   `is registered to <n> servers ... and only one of them is this machine;
-  sft ssh cannot choose. Deregister the others`.
+  a login by name cannot choose. Deregister the others`. The same for
+  every builder whose group keeps a registry: an outside service's or one
+  kept in the records (`meta-state/servers.yaml`, unreadable = did not
+  answer).
 - `instance '<i>' is pinned to build <b> of '<img>', which is not a released
   build (config.require_released_builds; no grace: <why>)` -- release it,
   `upgrade instance` back, or `forget instance` for a record that outlived
@@ -1398,13 +1405,31 @@ lifecycle `failed` or the apply `failed`; exit 1):
 - `identity attributes: the provider reports conflicts; refusing: [...]` /
   `writing identity attributes is disabled (DESIGN Q7 not confirmed);
   <n> change(s) were NOT applied` (exit 4).
-- `Instance <n>: its OPA registration as '<h>' was NOT retired (<e>); a
-  stale server will answer to that name until it is deregistered by hand`
-  (ERROR, the forget still happens) / `Group <g>: its CI login policy was
+- `Instance <n>: its registration as '<h>' was NOT retired (<e>); a stale
+  registration will answer to that name until you <remedy>` (ERROR, the
+  forget still happens), the remedy being `deregister it by hand` for a
+  registry an outside service keeps and `remove its entry from
+  meta-state/servers.yaml (group '<g>') by hand` for one kept in the
+  records; on success `Instance <n>: retired <k> registration(s) of '<h>'
+  in group '<g>' (<ids>)`, naming each entry retired, or `no registration of '<h>' in group '<g>' to retire`
+  (INFO). A decommission, a replacement and an ephemeral teardown each
+  retire this way.
+- `Instance <n>: group '<g>''s server registry cannot be read; '<h>' is
+  NOT registered (the next applying run registers it once the record
+  reads)` / `Instance <n>: '<h>' is NOT registered in group '<g>' (<e>)`
+  (ERROR, never fatal) / `Instance <n>: registered as '<h>' (<id>) in
+  group '<g>''s registry` (INFO) -- the registration of a machine in a
+  registry kept in the records; a runtime that reports no machine for it
+  registers nothing that run, and says so at INFO.
+- `Instance <n>: its aliases [...] were NOT recorded in group '<g>''s
+  registry (<e>)` (ERROR, never fatal) / `Instance <n>: now also answers
+  to [...] (recorded in group '<g>''s registry)` (INFO) -- the alias pass
+  over a registry kept in the records.
+- `Group <g>: its CI login policy was
   NOT reconciled (<e>); the CI login proof for this group fails until it
   is` (ERROR, never fatal) / `Instance <n>: alias '<a>' SKIPPED -- already
-  claimed by <id> (OPA would resolve it to that record, or refuse as
-  ambiguous)` / `group '<g>''s server registry could not be asked; skipping
+  claimed by <id> (the registry would resolve it to that record, or refuse
+  as ambiguous)` / `group '<g>''s server registry could not be asked; skipping
   alias [...] -- silence is not a free name` / `could not write its aliases
   [...]: <e>` / `alias write failed (<rc>): <tail>` (also when the
   command answered with no output at all, whatever its exit status: the

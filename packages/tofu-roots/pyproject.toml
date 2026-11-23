@@ -4,7 +4,7 @@
 
 [project]
 name = "cs-image-system-tofu-roots"
-version = "0.2.1"
+version = "0.2.2"
 description = "The provider-neutral terraform roots: the root mixin and the instance and storage root bases every OpenTofu root plugin subclasses"
 readme = "README.md"
 authors = [{ name = "Mykel Alvis", email = "mykelalvis@infrastructurebuilder.org" }]
@@ -17,7 +17,7 @@ dependencies = [
     # proven alone at both ends of the range (`just test-terraform-alone`); its sibling on the same version
     # line stays exact
     "cs-image-system-base>=0.2,<0.3",
-    "cs-image-system-hashicorp-utils==0.2.1",
+    "cs-image-system-hashicorp-utils==0.2.2",
     "pydantic>=2.13",
 ]
 

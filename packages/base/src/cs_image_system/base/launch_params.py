@@ -119,9 +119,9 @@ def will_replace(ctx: "RunContext", instance: Any) -> bool:
 
 
 def canonical_hostname(ctx: "RunContext", instance: Any) -> str:
-    """The name the machine is given at boot and enrolls in OPA under: the
-    declared name plus its generation, zero-padded to three digits --
-    ``coops-model-003``.
+    """The name the machine is given at boot and is registered under in its
+    group's server registry: the declared name plus its generation,
+    zero-padded to three digits -- ``coops-model-003``.
 
     Two rules, in this order:
 
@@ -362,7 +362,7 @@ def forget_decommissioned(ctx: "RunContext", lifecycle: Lifecycle) -> None:
         # the launch parameters it booted with, BEFORE the launch record is
         # forgotten
         generations.on_gone(ctx, name, why=generations.WHY_DECOMMISSION)
-        # the OPA server registration is the THIRD record of the same
+        # the server registration is the THIRD record of the same
         # launch, and the one that used to outlive the machine. Same
         # hook, same guard -- and a failure to retire is reported, not
         # swallowed, because the whole point is that nothing silently leaves
@@ -448,6 +448,9 @@ def forget_ephemerals(ctx: "RunContext", lifecycle: Lifecycle) -> None:
         # it EXISTED -- it booted and enrolled -- so its generation closes
         # into the history rather than vanishing with the record
         generations.on_gone(ctx, name, why=generations.WHY_EPHEMERAL)
+        # and its registration goes with it, as a decommission's does: a
+        # torn-down machine must not keep a name a later launch would take
+        _retire_registration(ctx, name, ms.launch_params().get(name) or {})
         ms.remove_launch_params(name)
         ms.remove_instance_pin(name, ctx.run_id, op="ephemeral")
         # `teardown`: the instance was torn down regardless, its records are
@@ -561,10 +564,11 @@ def validate_immutability(ctx: "RunContext", requested: list[Lifecycle]) -> list
 
 
 def _retire_registration(ctx: "RunContext", name: str, recorded: dict[str, Any]) -> None:
-    """Retire every OPA registration of a decommissioned instance's canonical
-    hostname. The recorded launch parameters say which
-    group it enrolled under and which hostname it took; the group's builder
-    owns the registry. A provider without one makes no claim."""
+    """Retire every registration of a gone machine's canonical hostname in
+    its group's server registry (an outside service's, or one kept in the
+    records). The recorded launch parameters say which group it enrolled
+    under and which hostname it took; the group's builder owns the
+    registry. A provider without one makes no claim."""
     group = str(recorded.get("group") or "")
     hostname = str(recorded.get("hostname") or name)
     gb = group_builder_of(ctx, group) if group else None
@@ -573,11 +577,13 @@ def _retire_registration(ctx: "RunContext", name: str, recorded: dict[str, Any])
     try:
         gone = gb.retire_servers_named(group, hostname)
     except Exception as e:  # noqa: BLE001 - reported loudly, never fatal to the forget
-        log.error(f"Instance {name}: its OPA registration as {hostname!r} was NOT retired ({e}); "
-                  f"a stale server will answer to that name until it is deregistered by hand")
+        by_hand = (f"remove its entry from meta-state/servers.yaml (group {group!r}) by hand"
+                   if gb.keeps_recorded_registry() else "deregister it by hand")
+        log.error(f"Instance {name}: its registration as {hostname!r} was NOT retired ({e}); a stale "
+                  f"registration will answer to that name until you {by_hand}")
         return
-    log.info(f"Instance {name}: retired {len(gone)} OPA registration(s) of {hostname!r}"
-             if gone else f"Instance {name}: no OPA registration of {hostname!r} to retire")
+    log.info(f"Instance {name}: retired {len(gone)} registration(s) of {hostname!r} in group {group!r} "
+             f"({', '.join(str(g) for g in gone)})" if gone else f"Instance {name}: no registration of {hostname!r} in group {group!r} to retire")
 
 
 def validate_claimed_hostnames(ctx: "RunContext", requested: list[Lifecycle]) -> list[str]:
@@ -595,7 +601,9 @@ def validate_claimed_hostnames(ctx: "RunContext", requested: list[Lifecycle]) ->
     asked the registry and could refuse on silence). And an unreachable
     registry is a refusal saying the claim COULD NOT BE CHECKED -- never
     "the name is free" (silence is not an answer), because an unreachable
-    OPA is exactly when a duplicate would otherwise slip through."""
+    registry is exactly when a duplicate would otherwise slip through. The
+    same holds for a registry kept in the configuration's records: one that
+    cannot be read did not answer."""
     if Lifecycle.INSTANCE_IMAGE not in requested:
         return []
     if not apply_enabled(ctx, "instances") or getattr(ctx, "dry_run", False):
@@ -637,6 +645,76 @@ def validate_claimed_hostnames(ctx: "RunContext", requested: list[Lifecycle]) ->
     return errors
 
 
+def register_launched_servers(ctx: "RunContext", lifecycle: Lifecycle) -> None:
+    """After the instance-image runner applied: every launched instance in
+    the apply scope whose group's builder keeps its server registry in the
+    records (``keeps_recorded_registry``) is registered there, from the
+    runtime's own report of the machine (``query_instance_identity``): its
+    provider id, the hostname it booted with and its address. A machine launched this
+    run, and one launched before the registry existed, are registered by
+    the first applying run that finds them; a launch that never came up
+    (no provider id) registers nothing. An entry already as it would be
+    written is left alone, and its aliases are kept. A record that cannot
+    be read is said, never raised: the next applying run registers it."""
+    if lifecycle != Lifecycle.INSTANCE_IMAGE or getattr(ctx, "dry_run", False):
+        return
+    if not apply_enabled(ctx, "instances"):
+        return
+    recorded = ctx.meta_state.launch_params()
+    for instance in ctx.instances:
+        name = instance.get_name()
+        if not apply_enabled(ctx, "instances", str(instance.type_), [str(instance.runtime)]):
+            continue
+        if not (recorded.get(name) or {}).get("launched"):
+            continue
+        image = ctx.images_map.get(str(instance.image))
+        group = str(getattr(image, "group", None) or "") if image is not None else ""
+        gb = group_builder_of(ctx, group) if group else None
+        if gb is None or not gb.keeps_recorded_registry():
+            continue
+        _register_one(ctx, instance, group, gb, str((recorded.get(name) or {}).get("hostname") or ""))
+
+
+def _register_one(ctx: "RunContext", instance: Any, group: str, gb: Any, booted_as: str) -> None:
+    """Record ``instance``'s entry in ``group``'s registry under the name
+    the machine booted with (its recorded launch hostname, else its
+    canonical hostname), or say why not."""
+    name = instance.get_name()
+    rtb = ctx.runtime_builders.get(str(instance.runtime)) if instance.runtime else None
+    if rtb is None or not rtb.can_query_instance_identity():
+        # no id to register under, so no claim on the hostname can be held
+        # for this machine: said loudly, never invented (every shipped
+        # runtime reports its machines)
+        log.warning(f"Instance {name}: its runtime cannot say which machine it is, so it is NOT registered in "
+                    f"group {group!r}'s registry and its hostname is not claimed; a second machine under that "
+                    "name would not be refused")
+        return
+    identity = rtb.query_instance_identity(name) or {}
+    provider_id = str(identity.get("instance_id") or "")
+    if not provider_id:
+        log.info(f"Instance {name}: the runtime reports no machine for it; not registered this run")
+        return
+    hostname = booted_as or canonical_hostname(ctx, instance)
+    servers = gb.registered_servers(group)
+    if servers is None:
+        log.error(f"Instance {name}: group {group!r}'s server registry cannot be read; {hostname!r} is NOT "
+                  "registered (the next applying run registers it once the record reads)")
+        return
+    own = next((s for s in servers if str(s.get("instance_id") or s.get("id") or "") == provider_id), None)
+    entry = {"id": provider_id, "hostname": hostname, "address": str(identity.get("address") or ""),
+             "canonical_name": hostname, "alt_names": sorted((own or {}).get("alt_names") or []),
+             "instance_id": provider_id, "instance": name,
+             "registered_run": str((own or {}).get("registered_run") or ctx.run_id)}
+    if own == entry:
+        return
+    try:
+        ctx.meta_state.record_server(gb.get_name(), group, entry)
+    except Exception as e:  # noqa: BLE001 - said loudly, never fatal to the run
+        log.error(f"Instance {name}: {hostname!r} is NOT registered in group {group!r} ({e})")
+        return
+    log.info(f"Instance {name}: registered as {hostname!r} ({provider_id}) in group {group!r}'s registry")
+
+
 def register(runner) -> None:
     runner.register_after_generate(record_launch_params)
     runner.register_after_apply(mark_launched)
@@ -644,5 +722,6 @@ def register(runner) -> None:
     runner.register_after_apply(forget_ephemerals)
     runner.register_after_apply(record_resizes)        # before record_detachments (it recomputes the record)
     runner.register_after_apply(record_detachments)
+    runner.register_after_apply(register_launched_servers)   # before the alias pass, which reads the entry
     runner.register_validator(validate_immutability)
     runner.register_validator(validate_claimed_hostnames)

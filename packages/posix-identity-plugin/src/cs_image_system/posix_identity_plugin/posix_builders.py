@@ -5,17 +5,27 @@
 """The posix identity plugin's builders.
 
 The group builder's identity type is ``posix``, its gid policy
-``config-time``: a group's ``gid:`` is declared, the configuration is the
-authority, and generated IaC writes the number (no identity root, no
-remote state). A base image declaring ``identity_types: [posix]`` checks
-that the shadow tools and sudo are there; an instance image owned by a
-posix group BAKES that group (adopted when it already stands equal,
-refused when it stands different). Users, memberships, keys and sudo come
-after launch, from the same accounts script (step 4).
+``config-time``: a group's gid is known before any apply -- its ``gid:``
+when declared, else the id the core recorded for it or draws from the
+builder's ``id_pool`` (an external namesake's id first: the POSIX
+identity is the final fallback) -- and generated IaC writes the number
+(no identity root, no remote state). The configuration and its own
+records (``meta-state/ids.yaml``, written by the core) are the authority.
+A base image declaring ``identity_types: [posix]`` checks that the shadow
+tools and sudo are there; an instance image owned by a posix group BAKES
+that group (adopted when it already stands equal, refused when it stands
+different). Users, memberships, keys and sudo come after launch, from the
+same accounts script (step 4).
 
-The user builder holds users with a declared ``uid:``; each gets a
-user-private group of the same name and id. Neither builder generates
+The user builder holds users, each with a uid found the same way (its
+``uid:``, else recorded or drawn); each gets a user-private group of the
+same name and id, which draws no id of its own. Neither builder generates
 terraform or runs a command of its own in any lifecycle.
+
+The group builder keeps its groups' server registry in the records
+(``meta-state/servers.yaml``, through ``registry``): the core registers
+each machine an applying run launches there, retires its entries with
+the machine and writes its aliases into its entry.
 """
 
 from __future__ import annotations
@@ -31,7 +41,7 @@ from cs_image_system.contract.executables import CFExecutables
 from cs_image_system.contract.identity_vocabulary import Claim
 from cs_image_system.contract.lifecycle import ExecutionLifecyclePhase
 
-from . import accounts, ssh_login
+from . import accounts, registry, ssh_login
 from .posix_models import POSIX, PosixGroupBuilderModel, PosixUserBuilderModel
 
 TOOLS = ("groupadd", "useradd", "gpasswd", "visudo")
@@ -41,6 +51,19 @@ HEREDOC = "CSIS_POSIX_ACCOUNTS"
 def _declared_gid(group: Group) -> int | None:
     gid = getattr(group, "gid", None)
     return gid if isinstance(gid, int) and not isinstance(gid, bool) else None
+
+
+def _declared_uid(user: User) -> int | None:
+    uid = getattr(user, "uid", None)
+    return uid if isinstance(uid, int) and not isinstance(uid, bool) else None
+
+
+def _resolved(builder: Any, kind: str, name: str, declared: int | None) -> int | None:
+    """The declared id, else the one the run resolved (recorded, or drawn
+    from the pool)."""
+    if declared is not None:
+        return declared
+    return builder._get_context().services.identity.resolved_id(kind, name)
 
 
 class _NoGeneration:
@@ -85,13 +108,19 @@ class PosixGroupBuilder(_NoGeneration, GroupBuilderBase[PosixGroupBuilderModel])
     def gid_workspace(self) -> str | None:
         return None
 
+    def id_pool(self) -> tuple[int, int] | None:
+        return self.model.id_pool
+
+    def _gid(self, group: Group) -> int | None:
+        return _resolved(self, "group", group.get_name(), _declared_gid(group))
+
     def gid_expression(self, group: str) -> str | None:
         found = next((g for g in self.get_groups_for_builder() if g.get_name() == group), None)
-        gid = _declared_gid(found) if found is not None else None
+        gid = self._gid(found) if found is not None else None
         return str(gid) if gid is not None else None
 
     def posix_id_claims(self) -> list[Claim]:
-        return [Claim("the configuration", "group", g.get_name(), _declared_gid(g), rank=20)
+        return [Claim("the configuration", "group", g.get_name(), _declared_gid(g), rank=20, identity=self.get_name())
                 for g in self.get_groups_for_builder()]
 
     # ------------------------------------------------------- the bake
@@ -104,23 +133,27 @@ class PosixGroupBuilder(_NoGeneration, GroupBuilderBase[PosixGroupBuilderModel])
         return [f"# verify: {', '.join(TOOLS)} present", *(f"command -v {t} >/dev/null" for t in TOOLS)]
 
     def activation_commands(self, image: Any, group: Group) -> list[str]:
-        """Bake the image's owning group with its declared gid -- adopted when
-        it already stands equal, refused when it stands different."""
-        gid = _declared_gid(group)
+        """Bake the image's owning group with its gid (declared, recorded or
+        drawn) -- adopted when it already stands equal, refused when it
+        stands different."""
+        gid = self._gid(group)
         if gid is None:
-            raise ValueError(f"posix group {group.get_name()} declares no gid (validate refuses this first)")
+            raise ValueError(f"posix group {group.get_name()} has no gid (validate refuses this first)")
         script = accounts.header() + accounts.group_part(group.get_name(), gid)
         return [f"# identity activation for group '{group.get_name()}' ({POSIX}) on image {image.get_name()}",
                 f"sudo bash -s <<'{HEREDOC}'", *script, HEREDOC]
 
     def activation_verify_commands(self, image: Any, group: Group) -> list[str]:
-        gid = _declared_gid(group)
+        gid = self._gid(group)
         return [f"# verify: group '{group.get_name()}' stands with gid {gid}",
                 f"test \"$(getent group {group.get_name()} | cut -d: -f3)\" = '{gid}'"]
 
     # ------------------------------------------- accounts on machines (step 4)
     def _group(self, group: str) -> Group | None:
         return next((g for g in self.get_groups_for_builder() if g.get_name() == group), None)
+
+    def _uid(self, user: User) -> int | None:
+        return _resolved(self, "user", user.get_name(), _declared_uid(user))
 
     def _posix_users(self) -> dict[str, User]:
         """Every user of a posix user builder, by name."""
@@ -134,17 +167,34 @@ class PosixGroupBuilder(_NoGeneration, GroupBuilderBase[PosixGroupBuilderModel])
         declared keys; the members (admins among them) as the group's
         members; NOPASSWD sudo for the admins unless ``admin_sudo: false``."""
         found = self._group(group)
-        gid = _declared_gid(found) if found is not None else None
+        gid = self._gid(found) if found is not None else None
         if found is None or gid is None:
             return None
         people = self._posix_users()
         admins = sorted(str(a) for a in found.admins)
         everyone = sorted({str(m) for m in found.members} | set(admins))
-        users = {n: int(u.uid) for n in everyone if (u := people.get(n)) is not None and u.uid is not None}
+        users = {n: uid for n in everyone if (u := people.get(n)) is not None and (uid := self._uid(u)) is not None}
         keys = {n: [str(k) for k in people[n].public_keys] for n in users}
         return accounts.accounts_script(groups={group: gid}, users=users, members={group: everyone}, keys=keys,
                                         admins={group: admins} if self.model.admin_sudo else None,
                                         shell=self.model.shell)
+
+    # ------------------------------------ the server registry (spec 010)
+    def can_query_servers(self) -> bool:
+        return True
+
+    def keeps_recorded_registry(self) -> bool:
+        """The registry is the configuration's own record (``registry``)."""
+        return True
+
+    def registered_servers(self, group: str) -> list[dict[str, Any]] | None:
+        return registry.registered(self._get_context().meta_state, self.get_name(), group)
+
+    def retire_servers_named(self, group: str, hostname: str) -> list[str]:
+        return registry.retire(self._get_context().meta_state, self.get_name(), group, hostname)
+
+    def record_aliases(self, group: str, entry_id: str, names: list[str]) -> list[str] | None:
+        return registry.record_aliases(self._get_context().meta_state, self.get_name(), group, entry_id, names)
 
     # ----------------------------------- beside another provider (step 5)
     def login_hook_commands(self) -> list[str]:
@@ -156,15 +206,15 @@ class PosixGroupBuilder(_NoGeneration, GroupBuilderBase[PosixGroupBuilderModel])
 
     def configuration_errors(self) -> list[str]:
         """A posix group's members and admins are accounts this plugin
-        creates, so each must be a user of a posix user builder with a uid."""
+        creates, so each must be a user of a posix user builder (its uid
+        declared, or drawn from the pool)."""
         people = self._posix_users()
         errors: list[str] = []
         for g in self.get_groups_for_builder():
             for who in sorted({str(m) for m in g.members} | {str(a) for a in g.admins}):
-                user = people.get(who)
-                if user is None or user.uid is None:
+                if people.get(who) is None:
                     errors.append(f"posix group {g.get_name()}: {who} has no posix account -- declare it as a user "
-                                  f"of a `type: posix` user builder, with a `uid:`")
+                                  f"of a `type: posix` user builder")
         return errors
 
     # ------------------------------------------------- the login proof (step 6)
@@ -177,7 +227,7 @@ class PosixGroupBuilder(_NoGeneration, GroupBuilderBase[PosixGroupBuilderModel])
         people = self._posix_users()
         for name in sorted({str(m) for m in found.members} | {str(a) for a in found.admins}):
             user = people.get(name)
-            if user is not None and user.is_service_account and user.uid is not None and user.public_keys:
+            if user is not None and user.is_service_account and self._uid(user) is not None and user.public_keys:
                 return user
         return None
 
@@ -232,15 +282,18 @@ class PosixUserBuilder(_NoGeneration, UserBuilderBase[PosixUserBuilderModel]):
     def query_existing_users(self) -> list[User]:
         return []
 
+    def id_pool(self) -> tuple[int, int] | None:
+        model = self._model
+        return model.id_pool if isinstance(model, PosixUserBuilderModel) else None
+
     def posix_id_claims(self) -> list[Claim]:
         out: list[Claim] = []
         for u in self.get_users_for_builder():
-            uid = getattr(u, "uid", None)
-            uid = uid if isinstance(uid, int) and not isinstance(uid, bool) else None
-            out.append(Claim("the configuration", "user", u.get_name(), uid, rank=20))
+            uid = _declared_uid(u)
+            out.append(Claim("the configuration", "user", u.get_name(), uid, rank=20, identity=self.get_name()))
             # the user-private group: same name, same id
             out.append(Claim("the configuration (user-private group)", "group", u.get_name(), uid, rank=20,
-                             derived=True))
+                             derived=True, identity=self.get_name()))
         return out
 
     def validate_attributes(self, user: User, attributes: dict[str, Any]) -> list[str]:

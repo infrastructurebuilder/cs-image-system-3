@@ -96,7 +96,7 @@ from cs_image_system.contract.image import ImageQuery
 from cs_image_system.contract.lifecycles import LifecycleLike
 from cs_image_system.contract.storage import StorageBuilderProtocol
 
-from . import identity_attributes, materialize, standing, state_backup, storage_state
+from . import identity_attributes, materialize, run_ids, standing, state_backup, storage_state
 from .finalizer import Finalizer
 from .loader import load_plugins
 from .meta_state import MetaState
@@ -1314,6 +1314,9 @@ class IdentityService(_Service, IdentityServiceProtocol):
 
     def group_builders_by_identity_type(self) -> Mapping[str, Sequence[GroupBuilderProtocol]]:
         return capabilities.group_builders_by_identity_type(self._ctx)
+
+    def resolved_id(self, kind: str, name: str) -> int | None:
+        return run_ids.resolved_id(self._ctx, kind, name)
 
 
 class StorageService(_Service, StorageServiceProtocol):

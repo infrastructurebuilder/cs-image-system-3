@@ -115,13 +115,13 @@ specification 010's research R-names has placed that elsewhere.
 ### The Okta repository's specification 002: names on a machine, and Okta's ids
 
 **Raise once the release carrying specification 010 is out** (contract
-0.6.0). The operator's decision of 2026-11-22 (spec 010's D3): after a
+0.5.1, on TestPyPI). The operator's decision of 2026-11-22 (spec 010's D3): after a
 live, read-only look at one enrolled machine (`getent group 180007`,
 `getent group sft_coops_user`, `grep sft_ /etc/group /etc/passwd`),
 specify in cs-image-system-okta the naming rules (one name per gid on an
 Okta machine: the POSIX delegate's group beside the agent's `sft_` group;
 what persists) and the Okta plugin's id claims and pool (its attribute
-options, read-only), against contract 0.6.
+options, read-only), against contract 0.5.1.
 
 - After the release carrying spec 010: (open)
 

@@ -11,9 +11,14 @@ provider's own hostname (``ip-10-26-34-156`` out of
 ``ip-10-26-34-156.us-east-2.compute.internal``), because the launch script
 overwrites it with the declared name before the agent ever enrolls. This
 module gives that name back, after launch, as an alias in the machine's
-registration -- through the group builder's ``alias_registration_script``,
-which renders the script that writes its agent's alias block; the core
-decides which names, when, and on which machine.
+registration, beside the bare declared name and the pool alias; the core
+decides which names, when, and on which machine, and the group builder
+says where they go. For a registry an agent on the machine keeps, they go
+through the builder's ``alias_registration_script``, which renders the
+script that writes its agent's alias block. For a registry kept in the
+configuration's records (``keeps_recorded_registry``), they are written
+into the machine's entry through ``record_aliases``, and nothing runs on
+the machine.
 
 After launch, and from the control side, because the rule is "skip the
 alias on any collision" and a booted machine holds an enrollment token and
@@ -31,24 +36,29 @@ Four rules, in order of how much they matter:
   both. Any match against a registered hostname, canonical name or alias,
   or a name the configuration declares, skips the alias; the skip is
   logged with the record that claims the name.
-* **A machine that is off is left off.** The write needs the machine
+* **A machine that is off is left off.** The script needs the machine
   running, and an alias is not work worth starting one for. It
-  is picked up by the next run that finds the machine on.
+  is picked up by the next run that finds the machine on. A registry kept
+  in the records needs nothing of the machine, so its power state is not
+  asked.
 * **A machine the registry does not list waits, and is said.** Its own
-  record (found by the provider id its agent enrolled with) is what the
-  names are judged beside: the aliases it already carries are kept, and
-  every other record's names are claims. A machine with no record has not
-  enrolled, so nothing is written; the next run that finds it listed
-  gives its aliases back. A machine this run launched is waited for
-  first, bounded, since its agent enrolls a minute or more after boot.
+  record (found by the provider id its agent enrolled with, or the one the
+  core registered it under) is what the names are judged beside: the
+  aliases it already carries are kept, and every other record's names are
+  claims. A machine with no record is not registered, so nothing is
+  written; the next run that finds it listed gives its aliases back. A
+  machine this run launched is waited for first, bounded, when its agent
+  registers it (a minute or more after boot); the core registers a machine
+  in a recorded registry itself, before this pass, so it is not waited
+  for.
 * **Silence is not a free name.** A registry that could not be asked skips
   every alias this run, rather than guessing (silence is not an answer,
   as the hostname claim applies it).
 
 The aliases are never recorded in the launch parameters: those are what the
-machine booted with, and these are discovered afterwards. Reality is the
-record -- the registry entry carries ``alt_names`` -- and the state query
-reports from it.
+machine booted with, and these are discovered afterwards. The registry
+entry is the record -- it carries ``alt_names``, in the service's registry
+or in the configuration's -- and the state query reports from it.
 """
 from __future__ import annotations
 
@@ -119,8 +129,9 @@ def claimed_names(servers: list[dict[str, Any]], declared: set[str]) -> dict[str
 
 def own_record(servers: list[dict[str, Any]], instance_id: str) -> dict[str, Any] | None:
     """This launch's own registry entry, found by the provider id the agent
-    read from the instance metadata at enrollment -- which is how a launch
-    tells its record from a stale one bearing the same hostname."""
+    read from the instance metadata at enrollment, or the one the core
+    registered it under -- which is how a launch tells its record from a
+    stale one bearing the same hostname."""
     return next((s for s in servers if instance_id and s.get("instance_id") == instance_id), None)
 
 
@@ -135,7 +146,7 @@ REGISTRATION_WAIT_SECONDS = 300   # then the identity agent's enrollment, which 
 REGISTRATION_POLL_SECONDS = 15
 
 #: What the log says of a launched machine its group's server registry
-#: does not list (no record carries its provider id): it has not enrolled,
+#: does not list (no record carries its provider id): it is not registered,
 #: and its aliases wait for a run that finds it listed.
 NOT_LISTED = "not listed in its group's server registry"
 
@@ -156,7 +167,7 @@ def register_provider_aliases(ctx: "RunContext", lifecycle: Lifecycle) -> None:
     """After the instance-image runner applied for real: every launched
     instance whose root applied gets its provider-hostname alias, unless the
     name is claimed, the registry is silent or does not list the machine,
-    or the machine is off."""
+    or the machine is off and the aliases would be written on it."""
     if lifecycle != Lifecycle.INSTANCE_IMAGE:
         return
     if not apply_enabled(ctx, "instances"):
@@ -180,7 +191,10 @@ def _register_instance_aliases(ctx: "RunContext", instance: Any, recorded: dict[
     machine launched by this run is waited for first. The aliases already
     written and the unclaimed ones are written through the runtime's
     session command, unless the registry already holds exactly those.
-    ``registries`` keeps each group's server listing for the instances
+    For a registry kept in the records (``keeps_recorded_registry``) the
+    aliases are written into the machine's entry instead: nothing runs on
+    the machine, so neither its power state nor its enrolment is waited
+    on. ``registries`` keeps each group's server listing for the instances
     that follow."""
     name = instance.get_name()
     if not apply_enabled(ctx, "instances", str(instance.type_), [str(instance.runtime)]):
@@ -195,7 +209,9 @@ def _register_instance_aliases(ctx: "RunContext", instance: Any, recorded: dict[
     gb = group_builder_of(ctx, group) if group else None
     if gb is None or not gb.can_query_servers():
         return
-    state = rtb.query_instance_power_state(name) if rtb.can_query_instance_power_state() else None
+    in_records = gb.keeps_recorded_registry()
+    state = rtb.query_instance_power_state(name) if rtb.can_query_instance_power_state() and not in_records \
+        else None
     if state is not None and not power_state.is_on(state):
         log.info(f"Instance {name}: {power_state.describe(state)}; its provider alias waits for a "
                  "run that finds it running (an alias is not worth starting a machine for)")
@@ -208,7 +224,7 @@ def _register_instance_aliases(ctx: "RunContext", instance: Any, recorded: dict[
     wanted = wanted_aliases(identity, canonical, name, str(record.get("alias") or ""))
     if not wanted:
         return
-    if str(record.get("launched_run") or "") == str(ctx.run_id):
+    if str(record.get("launched_run") or "") == str(ctx.run_id) and not in_records:
         # the machine booted THIS run: the apply returns on `running`, and
         # the session agent, then the identity agent's enrollment, come up
         # a minute or more later. Writing the alias block before that races
@@ -234,7 +250,21 @@ def _register_instance_aliases(ctx: "RunContext", instance: Any, recorded: dict[
     final = _unclaimed_aliases(name, wanted, own, claims)
     if sorted(own.get("alt_names") or []) == sorted(final):
         return   # reality already agrees; no session command
-    _write_aliases(rtb, gb, name, group, final)
+    if in_records:
+        _record_aliases(gb, name, group, own_id, final)
+    else:
+        _write_aliases(rtb, gb, name, group, final)
+
+
+def _record_aliases(gb: GroupBuilderProtocol, name: str, group: str, entry_id: str, final: list[str]) -> None:
+    """Write ``final`` into the machine's entry of a registry kept in the
+    records, saying what came of it; a failure is reported, never raised."""
+    try:
+        written = gb.record_aliases(group, entry_id, final)
+    except Exception as e:  # noqa: BLE001 - reported, never fatal to the run
+        log.error(f"Instance {name}: its aliases {final} were NOT recorded in group {group!r}'s registry ({e})")
+        return
+    log.info(f"Instance {name}: now also answers to {written or final} (recorded in group {group!r}'s registry)")
 
 
 def _enrolled_after_launch(rtb: RuntimeBuilderProtocol, gb: GroupBuilderProtocol, name: str, group: str,
@@ -308,9 +338,11 @@ def _write_aliases(rtb: RuntimeBuilderProtocol, gb: GroupBuilderProtocol, name: 
 # ----------------------------------------------------- the state query
 def instance_identity_notes(ctx: "RunContext", report: "StateReport") -> None:
     """What each launched machine answers to, from the provider and the
-    registry -- reality, not a record of our own. A running machine whose
-    provider-hostname alias is absent gets a note; one that is off is
-    already noted by the power state and is left alone."""
+    registry (a service's, or the one kept in the records). A running
+    machine whose provider-hostname alias is absent gets a note; one that
+    is off is already noted by the power state and is left alone. An
+    entry of a registry kept in the records whose machine the runtime no
+    longer reports is noted as stale (``_stale_entry_notes``)."""
     recorded = ctx.meta_state.launch_params()
     identities: dict[str, dict[str, Any]] = {}
     registries: dict[str, list[dict[str, Any]] | None] = {}
@@ -365,6 +397,35 @@ def instance_identity_notes(ctx: "RunContext", report: "StateReport") -> None:
         identities[name] = entry
     if identities:
         report.reality["instances"] = identities
+    report.notes.extend(_stale_entry_notes(ctx, identities))
+
+
+def _stale_entry_notes(ctx: "RunContext", identities: dict[str, dict[str, Any]]) -> list[str]:
+    """One note per entry of a registry kept in the records whose machine
+    the runtime no longer reports: its instance is not declared, or the
+    runtime reports no machine for it, or another one. Such an entry stays
+    until it is retired (a decommission or a replacement retires it), and
+    until then it claims its hostname. A registry that cannot be read is
+    the launch check's to refuse; here it is passed over."""
+    notes: list[str] = []
+    declared = {i.get_name() for i in ctx.instances}
+    for gb in ctx.group_builders.values():
+        if not gb.keeps_recorded_registry():
+            continue
+        for group in sorted(g.get_name() for g in gb.get_groups_for_builder()):
+            for e in gb.registered_servers(group) or []:
+                name = str(e.get("instance") or "")
+                seen = str((identities.get(name) or {}).get("instance_id") or "")
+                if name in declared and seen and seen == str(e.get("instance_id") or e.get("id") or ""):
+                    continue
+                why = ("its instance is no longer declared" if name not in declared
+                       else "the runtime reports no machine for it" if not seen
+                       else f"the runtime reports another machine for it ({seen})")
+                notes.append(f"instances/{name or '?'}: registry entry {e.get('id')} ({e.get('hostname')!r}) in "
+                             f"group {group!r} is stale -- {why}; it claims its hostname until retired: a "
+                             "decommission of the instance retires it, or remove the entry from "
+                             "meta-state/servers.yaml by hand")
+    return notes
 
 
 def register(runner) -> None:

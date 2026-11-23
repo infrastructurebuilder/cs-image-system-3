@@ -280,15 +280,16 @@ class AwsCloudBuilder(CloudBuilderBase[AwsCloudBuilderModel], PluginArtifactProt
         return True
 
     def query_instance_identity(self, instance_name: str) -> dict[str, str] | None:
-        """``InstanceId`` and ``PrivateDnsName`` of the named instance,
-        whatever its power state -- ``_named_instance`` sees a
+        """``InstanceId``, ``PrivateDnsName`` and ``PrivateIpAddress`` of the
+        named instance, whatever its power state -- ``_named_instance`` sees a
         stopped machine, ``_running_instance`` does not."""
         try:
             inst = self._named_instance(instance_name)
             if inst is None or not inst.get("InstanceId"):
                 return None
             return {"instance_id": str(inst["InstanceId"]),
-                    "provider_hostname": str(inst.get("PrivateDnsName") or "")}
+                    "provider_hostname": str(inst.get("PrivateDnsName") or ""),
+                    "address": str(inst.get("PrivateIpAddress") or "")}
         except Exception as e:  # noqa: BLE001 - read-only probe
             log.debug(f"AWS runtime {self.get_name()}: identity of {instance_name!r} unavailable: {e}")
             return None

@@ -40,13 +40,15 @@ RUNTIME_FACTS = "runtime-facts.yaml"   # what each runtime's account answered it
 RELEASES = "releases.yaml"             # every release ever made and, per model, the current build
 MOD_TESTS = "mod-tests.yaml"           # modification test results by content hash
 ALIASES = "aliases.txt"                # the pool of memorable names a launch draws from (a text file, not YAML)
+SERVERS = "servers.yaml"               # the server registries kept in the records, per identity, per group
+IDS = "ids.yaml"                       # every user's and group's recorded id, the pools, the retired names
 
 #: Every file the meta-state directory holds, whichever module writes it:
 #: the ones the records' writers own and the three other modules keep
 #: (releases, mod-tests, the alias pool). A new file is added here.
 ALL_FILES = (IDENTITY_READ_MODEL, STORAGE_READ_MODEL, STORAGE_STATE, LINEAGE, PINS,
              LAUNCH_PARAMS, RUNS, VERIFICATIONS, IMAGE_TESTS, STATE_LOCATIONS, INSTANCE_STATE,
-             LOGIN_PROOFS, RUNTIME_FACTS, RELEASES, MOD_TESTS, ALIASES)
+             LOGIN_PROOFS, RUNTIME_FACTS, RELEASES, MOD_TESTS, ALIASES, SERVERS, IDS)
 
 
 class MetaStateRecords(MetaStateProtocol, Protocol):

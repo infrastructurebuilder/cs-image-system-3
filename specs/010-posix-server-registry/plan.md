@@ -26,7 +26,7 @@ declared id draws from its identity's pool, and an id once held is never
 given to another name (R6, R11). Okta's ids and pool are read from OPA,
 read-only, and recorded (R8).
 
-One contract MINOR (0.6.0) carries the additions
+One contract PATCH (0.5.1; planned as the MINOR 0.6.0, D7) carries the additions
 ([contracts/registry-and-ids.md](contracts/registry-and-ids.md)); no
 existing question changes meaning. The Okta plugin's own share (its
 claims and its pool) is the Okta repository's (D3).
@@ -78,13 +78,19 @@ No violation needs justifying.
 
 ## Budget
 
-| Measure | Expected | Reason |
-| --- | --- | --- |
-| Source lines | about +700 (the POSIX registry about 150, the id rule about 250, the registration step and alias seam about 120, the records about 150, the contract about 30) | the two guarantees are new |
-| Workspace packages | 0 | |
-| Contract protocol members | +11 (group 3, user 1, the records 6, `Claim` 2 fields; the runtime's `address` a key, not a member) | each is a question a plugin answers or the core asks |
-| Tests | about +40 new; about 30 re-hosted from Okta (specification 008's T035, part 2) | the id rules and the recorded registry |
-| Subtraction | the Okta stubs of the 30 registry tests; the POSIX id rule's fourth rule | |
+Measured 2026-11-23 (T043) by T002's method (tracked `.py` under a
+`src/` directory, test files outside the fixtures, `def test_`
+functions), from `d926b52f` (T002's figures, reproduced exactly) to
+`a7ad0205` (Phase 9's end).
+
+| Measure | Expected | Actual | Reason |
+| --- | --- | --- | --- |
+| Source lines | about +700 (the POSIX registry about 150, the id rule about 250, the registration step and alias seam about 120, the records about 150, the contract about 30) | **+809** (54,308 to 55,117; 22 files, +899 and -90) | the two guarantees are new. Above the estimate by about 16%: the pool checks and the `ids.yaml` document (story 2), `engine/run_ids.py` (the run's resolution, kept once for validation, recording and the builders), and the login proof's registration check (T034), which the estimate did not name |
+| Workspace packages | 0 | 0 (19) | |
+| Contract protocol members | +11 (group 3, user 1, the records 6, `Claim` 2 fields; the runtime's `address` a key, not a member) | **+11 members and 2 fields**: `GroupBuilderProtocol` 40 to 43, `UserBuilderProtocol` 7 to 8, `MetaStateProtocol` 12 to 18, `IdentityServiceProtocol` 3 to 4; `Claim.identity` and `Claim.external` | each is a question a plugin answers or the core asks. One beyond the plan: `resolved_id` (contract 0.5.2, the operator's, T020), so a builder bakes an id it was not given |
+| Tests | about +40 new; about 30 re-hosted from Okta (specification 008's T035, part 2) | **+47 test functions** (2,040 to 2,087; test lines 47,106 to 48,042); **30 re-hosted** (T036 to T038) | the id rules and the recorded registry. Five of story 6's own cases were dropped as duplicates of the re-hosted ones |
+| Subtraction | the Okta stubs of the 30 registry tests; the POSIX id rule's fourth rule | both: no re-hosted case stubs Okta's builder; rule 4 is the pool | |
+| Shared golden files | | 117, unchanged | the fixture's runs record no ids and launch no POSIX machine |
 
 ## What the change makes false
 
@@ -133,11 +139,35 @@ No violation needs justifying.
   specifications 002, 003 and 006** if this merges first, else the next.
   **Taken.**
 
+- **D6. The families released elsewhere pin the contract below 0.6;
+  how is 0.6.0 reached?** Found at T005 (2026-11-22): the Google Cloud
+  family 0.2.0 and the Okta plugin 0.2.0 pin
+  `cs-image-system-contract>=0.5,<0.6`, so this repository cannot even
+  lock on 0.6 (its `gcloud` and `all` extras take the family from the
+  index), let alone release it beside them; research R10 was wrong to
+  say the Okta plugin keeps working. **Taken** ("widen the families, with
+  trusted publishing for Google Cloud"): each family releases 0.2.1
+  with `>=0.5,<0.7` first (they use none of 0.6's members), the Google
+  Cloud family gaining trusted publishing as the Okta repository has
+  it, since no upload token is kept; then this repository locks on 0.6
+  (tasks T049 to T052, before T005).
+
+- **D7. No minor versions.** The operator, 2026-11-23: "versions will
+  only increment the patch level, not the minor version ... until we
+  stabilize more". The contract's additions are therefore 0.5.1, not
+  0.6.0, and every dependent's range stays `>=0.5,<0.6`; the kit and the
+  Terraform libraries take their LAST numbers (0.2.2) as planned. In
+  hindsight D6's widening was not needed (the families' 0.2.0 already
+  take any 0.5.x); their 0.2.1 (`>=0.5,<0.7`) stand, harmless. While the
+  rule holds, the contract and the SDK only add: a removed or reshaped
+  member would reach every plugin through its range unguarded, and
+  `just surface-check` refuses one without a middle number. **Taken.**
+
 ## Project Structure
 
 ```text
 packages/contract/src/cs_image_system/contract/
-  group.py, user.py, runtime.py, context.py, identity_vocabulary.py   # the additions (0.6.0)
+  group.py, user.py, runtime.py, context.py, identity_vocabulary.py   # the additions (0.5.1, D7)
 packages/base/src/cs_image_system/base/
   launch_params.py          # register_launched_servers; forget_ephemerals retires
   meta_ledgers.py           # SERVERS, IDS in ALL_FILES

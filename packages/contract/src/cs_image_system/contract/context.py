@@ -51,7 +51,8 @@ class MetaStateProtocol(Protocol):
     """What the plugins read and write of the run's meta-state (the
     ``meta-state/`` ledgers beside the tree): the storage states, the
     instance generations and pins, the builds, the launch records and the
-    state locations. Twelve members, counted from the sources."""
+    state locations, the recorded server registries and the recorded ids.
+    Eighteen members, counted from the sources."""
 
     # --- storages
     def storage_state(self, name: str) -> str | None: ...
@@ -82,6 +83,20 @@ class MetaStateProtocol(Protocol):
 
     @staticmethod
     def location_key(record: dict[str, Any]) -> str: ...
+
+    # --- the recorded server registries (meta-state/servers.yaml)
+    def registered_servers(self, identity: str, group: str) -> list[dict[str, Any]] | None: ...
+
+    def record_server(self, identity: str, group: str, entry: dict[str, Any]) -> None: ...
+
+    def retire_servers(self, identity: str, group: str, hostname: str) -> list[str]: ...
+
+    def record_server_aliases(self, identity: str, group: str, entry_id: str, names: list[str]) -> None: ...
+
+    # --- the recorded ids (meta-state/ids.yaml)
+    def recorded_ids(self) -> dict[str, Any]: ...
+
+    def record_ids(self, document: dict[str, Any]) -> None: ...
 
 
 # ------------------------------------------------------------------ the services
@@ -207,14 +222,22 @@ class ImagesServiceProtocol(Protocol):
 
 class IdentityServiceProtocol(Protocol):
     """Identity: the attributes the tree declares for its users, the
-    launched instances a login proof can reach, and the group builders by
-    the identity type they provide."""
+    launched instances a login proof can reach, the group builders by
+    the identity type they provide, and the id the run resolved for a
+    user or a group."""
 
     def declared_attributes(self) -> dict[str, dict[str, dict[str, Any]]]: ...
 
     def standing_instances(self, *, runtime: str | None = None, names: list[str] | None = None) -> list[Any]: ...
 
     def group_builders_by_identity_type(self) -> Mapping[str, Sequence[GroupBuilderProtocol]]: ...
+
+    def resolved_id(self, kind: str, name: str) -> int | None:
+        """The id this run resolved for the ``kind`` (``group`` or ``user``)
+        named ``name``: recorded, declared, read from an external identity
+        or drawn from its identity's pool; None when it has none yet (an id
+        to come) or no builder claims the name."""
+        ...
 
 
 class StorageServiceProtocol(Protocol):

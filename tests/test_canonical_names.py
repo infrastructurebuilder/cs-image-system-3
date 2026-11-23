@@ -24,6 +24,7 @@ from cs_image_system.engine import provider_aliases as pa
 from cs_image_system.engine import state_query as sq
 from cs_image_system.engine.commands.validate import check_canonical_hostnames
 from tests.harness import FixtureRun
+from tests.posix_world import GROUP, IDENTITY, entry, launched, posix_world
 
 
 @pytest.fixture
@@ -33,6 +34,23 @@ def world(tmp_path: Path, monkeypatch):
         yield run
     finally:
         run.restore_cwd()
+
+
+@pytest.fixture
+def posix(tmp_path: Path, monkeypatch):
+    """A run whose ``test`` is POSIX-owned, its server registry kept in
+    the records: ``posix(servers=..., answer=...)`` (see tests.posix_world)."""
+    runs: list[FixtureRun] = []
+
+    def make(**kw: Any) -> FixtureRun:
+        run, _asked = posix_world(tmp_path, monkeypatch, **kw)
+        runs.append(run)
+        return run
+    try:
+        yield make
+    finally:
+        for run in runs:
+            run.restore_cwd()
 
 
 def _inst(ctx, name="test"):
@@ -164,69 +182,47 @@ def test_the_budget_now_covers_the_suffix(world, monkeypatch):
     assert errs and "64 characters" in errs[0]                          # 60 + "-001"
 
 
-def test_the_bare_name_and_the_ip_name_both_come_back_as_aliases(world, monkeypatch):
-    from cs_image_system.aws_runtime.aws_runtime_builders import AwsCloudBuilder
-    from cs_image_system.base import power_state as ps
-    from cs_image_system.okta_opa_plugin.okta_opa_tf_group_builder import OktaTfGroupBuilder
-    ctx = world.ctx
-    scripts: list[str] = []
-    ec2 = {"instance_id": "i-new", "provider_hostname": "ip-10-0-0-9.us-east-2.compute.internal"}
-    monkeypatch.setattr(AwsCloudBuilder, "can_query_instance_identity", lambda s: True)
-    monkeypatch.setattr(AwsCloudBuilder, "query_instance_identity", lambda s, n: dict(ec2) if n == "test" else None)
-    monkeypatch.setattr(AwsCloudBuilder, "can_query_instance_power_state", lambda s: True)
-    monkeypatch.setattr(AwsCloudBuilder, "query_instance_power_state", lambda s, n: ps.RUNNING)
-    monkeypatch.setattr(AwsCloudBuilder, "run_session_command",
-                        lambda s, n, script, timeout=300: scripts.append(script) or (0, "ALTNAMES_CHANGED"))
-    monkeypatch.setattr(OktaTfGroupBuilder, "can_query_servers", lambda s: True)
-    monkeypatch.setattr(OktaTfGroupBuilder, "registered_servers",
-                        lambda s, gr: [{"id": "own", "hostname": "test-002", "instance_id": "i-new", "alt_names": []}])
-    _record(ctx, hostname="test-002", launched=True)
-    ctx.config["apply_instances"] = True
-    pa.register_provider_aliases(ctx, Lifecycle.INSTANCE_IMAGE)
-    # the block is a printf FORMAT: newlines are the two-character \\n
-    assert len(scripts) == 1 and "  - test\\n" in scripts[0] and "  - ip-10-0-0-9\\n" in scripts[0]
+def test_the_bare_name_and_the_ip_name_both_come_back_as_aliases(posix):
+    machine = {"instance_id": "i-new", "provider_hostname": "ip-10-0-0-9.us-east-2.compute.internal",
+               "address": "10.0.0.9"}
+    run = posix(answer=machine, servers=[entry(id="i-new", instance_id="i-new", hostname="test-002",
+                                               canonical_name="test-002", address="10.0.0.9")])
+    launched(run, hostname="test-002")
+    pa.register_provider_aliases(run.ctx, Lifecycle.INSTANCE_IMAGE)
+    [own] = run.ctx.meta_state.registered_servers(IDENTITY, GROUP) or []
+    assert own["id"] == "i-new" and sorted(own["alt_names"]) == ["ip-10-0-0-9", "test"]
 
 
-def test_the_report_notes_a_name_that_did_not_take_at_boot(world, monkeypatch):
-    from cs_image_system.aws_runtime.aws_runtime_builders import AwsCloudBuilder
-    from cs_image_system.okta_opa_plugin.okta_opa_tf_group_builder import OktaTfGroupBuilder
-    ctx = world.ctx
-    ms = ctx.meta_state
-    monkeypatch.setattr(AwsCloudBuilder, "can_query_instance_identity", lambda s: True)
-    monkeypatch.setattr(AwsCloudBuilder, "query_instance_identity",
-                        lambda s, n: {"instance_id": "i-x", "provider_hostname": "ip-1.internal"} if n == "test" else None)
-    monkeypatch.setattr(OktaTfGroupBuilder, "can_query_servers", lambda s: True)
-    monkeypatch.setattr(OktaTfGroupBuilder, "registered_servers",
-                        lambda s, gr: [{"id": "own", "hostname": "ip-1", "instance_id": "i-x", "alt_names": []}])
-    _record(ctx, hostname="test-001", launched=True)
-    ms.open_generation("test", kind="durable", run_id="r", how="observed",
-                       launch_params={"hostname": "test-001"}, identity={"instance_id": "i-x"})
+def test_the_report_notes_a_name_that_did_not_take_at_boot(posix):
+    run = posix(answer={"instance_id": "i-x", "provider_hostname": "ip-1.internal", "address": "10.0.0.1"},
+                servers=[entry(id="i-x", instance_id="i-x", hostname="ip-1", canonical_name="ip-1")])
+    ctx = run.ctx
+    launched(run, hostname="test-001")
+    ctx.meta_state.open_generation("test", kind="durable", run_id="r", how="observed",
+                                   launch_params={"hostname": "test-001"}, identity={"instance_id": "i-x"})
     report = sq.query_state(ctx)
     inst = report.reality["instances"]["test"]
     assert inst["booted_as"] == "test-001" and inst["registered_as"] == "ip-1"
     assert any("did not take at boot" in n for n in report.notes)
 
 
-def test_a_replacement_retires_the_registration_of_the_machine_it_replaced(world, monkeypatch):
+def test_a_replacement_retires_the_registration_of_the_machine_it_replaced(posix, monkeypatch):
     """Hostname claims meet generations: the replaced machine answered to `test-001`
-    and is gone once the apply replaced it; its OPA registration would
+    and is gone once the apply replaced it; its registration would
     otherwise outlive it and claim the bare alias the new machine gets."""
-    from tests.harness import stub_environment
-    ctx = world.ctx
+    new = entry(id="i-new", instance_id="i-new", hostname="test-002", canonical_name="test-002")
+    run = posix(servers=[entry(id="i-old", instance_id="i-old"), new])
+    ctx = run.ctx
     ms = ctx.meta_state
-    ctx.config["apply_instances"] = True
-    _record(ctx, hostname="test-001", launched=True)
+    launched(run, hostname="test-001")
     ms.open_generation("test", kind="durable", run_id="r", how="observed",
                        launch_params={"hostname": "test-001"}, identity={"instance_id": "i-old"})
     monkeypatch.setattr(lp, "will_replace", lambda c, i: True)
     params = lp.compute_launch_params(ctx, _inst(ctx))
-    assert params["hostname"] == "test-002"
+    assert params["hostname"] == "test-002" and params["group"] == GROUP
     _record(ctx, **params, launched=False)
-    retirements = stub_environment.retirements  # type: ignore[attr-defined]
-    retirements.clear()
     lp.mark_launched(ctx, Lifecycle.INSTANCE_IMAGE)
-    assert retirements == [(params["group"], "test-001")], "the OLD name, for the instance's group"
+    assert ms.registered_servers(IDENTITY, GROUP) == [new], "the OLD name, for the instance's group"
     # the standing machine, launched again under its own name: nothing to retire
-    retirements.clear()
     lp.mark_launched(ctx, Lifecycle.INSTANCE_IMAGE)
-    assert retirements == []
+    assert ms.registered_servers(IDENTITY, GROUP) == [new]
