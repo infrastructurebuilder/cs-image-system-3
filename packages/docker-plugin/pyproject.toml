@@ -12,7 +12,7 @@ license = "Apache-2.0"
 license-files = ["LICENSE"]
 requires-python = ">=3.13"
 dependencies = [
-    "cs-image-system-contract>=0.5,<0.6",
+    "cs-image-system-contract>=0.6,<0.7",
     # The SDK, by range: this package works with any release of the kit's 0.2 line and of the terraform
     # libraries' 0.2 line (a release there adds; a removal or alteration of their surface starts 0.3).
     # `just test-docker-alone` tests it at both ends of each range.

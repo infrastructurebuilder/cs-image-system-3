@@ -208,9 +208,11 @@ a live, read-only look at one enrolled machine comes first (`getent group
 Contract 0.5.0; a protocol member added is a MINOR while 0.x (0.6.0), and
 every dependent's range moves (`>=0.6,<0.7`). The kit's new public
 methods are surface additions (`just surface-record`, the kit's LAST
-number). The Okta plugin, released from its own repository, pins
-`contract>=0.5,<0.6`, so it keeps working against 0.5 releases and takes
-0.6 when its repository raises its range.
+number). The Okta plugin and the Google Cloud family, released from their
+own repositories, pin `contract>=0.5,<0.6`, so neither can be installed
+beside a system on 0.6, and this repository cannot lock on 0.6 while its
+extras take them from the index *(corrected 2026-11-22, at T005: an
+earlier reading said the Okta plugin keeps working; plan D6)*.
 
 **Decision**: one contract MINOR (0.6.0) carries the registry's new
 question (`record_aliases`), the records' members, the `Claim` fields,

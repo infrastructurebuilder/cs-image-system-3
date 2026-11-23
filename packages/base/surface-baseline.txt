@@ -295,7 +295,9 @@ cs_image_system.base.basic.builder_base_group:GroupBuilderBase.gid_policy = meth
 cs_image_system.base.basic.builder_base_group:GroupBuilderBase.gid_workspace = method (self) -> 'str | None'
 cs_image_system.base.basic.builder_base_group:GroupBuilderBase.global_id = property
 cs_image_system.base.basic.builder_base_group:GroupBuilderBase.groups_script = method (self, groups: 'dict[str, int]', members: 'dict[str, list[str]]', keys: 'dict[str, list[str]] | None' = None) -> 'str | None'
+cs_image_system.base.basic.builder_base_group:GroupBuilderBase.id_pool = method (self) -> 'tuple[int, int] | None'
 cs_image_system.base.basic.builder_base_group:GroupBuilderBase.identity_type = classmethod () -> 'str'
+cs_image_system.base.basic.builder_base_group:GroupBuilderBase.keeps_recorded_registry = method (self) -> 'bool'
 cs_image_system.base.basic.builder_base_group:GroupBuilderBase.launch_parameters = method (self, group: 'Group') -> 'dict[str, str]'
 cs_image_system.base.basic.builder_base_group:GroupBuilderBase.login_checks = method (self, group: 'str', hostname: 'str', *, timeout: 'int' = 120, instance_name: 'str | None' = None, runtime: 'Any' = None) -> 'tuple[list[dict[str, Any]], list[str]]'
 cs_image_system.base.basic.builder_base_group:GroupBuilderBase.login_hook_commands = method (self) -> 'list[str]'
@@ -312,6 +314,7 @@ cs_image_system.base.basic.builder_base_group:GroupBuilderBase.pre_finalize_phas
 cs_image_system.base.basic.builder_base_group:GroupBuilderBase.prune_stale_attachments = method (self, tofu: 'str', run_id: 'str', cwd: 'Path') -> 'int'
 cs_image_system.base.basic.builder_base_group:GroupBuilderBase.query_attributes = method (self, group: 'Any') -> 'dict[str, Any] | None'
 cs_image_system.base.basic.builder_base_group:GroupBuilderBase.query_state = method (self) -> 'dict[str, dict[str, Any]]'
+cs_image_system.base.basic.builder_base_group:GroupBuilderBase.record_aliases = method (self, group: 'str', entry_id: 'str', names: 'list[str]') -> 'list[str] | None'
 cs_image_system.base.basic.builder_base_group:GroupBuilderBase.registered_servers = method (self, group: 'str') -> 'list[dict[str, Any]] | None'
 cs_image_system.base.basic.builder_base_group:GroupBuilderBase.retire_servers_named = method (self, group: 'str', hostname: 'str') -> 'list[str]'
 cs_image_system.base.basic.builder_base_group:GroupBuilderBase.type_ = property
@@ -730,6 +733,7 @@ cs_image_system.base.basic.builder_base_user:UserBuilderBase.get_tags = method (
 cs_image_system.base.basic.builder_base_user:UserBuilderBase.get_type = method (self) -> 'str'
 cs_image_system.base.basic.builder_base_user:UserBuilderBase.get_users_for_builder = method (self) -> list[cs_image_system.base.models.user.User]
 cs_image_system.base.basic.builder_base_user:UserBuilderBase.global_id = property
+cs_image_system.base.basic.builder_base_user:UserBuilderBase.id_pool = method (self) -> tuple[int, int] | None
 cs_image_system.base.basic.builder_base_user:UserBuilderBase.is_managed = method (self, user: cs_image_system.base.models.user.User) -> bool
 cs_image_system.base.basic.builder_base_user:UserBuilderBase.model = property
 cs_image_system.base.basic.builder_base_user:UserBuilderBase.name = property

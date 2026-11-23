@@ -178,6 +178,27 @@ class GroupBuilderBase(BuilderBase[TGROUP], GroupBuilderProtocol):
         not happen must not be reported as one."""
         raise NotImplementedError(f"{self.__class__.__name__} keeps no server registry")
 
+    def keeps_recorded_registry(self) -> bool:
+        """Whether this builder's server registry is kept in the configuration's
+        own records (``meta-state/servers.yaml``) rather than by an outside
+        service: the core then registers each machine it launches, and writes a
+        machine's aliases into its entry (``record_aliases``) instead of onto
+        the machine. Default: False."""
+        return False
+
+    def record_aliases(self, group: str, entry_id: str, names: list[str]) -> list[str] | None:
+        """For a registry kept in the records: write ``names`` as the aliases of
+        the entry ``entry_id`` of ``group`` and return them, or raise when it
+        cannot. None (the default) means this builder makes a machine answer
+        to its aliases by a script run on it (``alias_registration_script``)."""
+        return None
+
+    def id_pool(self) -> tuple[int, int] | None:
+        """The bounds (lowest, highest) of the ids this identity gives a group
+        or user that declares none, or None for no pool. One pool serves users
+        and groups alike. Default: None."""
+        return None
+
     def alias_registration_script(self, names: list[str]) -> str | None:
         """A root shell script that makes this provider's agent on a machine
         answer to ``names`` too (the bare declared name, the pool alias, the

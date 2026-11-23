@@ -51,7 +51,8 @@ class MetaStateProtocol(Protocol):
     """What the plugins read and write of the run's meta-state (the
     ``meta-state/`` ledgers beside the tree): the storage states, the
     instance generations and pins, the builds, the launch records and the
-    state locations. Twelve members, counted from the sources."""
+    state locations, the recorded server registries and the recorded ids.
+    Eighteen members, counted from the sources."""
 
     # --- storages
     def storage_state(self, name: str) -> str | None: ...
@@ -82,6 +83,20 @@ class MetaStateProtocol(Protocol):
 
     @staticmethod
     def location_key(record: dict[str, Any]) -> str: ...
+
+    # --- the recorded server registries (meta-state/servers.yaml)
+    def registered_servers(self, identity: str, group: str) -> list[dict[str, Any]] | None: ...
+
+    def record_server(self, identity: str, group: str, entry: dict[str, Any]) -> None: ...
+
+    def retire_servers(self, identity: str, group: str, hostname: str) -> list[str]: ...
+
+    def record_server_aliases(self, identity: str, group: str, entry_id: str, names: list[str]) -> None: ...
+
+    # --- the recorded ids (meta-state/ids.yaml)
+    def recorded_ids(self) -> dict[str, Any]: ...
+
+    def record_ids(self, document: dict[str, Any]) -> None: ...
 
 
 # ------------------------------------------------------------------ the services

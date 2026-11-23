@@ -68,6 +68,11 @@ class UserBuilderBase(BuilderBase[TUSER], UserBuilderProtocol):
         operator's rule. Default: no claims."""
         return []
 
+    def id_pool(self) -> tuple[int, int] | None:
+        """The bounds (lowest, highest) of the ids this identity gives a user
+        that declares none, or None for no pool. Default: None."""
+        return None
+
     # ------------------------------------------- EXPLORE identity hooks
     @classmethod
     def default_managed(cls) -> bool:

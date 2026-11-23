@@ -240,3 +240,67 @@ def test_meta_state_write_is_atomic(tmp_path, monkeypatch):
         ms.write("pins.yaml", {"instances": {"x": "ami-3"}})
     assert "ami-2" in target.read_text() and before != target.read_text()
     assert [p.name for p in target.parent.iterdir()] == ["pins.yaml"]
+
+
+# ---------------------------------------------- the recorded registries and ids (spec 010)
+
+def _ms(tmp_path: Path):
+    from cs_image_system.engine.meta_state import MetaState
+    return MetaState(tmp_path / "meta-state")
+
+
+def _listed(ms, group: str = "pxgroup") -> list[dict]:
+    entries = ms.registered_servers("posix-local", group)
+    assert entries is not None
+    return entries
+
+
+def _entry(iid: str, host: str, addr: str = "10.0.0.1") -> dict:
+    return {"id": iid, "instance_id": iid, "hostname": host, "address": addr, "canonical_name": host, "alt_names": []}
+
+
+def test_a_registry_is_recorded_replaced_by_instance_id_and_retired_by_hostname(tmp_path):
+    ms = _ms(tmp_path)
+    assert ms.registered_servers("posix-local", "pxgroup") == []          # no record yet: an empty registry
+    ms.record_server("posix-local", "pxgroup", _entry("i-2", "test-001"))
+    ms.record_server("posix-local", "pxgroup", _entry("i-1", "test-001", "10.0.0.9"))
+    ms.record_server("posix-local", "pxgroup", _entry("i-2", "test-002"))  # the same machine, renamed: replaced
+    assert [(e["id"], e["hostname"]) for e in _listed(ms)] == \
+        [("i-1", "test-001"), ("i-2", "test-002")]
+    ms.record_server_aliases("posix-local", "pxgroup", "i-1", ["ip-10-0-0-9", "alpha"])
+    assert _listed(ms)[0]["alt_names"] == ["alpha", "ip-10-0-0-9"]
+    assert ms.retire_servers("posix-local", "pxgroup", "test-001") == ["i-1"]
+    assert ms.retire_servers("posix-local", "pxgroup", "test-001") == []
+    assert [e["id"] for e in _listed(ms)] == ["i-2"]
+    assert ms.registered_servers("posix-local", "other") == []
+
+
+def test_an_unreadable_registry_cannot_be_asked_and_nothing_is_written_or_retired(tmp_path):
+    from cs_image_system.base.meta_ledgers import SERVERS
+    ms = _ms(tmp_path)
+    ms.root.mkdir(parents=True)
+    (ms.root / SERVERS).write_text("servers: [not, a, mapping\n")
+    assert ms.registered_servers("posix-local", "pxgroup") is None       # silence is not an empty registry
+    with pytest.raises(RuntimeError):
+        ms.record_server("posix-local", "pxgroup", _entry("i-1", "test-001"))
+    with pytest.raises(RuntimeError):
+        ms.retire_servers("posix-local", "pxgroup", "test-001")
+
+
+def test_a_recorded_id_is_never_changed_for_a_current_or_a_retired_name(tmp_path):
+    ms = _ms(tmp_path)
+    assert ms.recorded_ids() == {}
+    first = {"ids": {"group": {"pxgroup": {"id": 3101, "identity": "posix-local", "external": False, "how": "declared"}},
+                     "user": {}},
+             "retired": {"group": {"oldgroup": 3105}, "user": {}}}
+    ms.record_ids(first)
+    assert ms.recorded_ids()["ids"]["group"]["pxgroup"]["id"] == 3101
+    moved = {"ids": {"group": {"pxgroup": {"id": 3102, "identity": "posix-local", "external": False, "how": "declared"}},
+                     "user": {}}, "retired": first["retired"]}
+    with pytest.raises(ValueError, match="pxgroup: recorded with id 3101"):
+        ms.record_ids(moved)
+    back = {"ids": {"group": {"pxgroup": first["ids"]["group"]["pxgroup"],
+                              "oldgroup": {"id": 3106, "identity": "posix-local", "external": False, "how": "declared"}},
+                    "user": {}}, "retired": {"group": {}, "user": {}}}
+    with pytest.raises(ValueError, match="oldgroup: recorded with id 3105"):
+        ms.record_ids(back)                                                # a retired name takes its own id back, or none

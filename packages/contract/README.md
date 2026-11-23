@@ -130,14 +130,14 @@ repository runs against itself.
 ### Version
 
 The contract carries a semantic version of its own, independent of the
-workspace's: `0.5.0` now, and 0.x until the operator decides otherwise
+workspace's: `0.6.0` now, and 0.x until the operator decides otherwise
 (the decision of 2026-11-05). What a bump means: a PATCH is a change no
 plugin can observe (a docstring, a test helper); a MINOR, while the
 version is 0.x, is a change a plugin can observe, so a protocol member
 added, renamed or removed, a constant's value changed, a module added or
 removed, and it is the breaking step; from 1.0 a MINOR adds without
 breaking and a MAJOR breaks. Every package that depends on the contract
-pins the compatible series, `cs-image-system-contract>=0.5,<0.6`, and
+pins the compatible series, `cs-image-system-contract>=0.6,<0.7`, and
 `just release`, which moves the workspace's version, leaves the
 contract's where it is (as it leaves the SDK's two version lines, the
 kit's and the terraform libraries') (`bump-my-version` excludes its
@@ -166,6 +166,7 @@ The versions so far:
 | `0.4.3` | This document names the test and the declaration that now hold what a plugin may import of the kit (the kit's `surface` module and `tests/test_plugins_keep_to_the_surface.py`, in place of `tests/test_plugin_imports.py`); nothing a plugin can observe changed, so it is a PATCH |
 | `0.4.4` | This document and three docstrings say what is now so: a plugin is written against the contract and the SDK's declared surface, with one guide for it; a plugin that is refused is skipped and named, not the end of every command; and a second registration of an enrollment kind or a field kind by another plugin is reported as a collision by the loader. No function, protocol or constant changed, so it is a PATCH |
 | `0.5.0` | A plugin declares its kinds instead of registering them when it is imported: `PluginMetadata` and `PluginMetadataProtocol` gain `enrollment_kinds` and `field_kinds` (both empty by default), and `register_enrollment_kind` and `register_field_kind` leave the contract's public names; `field_kinds.SYSTEM_FIELD_KINDS` names the system's own four. The loader registers the declared kinds of the plugins it accepts, so a skipped plugin's kinds are never registered and a collision over a kind is found like any other. Members added and two functions removed are something a plugin can observe, so while the contract is 0.x it is a MINOR step, and every dependent's range moved from `>=0.4,<0.5` ([spec 004](../../specs/004-kinds-in-metadata/spec.md)). |
+| `0.6.0` | A recorded server registry and recorded ids ([spec 010](../../specs/010-posix-server-registry/spec.md)): `GroupBuilderProtocol` gains `keeps_recorded_registry`, `record_aliases` and `id_pool`, `UserBuilderProtocol` gains `id_pool`, `MetaStateProtocol` gains six members over `meta-state/servers.yaml` and `meta-state/ids.yaml`, `Claim` gains `identity` and `external`, and `query_instance_identity` may answer an `address`. Members added are something a plugin can observe, so while the contract is 0.x it is a MINOR step, and every dependent's range moved from `>=0.5,<0.6`. |
 
 ## Writing a plugin
 
@@ -181,7 +182,7 @@ fits, and skips it; it may register more than its kind, and a plugin of no named
 (a version checker alone, an injected model) declares `other`.
 
 1. **Depend on the contract, by the range of its series**:
-   `"cs-image-system-contract>=0.5,<0.6"`. A plugin that subclasses the
+   `"cs-image-system-contract>=0.6,<0.7"`. A plugin that subclasses the
    kit's base classes (every built-in plugin does; it is the convenient
    way, not the required one) or uses the terraform libraries names
    those by a range too, and imports only what each declares.

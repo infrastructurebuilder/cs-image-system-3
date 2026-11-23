@@ -133,6 +133,19 @@ No violation needs justifying.
   specifications 002, 003 and 006** if this merges first, else the next.
   **Taken.**
 
+- **D6. The families released elsewhere pin the contract below 0.6;
+  how is 0.6.0 reached?** Found at T005 (2026-11-22): the Google Cloud
+  family 0.2.0 and the Okta plugin 0.2.0 pin
+  `cs-image-system-contract>=0.5,<0.6`, so this repository cannot even
+  lock on 0.6 (its `gcloud` and `all` extras take the family from the
+  index), let alone release it beside them; research R10 was wrong to
+  say the Okta plugin keeps working. **Taken** ("widen the families, with
+  trusted publishing for Google Cloud"): each family releases 0.2.1
+  with `>=0.5,<0.7` first (they use none of 0.6's members), the Google
+  Cloud family gaining trusted publishing as the Okta repository has
+  it, since no upload token is kept; then this repository locks on 0.6
+  (tasks T049 to T052, before T005).
+
 ## Project Structure
 
 ```text
