@@ -202,6 +202,36 @@ def _clouds(monkeypatch, retags: list[tuple[str, dict[str, str]]]) -> None:
                         passing_session(AwsCloudBuilder.run_session_command))
 
 
+class _NoMachines:
+    """An EC2 client that knows no machine: ``describe_instances`` finds
+    nothing, and any other call is refused as unreachable (the code asking
+    treats it as a provider that could not answer)."""
+
+    def describe_instances(self, **kwargs: Any) -> dict[str, Any]:
+        return {"Reservations": []}
+
+    def __getattr__(self, name: str) -> Any:
+        raise RuntimeError(f"EC2 is not reachable from the tests ({name})")
+
+
+def _unreachable_opa(method: str, url: str, headers: dict[str, str], body: bytes | None) -> Any:
+    raise RuntimeError(f"OPA is not reachable from the tests ({method} {url.split('?')[0]})")
+
+
+def _no_network(monkeypatch) -> None:
+    """The lowest seams to AWS's machines and to OPA, answered in-process,
+    so a call no other stub answers never reaches a network (spec 010,
+    R13: six tests reached the AWS login endpoint and the fixture's OPA
+    host through them). A test's own EC2 fake, installed before its run is
+    built, stands; a test's OPA transport (``_urllib_transport``) is above
+    this seam and so stands too."""
+    from cs_image_system.aws_runtime import aws_utils
+    if getattr(aws_utils.ec2_client, "__module__", "") == aws_utils.__name__:
+        monkeypatch.setattr(aws_utils, "ec2_client", lambda session_config: _NoMachines())
+    from cs_image_system.okta_opa_plugin import opa_gids
+    monkeypatch.setattr(opa_gids, "_urllib_transport_full", _unreachable_opa)
+
+
 def stub_environment(monkeypatch) -> list[str]:
     """Install every stub; returns the command journal.
 
@@ -223,6 +253,7 @@ def stub_environment(monkeypatch) -> list[str]:
         lambda mp: docker_testing.stub(mp, retags),
         roots_testing.stub,
         lambda mp: okta_testing.stub(mp, retirements),
+        _no_network,
     ))
     stub_environment.retags = retags  # type: ignore[attr-defined]
     stub_environment.retirements = retirements  # type: ignore[attr-defined]

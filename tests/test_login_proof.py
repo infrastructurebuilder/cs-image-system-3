@@ -14,6 +14,7 @@ builder seams.
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -21,6 +22,7 @@ from cs_image_system.base import power_state as ps
 from cs_image_system.engine.commands import login_proof as lp
 from cs_image_system.okta_opa_plugin import sft_login
 from tests.harness import FixtureRun
+from tests.posix_world import entry, seed_servers
 
 CONNECTION, ROLE = "github-cs-image-system", "cs-image-system-ci"
 
@@ -77,25 +79,6 @@ def test_a_stopped_machine_is_skipped_and_never_started(world):
     assert records[0]["skipped"] and not records[0]["ok"] and "stopped" in records[0]["checks"][0]["detail"].lower()
     assert w["calls"] == [], "no client call: the operator's decision stands"
     assert run.ctx.meta_state.login_proofs()[-1]["skipped"]
-
-
-def test_a_duplicate_hostname_fails_before_any_login(world):
-    run, w = world
-    w["registry"] = [{"id": "s-1", "hostname": "test-001", "address": "10.0.0.1"},
-                     {"id": "s-2", "hostname": "test-001", "address": "10.0.0.2"}]
-    with pytest.raises(lp.LoginProofFailed) as e:
-        lp.login_proof(run.ctx, ["test"])
-    rec = e.value.records[0]
-    assert rec["checks"] == [rec["checks"][0]] and "2 registrations" in rec["checks"][0]["detail"]
-    assert "s-2@10.0.0.2" in rec["checks"][0]["detail"] and w["calls"] == []
-
-
-def test_a_silent_registry_is_a_failed_check_not_one_server(world):
-    run, w = world
-    w["registry"] = None
-    records = lp.login_proof(run.ctx, ["test"], record_only=True)
-    assert not records[0]["ok"] and "could not be asked" in records[0]["checks"][0]["detail"]
-    assert w["calls"] == []
 
 
 def test_an_expired_client_session_is_named_not_silent(world):
@@ -170,8 +153,9 @@ def test_as_the_workload_the_client_is_handed_the_team_and_the_address(world, mo
 # failed check failing that instance -- proved through the posix identity
 # plugin's proof (a proof user's key over ssh, through the runtime's tunnel).
 # The client is stubbed at `run_ssh` (the posix plugin's `ssh_login`), the
-# tunnel and the power state at the AWS runtime's seams. Nothing here asks a
-# server registry: the posix plugin keeps none.
+# tunnel and the power state at the AWS runtime's seams. The server registry
+# is the posix plugin's own record (meta-state/servers.yaml), unwritten unless
+# a case seeds it.
 
 # a fake key, its armour assembled here so the public-safe scan never sees a PEM header
 _ARMOUR = "OPENSSH PRIVATE KEY-----"
@@ -197,14 +181,17 @@ def _posix_tree(root: Path) -> None:
     users.write_text(text.replace(old, old + "    is_service_account: true\n"))   # textual: the ciphertexts stay
 
 
-@pytest.fixture
-def posix_world(tmp_path: Path, monkeypatch):
+def _posix_run(tmp_path: Path, monkeypatch, servers: Any = None) -> tuple[FixtureRun, dict]:
+    """The posix world; ``servers``: the group's registry to record first
+    (see ``seed_servers``; a string makes the record unreadable)."""
     from cs_image_system.aws_runtime.aws_runtime_builders import AwsCloudBuilder
     from cs_image_system.posix_identity_plugin import ssh_login
     from tests.harness import copy_config
 
     root = copy_config(tmp_path)
     _posix_tree(root)
+    if servers is not None:
+        seed_servers(root, servers)
     run = FixtureRun(tmp_path, monkeypatch, config_root=root)
     ms = run.ctx.meta_state
     ms.record_launch_params("test", dict(ms.launch_params().get("test") or {}) | {"launched": True, "hostname": "test-001"})
@@ -219,6 +206,12 @@ def posix_world(tmp_path: Path, monkeypatch):
         return world["ssh"]
     monkeypatch.setattr(ssh_login, "run_ssh", fake_ssh)   # the client seam is the plugin's
     monkeypatch.setenv(ssh_login.PROOF_KEY_ENV, PROOF_PEM)
+    return run, world
+
+
+@pytest.fixture
+def posix_world(tmp_path: Path, monkeypatch):
+    run, world = _posix_run(tmp_path, monkeypatch)
     try:
         yield run, world
     finally:
@@ -267,3 +260,30 @@ def test_only_standing_durable_instances_are_targets_on_posix(posix_world):
     with pytest.raises(ValueError, match="not declared"):
         lp.login_proof(run.ctx, ["nope"])
     assert lp.login_proof(run.ctx, runtime="docker-fixture") == [], "container-test is not launched: nothing to prove"
+
+
+# The core refuses, before any login, a group whose server registry holds two
+# machines under the hostname or cannot be asked. The registry is the posix
+# identity's own record (meta-state/servers.yaml), seeded before the run.
+
+def test_a_duplicate_hostname_fails_before_any_login(tmp_path: Path, monkeypatch):
+    run, w = _posix_run(tmp_path, monkeypatch,
+                        servers=[entry(), entry(id="i-0def", instance_id="i-0def", address="10.0.0.6")])
+    try:
+        with pytest.raises(lp.LoginProofFailed) as e:
+            lp.login_proof(run.ctx, ["test"])
+        rec = e.value.records[0]
+        assert rec["checks"] == [rec["checks"][0]] and "2 registrations" in rec["checks"][0]["detail"]
+        assert "i-0def@10.0.0.6" in rec["checks"][0]["detail"] and w["calls"] == []
+    finally:
+        run.restore_cwd()
+
+
+def test_a_silent_registry_is_a_failed_check_not_one_server(tmp_path: Path, monkeypatch):
+    run, w = _posix_run(tmp_path, monkeypatch, servers="servers: [unclosed\n")
+    try:
+        records = lp.login_proof(run.ctx, ["test"], record_only=True)
+        assert not records[0]["ok"] and "could not be asked" in records[0]["checks"][0]["detail"]
+        assert w["calls"] == []
+    finally:
+        run.restore_cwd()
