@@ -55,6 +55,7 @@ from .. import (
     accounts_reconcile,
     identity_attributes,
     launch_delivery,
+    posix_ids,
     provider_aliases,
     read_models,
     release,
@@ -66,6 +67,7 @@ from .. import (
 from ..bootstrap.generate import regenerate_in_run
 from ..in_process import run_executable
 from ..meta_state import commit_meta_state
+from ..run_ids import run_ids
 from ..state_query import query_state, write_state_report
 from .gen_groups import predefined_group_generation
 from .gen_images import predefined_image_generation
@@ -606,6 +608,7 @@ def _run_requested(ctx: RunContext, summary: RunSummary, ordered: list[Lifecycle
         network_facts.discover(ctx)
         network_facts.adopt(ctx)
     _refuse_invalid(ctx, summary, ordered)
+    settle_ids(ctx, record=records_ids(ctx.dry_run, commit))
     _plan_bakes(ctx, summary, ordered)
     # generated/bootstrap from the tree's
     # bootstrap.yaml, before the lifecycles -- generation only, every run
@@ -655,6 +658,29 @@ def _refuse_invalid(ctx: RunContext, summary: RunSummary, ordered: list[Lifecycl
             log.error(f"validation: {err}")
         raise LifecycleRunError(
             f"Validation failed with {len(summary.validation_errors)} error(s)")
+
+
+def records_ids(dry_run: bool, commit: bool) -> bool:
+    """An applying run records the ids, and so does a dry run with
+    ``--commit`` (the record step); a plain dry run records none (D1)."""
+    return commit or not dry_run
+
+
+def settle_ids(ctx: RunContext, *, record: bool) -> None:
+    """After validation: log each id drawn from a pool, and on a recording
+    run write every resolved id, the pools and the retired names to
+    ``meta-state/ids.yaml`` (FR-009). A plain dry run writes nothing."""
+    resolved = run_ids(ctx)
+    if resolved is None:
+        return
+    resolution, pools = resolved
+    for line in posix_ids.drawn(resolution):
+        log.info(f"ids: {line}" + ("" if record else " (recorded by an applying run or `--commit`)"))
+    if record:
+        recorded = ctx.meta_state.recorded_ids()
+        document = posix_ids.ids_document(resolution, recorded, pools, ctx.run_id)
+        if document != recorded:
+            ctx.meta_state.record_ids(document)
 
 
 def _plan_bakes(ctx: RunContext, summary: RunSummary, ordered: list[LifecycleLike]) -> None:

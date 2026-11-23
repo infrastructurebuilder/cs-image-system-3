@@ -210,7 +210,7 @@ def test_two_names_on_one_id_are_refused_within_a_kind_but_a_users_private_group
 
 # ------------------------------------------------ step 3: the plugin in a loaded tree
 
-def _posix_tree(tmp_path, *, gid=3101, uids=(3201, 3202), extra_group=None):
+def _posix_tree(tmp_path, *, gid: int | None = 3101, uids=(3201, 3202), extra_group=None):
     """A copy of the frozen fixture, whose posix shape (since step 3d: the
     builders, pxgroup and the two personas) is adjusted for one case."""
     from tests.harness import copy_config
@@ -259,7 +259,6 @@ def test_a_posix_tree_loads_and_its_ids_resolve_cleanly(tmp_path, monkeypatch):
 
 
 @pytest.mark.parametrize("change,needle", [
-    ({"gid": None}, "group pxgroup: no side supplies its id"),
     ({"uids": (1000, 3202)}, "user taylor_tango: the configuration declares id 1000, below 1024"),
     ({"uids": (3201, 3201)}, "users taylor_tango, unity_uniform all have id 3201"),
     ({"extra_group": {"name": "taylor_tango", "type": "posix-local", "gid": 3300}},
@@ -273,6 +272,23 @@ def test_validate_refuses_each_id_problem_by_name(tmp_path, monkeypatch, change,
         assert errors == []
     else:
         assert any(needle in e for e in errors), errors
+
+
+def test_an_undeclared_posix_group_bakes_with_the_id_its_pool_gives(tmp_path, monkeypatch):
+    """Through the fixture's POSIX tree with `pxgroup`'s gid left out: it
+    validates, draws 3000 (the lowest id of the default pool no name holds),
+    and the builder bakes and verifies that id."""
+    from tests.harness import load_context, stub_environment
+    root = _posix_tree(tmp_path, gid=None)
+    assert _posix_errors(root, monkeypatch) == []
+    stub_environment(monkeypatch)
+    ctx = load_context(root)
+    gb = ctx.group_builders["posix-local"]
+    assert gb.gid_expression("pxgroup") == "3000"
+    group = next(g for g in gb.get_groups_for_builder() if g.get_name() == "pxgroup")
+    image: Any = type("I", (), {"get_name": lambda self: "img"})()
+    assert "groupadd -g 3000 pxgroup" in "\n".join(gb.activation_commands(image, group))
+    assert gb.activation_verify_commands(image, group)[-1].endswith("= '3000'")
 
 
 def test_a_gid_below_the_floor_is_refused_when_the_group_loads(tmp_path, monkeypatch):
@@ -328,7 +344,7 @@ def test_a_posix_group_member_without_a_posix_account_is_refused(tmp_path, monke
                                               "members": ["blake.bravo"]})
     stub_environment(monkeypatch)
     errors = [str(e) for e in check_group_builders(load_context(root))]
-    assert len(errors) == 1 and errors[0].startswith("posix group pxextra: blake.bravo") and "`uid:`" in errors[0]
+    assert len(errors) == 1 and errors[0].startswith("posix group pxextra: blake.bravo") and "`type: posix`" in errors[0]
 
 
 class _Session:

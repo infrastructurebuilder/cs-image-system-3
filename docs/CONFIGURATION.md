@@ -1535,14 +1535,20 @@ an instance image activates it for its owning group. The identity type
 token is `okta`.
 
 `PosixGroupBuilderModel`; type `posix` (the posix-identity plugin): the
-groups exist on their machines, created at the bake with their declared
-gid, their members' accounts reconciled at launch. Common builder fields
-(4.1) plus:
+groups exist on their machines, created at the bake with their gid,
+their members' accounts reconciled at launch. A group's gid is its
+`gid:` when it declares one; a group without one is given the lowest free
+id of the builder's `id_pool`, one that no group or user holds, declares
+or once held, and the id is recorded in `meta-state/ids.yaml` by the
+first applying run or `--commit` dry run, after which it never changes
+(a plain dry run shows the id it would give and records nothing).
+Common builder fields (4.1) plus:
 
 | Field | Type | Default | Meaning |
 | --- | --- | --- | --- |
 | `shell` | str | `/bin/bash` | the login shell of the accounts this builder's users get |
 | `admin_sudo` | bool | `true` | the group's `admins` may run anything as root without a password (their accounts have none: keys only); `false` leaves sudo to the operator |
+| `id_pool` | [int, int] | `[3000, 59999]` | the first and last id a group without a `gid:` may be given; the first at least 1024 and below the last, refused at load otherwise. The POSIX builders may share one pool; a pool that overlaps an external identity's pool, or lies over an id another identity has recorded, is refused at `validate`. A recorded id that a narrowed pool leaves outside is kept, and `validate` notes it |
 
 The `dummy` plugin registers a `dummy` group builder and a `dummy` user
 builder as the extension template. Each takes `org` and `team`, both
@@ -1572,6 +1578,16 @@ an `okta_user` resource plus a lookup) and `okta-tf-ro` (lookup only;
 
 The Okta login of an emitted user is its email. Lookups search
 `profile.login` by that email and skip roles and groups.
+
+`PosixUserBuilderModel`; type `posix` (the posix-identity plugin): users
+as POSIX accounts, each with a user-private group of the same name and
+id. A user's uid is its `uid:` when it declares one; a user without one
+is given an id from the builder's pool as a group is (9.2), and its
+private group takes the same id. Common builder fields and 9.1 plus:
+
+| Field | Type | Default | Meaning |
+| --- | --- | --- | --- |
+| `id_pool` | [int, int] | `[3000, 59999]` | the first and last id a user without a `uid:` may be given; the same rules as the group builder's `id_pool` |
 
 ### 9.4 Example
 

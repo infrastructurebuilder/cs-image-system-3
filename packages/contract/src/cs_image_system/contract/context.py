@@ -222,14 +222,22 @@ class ImagesServiceProtocol(Protocol):
 
 class IdentityServiceProtocol(Protocol):
     """Identity: the attributes the tree declares for its users, the
-    launched instances a login proof can reach, and the group builders by
-    the identity type they provide."""
+    launched instances a login proof can reach, the group builders by
+    the identity type they provide, and the id the run resolved for a
+    user or a group."""
 
     def declared_attributes(self) -> dict[str, dict[str, dict[str, Any]]]: ...
 
     def standing_instances(self, *, runtime: str | None = None, names: list[str] | None = None) -> list[Any]: ...
 
     def group_builders_by_identity_type(self) -> Mapping[str, Sequence[GroupBuilderProtocol]]: ...
+
+    def resolved_id(self, kind: str, name: str) -> int | None:
+        """The id this run resolved for the ``kind`` (``group`` or ``user``)
+        named ``name``: recorded, declared, read from an external identity
+        or drawn from its identity's pool; None when it has none yet (an id
+        to come) or no builder claims the name."""
+        ...
 
 
 class StorageServiceProtocol(Protocol):
