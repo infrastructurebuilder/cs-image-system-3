@@ -22,7 +22,7 @@ requires-python = ">=3.13"
 # terraform libraries together), each pinned at its own line's version.
 dependencies = [
     "cs-image-system-ansible-plugin==0.1.12",
-    "cs-image-system-base==0.2.1",
+    "cs-image-system-base==0.2.2",
     "cs-image-system-bash-mod-plugin==0.1.12",
     "cs-image-system-default-os-plugin==0.1.12",
     "cs-image-system-contract>=0.6,<0.7",
