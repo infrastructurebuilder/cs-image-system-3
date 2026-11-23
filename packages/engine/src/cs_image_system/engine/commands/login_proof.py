@@ -90,14 +90,36 @@ def prove_login(ctx: RunContext, inst: Any, *, timeout: int = 120) -> dict[str, 
             return _skip(ctx, inst, hostname, group,
                          f"the machine is {power_state.describe(state)}; a login needs it running and "
                          "the power state is the operator's (stage 57)", gb)
-    # the identity plugin's own checks, with its own client
-    checks, evidence = gb.login_checks(group, hostname, timeout=timeout, instance_name=name, runtime=rtb)
+    refused = _registration_refusal(gb, group, hostname)
+    if refused is not None:
+        # a login by name cannot choose between two machines, and a registry
+        # that cannot be asked is not one registration: no login is tried
+        checks, evidence = [{"name": "one registration", "ok": False, "detail": refused}], []
+    else:
+        # the identity plugin's own checks, with its own client
+        checks, evidence = gb.login_checks(group, hostname, timeout=timeout, instance_name=name, runtime=rtb)
     record = {"instance": name, "runtime": rt, "hostname": hostname, "group": group, "run": ctx.run_id,
               "as": _as(gb), "time": datetime.now(timezone.utc).isoformat(timespec="seconds"),
               "ok": all(c["ok"] for c in checks), "checks": checks, "evidence": evidence}
     for c in checks:
         log.info(f"login proof {name}: {c['name']}: {'ok' if c['ok'] else 'FAILED'} -- {c['detail']}")
     return record
+
+
+def _registration_refusal(gb: Any, group: str, hostname: str) -> str | None:
+    """Why a login by ``hostname`` cannot be tried, when the group's builder
+    keeps a server registry: it cannot be asked, or it holds more than one
+    machine under the name. None when it can be tried."""
+    if not gb.can_query_servers():
+        return None
+    servers = gb.registered_servers(group)
+    if servers is None:
+        return "the group's server registry could not be asked (silence is not one server)"
+    claims = [s for s in servers if s.get("hostname") == hostname]
+    if len(claims) > 1:      # worded as an identity plugin's own check words it
+        return (f"{hostname!r} has {len(claims)} registrations: "
+                + ", ".join(f"{c.get('id')}@{c.get('address')}" for c in claims))
+    return None
 
 
 def login_proof(ctx: RunContext, names: list[str] | None = None, *, runtime: str | None = None,

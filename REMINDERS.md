@@ -2,8 +2,7 @@
 
 Things to check at intervals collect in this file: the standing reviews
 under "Monthly General Items", the questions to settle "Before 1.0" and
-the GCP account housekeeping. The
-system's work in flight stays in [specs/](specs/README.md).
+the GCP account housekeeping. The system's work in flight stays in [specs/](specs/README.md).
 The assistant raises each item when it falls due and records the
 outcome here, so this is the one current page besides docs/CHANGES.md
 and docs/INCIDENTS.md that carries dates by design.
@@ -34,23 +33,6 @@ corrected.
 - 2026-12-09: (open)
 - 2027-01-09: (open)
 - 2027-02-09: (open)
-
-### The §30 shims: removed in §125
-
-**Closed 2026-11-05; nothing to raise.** The core's re-export paths of the
-contract's names (`base/constants.py`, `models/model_config.py`,
-`helpers/field_helpers.py`, `helpers/field_kinds.py`, `lifecycle.py`, the
-data part of `lifecycles.py`, `basic/asset.py`, `models/executable_adds.py`,
-the PSI enums in `models/provider_specific_image.py` and the name and HCL
-helpers in `utils.py`) were removed in stage 125, every internal import
-rewritten to the contract path, as the commitment to the contract the
-operator's condition of 2026-10-29 named; the contract took a version of
-its own (0.1.0) in the same stage. The annotated tags `s30-1-before`,
-`s30-1-after`, `s30-2-before` and `s30-2-after` bracket the move of the
-bodies into the contract, each tag's message carrying its recipe, and
-stage 30 changed code alone (the emission byte-identical; no YAML key,
-record or cloud state moved). The weekly reminder that stood here is
-retired.
 
 ### STARTER_PUSH_TOKEN renewal
 
@@ -110,7 +92,38 @@ changes, and every tree refreshes its modules at its next take, which
 the take now does by itself (stage 112). Plan it as a stage of its
 own then.
 
-- After the next release cycle: (open)
+- After the next release cycle: due since 0.1.11; specified 2026-11-22 as
+  [specification 011](specs/011-engine-owns-its-entry-points/spec.md)
+  (open until it is complete)
+
+## After specification 008
+
+### A specification to take the Okta plugin past read-only
+
+**Raise once specification 008 is complete** (the Okta plugin in
+infrastructurebuilder/cs-image-system-okta). The operator, 2026-11-22:
+Okta's part is read-only today (the system looks Okta's users up and
+never writes them) and that remains so for now, but it should change
+soon. Write a specification, in the Okta plugin's own repository, that
+extends the plugin's capabilities past read-only. Weigh with it the
+operator's note of the same day that the Okta plugin should, by default,
+tell Okta's agent to keep user accounts persistent on a machine, unless
+specification 010's research R-names has placed that elsewhere.
+
+- After specification 008: (open)
+
+### The Okta repository's specification 002: names on a machine, and Okta's ids
+
+**Raise once the release carrying specification 010 is out** (contract
+0.5.1, on TestPyPI). The operator's decision of 2026-11-22 (spec 010's D3): after a
+live, read-only look at one enrolled machine (`getent group 180007`,
+`getent group sft_coops_user`, `grep sft_ /etc/group /etc/passwd`),
+specify in cs-image-system-okta the naming rules (one name per gid on an
+Okta machine: the POSIX delegate's group beside the agent's `sft_` group;
+what persists) and the Okta plugin's id claims and pool (its attribute
+options, read-only), against contract 0.5.1.
+
+- After the release carrying spec 010: (open)
 
 ## Before 1.0
 
@@ -130,7 +143,9 @@ ignores stand. The question to settle before 1.0: keep them, or make
 the base models generic over the field's type so that no ignore is
 needed (a refactor across base and four plugins).
 
-- Before 1.0: (open)
+- Before 1.0: specified 2026-11-22 as
+  [specification 012](specs/012-narrowed-fields-without-ignores/spec.md)
+  (open until it is complete)
 
 ## GCP account housekeeping (csis-sandbox)
 

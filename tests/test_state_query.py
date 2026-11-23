@@ -28,7 +28,7 @@ from tests.harness import FixtureRun
 def _tags(series: str, run: str = "run-1", parent: str = "external", fp: str = "abc") -> dict[str, str]:
     return {f"{TAG_PREFIX}series": series, f"{TAG_PREFIX}run": run,
             f"{TAG_PREFIX}parent": parent, f"{TAG_PREFIX}fingerprint": fp,
-            f"{TAG_PREFIX}identity_types": "okta", f"{TAG_PREFIX}storage_types": "ebs"}
+            f"{TAG_PREFIX}identity_types": "posix", f"{TAG_PREFIX}storage_types": "ebs"}
 
 
 def _image(image_id: str, series: str, **kw) -> dict:
@@ -40,30 +40,54 @@ def _build(build_id: str, series: str, runtime: str, run: str = "run-1", parent:
            fp: str = "abcdef0123456789") -> dict:
     return {"build_id": build_id, "series": series, "runtime": runtime, "name": f"{series}-{build_id}",
             "parent": parent, "input_fingerprint": fp, "run": run,
-            "capabilities": {"identity_types": ["okta"], "storage_types": ["ebs"]}, "mods": [], "chain": []}
+            "capabilities": {"identity_types": ["posix"], "storage_types": ["ebs"]}, "mods": [], "chain": []}
 
 
-@pytest.fixture
-def world(tmp_path: Path, monkeypatch):
-    """A context whose plugins answer from canned reality."""
+def _world(tmp_path: Path, monkeypatch, config_root: Path | None = None):
+    """A context whose plugins answer from canned reality. The identity
+    provider is the posix group builder, made to answer as a provider with a
+    central record would (the real one keeps none and answers ``{}``): the
+    group rules are what is under test, not a provider."""
     from cs_image_system.aws_runtime.aws_runtime_builders import AwsCloudBuilder
-    from cs_image_system.okta_opa_plugin.okta_opa_tf_group_builder import OktaTfGroupBuilder
+    from cs_image_system.posix_identity_plugin.posix_builders import PosixGroupBuilder
     from cs_image_system.tofu_roots.tofu_storage_builder import TofuStorageBuilderBase
 
     reality: dict = {"images": {}, "storages": {}, "groups": {}}   # images keyed by runtime name
-    run = FixtureRun(tmp_path, monkeypatch)   # first: its stubs would override ours
+    run = FixtureRun(tmp_path, monkeypatch, config_root=config_root)   # first: its stubs would override ours
     monkeypatch.setattr(AwsCloudBuilder, "query_images",
                         lambda self, series: list(reality["images"].get(self.get_name(), [])))
     monkeypatch.setattr(TofuStorageBuilderBase, "query_state",
                         lambda self: {s.get_name(): reality["storages"].get(s.get_name(), {"present": False, "type": self.capability_type()})
                                       for s in self.model._storages})
-    monkeypatch.setattr(OktaTfGroupBuilder, "query_state",
+    monkeypatch.setattr(PosixGroupBuilder, "query_state",
                         lambda self: {g.get_name(): reality["groups"].get(g.get_name(), {"present": True, "gid": 1})
                                       for g in self.get_groups_for_builder()})
     try:
         yield run, reality
     finally:
         run.restore_cwd()
+
+
+@pytest.fixture
+def world(tmp_path: Path, monkeypatch):
+    yield from _world(tmp_path, monkeypatch)
+
+
+#: four more posix groups beside the fixture's pxgroup, so the group rules have five managed subjects
+DRIFT_GROUPS = [{"name": name, "type": "posix-local", "gid": gid, "description": "a drift subject",
+                 "members": ["taylor_tango", "unity_uniform"], "admins": ["taylor_tango"]}
+                for name, gid in (("pxdrifta", 3901), ("pxdriftb", 3902), ("pxdriftc", 3903), ("pxdriftd", 3904))]
+
+
+@pytest.fixture
+def posix_world(tmp_path: Path, monkeypatch):
+    """The world over a private copy that declares five posix groups."""
+    import yaml
+
+    from tests.harness import copy_config
+    root = copy_config(tmp_path)
+    (root / "groups" / "group-drift-subjects.yaml").write_text(yaml.safe_dump({"groups": DRIFT_GROUPS}, sort_keys=False))
+    yield from _world(tmp_path, monkeypatch, config_root=root)
 
 
 def _runtime(ctx) -> str:
@@ -165,16 +189,16 @@ def _all_seen(ctx) -> None:
     ctx.meta_state.write_identity_read_model(model)
 
 
-def test_group_drift(world):
-    run, reality = world
+def test_group_drift(posix_world):
+    run, reality = posix_world
     ctx = run.ctx
     from cs_image_system.engine.read_models import identity_read_model
     ctx.meta_state.write_identity_read_model(identity_read_model(ctx))
     _all_seen(ctx)
     model = ctx.meta_state.identity_read_model()["groups"]
-    # managed groups only: a lookup-only group (the fixture's `readers`)
-    # never drifts, whatever the provider says
-    names = sorted(n for n, rec in model.items() if rec["managed"] and rec["identity_type"] == "okta")   # not posix
+    # managed groups only: an unmanaged group never drifts, whatever the provider says
+    names = sorted(n for n, rec in model.items() if rec["managed"] and rec["identity_type"] == "posix")
+    assert len(names) >= 5, names
     root_admins = {a for rec in model.values() if rec["is_root"] for a in rec["admins"]}
     reality["groups"] = {
         names[0]: {"present": False},
@@ -227,7 +251,7 @@ def test_import_adopts_foreign_images_and_storages(world):
                     f"storage {storage} -> active (imported)"]
     rec = ctx.meta_state.build("ami-hand")
     assert rec and rec["imported"] and rec["parent"] == "ami-base" and rec["run"] == "by-hand"
-    assert rec["capabilities"] == {"identity_types": ["okta"], "storage_types": ["ebs"]}
+    assert rec["capabilities"] == {"identity_types": ["posix"], "storage_types": ["ebs"]}
     hist = ctx.meta_state.storage_states()[storage]["history"]
     assert hist[-1]["action"] == "import" and hist[-1]["from"] is None
     # meta-state and reality now agree; a second import is a no-op

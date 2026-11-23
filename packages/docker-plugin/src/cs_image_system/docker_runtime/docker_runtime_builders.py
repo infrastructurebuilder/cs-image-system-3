@@ -516,7 +516,8 @@ class DockerContainerBuilder(ContainerBuilderBase[DockerContainerBuilderModel], 
 
     def query_instance_identity(self, instance_name: str) -> dict[str, str] | None:
         """The container id (a re-create is a new id, so a new generation, as
-        the ledger expects) and the hostname the container was given."""
+        the ledger expects), the hostname the container was given, and its
+        address on its network ("" when it has none, e.g. stopped)."""
         try:
             info = self._container(instance_name)
         except Exception as e:  # noqa: BLE001 - read-only probe
@@ -525,7 +526,11 @@ class DockerContainerBuilder(ContainerBuilderBase[DockerContainerBuilderModel], 
         if info is None:
             return None
         host = str((info.get("Config") or {}).get("Hostname") or "")
-        return {"instance_id": str(info.get("Id") or ""), "provider_hostname": host}
+        net = info.get("NetworkSettings") or {}
+        address = str(net.get("IPAddress") or next(
+            (str(n.get("IPAddress")) for n in (net.get("Networks") or {}).values()
+             if isinstance(n, dict) and n.get("IPAddress")), ""))
+        return {"instance_id": str(info.get("Id") or ""), "provider_hostname": host, "address": address}
 
     def can_query_instance_power_state(self) -> bool:
         return True

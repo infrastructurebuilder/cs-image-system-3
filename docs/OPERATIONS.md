@@ -59,6 +59,7 @@ Two trees matter everywhere below:
   - [Storages](#storages)
   - [`--commit`](#--commit)
   - [Meta-state (`<config root>/meta-state/`)](#meta-state-config-rootmeta-state)
+  - [Ids are recorded once](#ids-are-recorded-once)
   - [Where state lives](#where-state-lives)
   - [Run outputs and exit codes](#run-outputs-and-exit-codes)
   - [The state query](#the-state-query)
@@ -589,8 +590,9 @@ An instance is CREATED running -- that is what applying the IaC means --
 and after that the system never forces it back to running. If you switch a
 machine off, nothing here switches it on again behind your back, and
 nothing calls it drifted for being off. Its pinned build, its mounts and
-its OPA registration are all still true; they simply cannot be re-read
-while it is off, and the state report says so in those words:
+its registration in its group's server registry are all still true; they
+simply cannot be re-read while it is off, and the state report says so in
+those words:
 
     note: instances/coops-model: STOPPED (switched off; not drift); its
     pinned build ami-078... mounts and registration all still stand and
@@ -652,41 +654,84 @@ again, as above.
 ### A canonical hostname is claimed once
 
 The name an instance is given at boot (`hostnamectl set-hostname`) is the
-name it enrolls in OPA under, and `sft ssh <name>` resolves against that
-registry. These rules keep one name meaning one machine:
+name it is registered under in its group's **server registry**: one entry
+per machine, saying which machine answers to which names. Which registry
+that is depends on the identity that owns the instance's image:
+
+- **An Okta group's machine** enrolls in OPA under that name (its sftd
+  agent does it at boot), and `sft ssh <name>` resolves against OPA's
+  registry. OPA keeps the registry; the system reads it and retires
+  entries from it through the OPA API.
+- **A POSIX group's machine** has no outside service that knows it, so
+  the POSIX group builder keeps its registry in the configuration's own
+  records, `meta-state/servers.yaml`, one entry per machine (`id`,
+  `hostname`, `address`, `canonical_name`, `alt_names`, `instance_id`,
+  `instance`, `registered_run`). An applying run registers each launched
+  machine of a POSIX group there, from the runtime's own report of the
+  machine (its provider id and address), under the hostname it booted
+  with. A machine launched before this registry existed is registered by
+  the first applying run that finds it launched, with no relaunch; a
+  launch that never came up (the runtime reports no machine) registers
+  nothing. The log says each registration
+  (`Instance <n>: registered as '<h>' (<id>) in group '<g>''s
+  registry`), and the record is committed with the rest of meta-state
+  ([Ids are recorded once](#ids-are-recorded-once) describes it beside
+  the id record).
+
+The rules below are the core's, asked through the same registry questions
+of either builder, so they hold for a POSIX group exactly as for an Okta
+one. They keep one name meaning one machine:
 
 **The registration goes with the machine.** A decommission drops the
-instance's pin and launch parameters and retires its OPA server
-registration too -- the third record of the same launch, and the one
-that would otherwise outlive the machine and leave several entries
-answering to one name, only one of them live
+instance's pin and launch parameters and retires its registration too --
+the third record of the same launch, and the one that would otherwise
+outlive the machine and leave several entries answering to one name, only
+one of them live
 ([INCIDENTS.md](INCIDENTS.md#three-registrations-of-one-hostname-in-opa-one-live)).
-A retirement that fails
-is an ERROR naming the hostname, never a silent skip: the forget still
-happens, but the log says a stale server will answer to that name until it
-is deregistered by hand.
+A replacement retires the old machine's registration when the new machine
+launches, and an ephemeral instance's teardown retires its registration as
+a decommission does (for an Okta group too: a torn-down ephemeral
+machine's OPA entry is retired). The log says how many went:
+`Instance <n>: retired <k> registration(s) of '<h>' in group '<g>' (<ids>)`,
+naming each entry retired. A retirement that fails is an ERROR naming the hostname, never a silent
+skip: the forget still happens, but the log says the registration was NOT
+retired and what to do about it:
+
+```text
+Instance <n>: its registration as '<h>' was NOT retired (<error>); a stale registration will answer to that name until you <remedy>
+```
+
+The remedy is `deregister it by hand` for OPA's registry (the path is at
+the end of this section) and `remove its entry from
+meta-state/servers.yaml (group '<g>') by hand` for a registry kept in the
+records: delete that machine's entry from the group's list and commit the
+file. The ids of the machine's users and groups are not touched by any of
+this; they stay recorded ([Ids are recorded once](#ids-are-recorded-once)).
 
 **A run that can launch refuses a claimed name.** Before the instance-image
 lifecycle applies, every declared instance's hostname is checked against
 its group's registry. An unlaunched instance whose name is already
 registered is refused, naming the record; a launched one with more than one
-registration is refused too, because `sft ssh` cannot choose between them.
-The check runs ONLY when a launch is actually possible -- the lifecycle
-requested, `apply_instances` on, and not a dry run -- so a dry run never
-makes the call and cannot refuse on the registry's silence
+registration is refused too, because a login by name cannot choose between
+them. The check runs ONLY when a launch is actually possible -- the
+lifecycle requested, `apply_instances` on, and not a dry run -- so a dry
+run never asks the registry (not OPA, and not the recorded one either) and
+cannot refuse on its silence
 ([INCIDENTS.md](INCIDENTS.md#a-dry-run-asked-the-hostname-registry)).
-And an unreachable registry is a refusal saying the claim *could not be
-checked*: silence is not a free name (the same rule the power-state query
-follows), and an unreachable OPA is exactly when a duplicate would
-otherwise slip through.
+And a registry that cannot be asked is a refusal saying the claim *could
+not be checked*: silence is not a free name (the same rule the power-state
+query follows). For OPA that is an unreachable service, which is exactly
+when a duplicate would otherwise slip through; for a recorded registry it
+is a `meta-state/servers.yaml` that cannot be read, which is refused the
+same way rather than read as empty.
 
 **A name the machine cannot take is refused at validate.** RFC 1123 caps a
 hostname label at 63 characters of letters, digits and hyphens, not
 starting or ending with one; Okta documents no limit of its own. Without
 the check the failure is silent -- the boot line ends in `|| true`, so an
 invalid name would leave the machine under the hyperscaler's name
-(`ip-10-26-34-156`), enrolled in OPA as that, and `sft ssh` would find
-nothing while every step reported success
+(`ip-10-26-34-156`); an Okta group's machine would enroll in OPA as that,
+and `sft ssh` would find nothing while every step reported success
 ([INCIDENTS.md](INCIDENTS.md#an-invalid-hostname-failed-silently-at-boot)).
 
 **The canonical name carries the generation**: a new
@@ -707,74 +752,114 @@ launched by an older tree, before the suffix existed -- `coops-model`,
 adopted as generation 1, stays `coops-model` until its first sanctioned
 replacement, and then becomes `coops-model-002`.
 
-The bare declared name comes back as an `AltNames` alias on the new
-machine, so `sft ssh coops-model` keeps working; it resolves to the machine
-that stands once the previous generation's registration is retired, and the
-suffixed canonical name works regardless. The state report notes a machine
-whose registered name is not the one its generation booted with -- the
-silent `hostnamectl ... || true` failure, made visible.
+The bare declared name comes back as an alias of the new machine (next
+section): on an Okta group's machine an `AltNames` entry, so `sft ssh
+coops-model` keeps working; on a POSIX group's machine a name in its
+registry entry's `alt_names`. It points at the machine that stands once
+the previous generation's registration is retired, and the suffixed
+canonical name works regardless. The state report notes a machine whose
+registered name is not the one its generation booted with -- the silent
+`hostnamectl ... || true` failure, made visible.
 
-To deregister by hand, servers live under the RESOURCE GROUP:
+To deregister by hand from OPA's registry, servers live under the
+RESOURCE GROUP:
 `/v1/teams/<team>/resource_groups/<rg>/projects/<project>/servers/<id>`
 (`DELETE` answers 204). The team-level `/projects/...` path answers
 `401 Missing capability`, and the printed name `coops_rg_login` is not the
-project id.
+project id. To retire an entry by hand from a registry kept in the
+records, edit `meta-state/servers.yaml`: under `servers`, the group
+builder's name, then the group's name, delete the list item whose
+`hostname` is the stale name, and commit the file. Nothing else reads a
+copy of it, so the next run sees the name as free.
 
 ### What a machine answers to
 
-`sft ssh` resolves a name against the OPA registry in a fixed order: the
-server id or canonical name, then the **cloud instance id**, then the
-hostname, then `AltNames`, then the address. Two of those come for free --
-sftd reads the instance id from IMDS at enrollment, so `sft ssh
-i-0169f82844f4cc08d` and `sft ssh 10.26.34.156` both reach `coops-model`
-with nothing configured. The one name that does
-NOT resolve is the provider's own hostname, `ip-10-26-34-156`, because the
-launch script overwrites it with the declared name before sftd enrolls.
+A machine answers to the names its registry entry carries: its hostname
+(the canonical name it booted with) and its aliases. How a person reaches
+it by one of those names depends on the identity, as the registry does
+([A canonical hostname is claimed once](#a-canonical-hostname-is-claimed-once)).
 
-**The system gives that name back after launch**: an
-applies-on instance-image run finds each launched, RUNNING instance's
-provider hostname from the cloud, checks the label against every name the
-group's registry already answers to (hostnames, canonical names, alt names)
-and every name the configuration declares, and writes it as an `AltNames`
-entry in `/etc/sft/sftd.yaml` over the runtime's session command, restarting
-sftd only when the block actually changed. The log says which alias went
-on, or why it did not:
+**An Okta group's machine.** `sft ssh` resolves a name against the OPA
+registry in a fixed order: the server id or canonical name, then the
+**cloud instance id**, then the hostname, then `AltNames`, then the
+address. Two of those come for free -- sftd reads the instance id from
+IMDS at enrollment, so `sft ssh i-0169f82844f4cc08d` and `sft ssh
+10.26.34.156` both reach `coops-model` with nothing configured. The one
+name that does NOT resolve is the provider's own hostname,
+`ip-10-26-34-156`, because the launch script overwrites it with the
+declared name before sftd enrolls.
 
-    Instance coops-model: now also answers to ['ip-10-26-34-156'] (sftd restarted)
-    Instance coops-model: alias 'ip-10-26-34-156' SKIPPED -- already claimed by 772d4058…
+**A POSIX group's machine.** Nothing on it resolves names: a person logs
+in with ssh through the runtime's session tunnel, by instance id
+([DAILY_DRIVER.md, section 3.1](DAILY_DRIVER.md#31-a-group-and-its-access)).
+Its registry entry in
+`meta-state/servers.yaml` is still where its names are claimed, so the
+same rules keep two machines from taking one name, and the entry records
+the names the machine answers to, for a person and for the state query.
 
-A collision is always skipped, because OPA ranks a record's hostname above
-another record's alt names: a colliding alias would resolve to a dead
-machine, or make the name ambiguous and refuse -- worse for both than no
-alias. A machine that is off is left off (an alias is not worth starting one
-for); the alias goes on at the next run that finds it running. A registry
-that could not be asked skips every alias that run: silence is not a free
-name.
+**The system gives the lost names back after launch**: an applies-on
+instance-image run finds each launched instance's provider hostname from
+the runtime (with the bare declared name and the pool alias, the names a
+generation suffix or the boot script took away), checks each label against
+every name the group's registry already answers to (hostnames, canonical
+names, alt names) and every name the configuration declares, and gives the
+free ones to the machine. The two kinds of registry differ only in where
+the names are written:
+
+- **OPA's registry**: as an `AltNames` entry in `/etc/sft/sftd.yaml` on
+  the machine, over the runtime's session command, restarting sftd only
+  when the block actually changed. That needs the machine RUNNING.
+- **A registry kept in the records**: into the machine's entry, as its
+  `alt_names`. Nothing runs on the machine, so its power state is not
+  asked and a machine launched this run is not waited for: the run
+  registers it first, then records its aliases.
+
+The log says which alias went on, or why it did not:
+
+```text
+Instance coops-model: now also answers to ['ip-10-26-34-156'] (the identity agent restarted)
+Instance pxbox: now also answers to ['ip-10-26-34-157', 'pxbox'] (recorded in group 'pxgroup''s registry)
+Instance coops-model: alias 'ip-10-26-34-156' SKIPPED -- already claimed by 772d4058… (the registry would resolve it to that record, or refuse as ambiguous)
+```
+
+A collision is always skipped, for either registry, because a registry
+ranks a record's hostname above another record's alt names: a colliding
+alias would resolve to a dead machine, or make the name ambiguous and
+refuse -- worse for both than no alias. An Okta group's machine that is
+off is left off (an alias is not worth starting one for); the alias goes
+on at the next run that finds it running. A registry that could not be
+asked (OPA silent, or `meta-state/servers.yaml` unreadable) skips every
+alias that run: silence is not a free name.
 
 A machine the registry does not list is passed over the same way. The
-system finds a machine's own record by the cloud instance id sftd
-enrolled with; that record is what the names are judged beside (the
-aliases it already carries are kept, every other record's names are
-claims). A running machine with no such record has not enrolled -- its
-first boot did not finish, or it enrolled somewhere else -- so nothing
-is written, and the log says so in one INFO line:
+system finds a machine's own record by its cloud instance id (the one
+sftd enrolled with, or the one the run registered it under); that record
+is what the names are judged beside (the aliases it already carries are
+kept, every other record's names are claims). A running machine with no
+such record is not registered -- on OPA, its first boot did not finish,
+or it enrolled somewhere else; in the records, its registration did not
+happen (the log said why) -- so nothing is written, and the log says so
+in one INFO line:
 
-    Instance coops-model: not listed in its group's server registry (group 'coops'; it has not enrolled); its provider alias waits for a run that finds it listed
+```text
+Instance coops-model: not listed in its group's server registry (group 'coops'; it has not enrolled); its provider alias waits for a run that finds it listed
+```
 
 The aliases go on at the next applies-on run that finds the record.
 `state query` shows whether it is there: the machine's
-`reality.instances` entry has no `registered_as` until it is. A machine
-launched by THIS run is different: the run waits for it, bounded (five
-minutes for the machine to answer, five more for its record to appear),
-because sftd enrolls a minute or more after boot; when the wait runs out
-the log says `not enrolled within 300s of its launch; no alias this run`
-at WARNING.
+`reality.instances` entry has no `registered_as` until it is. An Okta
+group's machine launched by THIS run is different: the run waits for it,
+bounded (five minutes for the machine to answer, five more for its record
+to appear), because sftd enrolls a minute or more after boot; when the
+wait runs out the log says `not enrolled within 300s of its launch; no
+alias this run` at WARNING.
 
 The state report shows what each machine answers to under `reality.instances`
 (`instance_id`, `provider_hostname`, `registered_as`, `alt_names`) and notes
 a running machine whose alias is not yet there. Nothing about aliases is
 written to the launch parameters -- they are discovered after boot, and the
-registry entry is the record.
+registry entry is the record: OPA's, or the machine's entry in
+`meta-state/servers.yaml`.
 
 **When `sft ssh` fails, `sft resolve` first.** A name that resolves with an
 old `LastSeen` is a machine that is switched off, and `sft` reports that no
@@ -908,7 +993,10 @@ of a group whose builder names the workload objects it checks, in order:
 the machine is RUNNING (a stopped one is skipped and never started,
 because the power state is the operator's); exactly one server answers
 to the canonical hostname in the group's registry (a second one would
-make `sft ssh` reach an arbitrary machine); the client resolves the
+make `sft ssh` reach an arbitrary machine, and a registry that cannot be
+asked is not one server: both are refused before any login is tried --
+the core's check, made for every group whose builder keeps a registry, a
+POSIX group's included); the client resolves the
 name; `id` runs over `sft ssh`. Each verdict, with the Unix account the
 login landed in, goes to `meta-state/login-proofs.yaml`. With `OPA_TOKEN` in the environment the
 login is the workload's (`cs-image-system workload token` mints it from
@@ -1094,10 +1182,13 @@ IN PLACE with what took it and when:
 The name is therefore spent exactly once, permanently, and the file is
 both the supply and the ledger: `git log -p meta-state/aliases.txt` is
 the history of who was called what. The name reaches the machine through
-the alias pass ("What a machine answers to"): it becomes an `AltNames`
-entry beside the bare declared name and the `ip-…` label, so `sft ssh
-bright-otter` reaches that machine and no other, and the state report
-lists it among what the machine answers to.
+the alias pass ([What a machine answers to](#what-a-machine-answers-to)):
+it becomes an alias beside the bare declared name and the `ip-…` label --
+on an Okta group's machine an `AltNames` entry, so `sft ssh bright-otter`
+reaches that machine and no other; on a POSIX group's machine a name in
+its registry entry's `alt_names`, claimed against every other machine of
+the group -- and the state report lists it among what the machine answers
+to.
 
 **The division of bytes.** The directory's README says nothing here is
 edited by hand, and this file is the one exception, stated as a division
@@ -1151,7 +1242,9 @@ mounts against the declared data disks; on AWS: over SSM, reading
 `/var/lib/csis/launch-applied`, the mounts under `/mnt` and the AMI) → a
 second plan with `-var=ephemeral_present=false` → gate → apply-check →
 apply. The verdict is recorded in `meta-state/verifications.yaml`; after a
-real run the launch record and pin are forgotten. A failed verification
+real run the launch record and pin are forgotten and the machine's
+registration is retired, as a decommission's is ([A canonical hostname is
+claimed once](#a-canonical-hostname-is-claimed-once)). A failed verification
 stops the runner with the instance STANDING for inspection and the run
 fails; the state query reports it until it is decommissioned.
 
@@ -1438,6 +1531,7 @@ lazy and cached; writes are atomic per file.
 | File | Holds | Written by |
 | --- | --- | --- |
 | `identity.yaml` | the identity read-model: `run`; `groups` (per group: `builder`, `identity_type`, `gid_policy`, `managed`, `is_root`, `members`, `admins`, and under `workload` the outcome of the CI login policy's reconcile); `users`; `user_builders`. Structural facts only: gids travel by terraform reference | identity lifecycle; the workload reconcile after a real identity apply |
+| `ids.yaml` | every user's and group's one id: `ids` (per kind, `group` and `user`, per name: `id`, `identity`, `external`, `how` -- `declared`, `pooled` or `read` -- and `recorded_run`; a user's private group is recorded on the user), `defers` (the POSIX names that take an external namesake's id, and whose), `pools` (per identity: `min`, `max`, `how`) and `retired` (per kind, the names no longer declared, with the id each keeps). A recorded id never changes; see [Ids are recorded once](#ids-are-recorded-once) | an applying run and a dry run with `--commit` (`just record`), after validation; a plain dry run, `validate` and `config-drift` only read it |
 | `storage.yaml` | the storage read-model: per storage `builder`, `type`, `plugin`, `attachment_cardinality`, `allowed_groups`, `public_read`, `share_mode`, `posix`, `requested_state` vs `current_state`, `generation`, `attachments`, declared `lifecycle` | storage lifecycle, and after a real storage apply |
 | `storage-state.yaml` | the authoritative storage state machine: per storage `state`, `generation`, `facts` and a transition `history` (`from`, `to`, `run`, `generation`, `action`); a destroyed-to-active transition increments the generation | after a real storage apply |
 | `lineage.yaml` | every built artifact: `build_id`, `series`, `runtime`, `name`, `parent`, `input_fingerprint` (and `fingerprint_restamped` after a restamp), `run`, stamped `capabilities`, `mods` (name, type, operation, idempotent, content hash, run), `local_mods`, `tests` (`in_bake`, `assertions`), `update`, `chain`; an adopted build carries `imported: true`; a disposal removes the record | after packer builds (manifests); `state import`; `lineage restamp`; `dispose image` |
@@ -1446,6 +1540,7 @@ lazy and cached; writes are atomic per file.
 | `runs.yaml` | the run journal (bounded to the last 200 runs; git history is the full record): `run`, `requested`, `dry_run`, `ok`, per-lifecycle `apply` status, `error` | every run |
 | `verifications.yaml` | instance verification verdicts, ephemeral and durable (last 500) | `verify instance` |
 | `instance-state.yaml` | per name, the durable and ephemeral `generation` counters, `current` (the open generation: `number`, `kind`, `how` -- `observed`, `inferred` or `adopted` -- `opened_run`, `opened_at`, `instance_id`, `provider_hostname`, a `launch_params` snapshot) and an append-only `history` -- closed generations (with `why`, `closed_run`, `closed_at`) and `resized` events (`event: resized`, `from`, `to`, `run`, `at`, on the generation they happened to) in ONE list, in order; nothing is ever deleted from it | `mark_launched` after a real instance apply, the after-apply observation, decommission and the forgets |
+| `servers.yaml` | the server registries kept in the records (today the POSIX group builder's): `servers`, per group builder, per group, one entry per machine -- `id`, `hostname`, `address`, `canonical_name`, `alt_names`, `instance_id`, `instance`, `registered_run`. An Okta group's registry is OPA's and is not here; see [A canonical hostname is claimed once](#a-canonical-hostname-is-claimed-once) | an applying instance-image run: the registration of each launched machine, then its aliases; the retirements of a decommission, a replacement and an ephemeral teardown. A dry run never writes it; the state query and `verify login` read it |
 | `login-proofs.yaml` | every login proof (last 500): `instance`, `runtime`, `hostname`, `group`, `run`, `as` (client or workload), `time`, `ok`, `skipped`, `checks`, `evidence` | `verify login`, `just ci-login-proof`, the CI job |
 | `runtime-facts.yaml` | per runtime (`runtimes.<name>`) what its account answered the networking declaration with: `network` (the VPC id or network name a `default` resolved to), `subnets` and, on AWS, `security_groups` (the declared ids that were checked -- never the account's inventory), `checked_at`. Every load adopts it offline: a `default` network becomes the recorded one, and a declaration the record does not cover (nothing recorded, a subnet or security group never checked, a network that changed since) is a validation error naming `validate --online` | `validate --online` and every real run, before validation; a dry run, `validate`, `config-drift` and `state query` only read it |
 | `aliases.txt` | not a record but a pool of memorable names, one free name per line: a person appends lines, a launch that can run comments the first free one out as `# <name>  -- instance <i> as <hostname> <time> run <run>`; absent means no aliases and no error | the run that launches a new durable machine |
@@ -1459,6 +1554,127 @@ Files under `generated/` are not meta-state: `run-summary.json`,
 `release/releases.yaml` (a read-model of the current releases) and the
 runner scripts. The unmount receipts live in the root's workspace, not in
 `meta-state/`.
+
+### Ids are recorded once
+
+Every user and group a configuration declares has exactly one numeric
+id, a uid or a gid, and that id is the same on every machine and never
+changes once it is recorded. This section is the rule an operator meets;
+the fields that shape it are the POSIX builders' `id_pool`
+([CONFIGURATION.md, 9.2](CONFIGURATION.md#92-group-builders) and
+[9.3](CONFIGURATION.md#93-user-builders)).
+
+**Why an id never moves.** Storage is owned by number, not by name. A
+group's `2770` subtree on a shared volume, a user's files in a home or on
+a mount: the filesystem stores the uid and gid, and every machine maps
+the number back to a name through its own accounts. If a name's id
+changed, every file it already owns would belong to whatever account
+holds the old number on each machine -- another person, another group or
+nobody -- on every machine and every volume that holds them, and no run
+could find and fix them all. Two names on one id are the same failure
+from the other side: on the machine they are one account. So once an id
+is in use, every machine must agree on it for good, and the system keeps
+the agreement in a record rather than recomputing it from the tree each
+run.
+
+**The two records.** Both live in the configuration's `meta-state/`,
+are committed like every other record, and pass the public-safe scan
+(they hold ids, names, hostnames and addresses, nothing secret):
+
+| Record | Holds | Written by |
+| --- | --- | --- |
+| `meta-state/ids.yaml` | every user's and group's id, with the identity it belongs to and how it was made concrete (`declared`, `pooled`, `read` from an external identity, or `restored`: a retired name taken back); the POSIX names that take an external namesake's id (`defers`); every identity's pool; and the names no longer declared, with the ids they keep (`retired`) | the core, after validation, in an applying run and in a dry run with `--commit` (`just record`) |
+| `meta-state/servers.yaml` | the server registry the POSIX group builder keeps: per group, one entry per machine launched for it | the core, after an applying instance-image run: the registration, the aliases and the retirements ([A canonical hostname is claimed once](#a-canonical-hostname-is-claimed-once)) |
+
+The rest of this section is about `ids.yaml`. Its columns are in
+[the meta-state table](#meta-state-config-rootmeta-state).
+
+**When ids are recorded.** An applying run records the ids, and so does a
+dry run with `--commit`, which is what `just record` is: the operator's
+deliberate record of the tree. A plain dry run (`just dry`,
+`config-drift`) records nothing; it resolves every id the same way and
+shows the ones it would give, one line each in the log:
+
+```text
+ids: group pxgroup takes id 3000 from posix-local's pool (recorded by an applying run or `--commit`)
+```
+
+The same line without the parenthesis is a recording run's. `validate`
+resolves and checks the ids the same way and records nothing either.
+Validation and dry runs read ids and pools from the records and the
+configuration only, never from a network. A tree in use before the record existed has
+ids in use but none recorded; its first recording run records every id as
+it stands, changing none.
+
+**How a name's id is decided**, in this order:
+
+1. **A recorded id stands.** A later declaration of another id for that
+   name is refused (`recorded with id <a>, and ... declares <b>; a
+   recorded id does not change`), and so is an external identity that
+   later reports another one. Neither a reordering of the tree, a new
+   name, a pool change nor a provider's later report moves it.
+2. **An external identity's id is that identity's.** An external
+   identity is one whose ids come from a service outside the system
+   (Okta's, once its plugin reports the ids it holds: the Okta
+   repository's specification 002; no shipped plugin reports any yet);
+   its ids are read by an applying run or the
+   record step and recorded, and until then a name it holds is an id to
+   come, held against the pools and checked when it is read. The POSIX
+   identity is the final fallback: a POSIX user or group whose name an
+   external identity holds takes that identity's id -- it is the same
+   account on the machine, not a collision, and nothing is drawn from the
+   POSIX pool -- and a POSIX declaration of a different id is refused,
+   saying which id it must be. Nothing else defers: two external
+   identities that disagree (one name with two ids, or one id with two
+   names) are a configuration error naming both.
+3. **A declared id** (`gid:` on a group, `uid:` on a user) is taken as
+   declared, provided it is at least 1024 (below that are the system's
+   own accounts), no other name of its kind holds, declares or once held
+   it, and it does not lie inside another identity's pool.
+4. **Otherwise the id is drawn from the builder's pool**: the lowest id
+   of its `id_pool` (default `3000` to `59999`) that no name holds,
+   declares or once held, across every identity and both kinds, so a user
+   and its private group draw one id between them. A pool with no free
+   id left is refused, naming the pool and its bounds.
+
+**A removed name keeps its id.** A user or group taken out of the tree
+moves, at the next recording run, to `retired` with its id. That id is
+never given to another name, because storage may still be owned by it; a
+declaration that takes it is refused (`id <n> is recorded for <name>,
+which no builder declares now; an id once held is never another name's`).
+The one reuse is a restore: the same name, declared again, takes its id
+back. A decommissioned machine changes nothing here: the ids of its users
+and groups stay recorded.
+
+**The pools.** Every identity that gives ids has one pool: the POSIX
+builders' `id_pool`, and an external identity's as its service notes it
+(read and recorded under `pools`, like its ids). The POSIX builders count
+as one identity, so they may share a pool, and one pass draws for all of
+them. The pools are kept
+apart so that two identities can never draw the same id:
+
+- two identities' pools never overlap;
+- a pool is never moved over an id another identity has recorded;
+- a declared id not yet recorded never lies inside another identity's
+  pool (unless it is the POSIX fallback's id of rule 2).
+
+A recorded id is never refused for where it lies: a pool narrowed so
+that an id it once gave now lies outside it keeps the id, and `validate`
+says so as a note, not an error.
+
+**What validation refuses, and what it only notes.** Each refusal names
+what disagrees -- the id, the names and the identities, or the two pools
+-- and, where there is a choice, what can change; nothing is emitted
+until it is fixed.
+
+| `validate` refuses | `validate` notes and goes on |
+| --- | --- |
+| one name with two ids (two declarations, or a declaration and a recorded or external id); two names of one kind on one id, a user's private group among them; a recorded id declared differently; a retired id taken by another name; a POSIX declaration that differs from its external namesake's id; a POSIX name recorded with one id that an external identity later holds with another (one of the names must change); two external identities that disagree; an id below 1024; two pools that overlap; a pool over another identity's recorded id; a declared id inside another identity's pool; a pool with no free id left | a recorded id that lies outside its own identity's pool: `note: <kind> <name>: its recorded id <n> lies outside <pool>; kept, since a recorded id never moves` |
+
+The machine applies the same rule on the spot: the accounts script adopts
+an account or group that already stands with its id and stops, naming
+both ids, on one that stands with another (the POSIX identity plugin's
+[README](../packages/posix-identity-plugin/README.md) has its messages).
 
 ### Where state lives
 
@@ -3854,11 +4070,15 @@ exception is a decision to record, not a bypass.
   system's and is rewritten from the user policy on every identity apply;
   edit the module's rule, never the copy. The workload connection and role
   it names are the operator's and are never written by the system.
-- **POSIX groups and accounts.** A posix group's `gid:` and a
-  posix user's `uid:` are the configuration's and the same on every
-  machine (storage is owned by number); `validate` refuses one name with
-  two ids, two names with one id, an id below 1024, and a posix group's
-  member with no posix account.
+- **POSIX groups and accounts.** Every user's and group's id is one
+  recorded id, the same on every machine and never moved once recorded
+  (storage is owned by number): a posix group's `gid:` or a posix user's
+  `uid:` when declared, an external namesake's id when an external
+  identity holds the name, else one drawn from the builder's `id_pool`
+  ([Ids are recorded once](#ids-are-recorded-once)). `validate` refuses
+  one name with two ids, two names with one id, an id below 1024, an id
+  once held taken by another name, overlapping pools, and a posix
+  group's member with no posix account.
 - The accounts script never deletes an account or a group. It adopts
   what stands equal, stops (exit 3, both ids named) on what stands
   different, and rewrites only what it owns: a managed group's member

@@ -10,7 +10,9 @@ overwrites it. These tests hold the rules for giving it back: only after
 launch, only to a running machine, never on a collision, never on silence,
 and idempotently -- the same names twice touch nothing.
 
-Providers are faked at the runtime and group-builder hook seams.
+The hook cases run over a POSIX-owned instance, whose server registry is
+kept in the configuration's records: the registry is seeded by writing
+that record, and the runtime is faked at its hook seams.
 """
 from __future__ import annotations
 
@@ -25,6 +27,7 @@ from cs_image_system.contract.lifecycles import Lifecycle
 from cs_image_system.engine import provider_aliases as pa
 from cs_image_system.engine import state_query as sq
 from tests.harness import FixtureRun
+from tests.posix_world import GROUP, IDENTITY, MACHINE, entry, launched, posix_world, seed_servers
 
 EC2 = {"instance_id": "i-0169f82844f4cc08d",
        "provider_hostname": "ip-10-26-34-156.us-east-2.compute.internal"}
@@ -90,217 +93,246 @@ def test_the_script_rewrites_the_last_block_and_restarts_only_on_change():
 
 
 # ------------------------------------------------------------- the hook
+#
+# Over a fixture copy whose instance `test` is POSIX-owned: its group's
+# server registry is kept in the configuration's records
+# (`meta-state/servers.yaml`), so the alias pass writes the aliases into
+# the machine's registry entry and runs nothing on the machine. The
+# registry is seeded by writing that record; the runtime's report of the
+# machine, its power state and its session command are answered in-process.
+
+#: the provider-hostname label of `test`'s machine (``MACHINE``)
+IP = "ip-10-0-0-5"
+#: `test`'s own entry, under the name it booted with (no generation suffix,
+#: so the alias to give back is the provider-hostname label alone)
+OWN = entry(hostname="test", canonical_name="test", instance="test")
+
+
+class Seams:
+    """Every runtime's power state and session command for the run, answered
+    in-process: ``sessions`` records each machine a session command was
+    sent to, ``power_asked`` each machine whose power state was asked."""
+
+    def __init__(self, run: FixtureRun, monkeypatch, state: str = ps.RUNNING,
+                 answer: tuple[int, str | None] = (0, "ALIASES_CHANGED")):
+        self.state = state
+        self.sessions: list[str] = []
+        self.power_asked: list[str] = []
+        for rtb in {type(b) for b in run.ctx.runtime_builders.values()}:
+            monkeypatch.setattr(rtb, "can_query_instance_power_state", lambda s: True)
+            monkeypatch.setattr(rtb, "query_instance_power_state",
+                                lambda s, n: self.power_asked.append(n) or self.state)
+            monkeypatch.setattr(rtb, "run_session_command",
+                                lambda s, n, script, timeout=300: self.sessions.append(n) or answer)
+
 
 @pytest.fixture
 def world(tmp_path: Path, monkeypatch):
-    run = FixtureRun(tmp_path, monkeypatch)
+    """Make the POSIX world (``make(servers=..., state=..., answer=...)``
+    returns the run and its seams); every run's working directory is
+    restored afterwards."""
+    runs: list[FixtureRun] = []
+
+    def make(servers: Any = None, **seams: Any) -> tuple[FixtureRun, Seams]:
+        run, _asked = posix_world(tmp_path, monkeypatch, servers=servers)
+        runs.append(run)
+        return run, Seams(run, monkeypatch, **seams)
     try:
-        yield run
+        yield make
     finally:
-        run.restore_cwd()
+        for run in runs:
+            run.restore_cwd()
 
 
-class Fakes:
-    """Runtime + registry seams for one instance named `test`."""
-
-    def __init__(self, monkeypatch, *, identity=EC2, state=ps.RUNNING, servers=None):
-        from cs_image_system.aws_runtime.aws_runtime_builders import AwsCloudBuilder
-        from cs_image_system.okta_opa_plugin.okta_opa_tf_group_builder import OktaTfGroupBuilder
-        self.scripts: list[tuple[str, str]] = []
-        self.servers = servers
-        monkeypatch.setattr(AwsCloudBuilder, "can_query_instance_identity", lambda s: True)
-        monkeypatch.setattr(AwsCloudBuilder, "query_instance_identity",
-                            lambda s, n: dict(identity) if identity and n == "test" else None)
-        monkeypatch.setattr(AwsCloudBuilder, "can_query_instance_power_state", lambda s: True)
-        monkeypatch.setattr(AwsCloudBuilder, "query_instance_power_state", lambda s, n: state)
-        monkeypatch.setattr(AwsCloudBuilder, "run_session_command",
-                            lambda s, n, script, timeout=300: self.scripts.append((n, script)) or (0, "ALTNAMES_CHANGED"))
-        monkeypatch.setattr(OktaTfGroupBuilder, "can_query_servers", lambda s: True)
-        monkeypatch.setattr(OktaTfGroupBuilder, "registered_servers", lambda s, g: self.servers)
+def _launched(run: FixtureRun) -> None:
+    """`test` launched by an earlier run, under the name ``OWN`` carries."""
+    launched(run, hostname="test")
 
 
-def _launched(ctx, name="test") -> None:
-    ms = ctx.meta_state
-    rec: dict[str, Any] = dict(ms.launch_params().get(name) or {"hostname": name, "group": "coops"})
-    rec["launched"] = True
-    ms.record_launch_params(name, rec)
-    ctx.config["apply_instances"] = True
+def _aliases(run: FixtureRun, entry_id: str = "i-0abc") -> list[str]:
+    """The ``alt_names`` of the registry entry ``entry_id``."""
+    entries = run.ctx.meta_state.registered_servers(IDENTITY, GROUP) or []
+    return next(e for e in entries if e["id"] == entry_id)["alt_names"]
 
 
-OWN = {"id": "live", "hostname": "test", "instance_id": EC2["instance_id"], "alt_names": []}
+def _record(run: FixtureRun) -> str:
+    return (run.meta_state / "servers.yaml").read_text()
 
 
-def test_a_launched_running_instance_gets_its_ip_name_back(world, monkeypatch):
-    f = Fakes(monkeypatch, servers=[OWN])
-    _launched(world.ctx)
-    pa.register_provider_aliases(world.ctx, Lifecycle.INSTANCE_IMAGE)
-    assert [n for n, _ in f.scripts] == ["test"]
-    assert "  - ip-10-26-34-156" in f.scripts[0][1]
+def test_a_launched_running_instance_gets_its_ip_name_back(world):
+    run, f = world(servers=[OWN])
+    _launched(run)
+    pa.register_provider_aliases(run.ctx, Lifecycle.INSTANCE_IMAGE)
+    assert _aliases(run) == [IP]
+    assert f.sessions == []
 
 
-def test_nothing_happens_for_an_unlaunched_instance_or_without_applies(world, monkeypatch):
-    f = Fakes(monkeypatch, servers=[OWN])
-    world.ctx.config["apply_instances"] = True
-    pa.register_provider_aliases(world.ctx, Lifecycle.INSTANCE_IMAGE)   # not launched
-    assert f.scripts == []
-    _launched(world.ctx)
-    world.ctx.config["apply_instances"] = False
-    pa.register_provider_aliases(world.ctx, Lifecycle.INSTANCE_IMAGE)   # dry run
-    pa.register_provider_aliases(world.ctx, Lifecycle.BASE_IMAGE)       # wrong lifecycle
-    assert f.scripts == []
+def test_nothing_happens_for_an_unlaunched_instance_or_without_applies(world):
+    run, f = world(servers=[OWN])
+    before = _record(run)
+    pa.register_provider_aliases(run.ctx, Lifecycle.INSTANCE_IMAGE)   # not launched
+    assert _record(run) == before
+    _launched(run)
+    run.ctx.config["apply_instances"] = False
+    pa.register_provider_aliases(run.ctx, Lifecycle.INSTANCE_IMAGE)   # dry run
+    run.ctx.config["apply_instances"] = True
+    pa.register_provider_aliases(run.ctx, Lifecycle.BASE_IMAGE)       # wrong lifecycle
+    assert _record(run) == before and _aliases(run) == []
+    assert f.sessions == []
 
 
-def test_a_machine_that_is_off_is_left_off(world, monkeypatch, caplog):
-    """An alias is not worth starting a machine for."""
-    f = Fakes(monkeypatch, state=ps.STOPPED, servers=[OWN])
-    _launched(world.ctx)
-    with caplog.at_level("INFO"):
-        pa.register_provider_aliases(world.ctx, Lifecycle.INSTANCE_IMAGE)
-    assert f.scripts == []
-    assert any("finds it running" in r.message for r in caplog.records)
+def test_a_machine_that_is_off_is_left_off_and_its_aliases_recorded(world):
+    """An alias is not worth starting a machine for, and a registry kept in
+    the records needs no machine at all: its power state is not asked, and
+    the aliases go into its entry."""
+    run, f = world(servers=[OWN], state=ps.STOPPED)
+    _launched(run)
+    pa.register_provider_aliases(run.ctx, Lifecycle.INSTANCE_IMAGE)
+    assert f.power_asked == [] and f.sessions == []
+    assert _aliases(run) == [IP]
 
 
-def test_a_claimed_alias_is_skipped_and_the_claimant_named(world, monkeypatch, caplog):
-    stale = {"id": "stale", "hostname": "ip-10-26-34-156", "instance_id": "i-dead", "alt_names": []}
-    f = Fakes(monkeypatch, servers=[OWN, stale])
-    _launched(world.ctx)
+def test_a_claimed_alias_is_skipped_and_the_claimant_named(world, caplog):
+    stale = entry(id="stale", instance_id="i-dead", hostname=IP, canonical_name=IP, address="10.0.0.9",
+                  instance="elsewhere")
+    run, f = world(servers=[OWN, stale])
+    _launched(run)
     with caplog.at_level("WARNING"):
-        pa.register_provider_aliases(world.ctx, Lifecycle.INSTANCE_IMAGE)
-    assert f.scripts == [] or "  - ip-10-26-34-156" not in f.scripts[0][1]
+        pa.register_provider_aliases(run.ctx, Lifecycle.INSTANCE_IMAGE)
+    assert IP not in _aliases(run) and f.sessions == []
     assert any("SKIPPED" in r.message and "stale" in r.message for r in caplog.records)
 
 
 def test_a_declared_instance_name_is_a_claim_too(world, monkeypatch, caplog):
-    """If someone declares an instance literally named ip-10-26-34-156."""
-    f = Fakes(monkeypatch, servers=[OWN])
-    _launched(world.ctx)
+    """If someone declares an instance literally named after the provider label."""
+    run, f = world(servers=[OWN])
+    _launched(run)
     monkeypatch.setattr(pa, "canonical_hostname",
-                        lambda ctx, i: "ip-10-26-34-156" if i.get_name() == "test2" else i.get_name())
+                        lambda ctx, i: IP if i.get_name() == "test2" else i.get_name())
     with caplog.at_level("WARNING"):
-        pa.register_provider_aliases(world.ctx, Lifecycle.INSTANCE_IMAGE)
-    assert f.scripts == []
+        pa.register_provider_aliases(run.ctx, Lifecycle.INSTANCE_IMAGE)
+    assert _aliases(run) == [] and f.sessions == []
     assert any("claimed by declared" in r.message for r in caplog.records)
 
 
-def test_silence_skips_every_alias(world, monkeypatch, caplog):
-    f = Fakes(monkeypatch, servers=None)
-    _launched(world.ctx)
+def test_silence_skips_every_alias(world, caplog):
+    run, f = world(servers="servers: [unclosed\n")      # a record that cannot be read
+    _launched(run)
     with caplog.at_level("WARNING"):
-        pa.register_provider_aliases(world.ctx, Lifecycle.INSTANCE_IMAGE)
-    assert f.scripts == []
+        pa.register_provider_aliases(run.ctx, Lifecycle.INSTANCE_IMAGE)
+    assert f.sessions == []
     assert any("not a free name" in r.message for r in caplog.records)
 
 
 @pytest.mark.parametrize("servers", [
     [],                                                                               # an empty registry
-    [{"id": "other", "hostname": "elsewhere", "instance_id": "i-other", "alt_names": []}],   # others alone
+    [entry(id="other", instance_id="i-other", hostname="elsewhere", canonical_name="elsewhere",
+           instance="elsewhere")],                                                    # others alone
 ])
-def test_a_machine_its_registry_does_not_list_waits_and_is_said(world, monkeypatch, caplog, servers):
-    """A machine launched by an earlier run, running, whose group's
-    registry answers without a record carrying its provider id has not
-    enrolled: no session command, and one record of the module's logger
-    says so at the level a machine that is off is said at."""
-    f = Fakes(monkeypatch, servers=servers)
-    _launched(world.ctx)
+def test_a_machine_its_registry_does_not_list_waits_and_is_said(world, caplog, servers):
+    """A machine launched by an earlier run, whose group's registry answers
+    without an entry carrying its provider id, is not registered: nothing
+    is written, and one record of the module's logger says so at the level
+    a machine that is off is said at."""
+    run, f = world(servers=servers)
+    _launched(run)
+    before = _record(run)
     with caplog.at_level("INFO", logger=pa.log.name):
-        pa.register_provider_aliases(world.ctx, Lifecycle.INSTANCE_IMAGE)
-    assert f.scripts == []
+        pa.register_provider_aliases(run.ctx, Lifecycle.INSTANCE_IMAGE)
+    assert _record(run) == before and f.sessions == []
     said = [r for r in caplog.records if r.name == pa.log.name and pa.NOT_LISTED in r.getMessage()]
     assert [r.levelname for r in said] == ["INFO"]
 
 
 @pytest.mark.parametrize("rc, out", [(1, None), (0, None), (0, "")])
-def test_a_session_command_with_no_output_is_a_failed_write_never_a_raise(world, monkeypatch, caplog, rc, out):
-    """A runtime that answers the alias write with no output at all (None
-    or empty), whatever the exit status, takes the failure path: one ERROR
-    record of the module's logger, and nothing raised out of the
-    after-apply hook."""
-    from cs_image_system.aws_runtime.aws_runtime_builders import AwsCloudBuilder
-    Fakes(monkeypatch, servers=[OWN])
-    sent: list[str] = []
-    monkeypatch.setattr(AwsCloudBuilder, "run_session_command",
-                        lambda s, n, script, timeout=300: sent.append(n) or (rc, out))
-    _launched(world.ctx)
+def test_a_recorded_registry_sends_no_session_command_whatever_it_would_answer(world, caplog, rc, out):
+    """A runtime whose session command would answer with no output at all
+    (None or empty), whatever the exit status, is never asked: the aliases
+    go into the registry entry, and the module's logger says nothing at
+    WARNING or above."""
+    run, f = world(servers=[OWN], answer=(rc, out))
+    _launched(run)
     with caplog.at_level("INFO", logger=pa.log.name):
-        pa.register_provider_aliases(world.ctx, Lifecycle.INSTANCE_IMAGE)
-    assert sent == ["test"]
-    assert [r.levelname for r in caplog.records if r.name == pa.log.name and r.levelno >= logging.WARNING] == ["ERROR"]
+        pa.register_provider_aliases(run.ctx, Lifecycle.INSTANCE_IMAGE)
+    assert f.sessions == [] and _aliases(run) == [IP]
+    assert [r.levelname for r in caplog.records if r.name == pa.log.name and r.levelno >= logging.WARNING] == []
 
 
-def test_reality_that_already_agrees_sends_no_command(world, monkeypatch):
-    own = dict(OWN, alt_names=["ip-10-26-34-156"])
-    f = Fakes(monkeypatch, servers=[own])
-    _launched(world.ctx)
-    pa.register_provider_aliases(world.ctx, Lifecycle.INSTANCE_IMAGE)
-    assert f.scripts == []
+def test_reality_that_already_agrees_sends_no_command(world):
+    run, f = world(servers=[dict(OWN, alt_names=[IP])])
+    _launched(run)
+    before = _record(run)
+    pa.register_provider_aliases(run.ctx, Lifecycle.INSTANCE_IMAGE)
+    assert _record(run) == before and f.sessions == []
 
 
-def test_a_stale_record_bearing_our_own_name_does_not_block_our_alias(world, monkeypatch):
-    """A stale `test` record (the stage-55 shape) claims `test`, not the ip
-    name; our own record is told apart by instance id and the alias goes on."""
-    stale = {"id": "stale", "hostname": "test", "instance_id": "i-dead", "alt_names": []}
-    f = Fakes(monkeypatch, servers=[stale, OWN])
-    _launched(world.ctx)
-    pa.register_provider_aliases(world.ctx, Lifecycle.INSTANCE_IMAGE)
-    assert len(f.scripts) == 1 and "  - ip-10-26-34-156" in f.scripts[0][1]
+def test_a_stale_record_bearing_our_own_name_does_not_block_our_alias(world):
+    """A stale `test` entry (the stage-55 shape) claims `test`, not the ip
+    name; our own entry is told apart by instance id and the alias goes on."""
+    stale = entry(id="stale", instance_id="i-dead", hostname="test", canonical_name="test", address="10.0.0.9",
+                  instance="test")
+    run, f = world(servers=[stale, OWN])
+    _launched(run)
+    pa.register_provider_aliases(run.ctx, Lifecycle.INSTANCE_IMAGE)
+    assert _aliases(run) == [IP] and _aliases(run, "stale") == []
+    assert f.sessions == []
 
 
 # ------------------------------------------------------- the state query
 
-def test_the_report_says_what_a_machine_answers_to(world, monkeypatch):
-    Fakes(monkeypatch, servers=[OWN])
-    _launched(world.ctx)
-    report = sq.query_state(world.ctx)
+def test_the_report_says_what_a_machine_answers_to(world):
+    run, _f = world(servers=[OWN])
+    _launched(run)
+    report = sq.query_state(run.ctx)
     inst = report.reality["instances"]["test"]
-    assert inst["instance_id"] == EC2["instance_id"] and inst["registered_as"] == "test"
+    assert inst["instance_id"] == MACHINE["instance_id"] and inst["registered_as"] == "test"
     assert inst["alt_names"] == []
-    assert any("not yet to ['ip-10-26-34-156']" in n for n in report.notes)
+    assert any(f"not yet to [{IP!r}]" in n for n in report.notes)
 
 
-def test_the_report_is_quiet_once_the_alias_is_there_or_the_machine_is_off(world, monkeypatch):
-    Fakes(monkeypatch, servers=[dict(OWN, alt_names=["ip-10-26-34-156"])])
-    _launched(world.ctx)
-    report = sq.query_state(world.ctx)
+def test_the_report_is_quiet_once_the_alias_is_there_or_the_machine_is_off(world):
+    run, f = world(servers=[dict(OWN, alt_names=[IP])])
+    _launched(run)
+    report = sq.query_state(run.ctx)
     assert not any("not yet to" in n for n in report.notes)
-    Fakes(monkeypatch, state=ps.STOPPED, servers=[OWN])
-    report = sq.query_state(world.ctx)
+    seed_servers(run.config_root, [OWN])
+    f.state = ps.STOPPED
+    report = sq.query_state(run.ctx)
     assert not any("not yet to" in n for n in report.notes)
 
 
 # ------------------------------------------- a machine that booted this run
 
-def _fresh(ctx, name="test") -> None:
-    """Launched by THIS run: the alias pass must wait for the machine."""
-    _launched(ctx, name)
-    ms = ctx.meta_state
-    rec = dict(ms.launch_params()[name]); rec["launched_run"] = ctx.run_id
-    ms.record_launch_params(name, rec)
+def _fresh(run: FixtureRun) -> None:
+    """Launched by THIS run; a registry kept in the records is not waited on."""
+    launched(run, launched_run=str(run.ctx.run_id), hostname="test")
 
 
-def test_a_machine_launched_this_run_is_waited_for_before_its_aliases_are_written(world, monkeypatch):
-    """The first live replacement wrote nothing: the pass ran
-    within a minute of the apply, before the session agent and sftd's
-    enrollment. Now it waits for the machine to answer and for its
-    registration to appear, then writes once."""
-    listings = [[], [], [OWN]]
-    f = Fakes(monkeypatch, servers=None)
-    from cs_image_system.okta_opa_plugin.okta_opa_tf_group_builder import OktaTfGroupBuilder
-    monkeypatch.setattr(OktaTfGroupBuilder, "registered_servers", lambda s, g: listings.pop(0) if listings else [OWN])
-    monkeypatch.setattr(pa, "REGISTRATION_POLL_SECONDS", 0)
-    _fresh(world.ctx)
-    pa.register_provider_aliases(world.ctx, Lifecycle.INSTANCE_IMAGE)
-    probes = [s for _, s in f.scripts if s == "true"]            # the reachability wait
-    writes = [s for _, s in f.scripts if s != "true"]            # the alias block, once
-    assert probes and len(writes) == 1 and "  - ip-10-26-34-156" in writes[0]
-    assert listings == [], "polled until the record appeared"
+def _no_wait(monkeypatch) -> None:
+    def wait(*args: Any, **kwargs: Any) -> bool:
+        raise AssertionError("a registry kept in the records is not waited on")
+    monkeypatch.setattr(pa.power_state, "wait_until_reachable", wait)
 
 
-def test_a_machine_that_never_enrolls_gets_no_alias_this_run(world, monkeypatch, caplog):
-    f = Fakes(monkeypatch, servers=[])
-    monkeypatch.setattr(pa, "REGISTRATION_POLL_SECONDS", 0)
-    monkeypatch.setattr(pa, "REGISTRATION_WAIT_SECONDS", 0)
-    _fresh(world.ctx)
-    with caplog.at_level("WARNING"):
-        pa.register_provider_aliases(world.ctx, Lifecycle.INSTANCE_IMAGE)
-    assert not [s for _, s in f.scripts if s != "true"], "no alias block was written"
-    assert any("not enrolled" in r.message and "next applies-on run" in r.message for r in caplog.records)
+def test_a_machine_launched_this_run_has_its_aliases_recorded_without_waiting(world, monkeypatch):
+    """The first live replacement wrote nothing, because the pass
+    ran before the machine's agent enrolled; an Okta registry is waited on
+    for that. A registry kept in the records needs nothing of the machine:
+    no wait, no session command, and the aliases are in its entry."""
+    run, f = world(servers=[OWN])
+    _no_wait(monkeypatch)
+    _fresh(run)
+    pa.register_provider_aliases(run.ctx, Lifecycle.INSTANCE_IMAGE)
+    assert _aliases(run) == [IP] and f.sessions == []
+
+
+def test_a_machine_launched_this_run_but_not_registered_gets_no_alias_this_run(world, monkeypatch, caplog):
+    """No entry carries its provider id: nothing is written, nothing is
+    waited for, and its aliases wait for a run that finds it listed."""
+    run, f = world(servers=[])
+    _no_wait(monkeypatch)
+    _fresh(run)
+    with caplog.at_level("INFO", logger=pa.log.name):
+        pa.register_provider_aliases(run.ctx, Lifecycle.INSTANCE_IMAGE)
+    assert run.ctx.meta_state.registered_servers(IDENTITY, GROUP) == [] and f.sessions == []
+    assert any(pa.NOT_LISTED in r.message and "finds it listed" in r.message for r in caplog.records)

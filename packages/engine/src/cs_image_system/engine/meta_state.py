@@ -38,6 +38,7 @@ from pydantic.dataclasses import dataclass  # validation at construction
 from cs_image_system.base.encryption import decrypt_tree, decrypted_plaintexts
 from cs_image_system.base.meta_ledgers import (
     IDENTITY_READ_MODEL,
+    IDS,
     IMAGE_TESTS,
     INSTANCE_STATE,
     LAUNCH_PARAMS,
@@ -46,6 +47,7 @@ from cs_image_system.base.meta_ledgers import (
     META_STATE_DIRNAME,
     PINS,
     RUNS,
+    SERVERS,
     STATE_LOCATIONS,
     STORAGE_READ_MODEL,
     STORAGE_STATE,
@@ -486,6 +488,94 @@ class MetaState:
             self.write(PINS, data)
 
     # -------------------------------------------------------- launch params
+    # ------------------------------------------- the recorded server registries
+    def _servers_document(self) -> dict[str, Any] | None:
+        """``servers.yaml`` as recorded, or None when it cannot be read (an
+        unreadable record is "could not be asked", never an empty registry)."""
+        try:
+            return self.read(SERVERS)
+        except (OSError, ValueError, yaml.YAMLError) as e:
+            log.error(f"meta-state/{SERVERS} cannot be read ({e}); the recorded registries cannot be asked")
+            return None
+
+    def registered_servers(self, identity: str, group: str) -> list[dict[str, Any]] | None:
+        doc = self._servers_document()
+        if doc is None:
+            return None
+        entries = ((doc.get("servers") or {}).get(identity) or {}).get(group) or []
+        return sorted((dict(e) for e in entries),
+                      key=lambda e: (str(e.get("hostname", "")), str(e.get("address", "")), str(e.get("id", ""))))
+
+    def _write_group(self, identity: str, group: str, entries: list[dict[str, Any]]) -> None:
+        doc = self._servers_document()
+        if doc is None:
+            raise RuntimeError(f"meta-state/{SERVERS} cannot be read, so it is not written")
+        groups = doc.setdefault("servers", {}).setdefault(identity, {})
+        if entries:
+            groups[group] = sorted(entries, key=lambda e: (str(e.get("hostname", "")), str(e.get("address", "")),
+                                                          str(e.get("id", ""))))
+        else:
+            groups.pop(group, None)
+        self.write(SERVERS, doc)
+
+    def record_server(self, identity: str, group: str, entry: dict[str, Any]) -> None:
+        """Add ``entry``, replacing any entry of the same ``instance_id``."""
+        current = self.registered_servers(identity, group)
+        if current is None:
+            raise RuntimeError(f"meta-state/{SERVERS} cannot be read; {entry.get('hostname')!r} is NOT registered")
+        key = str(entry.get("instance_id") or entry.get("id") or "")
+        kept = [e for e in current if str(e.get("instance_id") or e.get("id") or "") != key]
+        self._write_group(identity, group, [*kept, dict(entry)])
+
+    def retire_servers(self, identity: str, group: str, hostname: str) -> list[str]:
+        """Remove every entry under ``hostname`` and return their ids; raise
+        when the record cannot be read (a retirement that did not happen is
+        never reported as one)."""
+        current = self.registered_servers(identity, group)
+        if current is None:
+            raise RuntimeError(f"meta-state/{SERVERS} cannot be read; {hostname!r} is NOT retired")
+        gone = [str(e.get("id")) for e in current if e.get("hostname") == hostname]
+        if gone:
+            self._write_group(identity, group, [e for e in current if e.get("hostname") != hostname])
+        return gone
+
+    def record_server_aliases(self, identity: str, group: str, entry_id: str, names: list[str]) -> None:
+        current = self.registered_servers(identity, group)
+        if current is None:
+            raise RuntimeError(f"meta-state/{SERVERS} cannot be read; the aliases are NOT recorded")
+        hit = [e for e in current if str(e.get("id")) == str(entry_id)]
+        if not hit:
+            raise KeyError(f"no recorded server {entry_id!r} in group {group!r} of {identity!r}")
+        for e in hit:
+            e["alt_names"] = sorted(str(n) for n in names)
+        self._write_group(identity, group, current)
+
+    # ------------------------------------------------------- the recorded ids
+    def recorded_ids(self) -> dict[str, Any]:
+        return self.read(IDS)
+
+    def record_ids(self, document: dict[str, Any]) -> None:
+        """Write ``ids.yaml``, refusing any change to an id already recorded
+        (for a current or a retired name), naming both, and any document
+        that leaves a recorded name out."""
+        before = self.read(IDS)
+        problems: list[str] = []
+        for kind in ("group", "user"):
+            old = {**((before.get("retired") or {}).get(kind) or {}),
+                   **{n: r.get("id") for n, r in ((before.get("ids") or {}).get(kind) or {}).items()}}
+            new = {**((document.get("retired") or {}).get(kind) or {}),
+                   **{n: r.get("id") for n, r in ((document.get("ids") or {}).get(kind) or {}).items()}}
+            for name, was in old.items():
+                if name not in new:
+                    problems.append(f"{kind} {name}: recorded with id {was}, and the new record leaves it out; "
+                                    "a recorded id is never dropped (a removed name is retired)")
+                elif new[name] != was:
+                    problems.append(f"{kind} {name}: recorded with id {was}, asked to become {new[name]}; "
+                                    "a recorded id does not change")
+        if problems:
+            raise ValueError("; ".join(problems))
+        self.write(IDS, document)
+
     def launch_params(self) -> dict[str, dict[str, Any]]:
         return self.read(LAUNCH_PARAMS).setdefault("instances", {})
 

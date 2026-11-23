@@ -13,12 +13,23 @@ license-files = ["LICENSE"]
 requires-python = ">=3.13"
 dependencies = [
     "cs-image-system-contract>=0.5,<0.6",
-    "cs-image-system-base==0.2.1",
-    "cs-image-system-hashicorp-utils==0.2.1",
-    "cs-image-system-tofu-roots==0.2.1",
+    # the SDK by range (spec 008): the plugin is about to be released from its own repository
+    "cs-image-system-base>=0.2,<0.3",
+    "cs-image-system-hashicorp-utils>=0.2,<0.3",
+    "cs-image-system-tofu-roots>=0.2,<0.3",
     "pydantic>=2.13",
     "cryptography>=49.0",   # stage 70 step 6: the Okta services app check signs a private-key JWT
     "typer>=0.26",          # the plugin's own commands (`workload`, `verify login`)
+]
+
+# What this package's own tests need beyond the package: the test kit's strict
+# session and stubbed runs (cs_image_system.system.testing); the Terraform
+# library's `bare_run` comes with the package's own dependency. The top-level
+# package is not named: it lists this package in its `okta` extra, and a
+# dependency in both directions is a cycle no release can order.
+[project.optional-dependencies]
+test = [
+    "cs-image-system-system[testing]==0.1.12",
 ]
 
 [project.urls]
@@ -50,3 +61,7 @@ exclude = ["*.code-workspace"]
 # contract's MODULES_ENTRY_POINT_GROUP; the value is <package>:<dirname>)
 [project.entry-points."cs_image_system.modules"]
 modules = "cs_image_system.okta_opa_plugin:tfmodules"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "--import-mode=importlib"

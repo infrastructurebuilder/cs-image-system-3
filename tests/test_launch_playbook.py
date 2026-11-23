@@ -16,6 +16,7 @@ History: EXPLORE "Possible Other Infra-as-Code tools".
 """
 from __future__ import annotations
 
+from pathlib import Path
 from types import SimpleNamespace
 from typing import Any, cast
 
@@ -24,7 +25,7 @@ import yaml
 from cs_image_system.base import launch_params
 from cs_image_system.contract.lifecycles import Lifecycle
 from cs_image_system.engine import ansible_launch
-from tests.harness import FixtureRun
+from tests.harness import FixtureRun, copy_config
 
 
 def _params(run: FixtureRun) -> dict[str, dict]:
@@ -66,6 +67,71 @@ def test_playbook_mirrors_user_data(tmp_path, monkeypatch):
             if (p.get("enrollment") or {}).get("enrollment") == "sftd-token":
                 assert "{{ enrollment_token }}" in text
             assert not any(v.isdigit() and len(v) >= 5 for v in text.replace("'", " ").split())
+    finally:
+        run.restore_cwd()
+
+
+STUB_KIND = "stub-enrollment"
+
+
+def _declare_stub_kind(monkeypatch) -> None:
+    """A plugin's declared enrollment kind, registered the way the system
+    registers one (``loader.register_declared_kinds``), in a registry of the
+    test's own: its script lines and its tasks take the credential by
+    reference."""
+    from cs_image_system.contract import enrollment
+    from cs_image_system.contract.enrollment import EnrollmentKind
+    from cs_image_system.contract.metadata import PluginMetadata
+    from cs_image_system.engine import loader
+    token = launch_params.ENROLLMENT_TOKEN_VARIABLE
+    monkeypatch.setattr(enrollment, "_KINDS", dict(enrollment._KINDS))
+    kind = EnrollmentKind(
+        STUB_KIND,
+        script_lines=lambda p: [f"printf '%s' '${{{token}}}' > /var/lib/stub/enrollment"],
+        ansible_tasks=lambda p: [{"name": "stub enrollment token", "no_log": True,
+                                  "ansible.builtin.copy": {"dest": "/var/lib/stub/enrollment",
+                                                           "content": "{{ " + token + " }}"}}])
+    metadata = PluginMetadata(namespace="stub-identity", enrollment_kinds=(kind,))
+    loader.register_declared_kinds((loader.DiscoveredPlugin("other", "stub-identity", "stub-identity",
+                                                            lambda: metadata),))
+
+
+def _posix_enrolling_run(tmp_path: Path, monkeypatch) -> FixtureRun:
+    """A fixture copy whose test2 is a machine of imgfile-posix (pxgroup)
+    mounting mnt_data, the posix group builder issuing the declared kind."""
+    from cs_image_system.posix_identity_plugin.posix_builders import PosixGroupBuilder
+    root = copy_config(tmp_path)
+    for rel, key, name, field, value in (("instances/instances.yaml", "instances", "test2", "image", "imgfile-posix"),
+                                         ("storages/storage0.yaml", "storages", "mnt_data", "groups", ["pxgroup"])):
+        data = yaml.safe_load((root / rel).read_text())
+        next(i for i in data[key] if i["name"] == name)[field] = value
+        (root / rel).write_text(yaml.safe_dump(data, sort_keys=False))
+    _declare_stub_kind(monkeypatch)
+    monkeypatch.setattr(PosixGroupBuilder, "launch_parameters",
+                        lambda self, group: {"enrollment": STUB_KIND, "server_label": f"stub.group={group.get_name()}"})
+    return FixtureRun(tmp_path, monkeypatch, config_root=root)
+
+
+def test_a_declared_enrollment_kind_is_rendered_into_both_launch_forms_by_reference(tmp_path, monkeypatch):
+    """The enrollment the group's builder issues is rendered by the plugin
+    that declared its kind, in the user-data and in the playbook alike, the
+    credential by reference only (an extra-var, never a literal)."""
+    run = _posix_enrolling_run(tmp_path, monkeypatch)
+    try:
+        summary = run.run(["identity", "storage", "base-image", "instance-image"], apply=False)
+        assert summary.ok, summary.error
+        p = _params(run)["test2"]
+        assert p["group"] == "pxgroup" and p["enrollment"]["enrollment"] == STUB_KIND
+        ud = launch_params.user_data_template(p, run.ctx)
+        assert "printf '%s' '${enrollment_token}' > /var/lib/stub/enrollment" in ud
+        assert "/mnt/data/pxgroup" in ud
+        text = ansible_launch.launch_playbook(p, "test2", run.ctx)
+        play = yaml.safe_load(text)[0]
+        tok = next(t for t in play["tasks"] if t["name"] == "stub enrollment token")
+        assert tok["no_log"] is True and tok["ansible.builtin.copy"]["content"] == "{{ enrollment_token }}"
+        sub = next(t for t in play["tasks"] if t["name"].startswith("private subtree"))
+        assert sub["ansible.builtin.file"]["group"] == "{{ group_gid }}"
+        assert not any(v.isdigit() and len(v) >= 5 for v in text.replace("'", " ").split())
     finally:
         run.restore_cwd()
 

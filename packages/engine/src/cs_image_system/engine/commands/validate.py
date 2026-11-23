@@ -33,8 +33,9 @@ from cs_image_system.base.models.container_builder import ContainerBuilderModel
 from cs_image_system.base.models.executable import ExecutableModel
 from cs_image_system.contract.constants import NONE, VCT, ComplianceState
 
-from ..posix_ids import FIRST_REGULAR_ID, NAME_RE, Claim, resolve_posix_ids, supplied_id
+from ..posix_ids import FIRST_REGULAR_ID, NAME_RE, supplied_id
 from ..public_safe import scan_for_plaintexts
+from ..run_ids import posix_claims, resolve_run_ids
 
 if TYPE_CHECKING:          # annotations only
     from cs_image_system.base.run_context import RunContext
@@ -235,19 +236,22 @@ from ..standing import deployed_in_workspace, terraform_workspaces  # noqa: E402
 def check_posix_ids(ctx: RunContext) -> list[Exception]:
     """Every POSIX id the configuration's builders claim, resolved
     by the operator's rule (``posix_ids.resolve_posix_ids``): one name with
-    two ids is refused naming both sides, a name no side supplies an id for
-    is refused, two names on one id are refused. An id the configuration
+    two ids is refused naming both sides, two names on one id are refused;
+    the tree's recorded ids (``meta-state/ids.yaml``, read from the records,
+    no network) are a side of their own that never moves; a name no side
+    supplies an id for draws from its identity's pool, and the pools are
+    checked against each other and the records. An id the configuration
     declares must be a regular one (at least ``FIRST_REGULAR_ID``), and every
     claimed name must be one a machine accepts (``NAME_RE``). A configuration
     whose builders claim nothing -- no posix builder -- is not checked."""
-    claims: list[Claim] = []
-    for gb in ctx.group_builders.values():
-        claims += gb.posix_id_claims()
-    for ub in ctx.user_builders.values():
-        claims += ub.posix_id_claims()
-    if not claims:
+    resolved = resolve_run_ids(ctx)
+    if resolved is None:
         return []
-    messages: list[str] = list(resolve_posix_ids(claims).problems)
+    resolution, _pools = resolved
+    claims = posix_claims(ctx)
+    for note in resolution.notes:
+        log.warning(f"note: {note}")
+    messages: list[str] = list(resolution.problems)
     for kind, name in sorted({(c.kind, str(c.name)) for c in claims if not c.derived}):
         if not NAME_RE.match(name):
             messages.append(f"{kind} {name}: not a name a machine accepts -- lower case, a letter or "

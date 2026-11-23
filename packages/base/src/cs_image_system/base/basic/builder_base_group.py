@@ -156,17 +156,21 @@ class GroupBuilderBase(BuilderBase[TGROUP], GroupBuilderProtocol):
 
     # ------------------------------------------------------ server registry
     def can_query_servers(self) -> bool:
-        """Whether this identity provider keeps a registry of enrolled
-        servers that the builder can read and retire (a provider whose agent
-        enrolls the machine does). Gated like
-        the stage-57 runtime hooks: a provider without one makes no claim."""
+        """Whether this identity provider keeps a registry of the servers
+        registered for its groups that the builder can read and retire: one
+        an outside service keeps (a provider whose agent enrolls the machine
+        does), or one kept in the configuration's own records
+        (``keeps_recorded_registry``). Gated like the stage-57 runtime hooks:
+        a provider without one makes no claim."""
         return False
 
     def registered_servers(self, group: str) -> list[dict[str, Any]] | None:
-        """Every server currently enrolled for ``group``, each
-        ``{id, hostname, address}`` -- or ``None`` when the provider could
-        not be ASKED. None is never an empty list: a caller deciding whether
-        a canonical hostname is free must not read silence as freedom."""
+        """Every server currently registered for ``group``, each
+        ``{id, hostname, address}`` and what else the registry records -- or
+        ``None`` when the registry could not be ASKED (a service that did not
+        answer, a record that cannot be read). None is never an empty list: a
+        caller deciding whether a canonical hostname is free must not read
+        silence as freedom."""
         return None
 
     def retire_servers_named(self, group: str, hostname: str) -> list[str]:
@@ -178,13 +182,36 @@ class GroupBuilderBase(BuilderBase[TGROUP], GroupBuilderProtocol):
         not happen must not be reported as one."""
         raise NotImplementedError(f"{self.__class__.__name__} keeps no server registry")
 
+    def keeps_recorded_registry(self) -> bool:
+        """Whether this builder's server registry is kept in the configuration's
+        own records (``meta-state/servers.yaml``) rather than by an outside
+        service: the core then registers each machine it launches, and writes a
+        machine's aliases into its entry (``record_aliases``) instead of onto
+        the machine. Default: False."""
+        return False
+
+    def record_aliases(self, group: str, entry_id: str, names: list[str]) -> list[str] | None:
+        """For a registry kept in the records: write ``names`` as the aliases of
+        the entry ``entry_id`` of ``group`` and return them, or raise when it
+        cannot. None (the default) means this builder makes a machine answer
+        to its aliases by a script run on it (``alias_registration_script``)."""
+        return None
+
+    def id_pool(self) -> tuple[int, int] | None:
+        """The bounds (lowest, highest) of the ids this identity gives a group
+        or user that declares none, or None for no pool. One pool serves users
+        and groups alike. Default: None."""
+        return None
+
     def alias_registration_script(self, names: list[str]) -> str | None:
         """A root shell script that makes this provider's agent on a machine
         answer to ``names`` too (the bare declared name, the pool alias, the
         provider's own hostname label), idempotently: it prints the
         contract's ``ALIASES_CHANGED`` when it changed the registration and
         ``ALIASES_UNCHANGED`` when the names were already there. ``None``
-        when this provider keeps no registration to alias. Every name has
+        when this provider writes no aliases on the machine: it keeps no
+        registration to alias, or keeps it in the records, where the aliases
+        go through ``record_aliases`` instead. Every name has
         been validated as a hostname label; a name that is not one is a
         ``ValueError``. Default: None."""
         return None

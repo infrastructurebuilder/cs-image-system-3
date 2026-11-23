@@ -26,7 +26,7 @@ import os
 import stat
 
 import pytest
-from harness import FixtureRun, command_lines
+from harness import FixtureRun, command_lines, copy_config
 
 
 @pytest.fixture
@@ -40,6 +40,27 @@ def _declared(fixture_run, cfg_file: str, key: str) -> set[str]:
     """The builder names the fixture's cfg file declares."""
     import yaml
     return {e["name"] for e in yaml.safe_load((fixture_run.config_root / "cfg" / cfg_file).read_text())[key]}
+
+
+DUMMY_USERS = "dummy-users"
+
+
+def _with_a_dummy_user_root(tmp_path):
+    """A private copy of the fixture whose identity lifecycle also holds the
+    dummy plugin's user builder: a root of its own under
+    ``generated/identity/dummy-users/user-generation/``, whatever identity
+    plugin the rest of the fixture uses."""
+    import yaml
+    root = copy_config(tmp_path)
+    path = root / "cfg" / "group-builders.yml"
+    data = yaml.safe_load(path.read_text())
+    data["user_builders"].append({"name": DUMMY_USERS, "type": "dummy", "org": "example", "team": "example"})
+    path.write_text(yaml.safe_dump(data, sort_keys=False))
+    return root
+
+
+def _dummy_user_root(generated):
+    return generated / "identity" / DUMMY_USERS / "user-generation" / f"{DUMMY_USERS}-user-generation-users.tf"
 
 
 def test_absent_scripts_are_no_ops(fixture_run):
@@ -56,13 +77,17 @@ def test_absent_scripts_are_no_ops(fixture_run):
     assert 'if [ -x "$script" ]' in gating and "skipping" in gating
 
 
-def test_only_requested_lifecycles_are_generated(fixture_run):
-    summary = fixture_run.run(["identity"], apply=True)
-    assert summary.ok, summary.error
-    assert [r.lifecycle for r in summary.lifecycles] == ["identity"]
-    assert (fixture_run.generated / "identity" / "oktagroups").is_dir()
-    for other in ("storage", "base-image", "instance-image"):
-        assert not (fixture_run.generated / other).exists()
+def test_only_requested_lifecycles_are_generated(tmp_path, monkeypatch):
+    fixture_run = FixtureRun(tmp_path, monkeypatch, config_root=_with_a_dummy_user_root(tmp_path))
+    try:
+        summary = fixture_run.run(["identity"], apply=True)
+        assert summary.ok, summary.error
+        assert [r.lifecycle for r in summary.lifecycles] == ["identity"]
+        assert _dummy_user_root(fixture_run.generated).is_file()
+        for other in ("storage", "base-image", "instance-image"):
+            assert not (fixture_run.generated / other).exists()
+    finally:
+        fixture_run.restore_cwd()
 
 
 def test_existing_script_from_a_previous_run_is_skipped(fixture_run, tmp_path):
@@ -103,17 +128,25 @@ def test_existing_script_is_skipped_even_when_not_dry_run(tmp_path, monkeypatch)
         fixture_run.restore_cwd()
 
 
-def test_regenerating_one_lifecycle_leaves_the_others_untouched(fixture_run):
-    assert fixture_run.run("all", apply=False).ok
-    sentinel = fixture_run.generated / "base-image" / "sentinel.txt"
-    sentinel.write_text("left over from the previous run")
-    identity_before = (fixture_run.generated / "identity" / "oktagroups" / "group-generation"
-                       / "oktagroups-group-generation-group-coops.tf").read_text()
-    summary = fixture_run.run(["storage"], apply=False)
-    assert summary.ok, summary.error
-    assert sentinel.exists(), "a storage run must not wipe the base-image directory (Q5)"
-    assert (fixture_run.generated / "identity" / "oktagroups" / "group-generation"
-            / "oktagroups-group-generation-group-coops.tf").read_text() == identity_before
+def test_regenerating_one_lifecycle_leaves_the_others_untouched(tmp_path, monkeypatch):
+    fixture_run = FixtureRun(tmp_path, monkeypatch, config_root=_with_a_dummy_user_root(tmp_path))
+    try:
+        assert fixture_run.run("all", apply=False).ok
+        sentinel = fixture_run.generated / "base-image" / "sentinel.txt"
+        sentinel.write_text("left over from the previous run")
+        identity_root = _dummy_user_root(fixture_run.generated)
+        identity_root.write_text(identity_root.read_text() + "# left over from the previous run\n")
+        identity_before = identity_root.read_text()
+        instance_root = (fixture_run.generated / "instance-image" / "open-tofu" / "instance-generation"
+                         / "open-tofu-instance-generation.tf")
+        instance_before = instance_root.read_text()
+        summary = fixture_run.run(["storage"], apply=False)
+        assert summary.ok, summary.error
+        assert sentinel.exists(), "a storage run must not wipe the base-image directory (Q5)"
+        assert identity_root.read_text() == identity_before, "a storage run must not rewrite an identity root"
+        assert instance_root.read_text() == instance_before, "a storage run must not rewrite an instance root"
+    finally:
+        fixture_run.restore_cwd()
 
 
 def test_lifecycle_state_bindings_are_disjoint(fixture_run):
@@ -134,6 +167,28 @@ def test_lifecycle_state_bindings_are_disjoint(fixture_run):
         for _ws, key in workspaces.items():
             assert key not in seen, f"state file {key} shared by {seen[key]} and {lc}"
             seen[key] = lc
+
+
+def test_lifecycle_state_bindings_are_disjoint_whatever_the_identity(fixture_run):
+    """The state-isolation evidence without naming an identity plugin: every
+    lifecycle is named; a builder with no terraform root (the POSIX
+    builders) binds nothing; whatever a lifecycle binds belongs to that
+    lifecycle's builders; the storage and instance roots each bind their own
+    state file; no state file is shared across lifecycles."""
+    from cs_image_system.tofu_roots.hooks import lifecycle_state_bindings
+    summary = fixture_run.run("all", apply=False)
+    assert summary.ok
+    bindings = lifecycle_state_bindings(fixture_run.ctx)
+    assert summary.state_bindings == bindings
+    assert set(bindings) == {"identity", "storage", "base-image", "instance-image", "release", "retention"}
+    identity_builders = set(fixture_run.ctx.group_builders) | set(fixture_run.ctx.user_builders)
+    assert set(bindings["identity"]) <= identity_builders
+    assert not {"posix-local", "posix-users"} & set(bindings["identity"])   # no terraform root, no state
+    assert set(bindings["storage"]) == _declared(fixture_run, "storage-builders.yml", "storage_builders")
+    assert set(bindings["instance-image"]) == _declared(fixture_run, "instance-builders.yml", "instance_builders")
+    assert bindings["base-image"] == {}
+    keys = [key for workspaces in bindings.values() for key in workspaces.values()]
+    assert len(keys) == len(set(keys)), keys
 
 
 def test_runner_scripts_only_enter_their_own_lifecycle_directories(fixture_run):

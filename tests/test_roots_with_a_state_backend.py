@@ -32,11 +32,11 @@ class _Exe:
         self.working_directory: Path | None = None
 
 
-def _phase(value: str = "user-generation"):
+def _phase(value: str = "storage-generation"):
     return cast(Any, SimpleNamespace(value=value))
 
 
-def _root(run: Any, name: str = "okta-tf-users") -> Any:
+def _root(run: Any, name: str = "aws-ebs") -> Any:
     """A root stub in ``run`` (a bare run context: the collector lives there)."""
     stub = SimpleNamespace(
         name=name,
@@ -52,7 +52,7 @@ def _root(run: Any, name: str = "okta-tf-users") -> Any:
     return stub
 
 
-def _root_in_run(run: Any, dry_run: bool, name: str = "okta-tf-users") -> Any:
+def _root_in_run(run: Any, dry_run: bool, name: str = "aws-ebs") -> Any:
     """A root whose run is dry or real, as every real builder can see."""
     run.dry_run = dry_run
     return _root(run, name)
@@ -72,9 +72,9 @@ def col(run):
 
 def test_init_args_with_backend_uses_bare_filename(run, col):
     col.register_backend(_s3())
-    col.set_backend("okta-tf-users", "s3-east2")
+    col.set_backend("aws-ebs", "s3-east2")
     args = _root(run)._init_args(_phase())
-    assert args == ["init", "-reconfigure", "-backend-config=okta-tf-users-user-generation.tfbackend.hcl"]
+    assert args == ["init", "-reconfigure", "-backend-config=aws-ebs-storage-generation.tfbackend.hcl"]
     assert "/" not in args[1]  # tofu runs inside the phase dir
 
 
@@ -84,10 +84,10 @@ def test_a_dry_run_initialises_without_the_backend(run, col):
     whether or not a backend is registered; a real run keeps the backend."""
     assert _root_in_run(run, dry_run=True)._init_args(_phase()) == ["init", "-backend=false"]
     col.register_backend(_s3())
-    col.set_backend("okta-tf-users", "s3-east2")
+    col.set_backend("aws-ebs", "s3-east2")
     assert _root_in_run(run, dry_run=True)._init_args(_phase()) == ["init", "-backend=false"]
     assert _root_in_run(run, dry_run=False)._init_args(_phase()) == [
-        "init", "-reconfigure", "-backend-config=okta-tf-users-user-generation.tfbackend.hcl"]
+        "init", "-reconfigure", "-backend-config=aws-ebs-storage-generation.tfbackend.hcl"]
 
 
 def test_the_runner_script_initialises_in_the_real_form_whatever_the_run_mode(run, col):
@@ -97,8 +97,8 @@ def test_the_runner_script_initialises_in_the_real_form_whatever_the_run_mode(ru
     wrote it was dry."""
     assert _root_in_run(run, dry_run=True)._runner_init_args(_phase()) == ["init", "-input=false", "-reconfigure"]
     col.register_backend(_s3())
-    col.set_backend("okta-tf-users", "s3-east2")
+    col.set_backend("aws-ebs", "s3-east2")
     for dry in (True, False):
         assert _root_in_run(run, dry_run=dry)._runner_init_args(_phase()) == [
-            "init", "-input=false", "-reconfigure", "-backend-config=okta-tf-users-user-generation.tfbackend.hcl"]
+            "init", "-input=false", "-reconfigure", "-backend-config=aws-ebs-storage-generation.tfbackend.hcl"]
 

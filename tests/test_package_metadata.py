@@ -228,7 +228,7 @@ def contract_range(contract_version: str) -> str:
 #: (`just test-docker-alone`, `just test-terraform-alone`), and the Google
 #: Cloud family, which ranged on the SDK it is now tested against from its
 #: own repository (spec 005).
-SDK_BY_RANGE = {"cs-image-system-docker-plugin", "cs-image-system-tofu-roots"}
+SDK_BY_RANGE = {"cs-image-system-docker-plugin", "cs-image-system-tofu-roots", "cs-image-system-okta-opa-plugin"}
 #: the SDK's two version lines; members of one line pin each other exactly
 SDK_VERSION_LINES = ({"cs-image-system-base"}, {"cs-image-system-hashicorp-utils", "cs-image-system-tofu-roots"})
 

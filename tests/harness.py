@@ -20,7 +20,7 @@ The harness is a composition. What names no provider is the published test
 kit (``cs_image_system.system.testing``), which a provider's own suite uses
 directly. What stands in for a provider is that provider's own stub
 function where its package ships one (docker, the terraform roots library);
-the stubs for AWS and Okta are kept here, beside the frozen
+the stubs for AWS are kept here (the Okta plugin ships its own), beside the frozen
 fixture that declares all of them.
 """
 from __future__ import annotations
@@ -171,12 +171,8 @@ def plain(value: Any) -> Any:
     return kit.plain(value, FIXTURE_CONFIG / kit.IDENTITY_FILE)
 
 
-def _credentials(monkeypatch) -> None:
-    """Dummy okta / oktapam credentials, so command lists never depend on
-    the developer's shell."""
-    monkeypatch.setenv("OKTA_API_PRIVATE_KEY", "dummy")
-    monkeypatch.setenv("TF_VAR_nos_coastal_modeling_cloud_sandbox_key", "dummy")
-    monkeypatch.setenv("TF_VAR_nos_coastal_modeling_cloud_sandbox_secret", "dummy")
+#: the OPA team the fixture's Okta builders name, as its credential variables spell it
+FIXTURE_TEAM = "nos_coastal_modeling_cloud_sandbox"
 
 
 def _clouds(monkeypatch, retags: list[tuple[str, dict[str, str]]]) -> None:
@@ -206,19 +202,34 @@ def _clouds(monkeypatch, retags: list[tuple[str, dict[str, str]]]) -> None:
                         passing_session(AwsCloudBuilder.run_session_command))
 
 
-def _identity_provider(monkeypatch, retirements: list[tuple[str, str]]) -> None:
-    """The Okta stubs."""
-    from cs_image_system.okta_opa_plugin.okta_opa_tf_group_builder import OktaTfGroupBuilder
-    monkeypatch.setattr(OktaTfGroupBuilder, "query_state",
-                        lambda self: {g.get_name(): {"present": True, "gid": 1}
-                                      for g in self.get_groups_for_builder()})
-    # the server registry ANSWERS here -- an empty, free one -- and
-    # retirements are journaled. Silence would be refused by design (a run
-    # that can launch will not trust an unreachable registry), and the
-    # harness models a reachable OPA, not an absent one.
-    monkeypatch.setattr(OktaTfGroupBuilder, "registered_servers", lambda self, group: [])
-    monkeypatch.setattr(OktaTfGroupBuilder, "retire_servers_named",
-                        lambda self, group, hostname: retirements.append((group, hostname)) or [])
+class _NoMachines:
+    """An EC2 client that knows no machine: ``describe_instances`` finds
+    nothing, and any other call is refused as unreachable (the code asking
+    treats it as a provider that could not answer)."""
+
+    def describe_instances(self, **kwargs: Any) -> dict[str, Any]:
+        return {"Reservations": []}
+
+    def __getattr__(self, name: str) -> Any:
+        raise RuntimeError(f"EC2 is not reachable from the tests ({name})")
+
+
+def _unreachable_opa(method: str, url: str, headers: dict[str, str], body: bytes | None) -> Any:
+    raise RuntimeError(f"OPA is not reachable from the tests ({method} {url.split('?')[0]})")
+
+
+def _no_network(monkeypatch) -> None:
+    """The lowest seams to AWS's machines and to OPA, answered in-process,
+    so a call no other stub answers never reaches a network (spec 010,
+    R13: six tests reached the AWS login endpoint and the fixture's OPA
+    host through them). A test's own EC2 fake, installed before its run is
+    built, stands; a test's OPA transport (``_urllib_transport``) is above
+    this seam and so stands too."""
+    from cs_image_system.aws_runtime import aws_utils
+    if getattr(aws_utils.ec2_client, "__module__", "") == aws_utils.__name__:
+        monkeypatch.setattr(aws_utils, "ec2_client", lambda session_config: _NoMachines())
+    from cs_image_system.okta_opa_plugin import opa_gids
+    monkeypatch.setattr(opa_gids, "_urllib_transport_full", _unreachable_opa)
 
 
 def stub_environment(monkeypatch) -> list[str]:
@@ -235,12 +246,14 @@ def stub_environment(monkeypatch) -> list[str]:
     a daemon and the golden pins the docker emission."""
     retags: list[tuple[str, dict[str, str]]] = []
     retirements: list[tuple[str, str]] = []
+    from cs_image_system.okta_opa_plugin import testing as okta_testing
     journal = kit.stub_core(monkeypatch, FIXTURE_CONFIG / kit.IDENTITY_FILE, stubs=(
-        _credentials,
+        lambda mp: okta_testing.credentials(mp, (FIXTURE_TEAM,)),
         lambda mp: _clouds(mp, retags),
         lambda mp: docker_testing.stub(mp, retags),
         roots_testing.stub,
-        lambda mp: _identity_provider(mp, retirements),
+        lambda mp: okta_testing.stub(mp, retirements),
+        _no_network,
     ))
     stub_environment.retags = retags  # type: ignore[attr-defined]
     stub_environment.retirements = retirements  # type: ignore[attr-defined]

@@ -15,7 +15,7 @@ packages/docker-plugin/tests/pipeline/test_container_runtime.py. What is
 held here needs more than the docker package:
 
 * an identity plugin's objection to a container runtime (the okta group
-  builder's words); the preflight's one line per session, with the state
+  builder's words, and the dummy builder's, the base's default); the preflight's one line per session, with the state
   backends' sessions beside the daemon's; an unreachable daemon as the
   core's one-line load failure; the packer plugin reading a docker
   build's manifest;
@@ -150,6 +150,39 @@ def test_an_opa_group_on_a_docker_runtime_is_refused_in_the_builders_words(tmp_p
     hits = [e for e in errors if IMAGE in e and "coops" in e and RUNTIME in e]
     assert len(hits) == 1, errors
     assert "(okta)" in hits[0] and "sftd" in hits[0], "the objection is the okta builder's, in its words"
+
+
+def dummy_group(root: Path, name: str = "dummygroup") -> str:
+    """A group on the dummy (template) group builder, which says nothing
+    about containers: the base's default objection is its answer."""
+    _edit(root / "cfg" / "group-builders.yml", lambda d: d["group_builders"].append(
+        {"name": "dummy-groups", "type": "dummy", "org": "example", "team": "example"}))
+    (root / "groups" / "group-dummy.yaml").write_text(yaml.safe_dump({"groups": [
+        {"name": name, "type": "dummy-groups", "description": "a group on the template builder"}]}))
+    return name
+
+
+def test_a_group_whose_builder_objects_is_refused_on_a_docker_runtime_in_that_builders_words(tmp_path, monkeypatch):
+    """The core asks the owning group's builder (``container_runtime_objection``)
+    and refuses in one sentence naming the image, the group, its identity
+    type, the runtime and the builder's own words; a group whose builder
+    does not object (posix) is not refused."""
+    from cs_image_system.dummy_plugin.dummy_builders import DummyGroupBuilder
+    root = copy_config(tmp_path)
+    group = dummy_group(root)
+    docker_overlay(root, group=group)
+    stub_environment(monkeypatch)
+    _stub_daemon(monkeypatch)
+    ctx = load_context(root)
+    objection = ctx.group_builders["dummy-groups"].container_runtime_objection()
+    assert isinstance(ctx.group_builders["dummy-groups"], DummyGroupBuilder) and objection
+    errors = _errors(root, monkeypatch)
+    hits = [e for e in errors if IMAGE in e and group in e and RUNTIME in e]
+    assert len(hits) == 1, errors
+    assert "(dummy)" in hits[0] and hits[0].endswith(objection), "the objection is the builder's, in its words"
+    accepted = copy_config(tmp_path, "posix-tree")
+    docker_overlay(accepted)                                  # pxgroup: the posix builder does not object
+    assert not [e for e in _errors(accepted, monkeypatch) if IMAGE in e and RUNTIME in e and "container runtime" in e]
 
 
 # ------------------------------------------------------------------ outside the seam

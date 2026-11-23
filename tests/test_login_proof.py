@@ -2,14 +2,14 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""The login proof logs into each standing instance
-over `sft ssh` through the managed CI policy and records the verdict. A
-stopped machine is a skip and is never started; a silent registry, a
-duplicate hostname, a name the client cannot resolve and a refused login
-are each a named failed check; a group without workload names has nothing
-to prove. The client is stubbed at `run_sft` (in the Okta plugin's
-`sft_login`); the registry and the power state at the
-builder seams.
+"""The login proof through the Okta plugin: it logs into each standing
+instance over `sft ssh` through the managed CI policy and records the
+verdict. A stopped machine is a skip and is never started; a name the
+client cannot resolve and a refused login are each a named failed check;
+a group without workload names has nothing to prove. The client is
+stubbed at `run_sft` (in the Okta plugin's `sft_login`); the registry and
+the power state at the builder seams. The core's half, and its
+registration check, are `test_login_proof_posix.py`'s.
 """
 from __future__ import annotations
 
@@ -77,25 +77,6 @@ def test_a_stopped_machine_is_skipped_and_never_started(world):
     assert records[0]["skipped"] and not records[0]["ok"] and "stopped" in records[0]["checks"][0]["detail"].lower()
     assert w["calls"] == [], "no client call: the operator's decision stands"
     assert run.ctx.meta_state.login_proofs()[-1]["skipped"]
-
-
-def test_a_duplicate_hostname_fails_before_any_login(world):
-    run, w = world
-    w["registry"] = [{"id": "s-1", "hostname": "test-001", "address": "10.0.0.1"},
-                     {"id": "s-2", "hostname": "test-001", "address": "10.0.0.2"}]
-    with pytest.raises(lp.LoginProofFailed) as e:
-        lp.login_proof(run.ctx, ["test"])
-    rec = e.value.records[0]
-    assert rec["checks"] == [rec["checks"][0]] and "2 registrations" in rec["checks"][0]["detail"]
-    assert "s-2@10.0.0.2" in rec["checks"][0]["detail"] and w["calls"] == []
-
-
-def test_a_silent_registry_is_a_failed_check_not_one_server(world):
-    run, w = world
-    w["registry"] = None
-    records = lp.login_proof(run.ctx, ["test"], record_only=True)
-    assert not records[0]["ok"] and "could not be asked" in records[0]["checks"][0]["detail"]
-    assert w["calls"] == []
 
 
 def test_an_expired_client_session_is_named_not_silent(world):

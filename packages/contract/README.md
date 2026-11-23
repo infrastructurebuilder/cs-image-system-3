@@ -74,9 +74,9 @@ universal ones are not repeated), as measured over the sources:
 | `ImageBuilderProtocol` | 2 (`build_target_label`, `add_image`) | the packer plugin overrides the first; the loader and resolve call the second; the block paths and `get_images` are the kit's |
 | `InstanceBuilderProtocol` | 1 (`add_instance`) | `tofu-roots` overrides it |
 | `ModBuilderProtocol` | 3 | the three modification hooks the ansible and bash plugins implement and the packer plugin calls |
-| `GroupBuilderProtocol` | 40 | the identity, bake, launch, state-query, login-proof and workload-access hooks the two identity plugins implement, and `add_group_to_builder`, which the loader calls; `add_user_to_builder`, `get_users_for_group`, `get_admins_for_group`, `get_users_for_builder` and `managed_groups` are the kit's |
+| `GroupBuilderProtocol` | 43 | the identity, bake, launch, state-query, login-proof and workload-access hooks the two identity plugins implement, and `add_group_to_builder`, which the loader calls; `add_user_to_builder`, `get_users_for_group`, `get_admins_for_group`, `get_users_for_builder` and `managed_groups` are the kit's |
 | `UserBuilderModelProtocol` | 4 (`email_as_username`, `default_user_description_template`, `email_domain`, `get_user_email_template`) | the posix user model redeclares the first; the core's user item templates read the other three (`{{ builder.get_user_email_template() }}`); `default_user_email_template`, `get_user_description_template` and `get_email_domain` are the kit model's |
-| `UserBuilderProtocol` | 7 | `default_managed`, `validate_user`, the attribute hooks, `posix_id_claims`, `get_users_for_builder`, and `add_user_to_builder`, which the loader calls |
+| `UserBuilderProtocol` | 8 | `default_managed`, `validate_user`, the attribute hooks, `posix_id_claims`, `get_users_for_builder`, and `add_user_to_builder`, which the loader calls |
 | `StateBackendModelProtocol`, `StateBuilderProtocol`, `BackendKindProtocol` | 1, 1, 4 | every state plugin implements them |
 
 The loader holds every class a plugin registers to the protocol of its
@@ -130,13 +130,18 @@ repository runs against itself.
 ### Version
 
 The contract carries a semantic version of its own, independent of the
-workspace's: `0.5.0` now, and 0.x until the operator decides otherwise
+workspace's: `0.5.2` now, and 0.x until the operator decides otherwise
 (the decision of 2026-11-05). What a bump means: a PATCH is a change no
 plugin can observe (a docstring, a test helper); a MINOR, while the
 version is 0.x, is a change a plugin can observe, so a protocol member
 added, renamed or removed, a constant's value changed, a module added or
 removed, and it is the breaking step; from 1.0 a MINOR adds without
-breaking and a MAJOR breaks. Every package that depends on the contract
+breaking and a MAJOR breaks. **Suspended 2026-11-23, by the operator,
+until the system stabilises:** every version line moves only its third
+number, so a change a plugin can observe is a PATCH too, and the
+dependents' range stays on its series. While it holds, a change to the
+contract only adds (a member removed, renamed or reshaped would reach
+every plugin through its range unguarded). Every package that depends on the contract
 pins the compatible series, `cs-image-system-contract>=0.5,<0.6`, and
 `just release`, which moves the workspace's version, leaves the
 contract's where it is (as it leaves the SDK's two version lines, the
@@ -166,6 +171,8 @@ The versions so far:
 | `0.4.3` | This document names the test and the declaration that now hold what a plugin may import of the kit (the kit's `surface` module and `tests/test_plugins_keep_to_the_surface.py`, in place of `tests/test_plugin_imports.py`); nothing a plugin can observe changed, so it is a PATCH |
 | `0.4.4` | This document and three docstrings say what is now so: a plugin is written against the contract and the SDK's declared surface, with one guide for it; a plugin that is refused is skipped and named, not the end of every command; and a second registration of an enrollment kind or a field kind by another plugin is reported as a collision by the loader. No function, protocol or constant changed, so it is a PATCH |
 | `0.5.0` | A plugin declares its kinds instead of registering them when it is imported: `PluginMetadata` and `PluginMetadataProtocol` gain `enrollment_kinds` and `field_kinds` (both empty by default), and `register_enrollment_kind` and `register_field_kind` leave the contract's public names; `field_kinds.SYSTEM_FIELD_KINDS` names the system's own four. The loader registers the declared kinds of the plugins it accepts, so a skipped plugin's kinds are never registered and a collision over a kind is found like any other. Members added and two functions removed are something a plugin can observe, so while the contract is 0.x it is a MINOR step, and every dependent's range moved from `>=0.4,<0.5` ([spec 004](../../specs/004-kinds-in-metadata/spec.md)). |
+| `0.5.1` | A recorded server registry and recorded ids ([spec 010](../../specs/010-posix-server-registry/spec.md)): `GroupBuilderProtocol` gains `keeps_recorded_registry`, `record_aliases` and `id_pool`, `UserBuilderProtocol` gains `id_pool`, `MetaStateProtocol` gains six members over `meta-state/servers.yaml` and `meta-state/ids.yaml`, `Claim` gains `identity` and `external`, and `query_instance_identity` may answer an `address`. Members added only. By the rule above this would be a MINOR; while versions move only their third number (the operator, 2026-11-23) it is a PATCH, and the dependents' range stays `>=0.5,<0.6`. |
+| `0.5.2` | The id a run resolved ([spec 010](../../specs/010-posix-server-registry/spec.md), story 2): `IdentityServiceProtocol` gains `resolved_id(kind, name)`, the id recorded, declared, read from an external identity or drawn from a pool, so a builder bakes an id it was not given. A member added only; a PATCH while versions move only their third number. |
 
 ## Writing a plugin
 

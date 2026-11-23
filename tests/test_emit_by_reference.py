@@ -154,6 +154,33 @@ def test_the_fixture_emission_carries_only_ciphertexts_the_configuration_carries
     assert 'data "external" "sensitive"' in root_tf and re.search(r'source\s*=\s*"hashicorp/external"', root_tf)
 
 
+def test_the_base_image_emission_carries_the_admin_keys_ciphertext_and_never_the_key(tmp_path, monkeypatch):
+    """The same rule on another root, the packer builds: the admin public
+    key is declared encrypted in cfg/_config.yml, so the emission carries
+    that SAME ciphertext (`materialize` puts the key itself in the private
+    copy packer builds from), and neither the key nor its body is in clear."""
+    import yaml
+    run = FixtureRun(tmp_path, monkeypatch)
+    try:
+        assert run.run(["base-image"], apply=False).ok
+        emitted = tree(run.generated / "base-image")
+    finally:
+        run.restore_cwd()
+    builds = "\n".join(v for k, v in emitted.items() if k.endswith(".pkr.hcl"))
+    assert builds, "the base-image lifecycle emitted packer builds"
+    declared = {m for f in FIXTURE_CONFIG.rglob("*.y*ml") if "generated" not in f.parts
+                for m in MARKER.findall(f.read_text())}
+    emitted_markers = set(MARKER.findall(builds))
+    assert emitted_markers and emitted_markers <= declared, "the emission carries the SAME ciphertexts as the YAML"
+    config = yaml.safe_load((FIXTURE_CONFIG / "cfg" / "_config.yml").read_text())["config"]
+    [key_marker] = config["admin_public_keys"]
+    assert key_marker in emitted_markers, "the admin key is read by reference"
+    key = decrypt_marker(key_marker)
+    body = key.split()[1]
+    all_text = "\n".join(emitted.values())
+    assert key not in all_text and body not in all_text, "the admin key in clear"
+
+
 def test_no_declared_encrypted_value_but_a_username_reaches_the_emission_or_meta_state_in_clear(tmp_path, monkeypatch):
     """The stage's rule over the whole fixture run: every ciphertext in the
     rosters is decrypted and its text looked for in generated/ and

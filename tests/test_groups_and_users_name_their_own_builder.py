@@ -26,6 +26,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+import yaml
 from harness import copy_config, load_context, stub_environment
 
 from cs_image_system.base.models.group import Group
@@ -33,14 +34,31 @@ from cs_image_system.base.models.user import User
 from cs_image_system.contract.constants import DEFAULT, VCT
 from cs_image_system.engine import orchestrator
 
-#: The fixture's items whose written type names a builder other than the
-#: default one, and that builder.
+#: The tree's items whose written type names a builder other than the
+#: default one, and that builder: the fixture's posix group and personas,
+#: and the group the copy adds on a template (dummy) group builder.
 WRITTEN_TYPES = {
     ("group", "pxgroup"): "posix-local",
-    ("group", "readers"): "okta-groups-ro",
+    ("group", "dummygroup"): "dummy-groups",
     ("user", "taylor_tango"): "posix-users",
     ("user", "unity_uniform"): "posix-users",
 }
+
+
+def _tree(tmp_path: Path) -> Path:
+    """A copy of the fixture with a second group builder of another type
+    (the dummy plugin's), and one group on it, in place of the read-only
+    lookup group (`readers`, which the fixture is losing)."""
+    root = copy_config(tmp_path)
+    (root / "groups" / "group-lookup.yaml").unlink()
+    path = root / "cfg" / "group-builders.yml"
+    data = yaml.safe_load(path.read_text())
+    data["group_builders"].append({"name": "dummy-groups", "type": "dummy", "org": "example", "team": "example"})
+    path.write_text(yaml.safe_dump(data, sort_keys=False))
+    (root / "groups" / "group-dummy.yaml").write_text(yaml.safe_dump(
+        {"groups": [{"name": "dummygroup", "type": "dummy-groups", "description": "a group on the dummy builder"}]},
+        sort_keys=False))
+    return root
 
 
 def _kind(item: Any) -> str:
@@ -68,7 +86,7 @@ def _default_model(ctx, vct: VCT) -> Any:
 
 def test_each_written_type_names_a_builder_other_than_the_default(tmp_path: Path, monkeypatch):
     stub_environment(monkeypatch)
-    ctx = load_context(copy_config(tmp_path))
+    ctx = load_context(_tree(tmp_path))
     by_key = {(_kind(it), it.name): it for it in _items(ctx)}
     defaults = {"group": ctx.reg.get_default_for(VCT.GROUP_BUILDER_MODEL),
                 "user": ctx.reg.get_default_for(VCT.USER_BUILDER_MODEL)}
@@ -80,7 +98,7 @@ def test_each_written_type_names_a_builder_other_than_the_default(tmp_path: Path
 
 def test_the_four_items_name_their_own_builder_after_the_load(tmp_path: Path, monkeypatch):
     stub_environment(monkeypatch)
-    ctx = load_context(copy_config(tmp_path))
+    ctx = load_context(_tree(tmp_path))
     by_key = {(_kind(it), it.name): it for it in _items(ctx)}
 
     for (kind, name), type_name in WRITTEN_TYPES.items():
@@ -93,7 +111,7 @@ def test_the_four_items_name_their_own_builder_after_the_load(tmp_path: Path, mo
 
 def test_every_group_and_user_names_its_own_builder_after_the_load(tmp_path: Path, monkeypatch):
     stub_environment(monkeypatch)
-    ctx = load_context(copy_config(tmp_path))
+    ctx = load_context(_tree(tmp_path))
     items = _items(ctx)
 
     assert {_kind(it) for it in items} == {"group", "user"}
@@ -105,7 +123,7 @@ def test_every_group_and_user_names_its_own_builder_after_the_load(tmp_path: Pat
 
 def test_the_default_typed_items_hold_the_default_builders_model(tmp_path: Path, monkeypatch):
     stub_environment(monkeypatch)
-    ctx = load_context(copy_config(tmp_path))
+    ctx = load_context(_tree(tmp_path))
     default_model = {"group": _default_model(ctx, VCT.GROUP_BUILDER_MODEL),
                      "user": _default_model(ctx, VCT.USER_BUILDER_MODEL)}
     default_typed = [it for it in _items(ctx) if (_kind(it), it.name) not in WRITTEN_TYPES]
@@ -117,7 +135,7 @@ def test_the_default_typed_items_hold_the_default_builders_model(tmp_path: Path,
 
 def test_each_group_and_user_is_keyed_by_its_global_id(tmp_path: Path, monkeypatch):
     stub_environment(monkeypatch)
-    ctx = load_context(copy_config(tmp_path))
+    ctx = load_context(_tree(tmp_path))
     flat = ctx.template_resolver.flattened_map
     keyed = {k: obj for k, obj in flat.items() if isinstance(obj, (Group, User))}
 
@@ -147,7 +165,7 @@ def test_no_item_holds_another_builders_model_in_any_resolution_pass(tmp_path: P
         return changed
 
     monkeypatch.setattr(orchestrator.TemplateResolver, "_resolve_pass", recording_pass)
-    ctx = load_context(copy_config(tmp_path))
+    ctx = load_context(_tree(tmp_path))
     own_model = {id(it): _own_builder(ctx, it).model.global_id for it in _items(ctx)}
 
     assert {id(obj) for obj, _ in seen} == set(own_model)
@@ -158,17 +176,17 @@ def test_no_item_holds_another_builders_model_in_any_resolution_pass(tmp_path: P
 
 def test_the_loader_parents_by_a_written_type_only(tmp_path: Path, monkeypatch):
     stub_environment(monkeypatch)
-    ctx = load_context(copy_config(tmp_path))
+    ctx = load_context(_tree(tmp_path))
     cvt = ctx.template_resolver.converter
     posix_local = ctx.reg.get_instance_by_name_or_alias(VCT.GROUP_BUILDER_MODEL, "posix-local")
-    oktagroups = ctx.reg.get_instance_by_name_or_alias(VCT.GROUP_BUILDER_MODEL, "oktagroups")
-    assert posix_local is not None and oktagroups is not None
+    another = ctx.reg.get_instance_by_name_or_alias(VCT.GROUP_BUILDER_MODEL, "dummy-groups")
+    assert posix_local is not None and another is not None
 
     written = cvt.structure({"name": "probe_written", "type": "posix-local"}, Group)
     left_default = cvt.structure({"name": "probe_default", "type": DEFAULT}, Group)
     names_nothing = cvt.structure({"name": "probe_nothing", "type": "no-such-builder"}, Group)
     parented = cvt.structure({"name": "probe_parented", "type": "posix-local"}, Group)
-    parented.model_id = oktagroups.global_id
+    parented.model_id = another.global_id
 
     for item in (written, left_default, names_nothing, parented):
         orchestrator.parent_by_written_type(ctx.reg, item)
@@ -176,12 +194,12 @@ def test_the_loader_parents_by_a_written_type_only(tmp_path: Path, monkeypatch):
     assert written.model_id == posix_local.global_id
     assert left_default.model_id is None
     assert names_nothing.model_id is None
-    assert parented.model_id == oktagroups.global_id
+    assert parented.model_id == another.global_id
 
 
 def test_the_loader_parents_a_type_left_at_default_by_the_default(tmp_path: Path, monkeypatch):
     stub_environment(monkeypatch)
-    ctx = load_context(copy_config(tmp_path))
+    ctx = load_context(_tree(tmp_path))
     cvt = ctx.template_resolver.converter
     default_model = _default_model(ctx, VCT.GROUP_BUILDER_MODEL)
     posix_local = ctx.reg.get_instance_by_name_or_alias(VCT.GROUP_BUILDER_MODEL, "posix-local")
@@ -203,7 +221,7 @@ def test_the_loader_parents_a_type_left_at_default_by_the_default(tmp_path: Path
 
 def test_an_aliased_item_parented_early_registers_again(tmp_path: Path, monkeypatch):
     stub_environment(monkeypatch)
-    ctx = load_context(copy_config(tmp_path))
+    ctx = load_context(_tree(tmp_path))
     cvt = ctx.template_resolver.converter
     written = cvt.structure({"name": "probe_written", "type": "posix-local", "aliases": ["probe-w"]}, Group)
     left_default = cvt.structure({"name": "probe_default", "type": DEFAULT, "aliases": ["probe-d"]}, Group)

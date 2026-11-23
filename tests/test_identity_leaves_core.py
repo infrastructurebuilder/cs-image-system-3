@@ -16,7 +16,7 @@ from typing import Any, cast
 import pytest
 import typer
 from harness import copy_config, load_context, stub_environment
-from test_container_runtime import IMAGE, RUNTIME, _stub_daemon, docker_overlay
+from test_container_runtime import IMAGE, RUNTIME, _stub_daemon, docker_overlay, dummy_group
 from typer.testing import CliRunner
 
 from cs_image_system.contract.commands import CommandMount
@@ -153,6 +153,48 @@ def test_which_commands_each_identity_plugins_entry_point_brings(monkeypatch):
     assert len(logins) == 1 and logins[0].callback is verify_login_command
 
 
+def test_which_commands_each_identity_plugin_brings_through_its_entry_point(monkeypatch):
+    """The same rule over the posix plugin and a stub identity plugin that
+    brings a sub-app of its own beside the shared `verify login`."""
+    from cs_image_system.engine.commands.login_proof import verify_login_command
+    from cs_image_system.posix_identity_plugin.cli import command_mounts as posix_mounts
+    from cs_image_system.system import cli
+    stub_app = typer.Typer(help="a stub identity plugin's own commands")
+
+    @stub_app.command(name="status")
+    def _status() -> None:
+        typer.echo("stub status")
+
+    def stub_mounts() -> list[CommandMount]:
+        return [CommandMount(name="stubtool", app=stub_app),
+                CommandMount(name="login", path=("verify",), callback=verify_login_command)]
+    # no identity plugin: neither command
+    root, verify = _root()
+    monkeypatch.setattr(cli, "entry_points", lambda group: [])
+    assert cli.mount_plugin_commands(root) == []
+    assert "login" not in {c.name for c in verify.registered_commands}
+    result = runner.invoke(root, ["verify", "login"])
+    assert result.exit_code != 0 and "No such command" in result.output
+    # the posix plugin alone: `verify login`, nothing else
+    root, verify = _root()
+    monkeypatch.setattr(cli, "entry_points", lambda group: [_entry("posix_identity_plugin", posix_mounts)])
+    assert cli.mount_plugin_commands(root) == ["verify/login"]
+    assert "stubtool" not in {g.name for g in root.registered_groups}
+    assert [c.callback for c in verify.registered_commands if c.name == "login"] == [verify_login_command]
+    # the stub alone: its own sub-app and the shared command
+    root, verify = _root()
+    monkeypatch.setattr(cli, "entry_points", lambda group: [_entry("stub_identity_plugin", stub_mounts)])
+    assert cli.mount_plugin_commands(root) == ["stubtool", "verify/login"]
+    assert runner.invoke(root, ["stubtool", "status"]).output.strip() == "stub status"
+    # both installed: one `verify login`, the core's callback
+    root, verify = _root()
+    monkeypatch.setattr(cli, "entry_points", lambda group: [_entry("posix_identity_plugin", posix_mounts),
+                                                             _entry("stub_identity_plugin", stub_mounts)])
+    assert cli.mount_plugin_commands(root) == ["verify/login", "stubtool"]
+    logins = [c for c in verify.registered_commands if c.name == "login"]
+    assert len(logins) == 1 and logins[0].callback is verify_login_command
+
+
 def test_the_installed_cli_carries_the_okta_commands_from_the_real_entry_point(monkeypatch):
     """The console script read the installed entry point at import: the two
     commands answer `--help` without a tree (the root callback reads the
@@ -261,6 +303,38 @@ def test_validate_refuses_an_okta_group_and_accepts_a_posix_group_on_a_container
     assert check_container_runtimes(load_context(root)) == []
 
 
+def test_an_identity_plugin_that_says_nothing_about_containers_objects_and_posix_does_not():
+    from cs_image_system.base.basic.builder_base_group import GroupBuilderBase
+    from cs_image_system.dummy_plugin.dummy_builders import DummyGroupBuilder
+    from cs_image_system.posix_identity_plugin.posix_builders import PosixGroupBuilder
+    assert PosixGroupBuilder.container_runtime_objection(cast(Any, None)) is None
+    dummy = DummyGroupBuilder.container_runtime_objection(cast(Any, DummyGroupBuilder.__new__(DummyGroupBuilder)))
+    assert dummy and "'dummy'" in dummy, "a plugin that has not said it works in a container is not assumed to"
+
+    class _Other(GroupBuilderBase):
+        @classmethod
+        def identity_type(cls) -> str:
+            return "other"
+    default = GroupBuilderBase.container_runtime_objection(cast(Any, _Other.__new__(_Other)))
+    assert default and "'other'" in default
+
+
+def test_validate_refuses_an_objecting_group_and_accepts_a_posix_group_on_a_container_runtime(tmp_path, monkeypatch):
+    from cs_image_system.engine.commands.validate import check_container_runtimes
+    stub_environment(monkeypatch)
+    _stub_daemon(monkeypatch)
+    root = copy_config(tmp_path)
+    docker_overlay(root, group=dummy_group(root))               # the template builder objects by default
+    ctx = load_context(root)
+    errors = [str(e) for e in check_container_runtimes(ctx)]
+    assert len(errors) == 1 and IMAGE in errors[0] and RUNTIME in errors[0] and "(dummy)" in errors[0], errors
+    assert errors[0].endswith(ctx.group_builders["dummy-groups"].container_runtime_objection() or "?"), \
+        "the sentence ends with the builder's own objection"
+    root = copy_config(tmp_path, "posix-tree")
+    docker_overlay(root)                                      # pxgroup, a posix group
+    assert check_container_runtimes(load_context(root)) == []
+
+
 # --------------------------------------------------------- the core's words
 
 def test_the_core_reads_the_accounts_report_and_the_alias_verdict_by_the_contract():
@@ -275,6 +349,20 @@ def test_the_core_reads_the_accounts_report_and_the_alias_verdict_by_the_contrac
     assert "alias_registration_script" in inspect.getsource(provider_aliases)
     assert not hasattr(provider_aliases, "alt_names_script") and not hasattr(provider_aliases, "SFTD_YAML")
     assert ALIASES_CHANGED in alt_names_script(["a-b"])
+
+
+def test_the_core_reads_the_accounts_report_and_the_alias_verdict_by_the_contracts_words():
+    """The core's half: the accounts report and the alias verdict are read by
+    the contract's constants, and the alias script is a builder's, not the core's."""
+    import inspect
+
+    from cs_image_system.contract.group import ACCOUNTS_IN_PLACE, ACCOUNTS_REPORT_PREFIX, ALIASES_CHANGED
+    from cs_image_system.engine import accounts_reconcile, provider_aliases
+    assert ACCOUNTS_IN_PLACE.startswith(ACCOUNTS_REPORT_PREFIX) and ALIASES_CHANGED
+    assert "ACCOUNTS_IN_PLACE" in inspect.getsource(accounts_reconcile)
+    assert "ALIASES_CHANGED" in inspect.getsource(provider_aliases)
+    assert "alias_registration_script" in inspect.getsource(provider_aliases)
+    assert not hasattr(provider_aliases, "alt_names_script") and not hasattr(provider_aliases, "SFTD_YAML")
 
 
 def test_the_state_query_words_for_workload_access_are_the_plugins(tmp_path, monkeypatch):

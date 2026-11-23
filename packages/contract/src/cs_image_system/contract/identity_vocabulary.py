@@ -38,3 +38,8 @@ class Claim:
     #: user): resolved like any other, but its name and id are checked once,
     #: on the claim it follows from
     derived: bool = False
+    #: the identity builder the claim comes from (its name), and whether
+    #: that identity's ids come from a service outside the system (an
+    #: external identity's id wins; only the POSIX identity defers to it)
+    identity: str = ""
+    external: bool = False

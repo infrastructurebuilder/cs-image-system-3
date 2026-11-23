@@ -92,6 +92,56 @@ def test_the_chain_reads_the_runtimes_backend_when_the_root_is_silent(tmp_path, 
     assert rec["oktagroups"]["backend"] == "local-dev"            # names its own, a different type
 
 
+def test_a_local_root_is_recorded_read_across_types_and_named_in_its_runner_script(tmp_path, monkeypatch):
+    """A root on the local backend, through a root that is not identity's:
+    the docker volume root inherits its runtime's local backend; its record
+    carries the path from the root's phase directory; the AWS instance root
+    (s3) reads its state across types; the storage runner script names its
+    location in its header."""
+    fixture_run = FixtureRun(tmp_path, monkeypatch)
+    assert _errors(fixture_run.ctx) == []
+    assert fixture_run.run("all", apply=False).ok
+    rec = _records(fixture_run)
+    assert set(rec) >= {"aws-ebs", "aws-efs", "aws-s3", "docker-volume", "open-tofu", "tofu-docker"}
+    assert rec["docker-volume"] == {"backend": "local-dev", "type": "local",
+                                    "location": "local://state/docker_volume.tfstate",
+                                    "path": "../../../../state/docker_volume.tfstate",
+                                    "run": fixture_run.ctx.run_id}                          # on disk
+    assert rec["open-tofu"]["type"] == "s3"
+    root = (fixture_run.generated / "instance-image" / "open-tofu" / "instance-generation"
+            / "open-tofu-instance-generation.tf").read_text()
+    assert 'backend = "local"' in root and 'path = "../../../../state/docker_volume.tfstate"' in root
+    header = (fixture_run.generated / "storage" / "run-storage.sh").read_text()
+    assert "# state: workspace docker-volume -> local://state/docker_volume.tfstate" in header
+
+
+def test_the_chain_lets_a_root_name_its_own_backend_of_another_type(tmp_path, monkeypatch):
+    """The chain's three rungs on the storage and instance roots alone: a
+    root naming its own backend of a different type wins over its runtime's,
+    a root inheriting its runtime's, a root whose runtime is silent falling
+    through to the default."""
+    root = copy_config(tmp_path)
+    _rebind_storage(root, "default")                              # the storage roots say nothing of their own
+    p = root / "cfg" / "storage-builders.yml"
+    d = yaml.safe_load(p.read_text())
+    next(b for b in d["storage_builders"] if b["name"] == "aws-s3")["state_configuration"] = "local-dev"
+    p.write_text(yaml.safe_dump(d, sort_keys=False))
+    p = root / "cfg" / "runtime-builders.yml"
+    d = yaml.safe_load(p.read_text())
+    for rt in d["runtime_builders"]:
+        rt.pop("state_configuration", None)
+    next(rt for rt in d["runtime_builders"] if rt["name"] == "aws-east2-runtime")["state_configuration"] = "s3-east1"
+    p.write_text(yaml.safe_dump(d, sort_keys=False))
+    fixture_run = FixtureRun(tmp_path, monkeypatch, config_root=root)
+    assert _errors(fixture_run.ctx) == []
+    assert fixture_run.run(["storage", "instance-image"], apply=False).ok
+    rec = _records(fixture_run)
+    assert rec["aws-s3"]["backend"] == "local-dev" and rec["aws-s3"]["type"] == "local"   # its own, over its runtime's
+    assert rec["aws-ebs"]["backend"] == "s3-east1"                # inherited from aws-east2-runtime
+    assert rec["docker-volume"]["backend"] == "s3-east2"          # docker-fixture is silent: the default
+    assert rec["open-tofu"]["backend"] == "s3-east2"              # names its own
+
+
 # ------------------------------------------------------------- collisions
 
 def test_two_roots_that_would_share_a_state_object_are_refused_before_anything_is_emitted(tmp_path, monkeypatch):

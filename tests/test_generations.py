@@ -25,6 +25,7 @@ from cs_image_system.contract.lifecycles import Lifecycle
 from cs_image_system.engine import state_query as sq
 from cs_image_system.engine.meta_state import INSTANCE_STATE
 from tests.harness import FixtureRun
+from tests.posix_world import launched, posix_world
 
 A = {"instance_id": "i-aaaa0000aaaa0000a", "provider_hostname": "ip-10-0-0-1.us-east-2.compute.internal"}
 B = {"instance_id": "i-bbbb0000bbbb0000b", "provider_hostname": "ip-10-0-0-2.us-east-2.compute.internal"}
@@ -235,17 +236,17 @@ def test_nothing_happens_in_a_dry_run_or_for_an_unlaunched_instance(world, monke
 
 # ------------------------------------------------------- the state query
 
-def test_the_report_names_the_generation_beside_the_identity(world, monkeypatch):
-    from cs_image_system.okta_opa_plugin.okta_opa_tf_group_builder import OktaTfGroupBuilder
-    _identity(monkeypatch, A)
-    monkeypatch.setattr(OktaTfGroupBuilder, "can_query_servers", lambda s: True)
-    monkeypatch.setattr(OktaTfGroupBuilder, "registered_servers", lambda s, gr: [])
-    ctx = world.ctx
-    _launched(ctx)
-    g.reconcile_generations(ctx, Lifecycle.INSTANCE_IMAGE)
-    report = sq.query_state(ctx)
-    inst = report.reality["instances"]["test"]
-    assert inst["generation"] == {"number": 1, "kind": "durable", "how": "adopted"}
+def test_the_report_names_the_generation_beside_the_identity(tmp_path: Path, monkeypatch):
+    run, _asked = posix_world(tmp_path, monkeypatch, servers=[], answer={**A, "address": "10.0.0.1"})
+    try:
+        ctx = run.ctx
+        launched(run)
+        g.reconcile_generations(ctx, Lifecycle.INSTANCE_IMAGE)
+        report = sq.query_state(ctx)
+        inst = report.reality["instances"]["test"]
+        assert inst["generation"] == {"number": 1, "kind": "durable", "how": "adopted"}
+    finally:
+        run.restore_cwd()
 
 
 def test_the_ledger_is_its_own_file_and_launch_params_never_carry_the_counter(world):

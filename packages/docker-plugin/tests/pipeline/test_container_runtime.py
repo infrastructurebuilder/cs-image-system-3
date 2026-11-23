@@ -51,6 +51,7 @@ VOLUME_BUILDER = "docker-volume"
 STORAGE = "container_data"
 INSTANCE = "container-test"
 HOSTNAME = "container-test-001"
+ADDRESS = "172.17.0.5"   # the container's address on its network, as `container inspect` reports it
 CID = "c" * 64
 ID = "sha256:" + "a" * 64
 
@@ -250,7 +251,8 @@ def _config_id(ctx) -> str:
 
 def _inspect_answer(config: str, status: str = "running", labels: dict[str, str] | None = None, image: str = ID) -> str:
     return json.dumps([{"Id": CID, "Image": image, "State": {"Status": status},
-                        "Config": {"Hostname": HOSTNAME, "Labels": labels if labels is not None else {"csis_config": config}}}])
+                        "Config": {"Hostname": HOSTNAME, "Labels": labels if labels is not None else {"csis_config": config}},
+                        "NetworkSettings": {"IPAddress": "", "Networks": {"bridge": {"IPAddress": ADDRESS}}}}])
 
 
 def _fake_docker(answers: dict[str, Any], calls: list[list[str]]):
@@ -301,7 +303,8 @@ def test_identity_boot_image_tags_and_power_changes(family_run, monkeypatch):
     _daemon(monkeypatch, {"container inspect": (0, _inspect_answer(ours, labels=labels), "")}, calls)
     assert runtime.can_query_instance_identity() and runtime.can_query_instance_boot_image()
     assert runtime.can_set_instance_power_state()
-    assert runtime.query_instance_identity(INSTANCE) == {"instance_id": CID, "provider_hostname": HOSTNAME}
+    assert runtime.query_instance_identity(INSTANCE) == {"instance_id": CID, "provider_hostname": HOSTNAME,
+                                                         "address": ADDRESS}
     assert runtime.query_instance_boot_image(INSTANCE) == ID
     assert runtime.instance_tags(INSTANCE) == labels
     with pytest.raises(NotImplementedError):
