@@ -31,30 +31,35 @@ IDENTITY, GROUP, HOSTNAME = "posix-local", "pxgroup", "test-001"
 MACHINE = {"instance_id": "i-0abc", "provider_hostname": "ip-10-0-0-5", "address": "10.0.0.5"}
 
 
-def _posix_owned(tmp_path: Path) -> Path:
+def _posix_owned(tmp_path: Path, ephemeral: bool = False) -> Path:
     root = copy_config(tmp_path)
     path = root / "instances" / "instances.yaml"
     data = yaml.safe_load(path.read_text())
-    next(i for i in data["instances"] if i["name"] == "test")["image"] = "imgfile-posix"
+    test = next(i for i in data["instances"] if i["name"] == "test")
+    test["image"] = "imgfile-posix"
+    if ephemeral:
+        test["ephemeral"] = True
     path.write_text(yaml.safe_dump(data, sort_keys=False))
     return root
 
 
 def _world(tmp_path: Path, monkeypatch, *, dry_run: bool = False, servers: Any = None,
-           answer: dict[str, str] | None = MACHINE) -> tuple[FixtureRun, list[str]]:
+           answer: dict[str, str] | None = MACHINE, undeclare: list[str] | None = None,
+           ephemeral: bool = False) -> tuple[FixtureRun, list[str]]:
     """The run, and the list of instances the runtime was asked about.
     ``servers``: the entries to record first (a string is written as the
-    file's text, to make it unreadable)."""
-    root = _posix_owned(tmp_path)
+    file's text, to make it unreadable); ``undeclare``: instances this run
+    leaves out of the tree, as `--undeclare` does."""
+    root = _posix_owned(tmp_path, ephemeral)
     if servers is not None:
         text = servers if isinstance(servers, str) else yaml.safe_dump({"servers": {IDENTITY: {GROUP: servers}}})
         (root / "meta-state" / "servers.yaml").write_text(text)
-    run = FixtureRun(tmp_path, monkeypatch, dry_run=dry_run, config_root=root)
+    run = FixtureRun(tmp_path, monkeypatch, dry_run=dry_run, config_root=root, undeclare=undeclare)
     asked: list[str] = []
-    rtb = run.ctx.runtime_builders[str(next(i for i in run.ctx.instances if i.get_name() == "test").runtime)]
-    monkeypatch.setattr(type(rtb), "can_query_instance_identity", lambda self: True)
-    monkeypatch.setattr(type(rtb), "query_instance_identity",
-                        lambda self, name: asked.append(name) or (dict(answer) if answer and name == "test" else None))
+    for rtb in {type(b) for b in run.ctx.runtime_builders.values()}:
+        monkeypatch.setattr(rtb, "can_query_instance_identity", lambda self: True)
+        monkeypatch.setattr(rtb, "query_instance_identity",
+                            lambda self, name: asked.append(name) or (dict(answer) if answer and name == "test" else None))
     run.ctx.config["apply_instances"] = True
     return run, asked
 
@@ -147,3 +152,75 @@ def test_a_dry_run_asks_nothing_and_writes_nothing(tmp_path, monkeypatch, cleanu
     lp.register_launched_servers(run.ctx, Lifecycle.INSTANCE_IMAGE)
     assert asked == []
     assert (run.meta_state / "servers.yaml").read_text() == before
+
+
+# ------------------------------------------- story 5: a decommission leaves nothing behind
+
+def test_a_decommission_retires_every_entry_under_the_name_and_says_how_many(tmp_path, monkeypatch, cleanup,
+                                                                              caplog):
+    other = _entry(id="i-0zzz", instance_id="i-0zzz", hostname="test2-001", canonical_name="test2-001",
+                   instance="test2")
+    run, _asked = _world(tmp_path, monkeypatch, undeclare=["instance:test"],
+                         servers=[_entry(), _entry(id="i-0def", instance_id="i-0def"), other])
+    cleanup.append(run)
+    _launched(run)
+    with caplog.at_level("INFO"):
+        lp.forget_decommissioned(run.ctx, Lifecycle.INSTANCE_IMAGE)
+    assert run.ctx.meta_state.registered_servers(IDENTITY, GROUP) == [other]
+    assert "test" not in run.ctx.meta_state.launch_params()
+    assert any("retired 2 registration(s) of 'test-001'" in r.message for r in caplog.records)
+
+
+def test_a_retirement_that_fails_is_said_with_its_remedy_and_the_decommission_stands(tmp_path, monkeypatch,
+                                                                                    cleanup, caplog):
+    run, _asked = _world(tmp_path, monkeypatch, undeclare=["instance:test"], servers=[_entry()])
+    cleanup.append(run)
+    _launched(run)
+    (run.meta_state / "servers.yaml").write_text("servers: [unclosed\n")      # unreadable from here on
+    with caplog.at_level("INFO"):
+        lp.forget_decommissioned(run.ctx, Lifecycle.INSTANCE_IMAGE)
+    assert "test" not in run.ctx.meta_state.launch_params()
+    [said] = [r.message for r in caplog.records if "NOT retired" in r.message]
+    assert "test-001" in said and "meta-state/servers.yaml" in said
+
+
+def test_a_replacement_leaves_one_entry_the_new_machines(tmp_path, monkeypatch, cleanup):
+    run, _asked = _world(tmp_path, monkeypatch, servers=[_entry(id="i-0old", instance_id="i-0old")],
+                         answer={"instance_id": "i-0new", "provider_hostname": "ip-10-0-0-7", "address": "10.0.0.7"})
+    cleanup.append(run)
+    ctx, ms = run.ctx, run.ctx.meta_state
+    _launched(run)
+    ms.open_generation("test", kind="durable", run_id="r", how="observed",
+                       launch_params={"hostname": HOSTNAME}, identity={"instance_id": "i-0old"})
+    monkeypatch.setattr(lp, "will_replace", lambda c, i: True)
+    instance = next(i for i in ctx.instances if i.get_name() == "test")
+    params = lp.compute_launch_params(ctx, instance)
+    assert params["hostname"] == "test-002" and params["group"] == GROUP
+    ms.record_launch_params("test", {**params, "launched": False})
+    lp.mark_launched(ctx, Lifecycle.INSTANCE_IMAGE)
+    lp.register_launched_servers(ctx, Lifecycle.INSTANCE_IMAGE)
+    [entry] = ms.registered_servers(IDENTITY, GROUP) or []
+    assert entry["id"] == "i-0new" and entry["hostname"] == "test-002"
+
+
+def test_an_ephemeral_teardown_retires_its_registration(tmp_path, monkeypatch, cleanup):
+    run, _asked = _world(tmp_path, monkeypatch, ephemeral=True, servers=[_entry()])
+    cleanup.append(run)
+    _launched(run)
+    lp.forget_ephemerals(run.ctx, Lifecycle.INSTANCE_IMAGE)
+    assert run.ctx.meta_state.registered_servers(IDENTITY, GROUP) == []
+    assert "test" not in run.ctx.meta_state.launch_params()
+
+
+def test_a_decommission_leaves_the_recorded_ids_as_they_were(tmp_path, monkeypatch, cleanup):
+    from cs_image_system.engine.commands.run_lifecycles import settle_ids
+    from cs_image_system.engine.commands.validate import check_posix_ids
+    run, _asked = _world(tmp_path, monkeypatch, undeclare=["instance:test"], servers=[_entry()])
+    cleanup.append(run)
+    settle_ids(run.ctx, record=True)
+    before = (run.meta_state / "ids.yaml").read_text()
+    _launched(run)
+    lp.forget_decommissioned(run.ctx, Lifecycle.INSTANCE_IMAGE)
+    assert run.ctx.meta_state.registered_servers(IDENTITY, GROUP) == []
+    assert (run.meta_state / "ids.yaml").read_text() == before
+    assert check_posix_ids(run.ctx) == []
