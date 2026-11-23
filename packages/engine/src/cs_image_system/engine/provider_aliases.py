@@ -180,7 +180,10 @@ def _register_instance_aliases(ctx: "RunContext", instance: Any, recorded: dict[
     machine launched by this run is waited for first. The aliases already
     written and the unclaimed ones are written through the runtime's
     session command, unless the registry already holds exactly those.
-    ``registries`` keeps each group's server listing for the instances
+    For a registry kept in the records (``keeps_recorded_registry``) the
+    aliases are written into the machine's entry instead: nothing runs on
+    the machine, so neither its power state nor its enrolment is waited
+    on. ``registries`` keeps each group's server listing for the instances
     that follow."""
     name = instance.get_name()
     if not apply_enabled(ctx, "instances", str(instance.type_), [str(instance.runtime)]):
@@ -195,7 +198,9 @@ def _register_instance_aliases(ctx: "RunContext", instance: Any, recorded: dict[
     gb = group_builder_of(ctx, group) if group else None
     if gb is None or not gb.can_query_servers():
         return
-    state = rtb.query_instance_power_state(name) if rtb.can_query_instance_power_state() else None
+    in_records = gb.keeps_recorded_registry()
+    state = rtb.query_instance_power_state(name) if rtb.can_query_instance_power_state() and not in_records \
+        else None
     if state is not None and not power_state.is_on(state):
         log.info(f"Instance {name}: {power_state.describe(state)}; its provider alias waits for a "
                  "run that finds it running (an alias is not worth starting a machine for)")
@@ -208,7 +213,7 @@ def _register_instance_aliases(ctx: "RunContext", instance: Any, recorded: dict[
     wanted = wanted_aliases(identity, canonical, name, str(record.get("alias") or ""))
     if not wanted:
         return
-    if str(record.get("launched_run") or "") == str(ctx.run_id):
+    if str(record.get("launched_run") or "") == str(ctx.run_id) and not in_records:
         # the machine booted THIS run: the apply returns on `running`, and
         # the session agent, then the identity agent's enrollment, come up
         # a minute or more later. Writing the alias block before that races
@@ -234,7 +239,21 @@ def _register_instance_aliases(ctx: "RunContext", instance: Any, recorded: dict[
     final = _unclaimed_aliases(name, wanted, own, claims)
     if sorted(own.get("alt_names") or []) == sorted(final):
         return   # reality already agrees; no session command
-    _write_aliases(rtb, gb, name, group, final)
+    if in_records:
+        _record_aliases(gb, name, group, own_id, final)
+    else:
+        _write_aliases(rtb, gb, name, group, final)
+
+
+def _record_aliases(gb: GroupBuilderProtocol, name: str, group: str, entry_id: str, final: list[str]) -> None:
+    """Write ``final`` into the machine's entry of a registry kept in the
+    records, saying what came of it; a failure is reported, never raised."""
+    try:
+        written = gb.record_aliases(group, entry_id, final)
+    except Exception as e:  # noqa: BLE001 - reported, never fatal to the run
+        log.error(f"Instance {name}: its aliases {final} were NOT recorded in group {group!r}'s registry ({e})")
+        return
+    log.info(f"Instance {name}: now also answers to {written or final} (recorded in group {group!r}'s registry)")
 
 
 def _enrolled_after_launch(rtb: RuntimeBuilderProtocol, gb: GroupBuilderProtocol, name: str, group: str,
