@@ -20,7 +20,9 @@ repository, must be tested against the system it will run beside).
 The system is published to two package indexes: PyPI, the public one that
 every install reads by default, and TestPyPI, its practice twin. By the
 operator's standing decision of 2026-11-23, every release from now until
-the operator declares 1.0 goes to TestPyPI only. PyPI keeps the versions it
+the operator declares 1.0 goes to TestPyPI only. The reason, in the
+operator's words: not to "flood actual pypi with interim releases", of
+which there will be "quite a number". PyPI keeps the versions it
 has: the system 0.1.12, the SDK 0.2.1, the contract 0.5.0, and both
 families released elsewhere at 0.2.1.
 
@@ -55,40 +57,71 @@ it, and nothing else is.
 - Q: Where do releases go until 1.0? → A: TestPyPI only, for every
   repository (the operator's standing decision); versions move only their
   third number meanwhile (a second standing decision)
+- Q (the operator's note): why TestPyPI? → A: To keep PyPI free of the
+  many interim releases to come before 1.0; releases will be frequent
+- Q: Is every interim release proven in full? → A: No. An interim
+  release runs a lighter check; the full proof (the full test suite and
+  the reference configuration's session checks) runs when the operator
+  asks for it, and the operator is told, before a release, when a full
+  proof is probably needed (what the release carries touches what only
+  the full proof exercises)
 - Q: How does this repository publish to TestPyPI? → A: By trusted
   publishing, as the two families do: a pushed tag runs a publishing
   workflow, with no upload token anywhere; the stored `TEST_PYPI_TOKEN`
   and `PYPI_TOKEN` secrets are no longer needed
 
+### Session 2026-11-23 (planning)
+
+- Q (D1): how does an install take the families' newest TestPyPI
+  releases? → A: each system release pins every family extra exactly at
+  the newest TestPyPI release inside its range
+- Q (D2): how do the families test against the newest system? → A: a CI
+  job that re-locks the system's names to TestPyPI's newest and runs the
+  acceptance tests, beside the committed lock's job
+- Q (D3): the Okta plugin's copy here? → A: marked `Private :: Do Not
+  Upload` now
+
 ## User Scenarios & Testing *(mandatory)*
 
-### User Story 1 - A release is published to TestPyPI only, proven as fully as before (Priority: P1)
+### User Story 1 - A release is published to TestPyPI only, proven enough for what it carries (Priority: P1)
 
 An operator cuts a release of the system, the Okta plugin or the Google
-Cloud family. It is proven by everything a PyPI release was proven by,
-published to TestPyPI, and nothing reaches PyPI.
+Cloud family. An interim release runs a lighter check; the release says,
+before it runs, when what it carries probably needs the full proof, and
+the operator can ask for that proof on any release. It is published to
+TestPyPI, and nothing reaches PyPI.
 
 **Why this priority**: every other story takes releases; a release that
-reaches PyPI breaks the decision, and one proven less than before puts a
-weaker build in front of every consumer.
+reaches PyPI breaks the decision, and interim releases must stay cheap
+(there will be many) without hiding when one needs more.
 
-**Independent Test**: a rehearsed release of each repository runs the full
-test suite and every check the PyPI form ran, publishes to TestPyPI, and a
-check of PyPI afterwards finds its newest version unchanged.
+**Independent Test**: a rehearsed interim release of each repository runs
+the lighter check and publishes to TestPyPI; a rehearsed release carrying
+a change the full proof exercises says so before it runs; a release asked
+for the full proof runs it; a check of PyPI afterwards finds its newest
+version unchanged.
 
 **Acceptance Scenarios**:
 
-1. **Given** a release of this repository to TestPyPI, **When** it runs,
-   **Then** it runs every check the PyPI form ran (the full test suite, the
-   reference configuration's session checks, the version and surface
-   probes), and stops before anything changes when one fails.
-2. **Given** a release of the Okta plugin or the Google Cloud family,
+1. **Given** an interim release of this repository, **When** it runs,
+   **Then** it runs the lighter check (the acceptance tests, the install
+   check, the version and surface probes), and stops before anything
+   changes when one fails.
+2. **Given** a release whose changes since the last fully proven release
+   touch what only the full proof exercises, **When** it starts, **Then**
+   it says the full proof is probably needed, naming why, before anything
+   changes.
+3. **Given** a release the operator asks to prove in full, **When** it
+   runs, **Then** it runs every check the PyPI form ran (the full test
+   suite, the reference configuration's session checks) and records that
+   it was fully proven.
+4. **Given** a release of the Okta plugin or the Google Cloud family,
    **When** its tag is pushed, **Then** its publishing uploads to TestPyPI
    and never to PyPI, whatever the version.
-3. **Given** any release in any of the three repositories, **When** it is
+5. **Given** any release in any of the three repositories, **When** it is
    asked to publish to PyPI, **Then** it refuses, naming the standing
    decision, until the operator lifts it.
-4. **Given** a release, **When** it finishes, **Then** PyPI's newest
+6. **Given** a release, **When** it finishes, **Then** PyPI's newest
    version of every package it carries is unchanged.
 
 ---
@@ -215,8 +248,18 @@ release.
 - **FR-001**: Until the operator lifts the decision, no release of any of
   the three repositories MUST publish to PyPI; a release asked to MUST
   refuse, naming the decision.
-- **FR-002**: Every release to TestPyPI MUST run every check the PyPI form
-  of that repository's release ran.
+- **FR-002**: An interim release MUST run a lighter check (the acceptance
+  tests, the install check, the version and surface probes); a release
+  the operator asks to prove in full MUST run every check the PyPI form
+  of that repository's release ran, and MUST record that it was. *(The
+  operator, 2026-11-23: "I want the lighter check".)*
+- **FR-002a**: Before a release runs, it MUST say when a full proof is
+  probably needed: when what it carries since the last fully proven
+  release touches what only the full proof exercises (a runtime's or an
+  identity's calls to its cloud or service, the release and take tooling,
+  the starters' workflows, the contract or the SDK), or when the reference
+  configuration is about to take it into an applying cycle, naming the
+  reason; it MUST NOT refuse on that ground alone.
 - **FR-003**: Every consumer (the reference configuration, an adopting
   team's install, each repository's lock and CI) MUST take every
   `cs-image-system` package from TestPyPI and every other dependency from
@@ -255,8 +298,9 @@ release.
 
 - **SC-001**: Zero versions are added to PyPI for any of the system's
   packages until 1.0.
-- **SC-002**: Every release before 1.0 runs 100% of the checks its PyPI
-  form ran.
+- **SC-002**: Every interim release runs the lighter check, and every
+  release whose changes touch what only the full proof exercises is
+  flagged before it runs, in 100% of releases.
 - **SC-003**: After a release, the reference configuration, a clean
   install and every repository's lock name that release, with zero
   third-party packages taken from TestPyPI.
