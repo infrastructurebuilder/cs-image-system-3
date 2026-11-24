@@ -50,25 +50,25 @@ aws = [
     "cs-image-system-tf-s3-state-plugin==0.1.13.dev1",
 ]
 gcloud = [
-    "cs-image-system-gcloud-runtime-plugin==0.2.1",
-    "cs-image-system-tf-gcp-plugin==0.2.1",
-    "cs-image-system-gcs-state-plugin==0.2.1",
+    "cs-image-system-gcloud-runtime-plugin>=0.2,<0.3",
+    "cs-image-system-tf-gcp-plugin>=0.2,<0.3",
+    "cs-image-system-gcs-state-plugin>=0.2,<0.3",
 ]
 docker = [
     "cs-image-system-docker-plugin==0.1.13.dev1",
 ]
 okta = [
-    "cs-image-system-okta-opa-plugin==0.2.1",
+    "cs-image-system-okta-opa-plugin>=0.2,<0.3",
 ]
 all = [
     "cs-image-system-aws-runtime-plugin==0.1.13.dev1",
     "cs-image-system-tf-ebs-instance-plugin==0.1.13.dev1",
     "cs-image-system-tf-s3-state-plugin==0.1.13.dev1",
-    "cs-image-system-gcloud-runtime-plugin==0.2.1",
-    "cs-image-system-tf-gcp-plugin==0.2.1",
-    "cs-image-system-gcs-state-plugin==0.2.1",
+    "cs-image-system-gcloud-runtime-plugin>=0.2,<0.3",
+    "cs-image-system-tf-gcp-plugin>=0.2,<0.3",
+    "cs-image-system-gcs-state-plugin>=0.2,<0.3",
     "cs-image-system-docker-plugin==0.1.13.dev1",
-    "cs-image-system-okta-opa-plugin==0.2.1",
+    "cs-image-system-okta-opa-plugin>=0.2,<0.3",
 ]
 
 [project.urls]
