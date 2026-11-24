@@ -522,21 +522,21 @@ requires-dist = [
     { name = "cs-image-system-docker-plugin", marker = "extra == 'all'", editable = "packages/docker-plugin" },
     { name = "cs-image-system-docker-plugin", marker = "extra == 'docker'", editable = "packages/docker-plugin" },
     { name = "cs-image-system-engine", editable = "packages/engine" },
-    { name = "cs-image-system-gcloud-runtime-plugin", marker = "extra == 'all'", specifier = ">=0.2,<0.3" },
-    { name = "cs-image-system-gcloud-runtime-plugin", marker = "extra == 'gcloud'", specifier = ">=0.2,<0.3" },
-    { name = "cs-image-system-gcs-state-plugin", marker = "extra == 'all'", specifier = ">=0.2,<0.3" },
-    { name = "cs-image-system-gcs-state-plugin", marker = "extra == 'gcloud'", specifier = ">=0.2,<0.3" },
+    { name = "cs-image-system-gcloud-runtime-plugin", marker = "extra == 'all'", specifier = ">=0.2,<0.3", index = "https://test.pypi.org/simple/" },
+    { name = "cs-image-system-gcloud-runtime-plugin", marker = "extra == 'gcloud'", specifier = ">=0.2,<0.3", index = "https://test.pypi.org/simple/" },
+    { name = "cs-image-system-gcs-state-plugin", marker = "extra == 'all'", specifier = ">=0.2,<0.3", index = "https://test.pypi.org/simple/" },
+    { name = "cs-image-system-gcs-state-plugin", marker = "extra == 'gcloud'", specifier = ">=0.2,<0.3", index = "https://test.pypi.org/simple/" },
     { name = "cs-image-system-hashicorp-utils", editable = "packages/hashicorp-utils" },
     { name = "cs-image-system-local-state-plugin", editable = "packages/local-state-plugin" },
-    { name = "cs-image-system-okta-opa-plugin", marker = "extra == 'all'", specifier = ">=0.2,<0.3" },
-    { name = "cs-image-system-okta-opa-plugin", marker = "extra == 'okta'", specifier = ">=0.2,<0.3" },
+    { name = "cs-image-system-okta-opa-plugin", marker = "extra == 'all'", specifier = ">=0.2,<0.3", index = "https://test.pypi.org/simple/" },
+    { name = "cs-image-system-okta-opa-plugin", marker = "extra == 'okta'", specifier = ">=0.2,<0.3", index = "https://test.pypi.org/simple/" },
     { name = "cs-image-system-packer-plugin", editable = "packages/packer-plugin" },
     { name = "cs-image-system-posix-identity-plugin", editable = "packages/posix-identity-plugin" },
     { name = "cs-image-system-system", editable = "packages/system" },
     { name = "cs-image-system-tf-ebs-instance-plugin", marker = "extra == 'all'", editable = "packages/tf-ebs-instance-plugin" },
     { name = "cs-image-system-tf-ebs-instance-plugin", marker = "extra == 'aws'", editable = "packages/tf-ebs-instance-plugin" },
-    { name = "cs-image-system-tf-gcp-plugin", marker = "extra == 'all'", specifier = ">=0.2,<0.3" },
-    { name = "cs-image-system-tf-gcp-plugin", marker = "extra == 'gcloud'", specifier = ">=0.2,<0.3" },
+    { name = "cs-image-system-tf-gcp-plugin", marker = "extra == 'all'", specifier = ">=0.2,<0.3", index = "https://test.pypi.org/simple/" },
+    { name = "cs-image-system-tf-gcp-plugin", marker = "extra == 'gcloud'", specifier = ">=0.2,<0.3", index = "https://test.pypi.org/simple/" },
     { name = "cs-image-system-tf-s3-state-plugin", marker = "extra == 'all'", editable = "packages/tf-s3-state-plugin" },
     { name = "cs-image-system-tf-s3-state-plugin", marker = "extra == 'aws'", editable = "packages/tf-s3-state-plugin" },
     { name = "cs-image-system-tofu-roots", editable = "packages/tofu-roots" },
@@ -771,7 +771,7 @@ requires-dist = [
 [[package]]
 name = "cs-image-system-gcloud-runtime-plugin"
 version = "0.2.1"
-source = { registry = "https://pypi.org/simple" }
+source = { registry = "https://test.pypi.org/simple/" }
 dependencies = [
     { name = "cs-image-system-base" },
     { name = "cs-image-system-contract" },
@@ -783,23 +783,23 @@ dependencies = [
     { name = "python-hcl2" },
     { name = "pyyaml" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/11/24/7a2cd938d0909ba7df30258507e53556febb6535929fbf978f97c9e59e1e/cs_image_system_gcloud_runtime_plugin-0.2.1.tar.gz", hash = "sha256:e011a4f6f827010512ab293ddb957f7b14afa2e8f5aff8e58e5a8fc772b94732", size = 98803, upload-time = "2026-11-23T11:07:23.653Z" }
+sdist = { url = "https://test-files.pythonhosted.org/packages/11/24/7a2cd938d0909ba7df30258507e53556febb6535929fbf978f97c9e59e1e/cs_image_system_gcloud_runtime_plugin-0.2.1.tar.gz", hash = "sha256:e011a4f6f827010512ab293ddb957f7b14afa2e8f5aff8e58e5a8fc772b94732", size = 98803, upload-time = "2026-11-23T11:07:03.705Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/bf/43/1a74c086e91bdf40e9bd169453ecb5308ca94e8b447b91da48522f4bdc99/cs_image_system_gcloud_runtime_plugin-0.2.1-py3-none-any.whl", hash = "sha256:ed1051c09c88efb30a98b391db57ac3d2a86f6f1e8f85725888473cebd388eb5", size = 83979, upload-time = "2026-11-23T11:07:20.704Z" },
+    { url = "https://test-files.pythonhosted.org/packages/bf/43/1a74c086e91bdf40e9bd169453ecb5308ca94e8b447b91da48522f4bdc99/cs_image_system_gcloud_runtime_plugin-0.2.1-py3-none-any.whl", hash = "sha256:ed1051c09c88efb30a98b391db57ac3d2a86f6f1e8f85725888473cebd388eb5", size = 83979, upload-time = "2026-11-23T11:07:00.035Z" },
 ]
 
 [[package]]
 name = "cs-image-system-gcs-state-plugin"
 version = "0.2.1"
-source = { registry = "https://pypi.org/simple" }
+source = { registry = "https://test.pypi.org/simple/" }
 dependencies = [
     { name = "cs-image-system-base" },
     { name = "cs-image-system-contract" },
     { name = "pydantic" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/2f/e5/fd042ac7d893081244a8d8751b547709ce4674312ea0478c276fc5817d47/cs_image_system_gcs_state_plugin-0.2.1.tar.gz", hash = "sha256:83fb155ba1984ddb6da68d26dc21196ae7638393376c6f5bf22c906a97d492c2", size = 27650, upload-time = "2026-11-23T11:07:24.343Z" }
+sdist = { url = "https://test-files.pythonhosted.org/packages/2f/e5/fd042ac7d893081244a8d8751b547709ce4674312ea0478c276fc5817d47/cs_image_system_gcs_state_plugin-0.2.1.tar.gz", hash = "sha256:83fb155ba1984ddb6da68d26dc21196ae7638393376c6f5bf22c906a97d492c2", size = 27650, upload-time = "2026-11-23T11:07:05.333Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/11/d4/f13a0cfea8156d6b63d5a0d4c99a614c9576a6104c092dd84f76ef8cc4a1/cs_image_system_gcs_state_plugin-0.2.1-py3-none-any.whl", hash = "sha256:cd39c5f8d04a25cb640e9b34cc76f083ee01b5595311fb5c00cacb8245fccbf2", size = 19986, upload-time = "2026-11-23T11:07:21.844Z" },
+    { url = "https://test-files.pythonhosted.org/packages/11/d4/f13a0cfea8156d6b63d5a0d4c99a614c9576a6104c092dd84f76ef8cc4a1/cs_image_system_gcs_state_plugin-0.2.1-py3-none-any.whl", hash = "sha256:cd39c5f8d04a25cb640e9b34cc76f083ee01b5595311fb5c00cacb8245fccbf2", size = 19986, upload-time = "2026-11-23T11:07:01.45Z" },
 ]
 
 [[package]]
@@ -841,7 +841,7 @@ requires-dist = [
 [[package]]
 name = "cs-image-system-okta-opa-plugin"
 version = "0.2.1"
-source = { registry = "https://pypi.org/simple" }
+source = { registry = "https://test.pypi.org/simple/" }
 dependencies = [
     { name = "cryptography" },
     { name = "cs-image-system-base" },
@@ -851,9 +851,9 @@ dependencies = [
     { name = "pydantic" },
     { name = "typer" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/c1/41/6bcb073c6aa9ec197756076d5236895ef732a3a74953a0411c03e69e5461/cs_image_system_okta_opa_plugin-0.2.1.tar.gz", hash = "sha256:ee850ae4bae5a63c235ebd36f077ac7da001c4ae0332be93ae987f07d471fe0b", size = 132051, upload-time = "2026-11-22T23:21:10.193Z" }
+sdist = { url = "https://test-files.pythonhosted.org/packages/c1/41/6bcb073c6aa9ec197756076d5236895ef732a3a74953a0411c03e69e5461/cs_image_system_okta_opa_plugin-0.2.1.tar.gz", hash = "sha256:ee850ae4bae5a63c235ebd36f077ac7da001c4ae0332be93ae987f07d471fe0b", size = 132051, upload-time = "2026-11-22T23:20:49.595Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/39/82/fb92e7efbf02e4d807c7dae69b35d3dd97e570b81a385728ede87581bae2/cs_image_system_okta_opa_plugin-0.2.1-py3-none-any.whl", hash = "sha256:5c8b89fdde1dd2cb7d04d90f0e9429c4a30609f9cc8ca1e8f5797da5c0319b5a", size = 109707, upload-time = "2026-11-22T23:21:09.005Z" },
+    { url = "https://test-files.pythonhosted.org/packages/39/82/fb92e7efbf02e4d807c7dae69b35d3dd97e570b81a385728ede87581bae2/cs_image_system_okta_opa_plugin-0.2.1-py3-none-any.whl", hash = "sha256:5c8b89fdde1dd2cb7d04d90f0e9429c4a30609f9cc8ca1e8f5797da5c0319b5a", size = 109707, upload-time = "2026-11-22T23:20:48.261Z" },
 ]
 
 [[package]]
@@ -956,7 +956,7 @@ requires-dist = [
 [[package]]
 name = "cs-image-system-tf-gcp-plugin"
 version = "0.2.1"
-source = { registry = "https://pypi.org/simple" }
+source = { registry = "https://test.pypi.org/simple/" }
 dependencies = [
     { name = "cs-image-system-base" },
     { name = "cs-image-system-contract" },
@@ -966,9 +966,9 @@ dependencies = [
     { name = "google-cloud-compute" },
     { name = "pydantic" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/ce/ac/ed85523059a7519e80fc87d2e60b347a7d4d189c7edfdcbbad1a04e787fb/cs_image_system_tf_gcp_plugin-0.2.1.tar.gz", hash = "sha256:0b13d00947efccaf2c0025935ed3cd9c09f8fc38eb7899baa2ca197771017981", size = 64875, upload-time = "2026-11-23T11:07:24.93Z" }
+sdist = { url = "https://test-files.pythonhosted.org/packages/ce/ac/ed85523059a7519e80fc87d2e60b347a7d4d189c7edfdcbbad1a04e787fb/cs_image_system_tf_gcp_plugin-0.2.1.tar.gz", hash = "sha256:0b13d00947efccaf2c0025935ed3cd9c09f8fc38eb7899baa2ca197771017981", size = 64875, upload-time = "2026-11-23T11:07:06.599Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/8f/73/64914e5fe83fc71164cec1da3eff20611aac3f3b73a01562b960ad22d986/cs_image_system_tf_gcp_plugin-0.2.1-py3-none-any.whl", hash = "sha256:853eb799a3713487f4ba6401b90e529d0e7a8bbd135878f124e738061fdb0944", size = 43558, upload-time = "2026-11-23T11:07:22.788Z" },
+    { url = "https://test-files.pythonhosted.org/packages/8f/73/64914e5fe83fc71164cec1da3eff20611aac3f3b73a01562b960ad22d986/cs_image_system_tf_gcp_plugin-0.2.1-py3-none-any.whl", hash = "sha256:853eb799a3713487f4ba6401b90e529d0e7a8bbd135878f124e738061fdb0944", size = 43558, upload-time = "2026-11-23T11:07:02.582Z" },
 ]
 
 [[package]]

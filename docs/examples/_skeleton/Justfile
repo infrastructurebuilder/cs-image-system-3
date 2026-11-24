@@ -165,17 +165,17 @@ take version *words:
 		unchanged="nothing was changed but the tag $tag on HEAD, pushed (running again finds it)"
 	fi
 	old=$(git show HEAD:.csis-version 2>/dev/null | head -1 || true)
-	# a development release is on TestPyPI only, with PyPI as the extra index
-	test_index=(--index-url https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple/ --index-strategy unsafe-first-match)
-	index=(); [[ "$version" == *.dev* ]] && index=("${test_index[@]}")
-	oldindex=(); [[ "$old" == *.dev* ]] && oldindex=("${test_index[@]}")
+	# every release is on TestPyPI until 1.0 (PyPI keeps only the older ones), with PyPI as the extra
+	# index for every third-party package; the same form finds an older release on either
+	index=(--index-url https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple/ --index-strategy unsafe-first-match)
+	oldindex=("${index[@]}")
 	# the umbrella with the extras this tree's `type:` words need (`just extras`): a bare install carries no runtime
 	extras=$(just extras)
 	# always the release from the index, as the uv tool: a committing run is held to exactly that, and
 	# every step of the take runs by this binary, whatever CSIS names for the tree's other recipes;
 	# `--refresh` asks the index afresh: a page uv cached before the release's upload does not list it,
 	# and the release is the umbrella and every package it pins, each its own project on the index
-	uv tool install --force --refresh ${index[@]+"${index[@]}"} "cs-image-system${extras:+[$extras]}==$version" >/dev/null 2>&1 || { echo "take: cs-image-system${extras:+[$extras]}==$version could not be installed from the index, asked afresh (no cached page): the version is not on the index asked (a development release is on TestPyPI, a final one on PyPI), or the index did not answer -- $unchanged"; exit 1; }
+	uv tool install --force --refresh ${index[@]+"${index[@]}"} "cs-image-system${extras:+[$extras]}==$version" >/dev/null 2>&1 || { echo "take: cs-image-system${extras:+[$extras]}==$version could not be installed from the index, asked afresh (no cached page): the version is not on the index asked (every release is on TestPyPI until 1.0), or the index did not answer -- $unchanged"; exit 1; }
 	tool="$(uv tool dir --bin)/cs-image-system"
 	have=$("$tool" --version 2>/dev/null | awk '{print $NF}' || true)
 	[ "$have" = "$version" ] || { echo "take: the installed tool $tool reports '${have:-nothing}', not $version -- $unchanged"; exit 1; }

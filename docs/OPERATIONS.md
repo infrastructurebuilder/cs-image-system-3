@@ -73,7 +73,8 @@ Two trees matter everywhere below:
   - [Public-safe and the hook](#public-safe-and-the-hook)
   - [The frozen fixture and the reference configuration](#the-frozen-fixture-and-the-reference-configuration)
   - [Branches](#branches)
-  - [`just build`, `just release`, `just publish`, `just publish-tree`](#just-build-just-release-just-publish-just-publish-tree)
+  - [`just build`, `just release`, `just publish-tree`](#just-build-just-release-just-publish-tree)
+  - [Releasing until 1.0](#releasing-until-10)
   - [Installing a release](#installing-a-release)
   - [The modification tests](#the-modification-tests)
   - [Writing a plugin](#writing-a-plugin)
@@ -82,7 +83,7 @@ Two trees matter everywhere below:
   - [The bootstrap: what CI needs, as terraform from an interview](#the-bootstrap-what-ci-needs-as-terraform-from-an-interview)
   - [This repository: the `verify` job](#this-repository-the-verify-job)
   - [This repository: the `live` job](#this-repository-the-live-job)
-  - [This repository: the `publish` job](#this-repository-the-publish-job)
+  - [This repository: the Publish workflow](#this-repository-the-publish-workflow)
   - [A configuration repository: the `verify` job](#a-configuration-repository-the-verify-job)
   - [A configuration repository: the `live` job](#a-configuration-repository-the-live-job)
   - [A configuration repository: the `perform` job](#a-configuration-repository-the-perform-job)
@@ -1820,7 +1821,7 @@ changed).
 | `init-config` | 1 | a release-owned file differs and `--force` was not given; 2 for an unknown starter |
 | `identity-attributes` | 4 | attribute writes are disabled (`--apply`); 3 on an invalid plan or a provider conflict |
 | `test`, `cleanup` | 2 | retired names; the message names the replacement |
-| `scripts/publish-target-ready`, `just index-ready`, `just publish` | 75 | the index cannot take an upload now (an endpoint or a project page down; PyPI's limit on new projects) -- nothing changed, try again later; `publish-target-ready` exits 2 for a target it has no checker for and, with `--all-held`, 1 unless every project holds the version |
+| `scripts/publish-target-ready`, `just index-ready` | 75 | the index cannot take an upload now (an endpoint or a project page down) -- nothing changed, try again later; `publish-target-ready` exits 2 for a target it has no checker for and, with `--all-held`, 1 unless every project holds the version |
 
 ### The state query
 
@@ -2231,31 +2232,44 @@ page, [CONFIGURATION.md](CONFIGURATION.md) and the daily driver
 one of those three pages runs them too; `grep -l '<page>.md' tests/*.py`
 names the set.
 
-### `just build`, `just release`, `just publish`, `just publish-tree`
+<a id="just-build-just-release-just-publish-just-publish-tree"></a>
+
+### `just build`, `just release`, `just publish-tree`
 
 `just build` packages the system and every workspace member (sdist +
 wheel: forty-four files) under `dist/`; no tests. The builds are
 reproducible -- two builds of one tree are byte-identical -- which is what
-lets CI check a tag against the index instead of uploading it again.
+lets the release compare a package it does not bump with the files the
+index already holds (step 3), and lets the publish workflow skip a file
+the index already has instead of uploading it again.
 
-`just release <target> [test|pypi] [yes]` cuts a release, publishes it
-and pushes it. Run it from `develop`: it moves to `main` itself, and
-ends back on `develop` with both branches and the tag pushed. `<target>` is a part for `bump-my-version` -- `patch`,
+`just release <target> [--full] [yes]` cuts a release and pushes it; it
+uploads nothing itself. The push of its tag runs the publish workflow,
+which publishes the release to TestPyPI, the one index every release
+goes to until 1.0 ([Releasing until 1.0](#releasing-until-10) says why,
+and what the words below choose). Run it from `develop`: it moves to
+`main` itself, and ends back on `develop` with both branches and the tag
+pushed. `<target>` is a part for `bump-my-version` -- `patch`,
 `minor` or `major` open the next version as its first development
 release (`0.1.0` → `0.1.1.dev1`), `dev` is the next development release
 of the same version (`0.1.1.dev1` → `0.1.1.dev2`), `stage` finalises it
-(`0.1.1.dev2` → `0.1.1`) -- or an explicit version. The index is `test`
-(TestPyPI, the default) or `pypi`. `yes` as the third argument is the dry
-form: the probes, the version, and one line `release: dry -- would run:
-<command>` for every branch move, push and resync the real form would
+(`0.1.1.dev2` → `0.1.1`) -- or an explicit version; until 1.0 only the
+third number moves, so `patch`, `dev`, `stage` or a version that moves
+the third number. There is no index argument: `pypi` among the words is
+refused, naming the standing decision, before anything is asked, and
+`test` is accepted and changes nothing. `--full` puts the full proof in
+place of the lighter check (step 3). The words come in any order. `yes`
+is the dry form: the probes, the advisory, the version, and one line
+`release: dry -- would run: <command>` for every branch move, push and resync the real form would
 make, in its order (read from the refs: the dry form checks nothing out,
 so from `develop` it still refuses a `main` that cannot fast-forward);
 nothing is changed, no ref and no file. A venv behind the checkout is
 said in the dry form rather than refused, since the real form syncs it
 before it asks. The family's logic
 is `scripts/release.py` (every step a function, held by
-`tests/test_release_script.py` against a stubbed shell); the three
-recipes hand it the release branch and the live configuration's root,
+`tests/test_release_script.py` against a stubbed shell); the
+recipes (`release`, `release-take` and the private `_release-probes`)
+hand it the release branch and the live configuration's root,
 and the configuration's working tree is read in one place there
 (`read_sibling`: its path, whether it is configured, its branch, its
 dirty files, its tags). The real form, in
@@ -2271,19 +2285,19 @@ order:
    past it, which skips the ancestor check; any other branch is refused
    by name; the working tree is clean (the refusal names the remedy; the
    IDE's workspace file is untracked, so the editor rewriting it cannot
-   dirty the tree); the index can take an upload and
+   dirty the tree); TestPyPI can take an upload and
    holds the version for no project (`scripts/publish-target-ready`,
    below; a version is never re-cut, because a deleted version's files
-   can never be uploaded again); the token is set
-   (`UV_PUBLISH_TOKEN`, else `TEST_PYPI_TOKEN` / `PYPI_TOKEN`); no
+   can never be uploaded again); no token is asked for, since the
+   release uploads nothing and the publish workflow needs none; no
    `v<version>` tag exists here (the local record of a version that was
    cut, deleted from the index or not); `dev` on a final version is
    refused (open the next version with `patch` first); the checkout has
    the remote `origin` the release will push to; and, after `git fetch
    origin`, origin holds no commit that a branch the ending pushes lacks
    (`main` and `develop`, or the maintenance branch alone): one that
-   does would refuse that push after the upload, leaving a version on
-   the index whose commit and tag are unpushed. The refusal names the
+   does would refuse that push after the commit and the tag, leaving a
+   release cut here that nothing publishes. The refusal names the
    branch, the count and the remedy (`git checkout <branch> && git merge
    --ff-only origin/<branch>`, or a reconciliation when that cannot
    fast-forward), and changes nothing but the remote-tracking refs the
@@ -2295,11 +2309,17 @@ order:
    origin`): `release: local annotated tags origin lacks stay behind
    (the ending pushes v<version> alone): s113-before, checkpoint`, or
    `... alone): none`. They stay behind because the ending pushes the
-   release's own tag by name (step 7: pushed together with it, more
+   release's own tag by name (step 6: pushed together with it, more
    than three tags at once would start no tag run on GitHub); the line
    is there so you see them before the cut, and push or delete the
    ones that matter yourself. When `ls-remote` fails the line says so
-   and the release goes on;
+   and the release goes on. Last, without `--full`, the advisory, in
+   both forms and never a refusal: when a path that only the full proof
+   exercises changed since the newest fully proven release, or the take
+   will push the reference's `main` (`release-take ... main`), one line
+   `release: a full proof is probably needed: <reasons>; run with
+   --full` says so, and the release goes on with the lighter check
+   ([Releasing until 1.0](#releasing-until-10) says which paths);
 2. from `develop`, the move: `git checkout main` and `git merge
    --ff-only develop`. A `main` that cannot fast-forward (it holds
    commits `develop` does not) is refused before the checkout, on
@@ -2307,7 +2327,7 @@ order:
    because a branch switch rewrites the files the two branches differ in
    and the venv falls behind the checkout (the venv probe refused a
    release once, right after a switch to `main` by hand). From here to
-   the bump (step 4), a refusal or a failure -- a probe, the bar, the
+   the bump (step 4), a refusal or a failure -- a probe, the gate, the
    index asked again -- checks `develop` out again, puts `main`'s ref
    back where it was, and says so (`the checkout is back on develop, and
    main is where it was`);
@@ -2320,14 +2340,15 @@ order:
    the checkout whose venv is behind, for a run whose venv is another
    checkout's); then every package whose version the release
    does not move -- the manifests the bump's `glob_exclude` names, the
-   contract today, private ones skipped -- is either not on the index
-   (it goes up fresh) or held there as exactly this tree's build
+   contract today, private ones skipped -- is either not on TestPyPI
+   (the publish workflow uploads it fresh) or held there as exactly this
+   tree's build
    (`scripts/own-versions-current`: the package built as `just build`
    builds it, into a temporary directory, each file's sha256 compared
    with the index's JSON API, `<host>/pypi/<name>/<version>/json`). It
    exists because an index never takes a second build under a version
    it holds, so a package changed without its own bump is otherwise
-   refused at the upload, after the whole gate -- as the contract's
+   refused at the publish workflow's upload, after the tag -- as the contract's
    `0.4.0` was, docstrings changed and the version not bumped; the
    reproducible builds are what let the probe foresee it in seconds.
    A difference is refused (exit 1), naming the package, the version,
@@ -2335,8 +2356,13 @@ order:
    is refused too (exit 2), never guessed. Neither the JSON API nor
    the probe can see a file deleted from the index, whose name the
    index refuses forever, so a version whose files were deleted needs
-   its own bump all the same. `release-finish` skips it: it builds and
-   uploads nothing. Then, for PyPI, docker answers and every runtime
+   its own bump all the same. Then every family released from its own
+   repository (the Google Cloud family, the Okta identity plugin) has a
+   TestPyPI release inside the range its extra names
+   (`scripts/with-released-families --check test`), since step 4 pins
+   the newest one; the SDK's surfaces (`just surface-check`); and docker
+   answers (the install check of the lighter check and `full-test`'s
+   legs both run in it). Under `--full` also every runtime
    session of the live configuration is present (`just preflight`; a
    `full-test` without them would skip its live legs, which a release
    cannot accept), said with the minutes the soonest-expiring session has left
@@ -2344,40 +2370,35 @@ order:
    -- for an SSO profile the cached access token's `expiresAt` -- even
    where the session renews itself, because the CLI's refresh can fail
    on a lapsed token). A
-   PyPI release takes about an hour, start to commit, and an SSO login
+   `--full` release takes about an hour, start to commit, and an SSO login
    lasts one, so under an hour left the line says to log in again from
    a second terminal about halfway (a running run picks the new token
    up). Said, not refused on; a token that has already lapsed (which
    `preflight` judges too) is refused, naming `aws sso login`. A refusal
    names its remedy and changes nothing;
-   then the gate: for TestPyPI the bar
+   then the gate: by default the lighter check, the acceptance tests
    (`just test`) and the install check (`just test-docker-install`, which
-   needs a container daemon); for PyPI `just full-test`, whose legs hold
-   the install check, the modification-test
+   needs a container daemon); under `--full` the full proof, `just
+   full-test`, whose legs hold the install check, the modification-test
    evidence at `<config_root>/meta-state/mod-tests.yaml` (written by
    `full-test` with docker in the LIVE configuration) and a live checkout
-   clean apart from it; then the index is asked AGAIN, since the bar
-   takes twenty minutes and an index that went down meanwhile should
-   leave a clean tree, not a bump to discard;
+   clean apart from it; then TestPyPI is asked AGAIN, since the gate
+   takes twenty minutes to an hour and an index that went down meanwhile
+   should leave a clean tree, not a bump to discard;
 4. `bump-my-version bump <part>` (or `--new-version`): every `version =`
    line and every `== <version>` pin between the packages, in one move
    (`[tool.bumpversion]` in the root `pyproject.toml`); then `uv lock`;
-5. `just publish <index>` -- BEFORE the commit and the tag, so a failed
-   upload never leaves a tagged, unpublished version. A failed upload
-   leaves the checkout on `main` (or the maintenance branch), where the
-   uncommitted bump is and where `release-finish` or the discard needs
-   it; nothing is pushed. What to do with
-   the uncommitted bump depends on how far the upload got, and the
-   release says which:
-   - **no project holds the version:** discard the bump
-     (`git checkout -- pyproject.toml packages/*/pyproject.toml uv.lock`);
-   - **some projects hold it** (the upload stopped part-way): KEEP the
-     bump, because those files can never be uploaded again under
-     another version. Run `just publish <index>` until every project
-     holds it (a day apart when PyPI's limit on new projects stopped it,
-     below), then `just release-finish <index>`, which makes step 6's
-     commits and the tag and step 7's pushes;
-6. for PyPI, the mod-test evidence committed in the live repository
+   then each family released elsewhere pinned exactly in the root's
+   extras at its newest TestPyPI release inside the extra's range
+   (`scripts/with-released-families --newest test`, said in one line),
+   and `uv lock` again, so the released umbrella names every one of the
+   system's names exactly ([Releasing until 1.0](#releasing-until-10)
+   says why that matters). A failure from here on leaves the checkout
+   on `main` (or the maintenance branch) with the bump uncommitted, to
+   discard (`git checkout -- pyproject.toml packages/*/pyproject.toml
+   uv.lock`) once the cause is read; nothing has been pushed or
+   published;
+5. under `--full`, the mod-test evidence committed in the live repository
    (`release <v>: modification-test evidence`); then the release's row
    at the top of [CHANGES.md](CHANGES.md) (its `#r<version>` anchor,
    dots as dashes, the date, the version and the commit's subject; on
@@ -2385,27 +2406,34 @@ order:
    since the tag contains it -- a maintenance branch's release stamps
    none), and `pyproject.toml`, `packages/*/pyproject.toml`, `uv.lock`
    and `docs/CHANGES.md` committed here (`release <v>`) and the
-   annotated tag `v<version>`;
-7. the ending, the recipe's own: `git push origin main v<version>`,
+   annotated tag `v<version>`, whose message carries the line `fully
+   proven: full-test` under `--full` (the line the advisory measures
+   from); then the families' ranges put back in the root's extras, the
+   tree's own between releases, in a commit of their own (`after
+   release <v>: the released families back on their ranges`);
+6. the ending, the recipe's own: `git push origin main v<version>`,
    `main` and the release's own tag by name, so no other local tag
    travels with them (GitHub starts no run for tags when more than
-   three are pushed at once); the tag makes CI's `publish` job check
-   the release against the index (it uploads nothing the index
-   already holds); then `git
+   three are pushed at once); the tag's push starts the publish
+   workflow, which uploads every public project to TestPyPI
+   ([This repository: the Publish workflow](#this-repository-the-publish-workflow));
+   then `git
    checkout develop`, `git merge --ff-only main` and `git push origin
    develop`, so `develop` takes `main` back; and last `uv sync
    --all-extras --no-extra gcloud --no-extra okta --no-extra all` again, since the switch and the moved lock left the venv
    behind once more. From a maintenance branch the ending is `git push
    origin release/<major.minor> v<version>` and the resync; `develop`
-   is not touched. The irreversible act is the upload, which comes
-   before; a version on the index whose commit and tag are unpushed is
-   the wrong state, and the push is the only sane continuation.
+   is not touched. The push of the tag is what publishes: a release
+   committed and tagged here and not pushed has published nothing, and
+   pushing it is the continuation.
 
-The closing line says what is on the index, what was pushed (the
-commands, in order) and the branch the checkout ends on, with its venv
-synced. A failed step of the ending -- a push the remote refused, say --
-stops there and exits non-zero: the version is on the index and
-committed and tagged locally, and the line names the command that failed
+The closing line says the version is committed, tagged and pushed, what
+was pushed (the commands, in order), the branch the checkout ends on,
+with its venv synced, and that the tag's push publishes it to TestPyPI
+(`just release-watch <version>` waits on that). A failed step of the
+ending -- a push the remote refused, say -- stops there and exits
+non-zero: the version is committed and tagged locally and published
+nowhere until its tag is pushed, and the line names the command that failed
 and every command left, joined with `&&`, to run by hand once its cause
 is fixed. For a refused push of `main` the rest is `git push origin
 main v<version> && git checkout develop && git merge --ff-only main &&
@@ -2423,8 +2451,8 @@ fast-forward back. If a stage landed on `develop` during a release the
 fast-forward back refuses, and the release's last lines name it; the
 fallback is one merge commit of `main` into `develop`, never a rebase of
 pushed commits. A failed release leaves its evidence on `main` alone:
-an uncommitted bump in `main`'s checkout after a failed upload; a
-refusal before the bump leaves nothing, since it returns to `develop`
+an uncommitted bump in `main`'s checkout when a step after the bump
+failed (step 4); a refusal before the bump leaves nothing, since it returns to `develop`
 with `main` where it was. `git flow release` is not used (its finish makes a merge
 commit and a back-merge). A maintenance branch `release/<major.minor>`
 is accepted by both recipes for the day a tree needs a fix to an old
@@ -2434,33 +2462,28 @@ fix while `develop` is past it); the index refuses a re-cut and
 for it until one is needed. A tree older than 0.1.6 cut its releases on
 `develop` and left `main` unused ([CHANGES.md](CHANGES.md#s107)).
 
-**Finishing a release by hand: `just release-finish <index>`.** For a
-release whose upload stopped part-way and was completed with `just
-publish`. On `main` (or a maintenance branch), with the bump uncommitted
-and nothing else changed, it asks the venv probe above and the fetch
-probe (step 1: origin holds no commit the branches it will push lack),
-then asks the index whether every project holds the version
-(`scripts/publish-target-ready --all-held`; the index's pages lag an
-upload by minutes, so a count just after one can be short), and only
-then makes the evidence commit in the live repository (PyPI), the
-[CHANGES.md](CHANGES.md) row, the `release <v>` commit and the tag;
-then the same ending as the release (step 7): the pushes, `develop`'s
-fast-forward from `main`, and the resync. It is never run from
-`develop`: the bump it finishes is on `main`.
+**Nothing is left to finish by hand.** The release uploads nothing, so
+there is no part-way upload for it to resume: `just release-finish` and
+`just publish`, which an earlier release finished a stopped upload
+with, are gone. A publish run that stopped part-way (an outage, a
+limit) is run again (`GH_PAGER=cat gh run rerun <run> --failed`), and
+uploads only what TestPyPI does not hold yet
+([Releasing until 1.0](#releasing-until-10)).
 
 **The whole walk: `just release-take` and `just release-watch`.** A
 release is taken by the live configuration (`config_root`: the
 reference configuration beside this repository, or
 `CSIS_CONFIG_ROOT`), and its CI runs for twenty to thirty minutes
-after the pushes, so the walk is three commands and a login halfway:
+after the pushes, so the walk is two commands, and a login halfway
+through a `--full` release:
 
 ```sh
-just release-take <part|version> <test|pypi>      # [main] [yes]
-# halfway through a PyPI release, from a second terminal: aws sso login
+just release-take <part|version>      # [--full] [main] [yes]
+# halfway through a --full release, from a second terminal: aws sso login
 just release-watch <version>
 ```
 
-`just release-take <part|version> <index> [main] [yes]` is a separate
+`just release-take <part|version> [--full] [main] [yes]` is a separate
 recipe, the operator's decision: `release` alone still serves a
 configuration that takes a release at its own pace. Its logic is
 `release.py release-take`, in this order:
@@ -2469,12 +2492,18 @@ configuration that takes a release at its own pace. Its logic is
    here: it is configured (`cfg/_config.yml`), a git checkout, and its
    `Justfile` has a `take` recipe (`just --summary` there); otherwise
    it refuses naming which, with nothing changed;
-2. the release, exactly as `just release <part|version> <index>` runs
-   it, probes, gate, upload, tag, pushes and resync included;
+2. the release, exactly as `just release <part|version> [--full]` runs
+   it, probes, advisory, gate, tag, pushes and resync included; with
+   `main` and without `--full`, the advisory also names the applying
+   cycle the take will start in the reference;
 3. the version read back from the tree the release left (`bump-my-version
    show current_version`, and the tag `v<version>` here), never
    recomputed from the part;
-4. `just take <version>` in the live configuration, with `main` passed
+4. a wait until TestPyPI lists `cs-image-system <version>`
+   (`scripts/index-knows`, asked every thirty seconds, an hour at
+   most): the tag's push publishes the release, the umbrella last, so
+   its listing means the publish workflow's upload is done;
+5. `just take <version>` in the live configuration, with `main` passed
    through when given (the take then pushes `develop` to `main`, and
    `main` performs), and `UV_REFRESH=1` in that one command's
    environment, so its install asks the index afresh whatever recipe
@@ -2485,13 +2514,16 @@ configuration that takes a release at its own pace. Its logic is
    the pin, init, validate, the commit, the record and one push.
 
 A release that refuses or fails runs no take, and says what the release
-says. A take that stops (a file the release changed and you edited, a
-lapsed session) leaves the release done -- it is never run again -- and
+says. A version TestPyPI does not list within the hour runs no take
+either: the release is done and pushed, and the line says to see how
+the publish run went (`just release-watch <version>`) and, once
+TestPyPI lists the version, names the take to run there. A take that
+stops (a file the release changed and you edited, a lapsed session) leaves the release done -- it is never run again -- and
 the closing line names the command that finishes the take there (`cd
 <config_root> && UV_REFRESH=1 just take <version> [main]`, with
 `patched` after a refresh by hand, as the take's own lines say); the
 exit code is the take's. `yes` is the dry form: the release's dry form,
-every line of it, then `release-take: dry -- would run: cd
+every line of it, then the wait and `release-take: dry -- would run: cd
 <config_root> && UV_REFRESH=1 just take <version> [main]`; nothing is
 changed in either repository.
 
@@ -2499,8 +2531,8 @@ changed in either repository.
 runs the walk started, found by commit and never by time, and prints
 one verdict line each, so the walk ends on a recipe's closing line and
 not on a person polling GitHub. Here the commit is the tag's (the
-release pushed it as `main` and `develop` too): the tag's run of CI
-(its `publish` job), `main`'s and `develop`'s runs of CI, and
+release pushed it as `main` and `develop` too): the tag's runs of CI
+and of Publish (the publish workflow), `main`'s and `develop`'s runs of CI, and
 `develop`'s run of "CI from scratch". In the live configuration it is
 the commit the take pushed (the `Take <version>` commit on `develop`,
 or the record committed right after it): its run of CI on `develop`
@@ -2527,12 +2559,12 @@ one that fails halfway.
 A green job is not proof that its steps ran, so two runs are read
 further:
 
-- **the tag's run**: the index the version belongs on (TestPyPI for a
-  development version, PyPI for a final one) must list `cs-image-system
-  <version>` (`scripts/index-knows`), and for a final version every
-  template repository (`scripts/starter-tree --list`) must hold the tag
-  `v<version>` (`git ls-remote --tags`, as `just publish-starters`
-  asks); a green run whose index does not list the version is not good;
+- **the tag's Publish run**: TestPyPI, where every release goes until
+  1.0, must list `cs-image-system <version>` (`scripts/index-knows`),
+  and every template repository (`scripts/starter-tree --list`) must
+  hold the tag `v<version>` (`git ls-remote --tags`, as `just
+  publish-starters` asks); a green run whose index does not list the
+  version is not good;
 - **the configuration's `main` run**: the `perform` job's log
   (`gh run view <run> --job <job> --log`) must carry the guard's
   verdict -- its `runtime-unchanged:` lines, none `CHANGED`, or the line
@@ -2561,7 +2593,7 @@ are said after each. Each has a row in
 - **The take cannot install the version it was just given.** Minutes
   after the release, `just take <version>` stops on `take:
   cs-image-system[<extras>]==<version> could not be installed from the
-  index (a development release is on TestPyPI, a final one on PyPI) --
+  index (every release is on TestPyPI until 1.0) --
   nothing was changed`, though the index lists the version. uv
   answered from the index page it cached before the upload, which does
   not list the new version yet. In the live configuration, run the take
@@ -2577,8 +2609,8 @@ are said after each. Each has a row in
   0.1.11 installs with `--refresh` itself, and its line then says
   `asked afresh (no cached page)`: the cache is not the cause, and the
   version is not on the index asked, or the index did not answer --
-  see that the release went to the index the tree takes from (TestPyPI
-  for a development version, PyPI for a final one), wait a few
+  see that TestPyPI lists the release (every release goes there until
+  1.0, [Releasing until 1.0](#releasing-until-10)), wait a few
   minutes, and take again.
 - **The tag's CI run never starts.** `just release-watch <version>`
   waits on `system tag v<version> (CI)` and, at its timeout, says
@@ -2587,12 +2619,16 @@ are said after each. Each has a row in
   `main` and `develop` and none for the tag. The release pushed more
   than three tags at once (its own and other local annotated tags
   origin lacked, which `--follow-tags` carried), and for such a push
-  GitHub creates no tag event, so the `publish` job -- TestPyPI, and
-  for a final version the template repositories -- never ran. Start
-  the tag's run by hand from your local machine: `GH_PAGER=cat gh
-  workflow run ci.yml --ref v<version>` (CI takes a manual start, and
-  its `publish` job runs on any ref that starts with `refs/tags/v`),
-  then run the watch again; it finds the new run by the tag's commit.
+  GitHub creates no tag event, so neither CI's tag run nor the publish
+  workflow (TestPyPI, and for a final version the template
+  repositories) ran, and nothing of the version is published. Start
+  CI's tag run by hand from your local machine: `GH_PAGER=cat gh
+  workflow run ci.yml --ref v<version>` (CI takes a manual start). The
+  publish workflow takes none: it runs on a pushed tag alone, so push
+  the tag again on its own, `git push origin :refs/tags/v<version>`
+  and then `git push origin v<version>` (nothing has been published
+  under it yet). Then run the watch again; it finds the new runs by
+  the tag's commit.
   A checkout of this repository from stage 139 on (released in 0.1.11)
   pushes the release's branch and its own tag by name, so no other tag
   travels with it, and its probes name the local tags that stay behind.
@@ -2606,20 +2642,6 @@ are said after each. Each has a row in
   again at its next interval; only when no look is answered until the
   timeout does it end on the reason, and it says to run it again.
 
-**A first release to PyPI takes days.** Production PyPI lets an account
-create only a few NEW projects a day. A first release of many projects
-is refused at the fifth new project of each run with `429 Too many new
-projects created`: a retry an hour and a half later is still refused
-and one a day later works, so such a release goes up four projects a
-day. Warehouse's published
-default (20 an hour) is not what production enforces. `just publish`
-reads that 429 as exit 75, "not now", names the projects left, and says
-to run it again in a day; nothing is wrong with the release, and the
-bump stays uncommitted until `release-finish`. A later release creates
-no new project and is not limited. To go faster, a maintainer can ask
-PyPI's administrators for a one-time lift through PyPI's support tracker
-(github.com/pypi/support), naming the account, the projects and why.
-
 **The index is asked first.** `scripts/publish-target-ready
 <test|pypi>` (and `just index-ready [test|pypi]`, the probe alone, one
 line per endpoint) reads the target's `[[tool.uv.index]]` entry and
@@ -2627,73 +2649,49 @@ asks two things of it: the upload endpoint (`publish-url`) answers
 below 500 to a request that uploads nothing, and the simple index
 answers for EVERY project a release uploads -- the root project and each
 published `packages/*` member -- with 200, or 404 for a project
-it has never seen. With `--version` it also says which projects already
-hold that version: none (a fresh release), all, or some (a partial
-upload, which `just publish` completes). Exit 0 is ready; **75 is "not
+it has never seen. It still takes `pypi` as a target, for a look at
+PyPI; nothing uploads there until 1.0. With `--version` it also says
+which projects already hold that version: none (a fresh release), all,
+or some (a partial upload, which a rerun of the publish run completes).
+Exit 0 is ready; **75 is "not
 now"**, the code `--locked` uses for "try again later": the index's
 condition, not the release's, with nothing changed; 2 is a target it
 has no checker for, which is refused by name, never passed (a new
 publish target owes its checker in the change that adds it). The pages it
 reads are cached, so a count taken minutes after an upload can lag it,
-and it says so; `--all-held` (release-finish's form) exits 1 unless
-every project holds the version. What it cannot check is that the token
-will be accepted: the index has no call that says so without an upload,
-and the probe says so -- `just publish` proves it (below). `just
+and it says so; `--all-held` exits 1 unless every project holds the
+version. What it cannot check is that TestPyPI will accept the publish
+workflow's trusted publisher: only an upload says that, and a publisher
+TestPyPI does not recognise fails the publish run with
+`invalid-publisher` ([Releasing until 1.0](#releasing-until-10)). `just
 index-ready test wait` probes every minute until the index is ready,
 two hours at most, one line per attempt, for the night the index's
 upload endpoint and most project pages answer 503 for hours while one
 page still answers 200; asking one page alone would let a release run
-its whole bar before the upload failed
+its whole gate before the upload failed
 ([INCIDENTS.md](INCIDENTS.md#testpypi-was-down-and-a-release-found-it-only-at-the-upload)).
-`release` asks before its other probes and again after the bar;
-`publish` asks first, and reports a partial upload rather than refusing
-it.
+`release` asks before its other probes and again after the gate.
 
-`just publish [test|pypi]` builds and uploads the version in the tree:
-the index asked first (above), `dist/` cleaned, `just build`, then
-`scripts/publish-dist`, which runs `uv publish --index <name>` once per
-project:
-
-- **one project at a time, its sdist and wheel together, in dependency
-  order** -- the base first, then the plugins, `cs-image-system-system`,
-  and `cs-image-system` last -- so an upload that is cut off leaves only
-  complete projects, and the top-level package appears only when
-  everything it needs is there (an upload that sends the top-level
-  package before its dependencies leaves `pip install
-  cs-image-system==<version>` unable to resolve until the rest arrive);
-- **a failure shows its cause**: the `error:` and `cause:` lines uv
-  wrote, without the index's HTML page, and the file that holds the
-  whole output (a resumed run's "already exists" lines would otherwise
-  push the cause out of a summary of the first eight lines);
-- **PyPI's 429** ("Too many new projects created") is exit 75 with the
-  projects left (above);
-- **the token is proved even when nothing was uploaded.** A file the
-  index already holds is skipped without credentials, so a repository
-  secret that is not a working token could otherwise go unseen for
-  weeks. When every file was already there,
-  one file is sent again without the check: the index checks the
-  credentials before it looks for a duplicate (Warehouse's upload view)
-  and answers an identical file with 200, storing nothing, so 200 -- or
-  400 "File already exists" -- proves the token and 403 refuses it.
-
-The
-endpoints are the `[[tool.uv.index]]` entries in the root
-`pyproject.toml` -- `testpypi` uploads to `https://test.pypi.org/legacy/`
-and is checked against `https://test.pypi.org/simple/`; `pypi` uploads to
-`https://upload.pypi.org/legacy/` -- both `explicit`, so neither takes
-part in resolving the workspace. The index's `url` is the check URL (uv
-refuses an explicit `--check-url` beside `--index`). Files the index
-already holds with the
-same content are skipped, so a re-run after a partial failure uploads
-what is missing and nothing twice. The credential is `UV_PUBLISH_TOKEN`
-from the environment or, absent that, the index's own name --
-`TEST_PYPI_TOKEN` or `PYPI_TOKEN`, the repository secrets' names, so one
-`.envrc` line serves the shell and CI alike -- and never in the Justfile:
-while versions are being deleted and re-cut, an account-scoped TestPyPI
-token; trusted publishing
-(a pending publisher per project name: the umbrella and every
-published package) waits until
-the names are stable, and is then the CI job's credential.
+**The upload is the publish workflow's.** The publish workflow
+([This repository: the Publish workflow](#this-repository-the-publish-workflow))
+uploads in the order `scripts/publish-dist` keeps -- one project at a
+time, its sdist and wheel together, in dependency order: the base
+first, then the plugins, `cs-image-system-system`, and `cs-image-system`
+last -- so an upload that is cut off leaves only complete projects, and
+the top-level package appears only when everything it needs is there
+(an upload that sends the top-level package before its dependencies
+leaves `pip install cs-image-system==<version>` unable to resolve until
+the rest arrive). The endpoints are the `[[tool.uv.index]]` entries in
+the root `pyproject.toml` -- `testpypi` uploads to
+`https://test.pypi.org/legacy/` and is checked against
+`https://test.pypi.org/simple/`; `pypi` names
+`https://upload.pypi.org/legacy/`, which nothing uploads to until 1.0
+-- both `explicit`, so neither takes part in resolving the workspace
+except for the names `[tool.uv.sources]` sends to `testpypi` (the
+families released elsewhere). A file TestPyPI already holds is skipped
+(`uv publish --index` checks the index it publishes to), so a rerun
+after a partial failure uploads what is missing and nothing twice. No
+token is involved anywhere: the upload is by trusted publishing.
 
 The workspace's version lives in the `version =` line of the root and of
 every package that releases with it (the two private ones included), and
@@ -2708,18 +2706,265 @@ moved with `just sdk-bump <kit|terraform> <last|middle>`, which also
 moves every exact pin on that line. Removing or altering anything on a
 library's declared surface takes `middle`; anything else takes `last`
 ([WRITING_A_PROVIDER.md](WRITING_A_PROVIDER.md#how-it-depends-on-the-sdk)).
-A release is refused while `just surface-check` fails. The scheme is `MAJOR.MINOR.PATCH[.devN]`; every
-version goes to TestPyPI first, and versions there are deleted as
-development goes on, so an increment must be cheap: `just release dev`
-is one. `tests/test_package_metadata.py` bumps a copy of the tree and
+A release is refused while `just surface-check` fails. The scheme is
+`MAJOR.MINOR.PATCH[.devN]`; every version goes to TestPyPI, and only
+there, until 1.0, and only its third number moves meanwhile
+([Releasing until 1.0](#releasing-until-10)), so an increment must be
+cheap: `just release dev` is one. `tests/test_package_metadata.py` bumps a copy of the tree and
 asserts nothing of the old version is left.
+
+### Releasing until 1.0
+
+This section is the one place the documents say where a release goes
+until 1.0, how it is proven, how it is published and how it is
+installed; the others link here.
+
+**TestPyPI only; PyPI is refused.** Until the operator declares 1.0,
+every release of this repository (the system, the contract, the kit
+and the terraform libraries, and every plugin it publishes), of the Okta
+identity plugin
+([cs-image-system-okta](https://github.com/infrastructurebuilder/cs-image-system-okta))
+and of the Google Cloud family
+([cs-image-system-google-cloud](https://github.com/infrastructurebuilder/cs-image-system-google-cloud))
+goes to TestPyPI, PyPI's practice twin, and only there. That is the
+operator's standing decision (specification 013): there will be many
+interim releases, and they are not to flood PyPI. PyPI keeps the
+versions it had: the system and its plugins 0.1.12, the kit and the
+terraform libraries 0.2.1, the contract 0.5.0, the Okta plugin and the
+Google Cloud family 0.2.1. Each repository's release refuses `pypi`,
+naming the decision, before it asks or changes anything:
+
+```text
+release: PyPI is refused by the standing decision, TestPyPI until 1.0 (the operator's to lift): a release goes to TestPyPI alone, published by its tag's push -- nothing was changed
+```
+
+Meanwhile versions move only their third number (0.1.13, 0.1.14, and
+their `.devN` releases between): a release asks for `patch`, `dev`,
+`stage` or an explicit version of that shape, never `minor` or `major`,
+until the operator says otherwise. Semantic versioning's promise about
+the middle number waits for 1.0 too.
+
+**The commands.**
+
+| Command | What it does |
+| --- | --- |
+| `just release <part\|version>` | the lighter check, the advisory, the bump, the families pinned, the commit and the tag, then the pushes; uploads nothing |
+| `just release <part\|version> --full` | the same with the full proof in place of the lighter check; the tag's message carries `fully proven: full-test` |
+| `just release <part\|version> [--full] yes` | the dry form: the probes, the advisory, the version and every move and push it would make; nothing changes |
+| `just release <...> pypi` | refused (above); nothing changes |
+| `just release-take <part\|version> [--full] [main] [yes]` | the release, a wait until TestPyPI lists it, then `just take <version>` in the reference configuration |
+| `just release-watch <version>` | waits on the tag's CI and Publish runs, TestPyPI, the template repositories and the reference configuration's runs; one verdict each |
+
+The steps in order are under
+["`just build`, `just release`, `just publish-tree`"](#just-build-just-release-just-publish-tree).
+
+**The lighter check, and `--full`.** Interim releases have to stay
+cheap, so a release is gated by default on the lighter check: the
+acceptance tests (`just test`), the install check (`just
+test-docker-install`: the docker extra installed alone validates and
+dry-runs its starter) and the probes (the venv in step with the lock,
+the packages the release does not bump fresh on TestPyPI or held there
+as this tree's build, the families released elsewhere on TestPyPI
+inside their extras' ranges, the SDK's surfaces, docker). `--full`, on
+any release, gates on the full proof a PyPI release used to run
+instead: `just full-test`, the reference configuration's session probes
+(`just preflight`, and the minutes the soonest-expiring session has
+left), the modification-test evidence committed in the reference
+configuration and a reference checkout clean apart from it. A `--full`
+release records that it ran in its annotated tag's message, the line
+`fully proven: full-test`.
+
+**The advisory.** Before anything changes, a release without `--full`
+says when it probably needs the full proof, and why. It reads the paths
+changed since the newest release tag whose message carries `fully
+proven: full-test` (with none, since the first release tag, and it says
+so) and names those only the full proof exercises: the runtime plugins
+(`packages/*-runtime-plugin/`, `packages/docker-plugin/`), the POSIX
+identity plugin, the release and take tooling (`scripts/release.py`,
+`scripts/publish-dist`, `scripts/release-watch`, the skeleton's
+`Justfile`), the starters' workflows (`docs/examples/*/.github/`), the
+contract and the SDK (`packages/contract/`, `packages/base/`,
+`packages/hashicorp-utils/`, `packages/tofu-roots/`); the list is
+`FULL_PROOF_PATHS` in [scripts/release.py](../scripts/release.py). A
+`release-take ... main`, which starts an applying cycle in the
+reference, is named too. One line says it:
+
+```text
+release: a full proof is probably needed: <reasons>; run with --full
+```
+
+It never refuses: the release goes on with the lighter check, and the
+choice stays yours. Because it measures from the newest FULLY proven
+release, it keeps saying so on every release until one runs `--full`.
+
+**The released families are pinned exactly.** In its `release <v>`
+commit and its tag, a release pins each family released elsewhere in
+the root's extras (`gcloud`, `okta`, `all`) at its newest TestPyPI
+release inside the extra's range (`scripts/with-released-families
+--newest test`); right after the tag the ranges come back in a commit
+of their own (`after release <v>: the released families back on their
+ranges`), the tree's own between releases. With the core and the
+contract pinned with `==` as well, the released umbrella names every
+one of the system's names exactly, which is what makes the install form
+below safe.
+
+**The tag's push publishes, by trusted publishing.** The release
+uploads nothing and needs no token: it commits, tags and pushes, and
+the push of the tag `v<version>` runs
+[.github/workflows/publish.yml](../.github/workflows/publish.yml) (the
+workflow named "Publish"). It builds the tree at the tag, checks that
+the tag names the version in it, and uploads every public project to
+TestPyPI by **trusted publishing**: TestPyPI has been told to accept
+uploads for each project from one GitHub repository, one workflow file
+and one GitHub environment, and the job proves it is them with a
+short-lived token GitHub issues to it, so no upload token is stored
+anywhere to leak, expire or rotate. Then, for a final version, it
+pushes the template repositories
+([This repository: the Publish workflow](#this-repository-the-publish-workflow)).
+The trust, set up 2026-11-24:
+
+| Where | What is set up |
+| --- | --- |
+| TestPyPI, on each of the 17 projects | a GitHub trusted publisher: owner `infrastructurebuilder`, repository `cs-image-system-3`, workflow `publish.yml`, environment `testpypi` |
+| GitHub, this repository | the environment `testpypi`, its deployment rule restricted to tags matching `v*`, so only a release tag can use it; it holds no secret |
+
+The 17 projects are the public ones: `cs-image-system`, the umbrella,
+and the sixteen `packages/*` members whose `pyproject.toml` does not
+carry the classifier `Private :: Do Not Upload` --
+`cs-image-system-ansible-plugin`, `-aws-runtime-plugin`, `-base`,
+`-bash-mod-plugin`, `-contract`, `-default-os-plugin`,
+`-docker-plugin`, `-engine`, `-hashicorp-utils`,
+`-local-state-plugin`, `-packer-plugin`, `-posix-identity-plugin`,
+`-system`, `-tf-ebs-instance-plugin`, `-tf-s3-state-plugin` and
+`-tofu-roots`. A publisher is added by an Owner of the project on
+TestPyPI: the project's **Manage**, **Publishing**, **Add a new
+publisher**, the **GitHub** tab, the four values above. A package that
+is new to the index needs a **pending** publisher before its first
+release (the account's **Publishing** page, **Add a new pending
+publisher**, the same four values and the new project's name): without
+one the publish run fails on that project with `invalid-publisher`,
+and a run that names a claim TestPyPI did not recognise is compared
+with the four values. The repository secrets `TEST_PYPI_TOKEN` and
+`PYPI_TOKEN` are read by no workflow any longer; they may be deleted
+once the first release has published through `publish.yml`. The Okta
+identity plugin and the Google Cloud family publish their own projects
+the same way, each from its own repository, and each documents its
+setup in its own `docs/RELEASING.md`
+([the Okta plugin's](https://github.com/infrastructurebuilder/cs-image-system-okta/blob/develop/docs/RELEASING.md)).
+
+**A fork publishes under names of its own.** A fork builds and tests
+everything as it is; CI needs no index secret. It cannot publish under
+these projects' names, which belong to this project's owners on
+TestPyPI, so every job of `publish.yml` runs only in this repository
+(the `if: github.repository == 'infrastructurebuilder/cs-image-system-3'`
+line of each job), and a fork's tag push publishes nothing. To publish
+from a fork:
+
+1. choose new distribution names for the projects it publishes (each
+   `[project] name`, and the `==` pins and extras that name them); a
+   plugin's distribution name decides its namespace, so the qualified
+   form of its words changes with it;
+2. change the repository in each `if:` line of `publish.yml` to the
+   fork's `<owner>/<repository>`;
+3. on TestPyPI, from the fork's own account, add a pending publisher
+   for each new name (the account's **Publishing** page: the fork's
+   owner and repository, `publish.yml`, `testpypi`); the first upload
+   creates each project, with that account as its owner;
+4. in the fork on GitHub, create the environment `testpypi`
+   (**Settings**, **Environments**, **New environment**), restricted to
+   tags matching `v*`;
+5. release as above, `just release <part|version>`, which pushes the
+   tag that publishes.
+
+**The one install form, for every version.** A release is installed
+with TestPyPI named, PyPI as the extra index, uv's first-match strategy
+and the version pinned, development or final alike:
+
+```sh
+uv tool install --index-url https://test.pypi.org/simple/ \
+  --extra-index-url https://pypi.org/simple/ --index-strategy unsafe-first-match \
+  'cs-image-system[<extras>]==<version>'
+```
+
+`uv pip install` takes the same three options. Why each is there, and
+why the form is safe:
+
+- **PyPI is asked first, name by name.** In uv `--extra-index-url`
+  takes priority over `--index-url`, so every name is looked up on
+  PyPI before TestPyPI.
+- **A name falls through to TestPyPI only when PyPI cannot satisfy
+  it.** uv's default strategy stops at the first index that carries a
+  name at all, and PyPI carries `cs-image-system` (since 0.1.1) and the
+  system's other names, so without `--index-strategy
+  unsafe-first-match` a version only TestPyPI holds would never be
+  looked for there.
+- **Every one of the system's names is pinned exactly.** A released
+  umbrella pins the core and the contract with `==`, and the families
+  released elsewhere with `==` too (above), so each resolves to the
+  one version the umbrella names: from TestPyPI, since PyPI does not
+  hold it (every release after 0.1.12), or, for a version both indexes
+  hold from before the decision (the families' 0.2.1), that same
+  version from either. Every third-party dependency is satisfied by
+  PyPI and comes from there.
+- **The other order would not be safe.** TestPyPI is a test service:
+  anyone may upload under any free name there, so common names on it
+  are squatted or stale copies. Asked first, it would hand those out in
+  place of the real packages; asked last, it is reached only for the
+  system's own pinned names.
+
+**TestPyPI's limits are accepted risks.** It is a test service and is
+run as one:
+
+- **it has been wiped before**, every project and file deleted, and
+  may be again; a wipe would take every release since 0.1.12 with it.
+  The tags and the tree still hold the sources; what replaces a lost
+  release is the next one (below);
+- **its rate limits**: an account may create only a few new projects
+  a day, about four, and the next is refused with `429 Too many new
+  projects created`. A release creates no new project unless it
+  carries a new package (or follows a wipe); when it does, the publish
+  run fails at the limit, and a rerun a day later (`GH_PAGER=cat gh
+  run rerun <run> --failed`) uploads what is missing, since a file
+  TestPyPI already holds is skipped;
+- **its outages**: its upload endpoint and most project pages have
+  answered 503 for hours
+  ([INCIDENTS.md](INCIDENTS.md#testpypi-was-down-and-a-release-found-it-only-at-the-upload)).
+  The release asks first and again after its gate, and stops with exit
+  75 and nothing changed; `just index-ready test wait` waits for it,
+  two hours at most. An outage after the tag fails the publish run,
+  which is rerun once TestPyPI answers;
+- **a lost version is never re-cut.** An index never takes a second
+  build under a version it has held, even a deleted one, and the
+  release refuses a version already tagged here. A version lost to a
+  wipe, a deletion or a broken upload is replaced by the next patch
+  release, never cut again.
+
+**Lifting the decision at 1.0.** When the operator declares 1.0, the
+decision is lifted by one named change in each of the three
+repositories, reviewed as one change each, never piecemeal. In this
+repository it changes three things: the release's refusal of `pypi`
+(`STANDING` in [scripts/release.py](../scripts/release.py)) gives way
+to a PyPI release; `publish.yml` gains a PyPI job after its `testpypi`
+job, with a `pypi` environment and a trusted publisher on each PyPI
+project; and the install form goes back to the plain one, `uv tool
+install 'cs-image-system[<extras>]==<version>'`, here and wherever a
+document, the take recipe or a starter's workflow installs a release.
+In the Okta identity plugin's and the Google Cloud family's
+repositories the change is the same three things, each in its own
+`docs/RELEASING.md`: the release script's refusal, the publish
+workflow's PyPI job, and the install form.
 
 ### Installing a release
 
 The published packages are on the index: `cs-image-system`, the umbrella
 (no sources of its own; its dependencies are the core at a `==` pin,
 and each provider is an extra), and `cs-image-system-<package>` for each
-of the others. The bare install carries no runtime:
+of the others. Every release after 0.1.12 is on TestPyPI alone, so
+each line below is written in full with the one install form's index
+options and a pinned version (`... 'cs-image-system[aws]==<version>'`);
+[Releasing until 1.0](#releasing-until-10) gives the form and says why
+it is safe. Without those options uv reads PyPI alone and installs
+0.1.12. The bare install carries no runtime:
 
 ```sh
 uv tool install cs-image-system               # the CLI, the engine, the OS families, packer,
@@ -2739,15 +2984,16 @@ are built, tested and released from
 [cs-image-system-google-cloud](https://github.com/infrastructurebuilder/cs-image-system-google-cloud),
 on a version line of their own (0.2.0 was the first) that is not this
 repository's. An operator installs them exactly as any other provider,
-with the `[gcloud]` extra (or `[all]`) above: the umbrella's two extras
-name the three by the range of that line (`>=0.2,<0.3`), not by a `==`
-pin, so an install takes the newest release of the Google Cloud family
-inside the range, and a new release of the Google Cloud family inside
-the range reaches an operator with no release here. The Google Cloud
-family is released to PyPI alone. A development install from TestPyPI (below) still gets
-it, because PyPI is named there as the extra index; a release here
-refuses unless PyPI holds a release inside the range
-(`scripts/with-released-families --check`). This repository's own
+with the `[gcloud]` extra (or `[all]`) above. In this repository's tree
+the umbrella's two extras name the three by the range of that line
+(`>=0.2,<0.3`); a release pins them, in its commit and its tag, at the
+Google Cloud family's newest TestPyPI release inside the range, so a
+released umbrella installs exactly the Google Cloud family it was cut
+with, and a newer release of the Google Cloud family reaches an
+operator with the next release here. The Google Cloud family, too, is
+released to TestPyPI alone until 1.0; a release here refuses unless
+TestPyPI holds a release of it inside the range
+(`scripts/with-released-families --check test`). This repository's own
 workspace does not hold the Google Cloud family: `just init` syncs every
 extra but `gcloud` and `all`, and the recipes that load a tree declaring
 it (`just cli`, `full-test`'s legs over the reference configuration, the
@@ -2767,9 +3013,10 @@ login` commands it mounts), is built, tested and released from
 [cs-image-system-okta](https://github.com/infrastructurebuilder/cs-image-system-okta)
 (spec 008), on a version line of its own (0.2.x). An operator installs
 it with the `[okta]` extra (or `[all]`) above, which names it by the
-range of that line (`>=0.2,<0.3`), exactly as the Google Cloud family's
-extra names its three. This repository's workspace does not hold it:
-`just init` leaves the `okta` extra out as well, the frozen fixture's
+range of that line (`>=0.2,<0.3`) and is pinned exactly by a release,
+exactly as the Google Cloud family's extra names its three; it too is
+released to TestPyPI alone until 1.0. This repository's workspace does
+not hold it: `just init` leaves the `okta` extra out as well, the frozen fixture's
 identity is POSIX, and the recipes that load a tree declaring it layer
 it in from the index through the same `scripts/with-released-families`.
 Its README, its documents and its tests are in its repository:
@@ -2808,17 +3055,11 @@ the release tooling leaves them out, and the workspace installs them
 through the root's `dev` dependency group, so the suite and the dry runs
 see them and a consumer never does.
 
-TestPyPI does not carry the third-party
-dependencies, so an install from it names PyPI as the extra index. In
-`uv`, `--extra-index-url` takes priority over `--index-url`, so the
-third-party packages come from PyPI; and `--index-strategy
-unsafe-first-match` lets a name fall through to TestPyPI when PyPI has
-no version that satisfies it -- only the pinned `.dev` packages. Without
-it uv stops at the first index that carries a name at all, so once a
-final version is on PyPI every development pin fails to resolve. The
-fall-through
-reaches TestPyPI for nothing PyPI can satisfy, so no third-party
-package comes from it:
+A release installs into a virtualenv of its own with the one install
+form's options, which
+[Releasing until 1.0](#releasing-until-10) explains (PyPI asked first
+for every name, the system's own exact pins falling through to
+TestPyPI, no third-party package taken from it):
 
 ```sh
 uv venv .venv
@@ -2831,9 +3072,8 @@ uv pip install --python .venv/bin/python \
 .venv/bin/cs-image-system decrypt --help
 ```
 
-A final version on PyPI installs with `uv pip install
-cs-image-system==<version>` alone, and `uv tool install cs-image-system`
-puts the command on `PATH` (the umbrella package declares the
+`uv tool install`, with the same options, puts the command on `PATH`
+(the umbrella package declares the
 console script itself, because uv exposes only the requested package's
 executables, and `uv tool install` of a package with none ends with
 "Failed to install entrypoints"). A configuration
@@ -2887,15 +3127,16 @@ there. For each starter (`scripts/starter-tree --list`):
 - **the commit** is one, `cs-image-system <version>`, on `main`, with the
   tag `v<version>`, so a repository's history is one line per release.
 
-It refuses a development version (a template names a version teams
-install from PyPI), a dirty tree, a checkout that is not the version's
+It refuses a development version (a template takes final releases
+alone, the ones a team starts from), a dirty tree, a checkout that is not the version's
 tag (its links point there), a missing `STARTER_PUSH_TOKEN`, and a
 version any of the four already holds -- every repository is read and
 every tree built and gated before the first push, so one refusal stops
 all four. `yes` is the dry form: it builds and gates every tree and says
 what each repository would take, also before the repositories exist,
-and pushes nothing. CI's `publish` job runs it after PyPI for a final
-tag (below).
+and pushes nothing. The publish workflow's `starters` job runs it
+after the TestPyPI upload, for a final tag alone
+([This repository: the Publish workflow](#this-repository-the-publish-workflow)).
 
 ### The modification tests
 
@@ -2957,11 +3198,9 @@ repository's, which the release ships.
 | `build` | sdist + wheel of every workspace member under `dist/` (the system package carries the five starter trees) | nothing |
 | `test` | lint → typecheck → pytest → `test-core` → `test-terraform-alone` → `test-docker-alone`, all blocking (the bar) | nothing |
 | `full-test` | `test`, then `full-test-legs`: the dev-pin resolution check (`scripts/dev-pin-resolves`), the docker legs (`test-mods --strict`, `test-posix-accounts`, `test-bake-steps`, `runner-image`, `test-docker-bake`, `test-docker-cycle`, `test-podman-cycle`, `test-podman-desktop-cycle`) and, gated on `preflight`, a dry `run --all` and `state query --strict` over a copy of the reference configuration | docker, the network, reference configuration, runtime sessions; each leg skips loudly |
-| `release <part\|version> [test\|pypi] [yes]` | from `develop`: probe (the branch; a clean tree; the index ready and free of the version; token; tag; the remote, fetched, holding nothing `main` or `develop` lacks), the move to `main` and `uv sync`, the venv's probes, the bar or `full-test`, the index again, `bump-my-version`, `uv lock`, `publish`, the `CHANGES.md` row, commit, tag `v<version>`, then the pushes of `main` and `develop` and the resync; `yes` = dry (the logic is `scripts/release.py`) | `UV_PUBLISH_TOKEN`; for `pypi`: clean trees, mod-test evidence, `full-test`'s needs |
-| `release-take <part\|version> <test\|pypi> [main] [yes]` | the live configuration asked first, then `release`, then `UV_REFRESH=1 just take <version>` there (the version read back; the variable reaches the take alone), `main` passed through; `yes` = dry | `release`'s needs, and the live configuration's sessions for the take |
-| `release-watch <version>` | waits on the runs the walk started, found by commit, here and in the live configuration; one verdict each, the index and the template repositories read for the tag's run, the guard and the bake plan for the configuration's `main`; exit 0 only when all are good | `gh`, logged in; the network |
-| `publish [test\|pypi]` | the index asked first, clean `dist/`, `build`, then `scripts/publish-dist`: one project at a time (sdist with wheel, dependencies first, `cs-image-system` last), skip what is there, exit 75 on PyPI's limit on new projects, prove the token when nothing went up | `UV_PUBLISH_TOKEN` |
-| `release-finish [test\|pypi]` | after a release's upload stopped part-way and `publish` completed it: on `main` (or a maintenance branch), the bump uncommitted and nothing else, every project holding the version -- then the evidence commit (PyPI), the `CHANGES.md` row, the commit and the tag, then the release's pushes and resync | the index, `develop` |
+| `release <part\|version> [--full] [yes]` | from `develop`: probe (the words, `pypi` refused; the branch; a clean tree; TestPyPI ready and free of the version; tag; the remote, fetched, holding nothing `main` or `develop` lacks), the advisory, the move to `main` and `uv sync`, the venv's probes, the lighter check (`test`, `test-docker-install`) or, with `--full`, `full-test`, TestPyPI again, `bump-my-version`, `uv lock`, the released families pinned exactly, the `CHANGES.md` row, commit, tag `v<version>`, the families back on their ranges, then the pushes of `main` and `develop` and the resync; uploads nothing: the tag's push publishes ([Releasing until 1.0](#releasing-until-10)); `yes` = dry (the logic is `scripts/release.py`) | docker, the network; for `--full`: clean trees, mod-test evidence, `full-test`'s needs |
+| `release-take <part\|version> [--full] [main] [yes]` | the live configuration asked first, then `release`, a wait until TestPyPI lists the version (an hour at most), then `UV_REFRESH=1 just take <version>` there (the version read back; the variable reaches the take alone), `main` passed through; `yes` = dry | `release`'s needs, and the live configuration's sessions for the take |
+| `release-watch <version>` | waits on the runs the walk started, found by commit, here (the tag's CI and Publish runs, `main`'s and `develop`'s) and in the live configuration; one verdict each, TestPyPI and the template repositories read for the tag's Publish run, the guard and the bake plan for the configuration's `main`; exit 0 only when all are good | `gh`, logged in; the network |
 | `index-ready [test\|pypi] [wait]` | can the index take an upload now: the upload endpoint and every project page, one line each; exit 0 ready, 75 not now; `wait` probes every minute, two hours at most | the network |
 | `full-test-legs` | `full-test` without `test`: the dev-pin check, every docker leg above, then a headless dry run `--all` and a `state query --strict` over a private copy of the reference configuration; re-run these after a session renewal instead of the whole `full-test` | `preflight` gates the two copy legs |
 | `format` | `ruff format packages tests` | nothing |
@@ -3039,15 +3278,15 @@ cloud-dispose-images gcloud-east1` from that repository.
 
 ## 3. CI
 
-Three workflows in this repository, and one in a configuration
+Four workflows in this repository, and one in a configuration
 repository. This repository's [ci.yml](../.github/workflows/ci.yml)
 proves the SYSTEM: `verify` is the bar; `core-alone`, `terraform-alone`
 and `docker-alone` each run one part's own tests in an environment that
 holds only that part (the core with no provider, the two terraform
 libraries, the docker provider), and `docker-install` installs the
 docker extra alone and validates and dry-runs its starter; `live` proves
-the frozen fixture against the real accounts read-only; `publish`
-uploads a pushed `v*` tag to the index. Every job of it runs inside the **runner
+the frozen fixture against the real accounts read-only; nothing in it
+uploads. Every job of it runs inside the **runner
 image** (`container:` -- `ghcr.io/infrastructurebuilder/csis-ci:<tag>`,
 AlmaLinux 10 with every tool a job calls at a pinned version, built from
 [ci/runner-image/](../ci/runner-image/) and described by
@@ -3064,7 +3303,12 @@ a runner with no image of its own can meet CI_RUNNER.md step by step.
 runner image (`just runner-image`, its probe included) and publishes it
 to ghcr.io: a push that changes `ci/runner-image/` publishes the tag the
 tree pins (`ci/runner-image/TAG`), and the monthly schedule publishes
-today's date as a candidate. A configuration repository's `ci.yml`,
+today's date as a candidate.
+[publish.yml](../.github/workflows/publish.yml), the workflow named
+"Publish", publishes a pushed `v*` tag to TestPyPI by trusted
+publishing and, for a final tag, pushes the template repositories
+([This repository: the Publish workflow](#this-repository-the-publish-workflow)).
+A configuration repository's `ci.yml`,
 which the release ships in every starter tree and `init-config` writes,
 proves and performs the CONFIGURATION: `verify`, `live`, `perform`, each
 inside the same runner image and installing only the released system.
@@ -3389,36 +3633,38 @@ No identity secret: the fixture's age identity is committed beside it. No
 mirror to remove: the copy is under the runner's temporary directory and
 removed by the recipe.
 
-### This repository: the `publish` job
+<a id="this-repository-the-publish-job"></a>
 
-Runs after `verify` on a pushed `v*` tag and nowhere else. It checks out
-the tag, `just init`, checks that the tag names the version in the tree
-(`bump-my-version show current_version`), then `just publish test` with
-`TEST_PYPI_TOKEN` as `UV_PUBLISH_TOKEN` and, when the tag is not a
-development version (no `.dev` in its name), `just publish pypi` with
-`PYPI_TOKEN`. `just publish` skips every file the index already holds
-with the same content, so a release the operator published locally with
-`just release` is checked here and uploaded nowhere twice; a tag pushed
-without a local publish is uploaded here. Either way each token is
-proved: when every file was already there, `publish` sends one again,
-which the index answers only after it has checked the credentials (a
-tag that uploads nothing would otherwise never notice a secret that is
-not a working token). The gate follows the other
-jobs' rule: no token configured is `publish: SKIPPED` with a job-summary
-line; a tag that needs a token which is missing or EMPTY fails by name
-(a development tag needs TestPyPI's token alone; a final tag both). For
-a final tag it then runs `just publish-starters` with
-`STARTER_PUSH_TOKEN`: the template repositories take the
-release; without that secret the step is SKIPPED, said in the job
-summary. It holds no cloud credential and no `id-token` permission:
-trusted publishing waits until the package names are stable.
+### This repository: the Publish workflow
+
+[publish.yml](../.github/workflows/publish.yml) runs on a pushed `v*`
+tag and nowhere else, and only in this repository: each of its jobs
+carries `if: github.repository ==
+'infrastructurebuilder/cs-image-system-3'`, so a fork's tag push
+publishes nothing ([Releasing until 1.0](#releasing-until-10) says
+what a fork changes). It uploads to TestPyPI alone, for every version,
+until 1.0; nothing in it uploads to PyPI. Three jobs:
+
+| Job | What it does |
+| --- | --- |
+| `build` | inside the runner image: `just init`; the tag must name the version in the tree (`publish: FAILED -- the tag is <tag> but the tree says <version>` otherwise); `just build`; then each public project's sdist and wheel gathered into a folder of its own, numbered in `scripts/publish-dist`'s dependency order (the contract and the SDK's libraries at versions of their own), handed on as the artifact `dist` |
+| `testpypi` | in the GitHub environment `testpypi`, with `id-token: write` (the short-lived token TestPyPI's trusted publisher checks) and no secret: `uv publish --trusted-publishing always --index testpypi` once per project folder, in that order, `cs-image-system` last; a file TestPyPI already holds is skipped, so a rerun after a partial failure uploads what is missing and nothing twice |
+| `starters` | for a final tag alone (no `.dev` in its name), after `testpypi`: `just publish-starters` with `STARTER_PUSH_TOKEN`, so the template repositories take the release; without that secret the step is SKIPPED, said in the job summary (a green conclusion is not proof that it ran) |
+
+It holds no cloud credential and no upload token. The release ran its
+gate before it tagged, and [ci.yml](../.github/workflows/ci.yml) runs
+on the same tag beside it; `tests/test_publish_commands_parse.py` holds
+every `uv publish` line in it to one uv accepts. A run that failed
+part-way (an outage, TestPyPI's limit on new projects, a publisher it
+did not recognise) is run again once the cause is gone (`GH_PAGER=cat
+gh run rerun <run> --failed`).
 
 ### A configuration repository: the `verify` job
 
 Every push and pull request, no secret, inside the runner image: the
-release named in `.csis-version` (else the latest on the index; a
-development version from TestPyPI with PyPI as the extra index and
-`--index-strategy unsafe-first-match`) is installed with `uv tool
+release named in `.csis-version` (else the latest on PyPI, older than
+TestPyPI's until 1.0; every release from TestPyPI with PyPI as the extra
+index and `--index-strategy unsafe-first-match`) is installed with `uv tool
 install` -- the one thing any job installs -- the `Justfile` parses, and
 `just public-safe` passes.
 
@@ -3513,16 +3759,18 @@ This repository:
 | `AWS_ROLE_ARN` | the federated-credentials action, then the `[noaa]` shim; a READ-ONLY role (EC2 describes for the fixture's load) | live |
 | `OKTA_API_PRIVATE_KEY` | the load's check that the okta provider can authenticate | live |
 | `TF_VAR_NOS_KEY`, `TF_VAR_NOS_SECRET` → exported as `TF_VAR_nos_coastal_modeling_cloud_sandbox_key` / `_secret` | the load's `_require_tfvar` assertion (the fixture names the real team) | live |
-| `TEST_PYPI_TOKEN`, `PYPI_TOKEN` | `just publish test` / `pypi`, as `UV_PUBLISH_TOKEN` | publish |
-| `STARTER_PUSH_TOKEN` | `just publish-starters`: a fine-grained token with Contents and Workflows read/write on the five template repositories alone (pushing `.github/workflows/` needs Workflows) | publish |
+| `STARTER_PUSH_TOKEN` | `just publish-starters`: a fine-grained token with Contents and Workflows read/write on the five template repositories alone (pushing `.github/workflows/` needs Workflows) | Publish (`starters`) |
 
-Set a token secret from the value your `.envrc` holds, with no newline
-added (a stray newline, space or quote is refused by the index as
-"Invalid or non-existent authentication information"):
+No index token: the Publish workflow uploads to TestPyPI by trusted
+publishing ([Releasing until 1.0](#releasing-until-10)). The secrets
+`TEST_PYPI_TOKEN` and `PYPI_TOKEN`, which the earlier `publish` job of
+`ci.yml` read, are read by no workflow now; they may be deleted once
+the first release has published through `publish.yml` (`gh secret
+delete TEST_PYPI_TOKEN --repo <owner>/<repository>`, and the same for
+`PYPI_TOKEN`). Set the starter token by pasting it at the prompt, so no
+stray newline, space or quote is added to it:
 
 ```sh
-printf '%s' "$TEST_PYPI_TOKEN" | gh secret set TEST_PYPI_TOKEN --repo <owner>/<repository>
-printf '%s' "$PYPI_TOKEN" | gh secret set PYPI_TOKEN --repo <owner>/<repository>
 gh secret set STARTER_PUSH_TOKEN --repo <owner>/<repository>   # prompts; paste the fine-grained token
 ```
 

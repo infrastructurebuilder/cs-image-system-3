@@ -44,15 +44,19 @@ def test_the_contract_has_a_version_of_its_own():
 
 
 def test_every_dependent_pins_the_contract_to_its_compatible_series():
-    """``>=0.1,<0.2`` for a 0.1.x contract: the root and every package that
-    depends on the contract, and nothing pins it at ``==``."""
-    expected = contract_range(_contract_version())
+    """``>=0.1,<0.2`` for a 0.1.x contract: every package that depends on
+    the contract. The root, the released umbrella, pins it exactly at the
+    contract's own version instead (specification 013): every one of the
+    system's names a release installs is exact, so the one install form
+    takes each from TestPyPI, and the pin moves with the contract, held here."""
+    version = _contract_version()
     dependents = []
     for path in [ROOT, *(p / "pyproject.toml" for p in PACKAGES)]:
         project = _project(path)
         siblings, _ = _requirements(project)
         if CONTRACT in siblings:
             dependents.append(project["name"])
+            expected = f"=={version}" if path == ROOT else contract_range(version)
             assert str(siblings[CONTRACT].specifier) == expected, \
                 f"{project['name']} pins the contract as {siblings[CONTRACT].specifier}"
     assert "cs-image-system" in dependents and "cs-image-system-base" in dependents
@@ -78,7 +82,7 @@ def test_a_bump_on_a_copy_leaves_the_contract_where_it_is(tree: Path):  # noqa: 
     assert after["version"] == old
     root_after = tomllib.loads((tree / "pyproject.toml").read_text())["project"]
     pin = next(Requirement(d) for d in root_after["dependencies"] if canonicalize_name(Requirement(d).name) == CONTRACT)
-    assert str(pin.specifier) == contract_range(old)
+    assert str(pin.specifier) == f"=={old}"                  # the umbrella's exact pin moves only with the contract
 
 
 def _load(script: str):

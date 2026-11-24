@@ -2,14 +2,15 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""A development pin installs from TestPyPI again.
+"""Every pinned release installs from TestPyPI.
 
 Once 0.1.1 was on PyPI, uv's default index strategy stopped at PyPI for
 `cs-image-system` and never looked for a `.dev` version on TestPyPI: every
-development pin failed to install. Every install line -- the starters'
-workflow jobs and the commands the documents show -- names
-`--index-strategy unsafe-first-match`, which keeps PyPI first and falls
-through to TestPyPI only for what PyPI cannot satisfy. The live check that
+development pin failed to install. Until 1.0 every release, final or
+`.dev`, is on TestPyPI alone (specification 013), so every install line --
+the starters' workflow jobs, for every version, and the commands the
+documents show -- names `--index-strategy unsafe-first-match`, which keeps
+PyPI first and falls through to TestPyPI for what PyPI cannot satisfy. The live check that
 the line resolves (ours from TestPyPI, nothing else from it) is a full-test
 leg, scripts/dev-pin-resolves.
 """
@@ -25,16 +26,18 @@ from pathlib import Path
 import pytest
 
 REPO = Path(__file__).resolve().parents[1]
-LINE = ('case "$pin" in *.dev*) indexes="--index-url https://test.pypi.org/simple/ '
-        '--extra-index-url https://pypi.org/simple/ --index-strategy unsafe-first-match" ;; esac')
+LINE = ('indexes="--index-url https://test.pypi.org/simple/ '
+        '--extra-index-url https://pypi.org/simple/ --index-strategy unsafe-first-match"')
 DOCS = [REPO / "docs" / "DAILY_DRIVER.md", REPO / "docs" / "OPERATIONS.md", *sorted((REPO / "docs" / "examples").glob("*/CI_SETUP.md"))]
 
 
-def test_every_starter_job_installs_a_dev_pin_with_the_strategy():
-    lines = [ln.strip() for wf in sorted((REPO / "docs" / "examples").glob("*/.github/workflows/*.yml"))
-             for ln in wf.read_text().splitlines() if 'case "$pin" in' in ln]
+def test_every_starter_job_installs_every_version_with_the_strategy():
+    workflows = sorted((REPO / "docs" / "examples").glob("*/.github/workflows/*.yml"))
+    lines = [ln.strip() for wf in workflows for ln in wf.read_text().splitlines() if ln.strip().startswith("indexes=")]
     assert len(lines) == 18, "three jobs in each ci.yml and one in each OPA probe workflow"
     assert set(lines) == {LINE}
+    # no job keeps the old form, TestPyPI for a `.dev` pin alone
+    assert not [wf for wf in workflows if 'case "$pin" in' in wf.read_text()]
 
 
 def test_every_install_command_in_the_documents_names_the_strategy():

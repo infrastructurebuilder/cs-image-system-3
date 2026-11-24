@@ -97,54 +97,35 @@ def test_build_wraps_uv_build_and_the_gates_hold():
         assert needle in starter, needle
     assert "cs-image-system-3/tfmodules" not in legs, "stage 64: the reference configuration carries its own tfmodules"
     assert legs.count("SKIPPED") >= 2                         # docker leg, credential legs
-    # the gate follows the index -- the bar for a development release to
-    # TestPyPI, full-test (with the mod-test evidence and a clean live checkout) for
-    # PyPI -- so it is chosen in the body, never a static dependency
-    release = _plan("release", "patch", "test", "yes")
+    # the gate follows `--full` -- the lighter check by default, full-test (with the mod-test
+    # evidence and a clean live checkout) with it -- so it is chosen in the body, never a static dependency
+    release = _plan("release", "patch", "yes")
     assert not release.startswith(bar) and "scripts/release.py" in release        # the script chooses: a wrapper, no dependency
     script = RELEASE_SCRIPT.read_text()
     for needle in ('["just", "full-test"]', '["just", "test"]', "mod-tests.yaml", '"status", "--porcelain"', "bump-my-version",
-                   '["uv", "lock"]', "publish-dist", '"tag", "-a"'):
+                   '["uv", "lock"]', '"tag", "-a"'):
         assert needle in script, needle
     assert "uv version" not in script and "UV_PUBLISH_URL" not in script and "SKIPPED" not in script   # the tag is no longer the release
 
 
-def test_release_cannot_half_release_and_publish_is_its_own_recipe():
-    """The order -- every probe before the bump, the upload before the commit
-    and the tag, the index asked again after the bar -- is scripts/release.py's and
-    tests/test_release_script.py holds it against a stubbed shell; here, the recipes are
-    wrappers over the script, `publish` is its own recipe, the upload is scripts/publish-dist's,
-    one project at a time, and the token is never in the Justfile."""
-    body = _plan("release", "patch", "test", "yes")
-    publish = _plan("publish", "test")
-    for plan, command in ((body, 'release "patch" "test" "yes"'), (publish, 'publish "test"')):
-        assert "scripts/release.py" in plan and command in plan and len(plan.strip().splitlines()) == 1, plan
+def test_the_release_uploads_nothing_and_its_tag_push_publishes():
+    """Specification 013: the order -- every probe before the bump, the commit and the tag, the index
+    asked again after the bar -- is scripts/release.py's and tests/test_release_script.py holds it
+    against a stubbed shell; here, the recipes are wrappers over the script, the release holds no
+    upload and no token (the tag's push publishes, by trusted publishing), and neither `publish` nor
+    `release-finish` is a recipe any longer."""
+    body = _plan("release", "patch", "--full", "yes")
+    assert "scripts/release.py" in body and 'release "patch" --full yes' in body and len(body.strip().splitlines()) == 1
     assert "--release-branch" in body and "--config-root" in body
+    assert not {"publish", "release-finish"} & set(_summary())
     script = RELEASE_SCRIPT.read_text()
-    assert "index-knows" not in script and "--refuse-held" in script and "NOT_NOW = 75" in script
-    assert "git checkout -- pyproject.toml" in script                                   # the recovery when nothing went up
-    assert "KEEP the uncommitted" in script and "`just release-finish {index}`" in script   # when some project holds the version
-    assert "uv publish" not in script and "uv publish" not in publish, "the upload is scripts/publish-dist's, one project at a time"
-    assert "--check-url" not in script, "uv refuses --check-url beside --index; the index's url is the check url"
+    assert "index-knows" in script and "--refuse-held" in script and "NOT_NOW = 75" in script
+    for gone in ('"publish-dist"', "uv publish", "UV_PUBLISH_TOKEN", "TEST_PYPI_TOKEN", "PYPI_TOKEN", "--all-held"):
+        assert gone not in script, gone
+    assert "--check-url" not in script
     assert "index-ready" in _summary() and "--wait 7200" in _plan("index-ready", "test", "wait")
-    # the token is UV_PUBLISH_TOKEN, else the index's own name -- the repository secrets'
-    # names, so the operator's one .envrc line serves the shell and CI alike
-    assert '"testpypi": "TEST_PYPI_TOKEN"' in script and '"pypi": "PYPI_TOKEN"' in script
-    assert "pypi-" not in script and "pypi-" not in publish and "pypi-" not in body             # no token shape anywhere
     probe = REPO / "scripts" / "index-knows"
     assert os.access(probe, os.X_OK) and "PEP 700" in probe.read_text()
-
-
-def test_release_finish_commits_and_tags_only_a_completed_upload():
-    """release-finish is on the release branch (main), with the bump uncommitted
-    and nothing else, asks the index that every project holds the version, and
-    only then makes the evidence commit (PyPI), the commit and the tag, then the
-    release's pushes. The order is held in tests/test_release_script.py; here the
-    recipe is a wrapper."""
-    assert "release-finish" in _summary()
-    body = _plan("release-finish", "test")
-    assert "scripts/release.py" in body and 'release-finish "test"' in body and len(body.strip().splitlines()) == 1
-    assert "git push" not in body and "--all-held" in RELEASE_SCRIPT.read_text()
 
 
 def test_publish_starters_checks_every_repository_before_it_pushes_any():
@@ -328,7 +309,8 @@ def test_test_one_hands_pytest_each_word_whole(tmp_path: Path):
 # A variadic recipe whose words are a fixed list, none of which can hold a space, may expand them
 # into its line; every other one takes `[positional-arguments]` and passes the shell's own words.
 FIXED_WORDS = {
-    ("root", "release-take"): "its words are `main` and `yes`; scripts/release.py refuses any other",
+    ("root", "release"): "its words are `--full` and `yes`; scripts/release.py refuses any other",
+    ("root", "release-take"): "its words are `--full`, `main` and `yes`; scripts/release.py refuses any other",
 }
 SPACED = ["--strict", "a b", "it's", "*"]                # a word with a space, a quote and a glob, each to arrive whole
 

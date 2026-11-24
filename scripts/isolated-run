@@ -49,7 +49,11 @@ index holds is installed FROM the index; one it does not hold is installed
 from this repository's build, and the run says which, by name: a
 development install is never mistaken for a release. The index is asked;
 if it cannot be asked the run fails, since it would otherwise have to
-guess.
+guess. The index is TestPyPI, where every release goes until 1.0
+(specification 013): its versions and its files' digests are read, and a
+published version is installed by the one install form (PyPI first per
+name, TestPyPI for what PyPI cannot satisfy), so a version TestPyPI alone
+holds is found, and a change under it is caught, as one on PyPI was.
 
 The install check is a second mode, for what a person installs rather than
 what a package's tests need:
@@ -95,8 +99,11 @@ REPO = Path(__file__).resolve().parents[1]
 OURS = "cs-image-system"
 #: the SDK's libraries: what a provider may pin by a range
 SDK = ("cs-image-system-base", "cs-image-system-hashicorp-utils", "cs-image-system-tofu-roots")
-INDEX_JSON = "https://pypi.org/pypi/{name}/json"
-INDEX_VERSION_JSON = "https://pypi.org/pypi/{name}/{version}/json"
+#: TestPyPI, where every release goes until 1.0 (specification 013), and the one install form that reaches it
+INDEX_JSON = "https://test.pypi.org/pypi/{name}/json"
+INDEX_VERSION_JSON = "https://test.pypi.org/pypi/{name}/{version}/json"
+INDEX_OPTIONS = ("--index-url", "https://test.pypi.org/simple/", "--extra-index-url", "https://pypi.org/simple/",
+                 "--index-strategy", "unsafe-first-match")
 FROM_INDEX = "from the index"
 FROM_BUILD = "from this repository's build (development install)"
 
@@ -368,6 +375,7 @@ def run(subject: str, requirement: str, root: Path, tests: Sequence[str], *, cop
         return 1
     found = closure(wanted, wheels)
     lines = install_lines(found, wheels)
+    pinned = False                                   # a published version is installed by name
     if sdk_end is not None:
         try:
             chosen = settle(sdk_choices(wanted, wheels, sdk_end, published), wheels, own_distribution(root), digests)
@@ -379,6 +387,7 @@ def run(subject: str, requirement: str, root: Path, tests: Sequence[str], *, cop
         for choice in chosen:
             say(f"{who}:   {choice.said()}")
             if choice.from_index:                    # the published version, by name, in place of the built wheel
+                pinned = True
                 found.pop(choice.name, None)
                 lines = [ln for ln in lines if not ln.startswith(choice.name + " @ ")
                          and not ln.startswith(choice.name + "[")] + [f"{choice.name}=={choice.version}"]
@@ -391,7 +400,9 @@ def run(subject: str, requirement: str, root: Path, tests: Sequence[str], *, cop
     if made.rc != 0:
         return fail("creating the empty environment", made)
     python = venv / "bin" / "python"
-    installed = shell(["uv", "pip", "install", "--quiet", "--python", str(python), "pytest>=8.3", *lines], work)
+    # a published SDK version is named by its pin, so the install reaches the index that holds it
+    indexes = list(INDEX_OPTIONS) if pinned else []
+    installed = shell(["uv", "pip", "install", "--quiet", *indexes, "--python", str(python), "pytest>=8.3", *lines], work)
     if installed.rc != 0:
         return fail("installing the package and what it declares", installed)
     ours = sorted(found)

@@ -2,10 +2,12 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""The CI workflow calls only `just` targets and splits into three jobs:
-the credential-free bar, the read-only `live` job that proves the
-system against real clouds over the FROZEN FIXTURE, and the publish job that
-uploads a pushed `v*` tag to the index. Recording and performing
+"""The CI workflow calls only `just` targets and splits into the
+credential-free bar (with the parts proved alone and the install check) and
+the read-only `live` job that proves the system against real clouds over the
+FROZEN FIXTURE. Nothing here uploads: a pushed `v*` tag is published by its
+own workflow, publish.yml, which tests/test_publish_commands_parse.py holds.
+Recording and performing
 the reference configuration left this workflow for the configuration
 repository's own, which the starter workflow's test pins
 in tests/test_docs_examples.py.
@@ -30,7 +32,7 @@ REPO = Path(__file__).resolve().parents[1]
 WORKFLOW = REPO / ".github" / "workflows" / "ci.yml"
 
 # steps that are environment or transport plumbing rather than the system
-_PLUMBING = ("Gate on", "Name the federated", "Place the tools", "The tag names")
+_PLUMBING = ("Gate on", "Name the federated", "Place the tools")
 
 
 def _workflow() -> dict:
@@ -48,7 +50,7 @@ def _run_steps(job: dict) -> list[tuple[str, str]]:
 
 def test_every_command_is_a_just_target_and_nothing_performs_or_commits():
     wf = _workflow()
-    assert set(wf["jobs"]) == {"verify", "core-alone", "terraform-alone", "docker-alone", "docker-install", "live", "publish"}, \
+    assert set(wf["jobs"]) == {"verify", "core-alone", "terraform-alone", "docker-alone", "docker-install", "live"}, \
         "recording and performing live in the configuration repository (stage 64)"
     for job_name, job in wf["jobs"].items():
         for name, run in _run_steps(job):
@@ -127,45 +129,15 @@ def test_the_fixture_live_recipe_is_read_only_over_a_copy():
     assert "--no-dry-run" not in plan and "--commit" not in plan and "cs-image-system-testconfig" not in plan
 
 
-def test_publish_runs_on_a_tag_alone_and_is_the_only_uploader():
-    """A pushed `v*` tag publishes -- to TestPyPI always, to PyPI when
-    the tag is not a development version -- through `just publish`, after the
-    bar, with each index's token from a repository secret; the tag must name
-    the version in the tree; no other job uploads anything."""
+def test_nothing_here_uploads_or_names_an_index_token():
+    """The tag's upload is publish.yml's, by trusted publishing: no job here
+    publishes, and no index token or starter token is named here."""
     wf = _workflow()
-    job = wf["jobs"]["publish"]
-    # nothing is uploaded past a part that did not prove itself alone, or past the install check (FR-021)
-    assert set(job["needs"]) == {"verify", "core-alone", "terraform-alone", "docker-alone", "docker-install"}
-    assert job["if"].strip() == "startsWith(github.ref, 'refs/tags/v')"
-    assert "id-token" not in (job.get("permissions") or {}), "trusted publishing waits until the names are stable"
-    gate = next(s for s in job["steps"] if s.get("id") == "gate")
-    assert "TEST_PYPI_TOKEN" in yaml.safe_dump(gate["env"]) and "PYPI_TOKEN" in yaml.safe_dump(gate["env"])
-    assert "SKIPPED" in gate["run"] and "GITHUB_STEP_SUMMARY" in gate["run"] and "EMPTY" in gate["run"] and "exit 1" in gate["run"]
-    assert "contains(github.ref_name, '.dev')" in gate["env"]["IS_DEV"]
-    for s in job["steps"]:
-        if s.get("id") != "gate":
-            assert "steps.gate.outputs.ready == 'true'" in (s.get("if") or ""), s.get("name")
-    commands = [run.strip() for name, run in _run_steps(job) if not name.startswith(_PLUMBING)]
-    assert commands == ["just init", "just publish test", "just publish pypi", "just publish-starters"]
-    # the template repositories, a final version alone, after PyPI, on their own token
-    starters = next(s for s in job["steps"] if s.get("name") == "Publish the template repositories")
-    assert "steps.gate.outputs.pypi == 'true'" in starters["if"] and "steps.gate.outputs.starters == 'true'" in starters["if"]
-    assert starters["env"] == {"STARTER_PUSH_TOKEN": "${{ secrets.STARTER_PUSH_TOKEN }}"}
-    assert "HAVE_STARTER_PUSH_TOKEN" in gate["env"] and "publish-starters: SKIPPED" in gate["run"]
-    pypi = next(s for s in job["steps"] if s.get("name") == "Publish to PyPI")
-    assert "steps.gate.outputs.pypi == 'true'" in pypi["if"]
-    assert pypi["env"]["UV_PUBLISH_TOKEN"] == "${{ secrets.PYPI_TOKEN }}"
-    test = next(s for s in job["steps"] if s.get("name") == "Publish to TestPyPI")
-    assert test["env"]["UV_PUBLISH_TOKEN"] == "${{ secrets.TEST_PYPI_TOKEN }}"
-    runs = [str(s.get("run", "")).strip() for s in job["steps"]]
-    tag_check = next(i for i, r in enumerate(runs) if "bump-my-version show current_version" in r)
-    assert tag_check < runs.index("just publish test")                      # the tag is checked against the tree before any upload
-    # the only uploader anywhere, and only on a tag
-    for job_name, other in wf["jobs"].items():
-        uploads = [run for _, run in _run_steps(other) if "publish" in run]
-        assert (job_name == "publish") == bool(uploads), job_name
-    everything = yaml.safe_dump(wf)
-    assert everything.count("UV_PUBLISH_TOKEN") == 2 and "uv publish" not in everything
+    for job_name, job in wf["jobs"].items():
+        assert not [run for _, run in _run_steps(job) if "publish" in run], job_name
+    text = WORKFLOW.read_text()
+    for gone in ("uv publish", "UV_PUBLISH_TOKEN", "TEST_PYPI_TOKEN", "PYPI_TOKEN", "STARTER_PUSH_TOKEN"):
+        assert gone not in text, gone
 
 
 def test_the_workload_probe_left_with_the_performing_workflow():
@@ -174,4 +146,5 @@ def test_the_workload_probe_left_with_the_performing_workflow():
     is the configuration repository; the starter trees carry the probe."""
     assert not (REPO / ".github" / "workflows" / "opa-workload-probe.yml").exists()
     # the from-scratch path and the runner image's own workflow sit beside ci.yml
-    assert sorted(p.name for p in (REPO / ".github" / "workflows").iterdir()) == ["ci-from-scratch.yml", "ci.yml", "runner-image.yml"]
+    assert sorted(p.name for p in (REPO / ".github" / "workflows").iterdir()) == ["ci-from-scratch.yml", "ci.yml", "publish.yml",
+                                                                                "runner-image.yml"]

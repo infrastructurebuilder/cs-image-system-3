@@ -249,6 +249,54 @@ def test_an_index_that_cannot_be_asked_fails_the_run_and_nothing_is_guessed(tmp_
     assert not any("pytest" in c for c in shell.calls)
 
 
+
+def test_the_index_asked_is_testpypi_where_every_release_goes_until_1_0():
+    """Specification 013 (T021): a version TestPyPI alone holds is published, so
+    the run installs it from there and compares this tree's build with its files."""
+    assert I.INDEX_JSON.startswith("https://test.pypi.org/pypi/")
+    assert I.INDEX_VERSION_JSON.startswith("https://test.pypi.org/pypi/")
+
+
+def _sdk_run(tmp_path: Path, held: tuple[str, ...], built: str, end: str):
+    root = tmp_path / "pkg"
+    root.mkdir()
+    work = tmp_path / "work"
+    work.mkdir()
+    shell = _Shell(tmp_path, junit=_junit(tests=4))
+    real = shell.__call__
+
+    def with_sdk(cmd, cwd):
+        done = real(cmd, cwd)
+        step = " ".join(str(c) for c in cmd[:3])
+        if step.startswith("uv build --all-packages"):
+            (Path(cmd[cmd.index("--out-dir") + 1]) / "cs_image_system_kit-1.0-py3-none-any.whl").unlink()
+            _sdk_wheels(Path(cmd[cmd.index("--out-dir") + 1]), built)
+        if step.startswith("uv pip list"):       # what the SDK-pinning plugin's environment holds
+            return I.Done(0, "\n".join(f"{n}==1.0" for n in ("cs-image-system-thing-plugin", "cs-image-system-base",
+                                                              "thirdparty")))
+        return done
+    said: list[str] = []
+    rc = I.run("thing", "cs-image-system-thing-plugin", root, [], copy_outside=False, sdk_end=end,
+               published=_versions(*held), digests=lambda name, version: {}, shell=with_sdk, say=said.append,
+               work=work)
+    install = next(c for c in shell.calls if c[:3] == ["uv", "pip", "install"])
+    return rc, install
+
+
+def test_a_published_sdk_version_is_installed_by_the_one_install_form(tmp_path: Path):
+    """The low end is a version only an index holds: it is named by its pin, and the
+    install reaches TestPyPI for it, PyPI first per name (no third-party name from TestPyPI)."""
+    rc, install = _sdk_run(tmp_path, ("0.2.0", "0.2.1"), "0.2.2", "low")
+    assert rc == 0 and "cs-image-system-base==0.2.0" in install
+    at = install.index("--index-url")
+    assert tuple(install[at:at + len(I.INDEX_OPTIONS)]) == I.INDEX_OPTIONS
+
+
+def test_a_run_from_this_repositorys_build_alone_names_no_index(tmp_path: Path):
+    rc, install = _sdk_run(tmp_path, (), "0.2.0", "high")
+    assert rc == 0 and "--index-url" not in install and "--extra-index-url" not in install
+
+
 # ------------------------------------------------------------ the install check
 
 class _InstallShell:

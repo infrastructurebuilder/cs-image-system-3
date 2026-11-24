@@ -7,8 +7,9 @@
 Against a fake shell that answers every command the watch runs -- git, ``gh`` and the probe
 scripts -- and a fake clock that ``sleep`` moves: the runs are found by commit (the tag's in this
 repository, the take's in the configuration), each waited on until it completes, and one line said
-for each; a green tag run whose index does not list the version is not good, nor is a run that
-failed or never started; the configuration's ``main`` run is read for the guard and the bake plan;
+for each; a green Publish run of the tag is read further, for every release, final or development:
+TestPyPI must list the version (PyPI is never asked until 1.0) and every template repository must
+hold its tag, else it is not good, nor is a run that failed or never started; the configuration's ``main`` run is read for the guard and the bake plan;
 the exit is 0 only when every verdict is good. A look ``gh`` does not answer while waiting is no news
 and the next interval looks again; ``gh`` absent or holding no token before the first look refuses at
 once -- decided without the network, and the stored token it reads is never said -- and no look
@@ -65,7 +66,8 @@ def _run(rid: int, workflow: str, branch: str, conclusion: str = "success", stat
 
 
 def _system_runs(**changes: dict) -> list[dict]:
-    runs = {"tag": _run(11, "CI", f"v{VERSION}"), "main": _run(12, "CI", "main"),
+    runs = {"tag": _run(11, "CI", f"v{VERSION}"), "publish": _run(15, "Publish", f"v{VERSION}"),
+            "main": _run(12, "CI", "main"),
             "develop": _run(13, "CI", "develop"), "scratch": _run(14, "CI from scratch", "develop")}
     for name, run in changes.items():
         runs[name] = run
@@ -136,7 +138,7 @@ def _watch(shell: FakeShell, said: list[str], clock: Clock | None = None):
 
 def _verdicts(said: list[str]) -> dict[str, str]:
     """label -> verdict, from the lines ``release-watch: <label>: <verdict>`` with a known label."""
-    labels = ("system tag v0.1.9 (CI)", "system main (CI)", "system develop (CI)", "system develop (CI from scratch)",
+    labels = ("system tag v0.1.9 (CI)", "system tag v0.1.9 (Publish)", "system main (CI)", "system develop (CI)", "system develop (CI from scratch)",
               "configuration develop (CI)", "configuration main (CI)")
     out = {}
     for line in said:
@@ -151,11 +153,14 @@ def test_every_run_green_and_everything_published_is_exit_0_with_one_line_each()
     said: list[str] = []
     assert _watch(shell, said).watch() == 0
     verdicts = _verdicts(said)
-    assert len(verdicts) == 6
+    assert len(verdicts) == 7
     url = "https://example.invalid/runs/{}"
     assert verdicts["system main (CI)"] == W.PASSED.format(url=url.format(12))
-    assert verdicts["system tag v0.1.9 (CI)"].split("; ") == [
-        W.PASSED.format(url=url.format(11)), W.INDEX_HOLDS.format(index="pypi", project="cs-image-system", version=VERSION),
+    assert verdicts["system tag v0.1.9 (CI)"] == W.PASSED.format(url=url.format(11))
+    # the tag's Publish run is read further: TestPyPI for a final version too, and the templates
+    assert verdicts["system tag v0.1.9 (Publish)"].split("; ") == [
+        W.PASSED.format(url=url.format(15)),
+        W.INDEX_HOLDS.format(index="testpypi", project="cs-image-system", version=VERSION),
         W.TEMPLATES_HOLD.format(version=VERSION, count=2)]
     # the configuration's main: the guard's verdict and what the performing step baked (not the record's plan)
     assert verdicts["configuration main (CI)"].split("; ") == [
@@ -165,7 +170,8 @@ def test_every_run_green_and_everything_published_is_exit_0_with_one_line_each()
     assert said[-1] == f"release-watch: {W.ALL_GOOD}"
     # found by commit: the tag's here, the record the take pushed there; the index by the version's form
     assert shell.count(f"run list --commit {SYSTEM_SHA}") == 1 and shell.count(f"run list --commit {RECORD_SHA}") == 1
-    assert shell.count("https://pypi.org/simple/ cs-image-system 0.1.9") == 1 and shell.count("ls-remote") == 2
+    assert shell.count("https://test.pypi.org/simple/ cs-image-system 0.1.9") == 1 and shell.count("ls-remote") == 2
+    assert shell.count("https://pypi.org/") == 0                                 # PyPI is never asked until 1.0
 
 
 @pytest.mark.parametrize(("change", "label", "verdict"), [
@@ -173,6 +179,8 @@ def test_every_run_green_and_everything_published_is_exit_0_with_one_line_each()
      W.FAILED.format(conclusion="failure", url="https://example.invalid/runs/13")),
     ({"main": _run(12, "CI", "main", conclusion="cancelled")}, "system main (CI)",
      W.FAILED.format(conclusion="cancelled", url="https://example.invalid/runs/12")),
+    ({"publish": _run(15, "Publish", f"v{VERSION}", conclusion="failure")}, "system tag v0.1.9 (Publish)",
+     W.FAILED.format(conclusion="failure", url="https://example.invalid/runs/15")),
 ])
 def test_one_failed_run_is_named_and_the_exit_is_1(change: dict, label: str, verdict: str):
     said: list[str] = []
@@ -180,7 +188,7 @@ def test_one_failed_run_is_named_and_the_exit_is_1(change: dict, label: str, ver
     verdicts = _verdicts(said)
     assert verdicts[label] == verdict
     assert sum(not v.startswith("passed") for v in verdicts.values()) == 1
-    assert said[-1] == f"release-watch: {W.NOT_ALL_GOOD.format(bad=1, total=6)}"
+    assert said[-1] == f"release-watch: {W.NOT_ALL_GOOD.format(bad=1, total=7)}"
 
 
 def test_a_run_that_never_starts_is_waited_on_until_the_timeout_and_said_so():
@@ -217,11 +225,11 @@ def test_a_run_that_completes_while_waited_on_is_read_again():
     assert clock.slept == [60, 60]
 
 
-def test_a_green_tag_run_whose_index_lacks_the_version_is_not_good():
+def test_a_green_publish_run_whose_index_lacks_the_version_is_not_good():
     said: list[str] = []
     assert _watch(FakeShell(_answers(index_rc=1)), said).watch() == 1
-    tag = _verdicts(said)["system tag v0.1.9 (CI)"].split("; ")
-    assert tag[0].startswith("passed") and tag[1] == W.INDEX_LACKS.format(index="pypi", project="cs-image-system",
+    tag = _verdicts(said)["system tag v0.1.9 (Publish)"].split("; ")
+    assert tag[0].startswith("passed") and tag[1] == W.INDEX_LACKS.format(index="testpypi", project="cs-image-system",
                                                                           version=VERSION)
     assert "index-knows: said" in said
 
@@ -230,7 +238,7 @@ def test_a_template_repository_without_the_tag_is_not_good():
     said: list[str] = []
     assert _watch(FakeShell(_answers(templates="")), said).watch() == 1
     assert W.TEMPLATE_LACKS.format(repo="o/cs-image-system-starter-complete", version=VERSION) in \
-        _verdicts(said)["system tag v0.1.9 (CI)"]
+        _verdicts(said)["system tag v0.1.9 (Publish)"]
 
 
 @pytest.mark.parametrize(("log", "reading"), [
@@ -249,12 +257,12 @@ def test_a_green_main_run_whose_guard_changed_or_never_ran_is_not_good(log: str,
 def test_without_main_pushed_the_configuration_has_develop_alone():
     said: list[str] = []
     assert _watch(FakeShell(_answers(main_pushed=False)), said).watch() == 0
-    assert "configuration main (CI)" not in _verdicts(said) and len(_verdicts(said)) == 5
+    assert "configuration main (CI)" not in _verdicts(said) and len(_verdicts(said)) == 6
 
 
-def test_a_development_version_reads_testpypi_and_no_template():
+def test_a_development_version_reads_testpypi_and_leaves_the_templates_alone():
     dev = "0.1.9.dev2"
-    runs = _system_runs(tag=_run(11, "CI", f"v{dev}"))
+    runs = _system_runs(tag=_run(11, "CI", f"v{dev}"), publish=_run(15, "Publish", f"v{dev}"))
     taken = f"{TAKE_SHA} Take {dev}\n"
     shell = FakeShell([(f"refs/tags/v{dev}^{{commit}}", W.Done(0, SYSTEM_SHA + "\n")),
                        ("log --first-parent", W.Done(0, taken)), ("merge-base --is-ancestor", W.Done(1)),
@@ -264,7 +272,8 @@ def test_a_development_version_reads_testpypi_and_no_template():
     said: list[str] = []
     w = W.Watch(dev, SYSTEM, CONFIG, run=shell, gh="/bin/gh", sleep=Clock().sleep, say=said.append)
     assert w.watch() == 0
-    assert shell.count(f"https://test.pypi.org/simple/ cs-image-system {dev}") == 1 and shell.count("ls-remote") == 0
+    assert shell.count(f"https://test.pypi.org/simple/ cs-image-system {dev}") == 1
+    assert shell.count("ls-remote") == 0 and shell.count("starter-tree") == 0      # the templates take a final release alone
     assert _verdicts(said)["configuration develop (CI)"].startswith("passed")      # the Take commit itself was pushed
 
 
@@ -305,7 +314,7 @@ def test_a_look_gh_does_not_answer_while_waiting_is_no_news_and_the_next_one_is_
     assert _watch(FakeShell(answers), said, clock).watch() == 0
     assert clock.slept == [60] and len(asked) == 2
     assert f"release-watch: {W.UNANSWERED.format(reason=TLS, interval=60)}" in said
-    assert len(_verdicts(said)) == 6 and said[-1] == f"release-watch: {W.ALL_GOOD}"
+    assert len(_verdicts(said)) == 7 and said[-1] == f"release-watch: {W.ALL_GOOD}"
 
 
 def test_no_look_answered_until_the_timeout_ends_the_watch_on_the_reason():
@@ -475,3 +484,17 @@ def test_a_develop_that_already_holds_mains_records_is_said_not_asked():
     assert _watch(shell, said).watch() == 0
     assert said[-2] == f"release-watch: {W.DEVELOP_LEVEL}"
     assert not any(line == f"release-watch: {W.FAST_FORWARD.format(root=CONFIG)}" for line in said)
+
+
+def test_the_branch_runs_are_looked_for_at_the_commit_the_release_pushed():
+    """The release puts the released families back on their ranges in a
+    commit right after the tag, and pushes main and develop there: their
+    runs are looked for at that commit, the tag's at the tag's own."""
+    restored = "c" * 40
+    shell = FakeShell([("refs/tags/v0.1.9^{commit}", W.Done(0, SYSTEM_SHA + "\n")),
+                       ("v0.1.9..refs/heads/main", W.Done(0, f"{restored} {SYSTEM_SHA} after release 0.1.9: the released "
+                                                             "families back on their ranges\n"))])
+    w = W.Watch("0.1.9", SYSTEM, CONFIG, run=shell, gh="/bin/gh", sleep=Clock().sleep, say=[].append)
+    commits = {e.label: e.commit for e in w.system_runs()}
+    assert commits["system tag v0.1.9 (CI)"] == SYSTEM_SHA and commits["system main (CI)"] == restored
+    assert commits["system develop (CI)"] == restored

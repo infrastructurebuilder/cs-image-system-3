@@ -54,11 +54,11 @@ further from you.
    `cfg/` need (`aws,okta` for a tree on AWS with Okta groups, so the
    line reads `cs-image-system[aws,okta]==<version>`; a tree that needs
    none installs the bare name). `just validate` says which extra is
-   missing when a declared `type:` has no plugin installed. A
-   development version comes from TestPyPI: add
-   `--index-url https://test.pypi.org/simple/`,
+   missing when a declared `type:` has no plugin installed. Until
+   1.0 every release comes from TestPyPI (PyPI keeps only the older
+   ones): add `--index-url https://test.pypi.org/simple/`,
    `--extra-index-url https://pypi.org/simple/` and
-   `--index-strategy unsafe-first-match`, so only the pinned `.dev`
+   `--index-strategy unsafe-first-match`, so the pinned release's
    packages come from TestPyPI and everything else from PyPI.
 2. `just init`: the public-safe hook, the plugin cache, a line naming the
    release it found (`init: cs-image-system <version> ready against

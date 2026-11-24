@@ -18,14 +18,17 @@ test.pypi.org, and the same test passing in both families' repositories.
 
 About 2 minutes.
 
+On `develop` (a release is cut from `develop` or `main` alone, so a
+feature branch is refused before the plan):
+
 ```sh
-# step 2 -- box 1 of 1 -- v1
+# step 2 -- box 1 of 1 -- v2
 just release patch yes; just release patch pypi yes; echo "pypi exit $?"
 ```
 
 Expect the dry form's plan with no upload, the advisory's line when the
 changes since the last fully proven release touch the list, and `pypi`
-refused (exit 1) naming the decision.
+refused (exit 2) naming the decision, on any branch.
 
 ## Step 3: the first TestPyPI-only release, installed clean
 

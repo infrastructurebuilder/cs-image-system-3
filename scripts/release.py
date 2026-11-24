@@ -2,84 +2,89 @@
 # SPDX-FileCopyrightText: 2026 Mykel Alvis <mykelalvis@infrastructurebuilder.org>
 #
 # SPDX-License-Identifier: Apache-2.0
-"""The release family: what `just release`, `just release-finish`, `just release-take` and `just publish` do.
+"""The release family: what `just release` and `just release-take` do.
 
-    uv run python scripts/release.py release <part|version> [test|pypi] [yes] [--release-branch B] [--config-root DIR]
-    uv run python scripts/release.py release-finish [test|pypi] [--release-branch B] [--config-root DIR]
-    uv run python scripts/release.py release-take <part|version> <test|pypi> [main] [yes] [--release-branch B] [--config-root DIR]
-    uv run python scripts/release.py publish [test|pypi]
-    uv run python scripts/release.py probes <test|pypi> [release|release-finish] [--config-root DIR]
+    uv run python scripts/release.py release <part|version> [--full] [yes] [--release-branch B] [--config-root DIR]
+    uv run python scripts/release.py release-take <part|version> [--full] [main] [yes] [--release-branch B] [--config-root DIR]
+    uv run python scripts/release.py probes [light|full] [--config-root DIR]
 
 The recipes are wrappers over this script; the logic is here, as functions,
 so that it can be tested with a stubbed shell and no network. Every command
 the family runs -- git, uv, bump-my-version, just, the probe scripts -- goes
 through one ``run`` callable, which the tests replace.
 
-``release`` cuts a release, publishes it and pushes it. It starts on
-``develop`` (it moves to the release branch itself), on the release branch
-with ``develop`` an ancestor, or on a maintenance branch
-``release/<major.minor>``; any other branch is refused. In this order: the
-cheap probes before anything changes (the branch; a clean working tree;
-the target names a version of the accepted shape; the index can take an
-upload and holds the version for no project; the token is set; no
-``v<version>`` tag exists here; the remote is there to push to; and, after
-``git fetch origin``, origin holds no commit that a branch the ending pushes
-lacks -- the release branch and ``develop``, or the maintenance branch -- since
-that push would be refused after the upload; a local branch ahead of origin
-passes; then one line names the local annotated tags origin lacks, which stay
-behind, or says none -- never a refusal); from
+Until the operator declares 1.0 a release goes to TestPyPI alone (the
+standing decision; specification 013): ``pypi`` is refused, naming it,
+before anything is asked or changed. A release never uploads: it commits,
+tags and pushes, and the tag's push runs the publish workflow, which uploads
+every public project to TestPyPI by trusted publishing (no token anywhere).
+
+``release`` cuts a release and pushes it. It starts on ``develop`` (it moves
+to the release branch itself), on the release branch with ``develop`` an
+ancestor, or on a maintenance branch ``release/<major.minor>``; any other
+branch is refused. In this order: the cheap probes before anything changes
+(the words; the branch; a clean working tree; the target names a version of
+the accepted shape; TestPyPI answers and holds the version for no project;
+no ``v<version>`` tag exists here; the remote is there to push to; and,
+after ``git fetch origin``, origin holds no commit that a branch the ending
+pushes lacks -- the release branch and ``develop``, or the maintenance
+branch -- since that push would be refused after the gate; a local branch
+ahead of origin passes; then one line names the local annotated tags origin
+lacks, which stay behind, or says none -- never a refusal); then the
+advisory (``advise``): when a path changed since the newest fully proven
+release is in ``FULL_PROOF_PATHS``, or the take pushes the reference's
+``main`` (an applying cycle), one line says a full proof is probably needed
+and why -- never a refusal, and not said under ``--full``. From
 ``develop``, the move: the release branch checked out and fast-forwarded to
 ``develop`` (refused, on ``develop``, when it cannot be); the resync of the
 venv (``uv sync --all-extras --no-extra gcloud --no-extra okta --no-extra all``: a branch switch and a moved lock leave the
 venv behind the checkout); then the probes that need the venv (it is in
 step with the lock; every package whose version the release does not move
-is fresh on the index or held there as this tree's build; for PyPI, docker
-and the live configuration's sessions answer), the gate (the bar for
-TestPyPI, ``full-test`` with the modification-test evidence for PyPI) and
-the index AGAIN after the gate. A refusal or a failure up to here returns
-the checkout to the branch it started on, with the release branch where it
-was, and says so. Then the bump and the lock, the upload BEFORE the commit
-and the tag (a failed upload leaves the uncommitted bump on the release
-branch and never a tagged, unpublished version), the evidence commit in the
-live configuration (PyPI), the release's row in ``docs/CHANGES.md``, the
-commit ``release <version>`` and the annotated tag; and last the ending:
-the release branch and the tag ``v<version>`` pushed by name (no other
-tag travels with them: GitHub starts no tag run when more than three tags
-are pushed at once), ``develop`` checked out, fast-forwarded to it and
-pushed (a maintenance branch: that branch and its tag pushed,
-``develop`` untouched), and the venv synced again. A failed
-step of the ending names itself and the commands that are left, and exits
-non-zero. The dry form (``yes``) asks the cheap probes and the venv's,
-prints every branch move, push and resync it would make, read from the
-refs, and changes nothing.
+is fresh on TestPyPI or held there as this tree's build; every family
+released elsewhere has a TestPyPI release inside the range the extras name;
+the SDK's surfaces; docker; under ``--full`` the live configuration and its
+sessions), the gate (the lighter check -- ``just test`` and the install
+check ``just test-docker-install`` -- by default; ``just full-test`` with the
+modification-test evidence and a clean live checkout under ``--full``) and
+TestPyPI AGAIN after the gate. A refusal or a failure up to here returns the
+checkout to the branch it started on, with the release branch where it was,
+and says so. Then the bump and the lock, the released families pinned
+exactly (``pin_released_families``), the evidence commit in the live
+configuration (``--full``), the release's row in ``docs/CHANGES.md``, the
+commit ``release <version>`` and the annotated tag (its message carries
+``fully proven: full-test`` under ``--full``, the line the advisory measures
+from), the families back on their ranges in a commit of their own; and last
+the ending: the release branch and the tag ``v<version>`` pushed by name (no
+other tag travels with them: GitHub starts no tag run when more than three
+tags are pushed at once), ``develop`` checked out, fast-forwarded to it and
+pushed (a maintenance branch: that branch and its tag pushed, ``develop``
+untouched), and the venv synced again. A failed step of the ending names
+itself and the commands that are left, and exits non-zero. The dry form
+(``yes``) asks the cheap probes and the venv's, prints every branch move,
+push and resync it would make, read from the refs, and changes nothing.
 
-``release-finish`` makes the commit and the tag of a release whose upload
-stopped part-way and was completed by ``just publish``: on the release
-branch with the bump uncommitted and nothing else changed, once the index
-holds the version for every project, and after the same fetch probe; then
-the same ending.
-
-``release-take`` is the release, as ``release`` runs it, and then ``just take
-<version>`` in the live configuration, ``main`` passed through when given, with
-``UV_REFRESH=1`` in that one command's environment: the take is the tree's own
-recipe, from the release it is on, and uv answers its install from the index
-page it cached before the upload unless told to ask afresh. The
-configuration is asked first (configured, a git checkout, with a ``take``
-recipe), before the release changes anything. The version is read back from
-the tree the release left (``bump-my-version show current_version``, its tag
-here), never recomputed. A release that refuses or fails runs no take; a
-take that stops (an edited file, a lapsed session) is said with the command
-that finishes it there, and its exit code. ``yes`` is the dry form: the
-release's dry form, then the take it would run.
-
-``publish`` builds and uploads the version in the tree: the index asked
-first, ``dist/`` cleaned, ``just build``, then ``scripts/publish-dist``,
-one project at a time.
+``release-take`` is the release, as ``release`` runs it, then a wait for
+TestPyPI to list ``cs-image-system <version>`` (scripts/index-knows, asked
+every ``index_interval`` seconds for ``index_wait_minutes`` at most: the
+umbrella is uploaded last, so its listing means the publish workflow's
+upload is done), and then ``just take <version>`` in the live configuration,
+``main`` passed through when given, with ``UV_REFRESH=1`` in that one
+command's environment: the take is the tree's own recipe, from the release
+it is on, and uv answers its install from the index page it cached before
+the upload unless told to ask afresh. The configuration is asked first
+(configured, a git checkout, with a ``take`` recipe), before the release
+changes anything. The version is read back from the tree the release left
+(``bump-my-version show current_version``, its tag here), never recomputed.
+A release that refuses or fails runs no take; a version TestPyPI never lists
+in time, or a take that stops (an edited file, a lapsed session), is said
+with the command that finishes it there, and its exit code. ``yes`` is the
+dry form: the release's dry form, then the wait and the take it would run.
 
 ``probes`` is what ``release`` asks first: the venv; the packages whose
-version it does not move (scripts/own-versions-current); for a PyPI
-release docker, the live configuration and its sessions; one line each.
-``release-finish`` asks the venv alone: it builds and uploads nothing.
+version it does not move (scripts/own-versions-current); the families
+released elsewhere (scripts/with-released-families --check test); the
+surfaces; docker; for ``full`` the live configuration and its sessions;
+one line each.
 
 The reference configuration's working tree (the live configuration beside
 this repository, or ``CSIS_CONFIG_ROOT``) is read by ``read_sibling``
@@ -90,45 +95,85 @@ from __future__ import annotations
 
 import argparse
 import datetime as _dt
+import fnmatch
 import os
 import re
-import shutil
 import subprocess
 import sys
-import tempfile
-from collections.abc import Callable, Mapping, MutableMapping
+import time
+from collections.abc import Callable, Iterable, Mapping, MutableMapping
 from dataclasses import dataclass, field
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 REPO = HERE.parent
 
-INDEXES: dict[str, str] = {"test": "testpypi", "pypi": "pypi"}
-TOKEN_VARS: dict[str, str] = {"testpypi": "TEST_PYPI_TOKEN", "pypi": "PYPI_TOKEN"}
+#: the one index a release reaches until 1.0: its label for the probe scripts, its name in pyproject.toml's
+#: `[[tool.uv.index]]`, its simple API, and the project whose listing says the publish workflow's upload is done
+INDEX = "test"
+NAME = "testpypi"
+INDEX_URL = "https://test.pypi.org/simple/"
+PROJECT = "cs-image-system"
+#: the refusal of PyPI, after "<who>: " (specification 013, FR-001)
+STANDING = ("PyPI is refused by the standing decision, TestPyPI until 1.0 (the operator's to lift): a release "
+            "goes to TestPyPI alone, published by its tag's push -- nothing was changed")
+#: the words each command takes, in any order; `test` names the one index and changes nothing
+RELEASE_WORDS = ("--full", "yes")
+TAKE_WORDS = ("--full", "main", "yes")
+NOT_A_RELEASE_WORD = ("'{word}' is not an argument of release: '--full' (the full proof), 'yes' (the dry form), "
+                      "both, or neither -- nothing was changed")
+NOT_A_TAKE_WORD = ("'{word}' is not an argument of release-take: '--full' (the full proof), 'main' (the take pushes "
+                   "develop to main too), 'yes' (the dry form), any of them, or none")
+NOT_A_PROBE_WORD = "'{word}' is not an argument of the probes: 'light' (the default) or 'full' -- nothing was changed"
 SHAPE = re.compile(r"^[0-9]+\.[0-9]+\.[0-9]+(\.dev[0-9]+)?$")
 MAINTENANCE = re.compile(r"^release/[0-9]+\.[0-9]+")
 NOT_NOW = 75
-#: the files a bump changes: what the release commit takes, and all that may be dirty at a finish
-BUMPED = re.compile(r"^ M (pyproject\.toml|packages/[^/]+/pyproject\.toml|uv\.lock)$")
-PRIVATE = "Private :: Do Not Upload"
 CHANGES = Path("docs") / "CHANGES.md"
 CHANGES_HEADER = "| Stage | Landed | Released in | Squash subject |"
 UNRELEASED = "not yet"
+#: the line a fully proven release's annotated tag message carries; the advisory measures from the newest such tag
+FULLY_PROVEN = "fully proven: full-test"
+#: what only the full proof exercises (FR-002a): the runtimes' and identity plugins' sources, the release and take
+#: tooling, the starters' workflows, the contract and the SDK. An entry ending in "/" is a tree; `*` is a glob.
+FULL_PROOF_PATHS = (
+    "packages/*-runtime-plugin/",
+    "packages/docker-plugin/",
+    "packages/posix-identity-plugin/",
+    "scripts/release.py",
+    "scripts/publish-dist",
+    "scripts/release-watch",
+    "docs/examples/_skeleton/Justfile",
+    "docs/examples/*/.github/",
+    "packages/contract/",
+    "packages/base/",
+    "packages/hashicorp-utils/",
+    "packages/tofu-roots/",
+)
+#: the advisory, after "release: ": printed before anything changes, never a refusal
+ADVISE = "a full proof is probably needed: {paths}; run with --full"
+PROVEN_SINCE = "{paths} changed since {since}, the newest fully proven release"
+NEVER_PROVEN = "{paths} changed since the first tag, {since} (no tag here records a full proof)"
+NO_TAG = "no release tag here to measure the changes from"
+APPLYING = "the take pushes the reference's main, an applying cycle there"
+UNMEASURED = "the changes since {since} could not be read (git diff, exit {rc})"
+#: how many changed paths the advisory names before it counts the rest
+SHOWN = 8
 #: the probes' one-line verdicts, after "<who>: "
 VENV_OK = "the venv is in step with the lock"
 SESSIONS_OK = "every runtime session of the live configuration is present"
 #: the own-version probe's refusals, after "<who>: ", below scripts/own-versions-current's own lines
-UNBUMPED = ("a package whose version the release does not move changed since the index took that version (above), "
-            "so the upload would be refused after the gate -- bump that package's own version and commit it -- "
-            "nothing was changed")
-UNASKED = ("the index could not be asked whether it holds this tree's build of every package whose version the "
+UNBUMPED = ("a package whose version the release does not move changed since TestPyPI took that version (above), "
+            "so the publish workflow's upload would be refused after the tag -- bump that package's own version "
+            "and commit it -- nothing was changed")
+UNASKED = ("TestPyPI could not be asked whether it holds this tree's build of every package whose version the "
            "release does not move, or one could not be built (above); nothing is guessed -- nothing was changed")
 #: the released-elsewhere probe's refusals, after "<who>: ", below scripts/with-released-families' own lines
-ELSEWHERE_UNMET = ("the umbrella's extras name a family released from its own repository by a range PyPI holds no "
-                   "release inside (above), so an install of that extra would fail -- release the family, or move the "
-                   "range in pyproject.toml -- nothing was changed")
-ELSEWHERE_UNASKED = ("PyPI could not be asked whether it holds a release inside each range the umbrella's extras name "
-                     "for a family released from its own repository (above); nothing is guessed -- nothing was changed")
+ELSEWHERE_UNMET = ("the umbrella's extras name a family released from its own repository by a range TestPyPI holds "
+                   "no release inside (above), so the release could not pin it and an install of that extra would "
+                   "fail -- release the family, or move the range in pyproject.toml -- nothing was changed")
+ELSEWHERE_UNASKED = ("TestPyPI could not be asked whether it holds a release inside each range the umbrella's extras "
+                     "name for a family released from its own repository (above); nothing is guessed -- nothing was "
+                     "changed")
 #: the surface probe's refusal, after "<who>: ", below `just surface-check`'s own lines
 SURFACE = ("a declared surface of the SDK and its baseline disagree (above): an entry removed or altered needs a new "
            "middle number (`just sdk-bump <line> middle`, then `just surface-record`); an entry added needs only to be "
@@ -146,7 +191,7 @@ NO_REMOTE = "this checkout has no remote '{remote}' to push the release to (git 
 #: the fetch probe, after "<who>: ": origin asked whether it holds commits a branch the ending pushes lacks
 NO_FETCH = ("`git fetch {remote}` failed (above), so whether {remote} holds commits this checkout lacks is unknown "
             "-- nothing was changed")
-BEHIND_ORIGIN = ("{remote}/{branch} holds {count} commit(s) the local {branch} lacks, so its push after the upload "
+BEHIND_ORIGIN = ("{remote}/{branch} holds {count} commit(s) the local {branch} lacks, so its push after the tag "
                  "would be refused -- bring {branch} up first: git checkout {branch} && git merge --ff-only "
                  "{remote}/{branch} (reconcile the two when that cannot fast-forward), then run the same command "
                  "again -- nothing was changed")
@@ -161,33 +206,32 @@ BACK = "the checkout is back on {branch}, and {cut} is where it was"
 NOT_BACK = "the checkout could not return to {branch} (git checkout {branch}, above); it is on {cut}"
 #: the dry form's venv verdict when it is behind: the real form syncs before it asks
 VENV_WILL_SYNC = "the venv is behind the checkout; the real form syncs it (uv sync --all-extras --no-extra gcloud --no-extra okta --no-extra all) before it asks"
-#: a failed step of the ending, after "<who>: ": the version is on the index, committed and tagged here
-ENDING_FAILED = ("{version} is on {name}, committed and tagged v{version} here, but `{failed}` failed (above); "
-                 "the rest, by hand: {rest}")
-#: the closing lines: what is on the index, what was pushed, and the branch the checkout ends on
-RELEASED = ("release: {version} is on {name}, committed, tagged v{version} and pushed: {pushed}; the checkout is on "
-            "{branch} with its venv synced (uv sync --all-extras --no-extra gcloud --no-extra okta --no-extra all); CI checks the pushed tag against the index and "
-            "uploads nothing already there")
-FINISHED = ("release-finish: {version} is on {name} for every project, committed, tagged v{version} and pushed: "
-            "{pushed}; the checkout is on {branch} with its venv synced (uv sync --all-extras --no-extra gcloud --no-extra okta --no-extra all)")
-#: release-take's lines, after "release-take: "
-TAKE_WORDS = ("main", "yes")
+#: a failed step of the ending, after "<who>: ": the version is committed and tagged here, and on no index yet
+ENDING_FAILED = ("{version} is committed and tagged v{version} here, but `{failed}` failed (above); nothing is on "
+                 "TestPyPI until the tag is pushed; the rest, by hand: {rest}")
+#: the closing line: what was pushed, the branch the checkout ends on, and the push that publishes
+RELEASED = ("release: {version} is committed, tagged v{version} and pushed: {pushed}; the checkout is on {branch} "
+            "with its venv synced (uv sync --all-extras --no-extra gcloud --no-extra okta --no-extra all); the tag's "
+            "push publishes it to TestPyPI by trusted publishing (`just release-watch {version}` waits on the runs)")
 #: the take's own environment: a tree's take is the recipe of the release it is on, and uv answers an install
 #: from the index page it cached before the upload unless told to ask afresh; every recipe's install honours it
 TAKE_ENV = {"UV_REFRESH": "1"}
-NOT_A_TAKE_WORD = ("'{word}' is not an argument of release-take: 'main' (the take pushes develop to main too), 'yes' "
-                   "(the dry form), both, or neither")
 NO_TAKE_TREE = "no live configuration to take the release in at {root} ({why}) -- nothing was changed"
 NOT_READ_BACK = ("the release ended, but the version it cut could not be read back here (v{version} is not tagged) "
                  "-- the take did not run; run it by hand: cd {root} && {command}")
+#: release-take's wait for the publish workflow's upload, after "release-take: "
+WAITING = ("waiting for TestPyPI to list cs-image-system {version} (scripts/index-knows, every {interval} seconds, "
+           "{minutes} minutes at most): the tag's push publishes it")
+LISTED = "TestPyPI lists cs-image-system {version}"
+NOT_LISTED = ("{version} is released and pushed (above), but TestPyPI did not list it within {minutes} minutes -- the "
+              "take did not run; `just release-watch {version}` says how the publish run went; once TestPyPI lists "
+              "it, finish the take there: cd {root} && {command}")
 TAKE_STOPPED = ("{version} is released and pushed (above), but the take in {root} stopped (exit {rc}; its own lines "
                 "above say why and what to do). The release is done and never runs again; finish the take there: "
                 "cd {root} && {command} (with `patched` after a refresh by hand, as it said)")
 TAKEN = ("{version} is released here and taken in {root}{main}; `just release-watch {version}` waits on the runs "
          "they started")
 TAKEN_MAIN = ", main pushed there too (main performs)"
-PUBLISHED = ("publish: cs-image-system {version} is on {name} (the system and its {packages} published packages, "
-             "sdist and wheel each; files already there with the same content were skipped)")
 
 
 def take_line(version: str, main: bool) -> str:
@@ -196,9 +240,16 @@ def take_line(version: str, main: bool) -> str:
 
 
 def published_members(root: Path) -> list[Path]:
-    """The workspace members an upload takes: every ``packages/*/pyproject.toml`` but the ones classified
-    ``Private :: Do Not Upload`` (the workspace-only plugins, built with the rest and never uploaded)."""
-    return sorted(p for p in root.glob("packages/*/pyproject.toml") if PRIVATE not in p.read_text())
+    """The workspace members the publish workflow uploads: every ``packages/*/pyproject.toml`` but the ones
+    classified ``Private :: Do Not Upload`` (the workspace-only plugins, built with the rest and never uploaded)."""
+    return sorted(p for p in root.glob("packages/*/pyproject.toml") if "Private :: Do Not Upload" not in p.read_text())
+
+
+def full_proof_paths(changed: Iterable[str]) -> list[str]:
+    """The changed paths, in their order, that ``FULL_PROOF_PATHS`` lists (a tree's entry takes every path
+    under it)."""
+    patterns = [entry + "*" if entry.endswith("/") else entry for entry in FULL_PROOF_PATHS]
+    return [path for path in changed if any(fnmatch.fnmatchcase(path, pattern) for pattern in patterns)]
 
 
 # ------------------------------------------------------------------ the shell
@@ -215,7 +266,7 @@ Run = Callable[..., Done]
 
 def run(cmd: list[str], *, cwd: Path | None = None, capture: bool = True, env: Mapping[str, str] | None = None) -> Done:
     """Run one command. ``capture`` holds its output for the caller; without
-    it the command's output flows to the terminal (the bar, the upload)."""
+    it the command's output flows to the terminal (the gate, the pushes)."""
     try:
         p = subprocess.run(cmd, cwd=cwd, capture_output=capture, text=True, env=dict(env) if env else None,
                            stdin=subprocess.DEVNULL)
@@ -279,11 +330,11 @@ def read_sibling(config_root: Path | str | None = None, *, run: Run = run) -> Si
     return SiblingTree(path, configured, head.out.strip(), tuple(status.out.splitlines()), tuple(tags.out.split()))
 
 
-def commit_evidence(tree: SiblingTree, version: str, *, run: Run = run, tolerate_missing: bool = False) -> None:
-    """The modification-test evidence, committed in the live configuration when it changed."""
+def commit_evidence(tree: SiblingTree, version: str, *, run: Run = run) -> None:
+    """The modification-test evidence, committed in the live configuration when it changed (``--full``)."""
     git = ["git", "-C", str(tree.path)]
     added = run([*git, "add", "meta-state/mod-tests.yaml"])
-    if added.rc != 0 and not tolerate_missing:
+    if added.rc != 0:
         raise Refused(added.err.strip() or "release: git add meta-state/mod-tests.yaml failed", added.rc)
     if run([*git, "diff", "--cached", "--quiet"]).rc != 0:
         done = run([*git, "commit", "-q", "-m", f"release {version}: modification-test evidence"])
@@ -333,6 +384,10 @@ class Family:
     env: MutableMapping[str, str] = field(default_factory=lambda: os.environ)
     say: Callable[[str], None] = print
     today: Callable[[], str] = lambda: _dt.date.today().isoformat()
+    sleep: Callable[[float], None] = time.sleep
+    clock: Callable[[], float] = time.monotonic
+    index_interval: int = 30                          #: release-take's wait: seconds between asks of TestPyPI
+    index_wait_minutes: int = 60                      #: and how long it waits at most
     planned: str = field(default="", init=False)      #: the version the last `release` call planned
 
     # --- helpers
@@ -341,9 +396,29 @@ class Family:
         return self.run(["git", *args], cwd=self.root, capture=capture)
 
     def index_name(self, index: str, who: str) -> str:
-        if index not in INDEXES:
-            raise Refused(f"{who}: the index is test (TestPyPI, the default) or pypi, not '{index}'", 2)
-        return INDEXES[index]
+        """The index a word names: ``test`` is TestPyPI, the one index until 1.0; ``pypi`` is refused, naming
+        the standing decision."""
+        if index == "pypi":
+            raise Refused(f"{who}: {STANDING}", 2)
+        if index != INDEX:
+            raise Refused(f"{who}: the index is test (TestPyPI), not '{index}' -- nothing was changed", 2)
+        return NAME
+
+    def words(self, who: str, words: Iterable[str], allowed: tuple[str, ...], refusal: str) -> set[str]:
+        """The command's words, any order: ``pypi`` is refused first, wherever it stands, before anything is
+        asked; ``test`` (the one index) and ``no`` (the real form, the old default) change nothing; any other
+        word outside ``allowed`` is refused by name."""
+        words = list(words)
+        if "pypi" in words:
+            self.index_name("pypi", who)
+        got: set[str] = set()
+        for word in words:
+            if word in (INDEX, "no"):
+                continue
+            if word not in allowed:
+                raise Refused(f"{who}: {refusal.format(word=word)}", 2)
+            got.add(word)
+        return got
 
     def current_version(self, who: str) -> str:
         done = self.run(["uv", "run", "--no-sync", "bump-my-version", "show", "current_version"], cwd=self.root)
@@ -352,31 +427,29 @@ class Family:
                           done.rc or 2)
         return done.out.strip()
 
-    def branch_guard(self, who: str, *, ancestor_check: bool) -> str:
-        """The branch the checkout is on: the release branch (and, for ``release``, develop is an ancestor of it),
-        a maintenance branch, or -- for ``release`` alone, which then moves to the release branch itself --
-        develop; any other branch is refused by name."""
+    def branch_guard(self, who: str) -> str:
+        """The branch the checkout is on: the release branch with develop an ancestor of it, a maintenance
+        branch, or develop (the release then moves to the release branch itself); any other branch is refused
+        by name."""
         branch = self.git("rev-parse", "--abbrev-ref", "HEAD").out.strip()
         if branch == self.release_branch:
-            if ancestor_check:
-                dev = DEVELOP
-                if self.git("rev-parse", "-q", "--verify", DEVELOP).rc != 0:
-                    dev = f"{REMOTE}/{DEVELOP}"
-                if self.git("merge-base", "--is-ancestor", dev, "HEAD").rc != 0:
-                    raise Refused(f"{who}: {self.release_branch} is behind {dev} -- a release never leaves a stage "
-                                  f"behind; run the release from {DEVELOP} (it fast-forwards {self.release_branch} "
-                                  f"itself), or first, on {self.release_branch}: git merge --ff-only {dev} -- nothing "
-                                  "was changed")
+            dev = DEVELOP
+            if self.git("rev-parse", "-q", "--verify", DEVELOP).rc != 0:
+                dev = f"{REMOTE}/{DEVELOP}"
+            if self.git("merge-base", "--is-ancestor", dev, "HEAD").rc != 0:
+                raise Refused(f"{who}: {self.release_branch} is behind {dev} -- a release never leaves a stage "
+                              f"behind; run the release from {DEVELOP} (it fast-forwards {self.release_branch} "
+                              f"itself), or first, on {self.release_branch}: git merge --ff-only {dev} -- nothing "
+                              "was changed")
             return branch
         if MAINTENANCE.match(branch):
-            if ancestor_check:
-                self.say(f"{who}: on the maintenance branch {branch} (an old version's fix; develop is not checked)")
+            self.say(f"{who}: on the maintenance branch {branch} (an old version's fix; develop is not checked)")
             return branch
-        if branch == DEVELOP and ancestor_check:
+        if branch == DEVELOP:
             return branch
-        starts = f" (from {DEVELOP} it moves there itself)" if ancestor_check else ""
-        raise Refused(f"{who}: this checkout is on '{branch}'; a release is cut on {self.release_branch} alone{starts} "
-                      "(or a maintenance branch release/<major.minor>) -- nothing was changed")
+        raise Refused(f"{who}: this checkout is on '{branch}'; a release is cut on {self.release_branch} alone (from "
+                      f"{DEVELOP} it moves there itself) (or a maintenance branch release/<major.minor>) -- nothing "
+                      "was changed")
 
     def cut_branch(self, start: str) -> str:
         """The branch the release is cut on: the release branch for a start on develop, else the start."""
@@ -399,7 +472,7 @@ class Family:
 
     def fetched_or_refuse(self, who: str, cut: str) -> None:
         """`git fetch origin`, then every branch the ending pushes holds whatever its origin counterpart holds: a
-        commit there that the local branch lacks would refuse the push after the upload. A local branch ahead
+        commit there that the local branch lacks would refuse the push after the tag. A local branch ahead
         of origin passes (the ending pushes it); a branch absent on either side has nothing to compare."""
         fetched = self.git("fetch", "-q", REMOTE)
         if fetched.rc != 0:
@@ -435,6 +508,52 @@ class Family:
                   for ref in (line.partition("\t")[2] for line in remote.out.splitlines()) if ref}
         behind = [name for name in annotated if name not in theirs]
         self.say(f"{who}: {TAGS_BEHIND.format(remote=REMOTE, version=version, tags=', '.join(behind) or 'none')}")
+
+    def release_tags(self) -> list[tuple[str, bool]]:
+        """Every annotated release tag ``v<version>`` here, newest version first, each with whether its message
+        records a full proof (the line ``FULLY_PROVEN``). One ``git for-each-ref``; a tag whose name is no
+        version is left out."""
+        from packaging.version import InvalidVersion, Version
+
+        done = self.git("for-each-ref", "--format=%(refname:strip=2)%00%(objecttype)%00%(contents)%00", "refs/tags/v*")
+        fields = done.out.split("\0")
+        tags: list[tuple[Version, str, bool]] = []
+        for i in range(0, len(fields) - 2, 3):
+            name, kind, message = fields[i].strip(), fields[i + 1], fields[i + 2]
+            if kind != "tag":
+                continue
+            try:
+                version = Version(name[1:])
+            except InvalidVersion:
+                continue
+            tags.append((version, name, FULLY_PROVEN in message.splitlines()))
+        return [(name, proven) for _, name, proven in sorted(tags, reverse=True)]
+
+    def advise(self, who: str, *, applying: bool = False) -> None:
+        """The advisory (specification 013, FR-002a), said before anything changes and never a refusal: the
+        paths changed since the newest release tag whose message records a full proof (with none, since the
+        first tag, and said so), when ``FULL_PROOF_PATHS`` lists one; and a take that pushes the reference's
+        main, an applying cycle there. Silent when neither holds."""
+        reasons: list[str] = []
+        tags = self.release_tags()
+        proven = next((name for name, full in tags if full), "")
+        since = proven or (tags[-1][0] if tags else "")
+        if not since:
+            reasons.append(NO_TAG)
+        else:
+            diff = self.git("diff", "--name-only", since, "HEAD")
+            if diff.rc != 0:
+                self.say(f"{who}: {UNMEASURED.format(since=since, rc=diff.rc)}")
+            else:
+                listed = full_proof_paths(line for line in diff.out.splitlines() if line.strip())
+                if listed:
+                    shown = ", ".join(listed[:SHOWN]) + (f" and {len(listed) - SHOWN} more" if len(listed) > SHOWN
+                                                         else "")
+                    reasons.append((PROVEN_SINCE if proven else NEVER_PROVEN).format(paths=shown, since=since))
+        if applying:
+            reasons.append(APPLYING)
+        if reasons:
+            self.say(f"{who}: {ADVISE.format(paths='; '.join(reasons))}")
 
     def fast_forward_or_refuse(self, cut: str) -> str:
         """The release branch's commit, once it is known to fast-forward to develop; read from the refs alone."""
@@ -478,7 +597,7 @@ class Family:
             note = BACK.format(branch=start, cut=cut)
         return Refused((refused.message + "\n" if refused.message else "") + f"release: {note}", refused.code)
 
-    def run_ending(self, who: str, version: str, name: str, cut: str) -> str:
+    def run_ending(self, who: str, version: str, cut: str) -> str:
         """The ending's steps, each shown as it runs; the first that fails is refused with the rest named.
         Returns what was pushed and moved, for the closing line."""
         steps = self.ending(cut, version)
@@ -486,8 +605,8 @@ class Family:
             done = self.run(cmd, cwd=self.root, capture=False)
             if done.rc != 0:
                 rest = " && ".join(" ".join(c) for c in steps[i:])
-                raise Refused(f"{who}: " + ENDING_FAILED.format(version=version, name=name, failed=" ".join(cmd),
-                                                               rest=rest), done.rc or 1)
+                raise Refused(f"{who}: " + ENDING_FAILED.format(version=version, failed=" ".join(cmd), rest=rest),
+                              done.rc or 1)
         return self.closing_line(cut, version)
 
     def version_plan(self, target: str, current: str) -> tuple[str, list[str]]:
@@ -506,51 +625,33 @@ class Family:
                           "further one", 2)
         return new, ["bump", target]
 
-    def index_ready(self, index: str, version: str, *flags: str) -> int:
-        """scripts/publish-target-ready's verdict: 0 ready, 75 not now, 1 a held version refused, 2 could not run."""
-        done = self.run(["uv", "run", "--no-sync", "python", str(HERE / "publish-target-ready"), index,
-                         "--version", version, *flags, "--quiet"], cwd=self.root, capture=False)
-        return done.rc
-
-    def ready_or_refuse(self, index: str, name: str, version: str) -> None:
-        """The index itself, first of the probes and again after the bar. 75 is "not now";
-        1 is a version some project already holds (never re-cut)."""
-        rc = self.index_ready(index, version, "--refuse-held")
+    def ready_or_refuse(self, version: str) -> None:
+        """scripts/publish-target-ready --refuse-held: TestPyPI answers (the publish workflow uploads there) and no
+        project holds the version (an index never takes one twice). First of the probes and again after the gate.
+        75 is "not now"; 1 is a version some project already holds (never re-cut); any other, "could not run"."""
+        rc = self.run(["uv", "run", "--no-sync", "python", str(HERE / "publish-target-ready"), INDEX,
+                       "--version", version, "--refuse-held", "--quiet"], cwd=self.root, capture=False).rc
         if rc == 0:
             return
         if rc == NOT_NOW:
-            raise Refused(f"release: {name} cannot take an upload now (above) -- nothing was changed; it is the index's "
-                          f"condition, not the release's: `just index-ready {index} wait` waits for it", NOT_NOW)
+            raise Refused(f"release: {NAME} cannot take an upload now (above) -- nothing was changed; it is the index's "
+                          f"condition, not the release's: `just index-ready {INDEX} wait` waits for it", NOT_NOW)
         if rc == 1:
-            raise Refused(f"release: {version} is already on {name} (above) -- a version is never re-cut")
+            raise Refused(f"release: {version} is already on {NAME} (above) -- a version is never re-cut")
         raise Refused(f"release: the publish-target probe could not run (exit {rc})", 2)
-
-    def token(self, name: str, who: str) -> str:
-        """UV_PUBLISH_TOKEN, else the index's own name (TEST_PYPI_TOKEN or PYPI_TOKEN, the repository secrets'
-        names, so one .envrc line serves the shell and CI alike); exported for the upload."""
-        var = TOKEN_VARS[name]
-        token = self.env.get("UV_PUBLISH_TOKEN") or self.env.get(var) or ""
-        if not token:
-            if who == "publish":
-                raise Refused(f"publish: neither UV_PUBLISH_TOKEN nor {var} is set -- the API token for {name}, from "
-                              "the environment; never in this file", 2)
-            raise Refused(f"release: neither UV_PUBLISH_TOKEN nor {var} is set -- the API token for {name}; a release "
-                          "publishes, so it refuses up front rather than leave a tagged, unpublished version", 2)
-        self.env["UV_PUBLISH_TOKEN"] = token
-        return var
 
     def tagged(self, version: str) -> bool:
         return bool(self.git("tag", "-l", f"v{version}").out.strip())
 
     # --- the probes
 
-    def own_versions_or_refuse(self, index: str, who: str) -> None:
+    def own_versions_or_refuse(self, who: str) -> None:
         """scripts/own-versions-current, its lines said: every package whose version the release does not move
-        (the bump's `glob_exclude`: the contract and the SDK's members) is either not on the index (it goes up fresh) or held there as
-        exactly this tree's build, file for file and byte for byte (the upload skips it). Exit 1 is a package
-        that changed under a version the index holds: refused, since the index would refuse its upload after the
-        gate. Any other failure is refused as "could not ask" (exit 2), never guessed."""
-        done = self.run(["uv", "run", "--no-sync", "python", str(HERE / "own-versions-current"), index,
+        (the bump's `glob_exclude`: the contract and the SDK's members) is either not on TestPyPI (it goes up
+        fresh) or held there as exactly this tree's build, file for file and byte for byte (the upload skips it).
+        Exit 1 is a package that changed under a version TestPyPI holds: refused, since TestPyPI would refuse its
+        upload after the tag. Any other failure is refused as "could not ask" (exit 2), never guessed."""
+        done = self.run(["uv", "run", "--no-sync", "python", str(HERE / "own-versions-current"), INDEX,
                          "--root", str(self.root)], cwd=self.root)
         for line in done.out.splitlines():
             if line.strip():
@@ -565,12 +666,12 @@ class Family:
         raise Refused(f"{who}: {UNASKED}", 2)
 
     def released_elsewhere_or_refuse(self, who: str) -> None:
-        """scripts/with-released-families --check pypi, its lines said: every range by which the umbrella's
-        extras name a family released from its own repository (the Google Cloud family) holds a release on
-        PyPI. PyPI whatever the release's own index: the family is released there, and an install from
-        TestPyPI takes what TestPyPI lacks from PyPI. Exit 1 is a range nothing on PyPI meets (the extra could
-        not be installed); any other failure is refused as "could not ask" (exit 2), never guessed."""
-        done = self.run(["uv", "run", "--no-sync", "python", str(HERE / "with-released-families"), "--check", "pypi"],
+        """scripts/with-released-families --check test, its lines said: every range by which the umbrella's
+        extras name a family released from its own repository (the Google Cloud family, the Okta plugin) holds a
+        release on TestPyPI, where the families release until 1.0 and where the release pins each extra at its
+        newest (``pin_released_families``). Exit 1 is a range nothing on TestPyPI meets (the extra could not be
+        pinned nor installed); any other failure is refused as "could not ask" (exit 2), never guessed."""
+        done = self.run(["uv", "run", "--no-sync", "python", str(HERE / "with-released-families"), "--check", INDEX],
                         cwd=self.root)
         for line in (done.out + done.err).splitlines():
             if line.strip():
@@ -592,22 +693,30 @@ class Family:
                 self.say(line)
         raise Refused(f"{who}: {SURFACE}", 1)
 
-    def probes(self, index: str, who: str = "release", *, will_sync: bool = False) -> None:
-        """What a release needs and full-test only finds out twenty minutes in, asked first and in one line each.
-        For every index: the venv is in step with the lock (``SYNC`` with `--check`), because every recipe
-        runs `uv run --no-sync` and a venv behind the checkout answers with stale metadata; then, for a release,
-        every package whose version the release does not move is fresh on the index or held there as this tree's
-        build (`own_versions_or_refuse`: an index never takes a second build under a version, so a changed
-        package without its own bump would be refused at the upload, after the gate), and every family released
-        from its own repository is on PyPI inside the range the extras name (`released_elsewhere_or_refuse`).
-        For a PyPI release
-        also: docker answers, the live configuration is present and every runtime session of it is present
+    def probes(self, *words: str | bool, will_sync: bool = False) -> None:
+        """What a release needs and its gate only finds out twenty minutes in, asked first and in one line each:
+        the venv is in step with the lock (``SYNC`` with `--check`), because every recipe runs `uv run --no-sync`
+        and a venv behind the checkout answers with stale metadata; every package whose version the release does
+        not move is fresh on TestPyPI or held there as this tree's build (`own_versions_or_refuse`: an index never
+        takes a second build under a version, so a changed package without its own bump would be refused at the
+        publish workflow's upload, after the tag); every family released from its own repository is on TestPyPI
+        inside the range the extras name (`released_elsewhere_or_refuse`); the SDK's surfaces; docker answers (the
+        install check of the lighter check and full-test's legs both need it). Under the full proof (``True``,
+        ``full`` or ``--full``) also: the live configuration is present and every runtime session of it is present
         (`just preflight`, the gate full-test itself uses: without it the live legs would be skipped, which a
         release cannot accept) and how many minutes the soonest-expiring session has left
-        (scripts/session-minutes-left; refused only when a token has already lapsed, otherwise said).
-        `release-finish` asks the venv alone: it runs no bar, builds nothing and uploads nothing. The real form
-        of `release` syncs the venv just before; its dry form (``will_sync``) says a venv behind the checkout
-        rather than refusing it, since the real form would sync it first."""
+        (scripts/session-minutes-left; refused only when a token has already lapsed, otherwise said). ``pypi`` is
+        refused, naming the standing decision, before anything is asked. The real form of `release` syncs the
+        venv just before; its dry form (``will_sync``) says a venv behind the checkout rather than refusing it,
+        since the real form would sync it first."""
+        who = "release"
+        full, named = False, []
+        for word in words:
+            if isinstance(word, bool) or word in ("full", "--full"):
+                full = full or word is not False
+            elif word != "light":
+                named.append(word)
+        self.words(who, named, (), NOT_A_PROBE_WORD)
         # the venv asked is the one running this script: the checkout's own, named when it is behind
         if self.run([*SYNC, "--check"], cwd=REPO).rc != 0:
             if not will_sync:
@@ -616,20 +725,17 @@ class Family:
             self.say(f"{who}: {VENV_WILL_SYNC}")
         else:
             self.say(f"{who}: {VENV_OK}")
-        if who == "release":
-            self.own_versions_or_refuse(index, who)
-            self.released_elsewhere_or_refuse(who)
-            self.surfaces_or_refuse(who)
-        if who != "release":
-            return
-        # both gates need the daemon: the install check for a release to the test index, full-test's legs for PyPI;
-        # asked here, before anything changes, and not found missing after the bar
+        self.own_versions_or_refuse(who)
+        self.released_elsewhere_or_refuse(who)
+        self.surfaces_or_refuse(who)
+        # both gates need the daemon: the lighter check's install check, full-test's legs; asked here, before
+        # anything changes, and not found missing after the bar
         if self.run(["docker", "info"], cwd=self.root).rc != 0:
-            needs = "full-test's legs need it" if index == "pypi" else "the install check (test-docker-install) needs it"
+            needs = "full-test's legs need it" if full else "the install check (test-docker-install) needs it"
             raise Refused(f"{who}: docker is not answering (docker info) -- {needs}; start the daemon "
                           "-- nothing was changed")
         self.say(f"{who}: docker answers")
-        if index != "pypi":
+        if not full:
             return
         root = self.sibling.path
         if not self.sibling.configured:
@@ -638,7 +744,7 @@ class Family:
         if self.run(["just", "preflight"], cwd=self.root).rc != 0:
             raise Refused(f"{who}: a runtime session of the live configuration is absent or expired (`just preflight` "
                           "says which) -- full-test's live legs would be skipped; log in -- nothing was changed")
-        # how long the soonest-expiring session has left; a login lasts one hour and a PyPI release takes nearly
+        # how long the soonest-expiring session has left; a login lasts one hour and a full proof takes nearly
         # all of it; the tree may declare a family released from its own repository, layered in for the probe
         asked = self.run(["uv", "run", "--no-sync", "python", str(HERE / "with-released-families"),
                           "python", str(HERE / "session-minutes-left"), str(root)],
@@ -666,12 +772,13 @@ class Family:
         members = sorted(str(p.relative_to(self.root)) for p in self.root.glob("packages/*/pyproject.toml"))
         return ["pyproject.toml", *members, "uv.lock"]
 
-    def gate(self, name: str) -> None:
-        """The bar and the install check for a development release to TestPyPI; full-test (which holds the
-        install check among its legs), the modification-test evidence in the live configuration and a clean live
-        checkout for PyPI. Nothing reaches either index past a failed install check: what a person installs
-        must validate and dry-run a docker-only configuration first."""
-        if name == "pypi":
+    def gate(self, full: bool) -> None:
+        """The lighter check by default: the acceptance tests (`just test`) and the install check
+        (`just test-docker-install`: what a person installs must validate and dry-run a docker-only
+        configuration first). Under ``full`` the full proof a PyPI release ran: full-test (which holds the
+        install check among its legs), the modification-test evidence in the live configuration and a clean
+        live checkout. Nothing is tagged past a failed check."""
+        if full:
             done = self.run(["just", "full-test"], cwd=self.root, capture=False)
             if done.rc != 0:
                 raise Refused("", done.rc)
@@ -685,11 +792,9 @@ class Family:
             if others:
                 raise Refused("release: the live configuration must be clean apart from its mod-test evidence:\n"
                               + "\n".join(others))
-        else:
-            done = self.run(["just", "test"], cwd=self.root, capture=False)
-            if done.rc != 0:
-                raise Refused("", done.rc)
-            done = self.run(["just", "test-docker-install"], cwd=self.root, capture=False)
+            return
+        for check in (["just", "test"], ["just", "test-docker-install"]):
+            done = self.run(check, cwd=self.root, capture=False)
             if done.rc != 0:
                 raise Refused("", done.rc)
 
@@ -699,46 +804,66 @@ class Family:
             if done.rc != 0:
                 raise Refused("", done.rc)
 
-    def upload(self, index: str, name: str, version: str, branch: str) -> None:
-        """`publish`, with the advice a failed upload needs: what to do with the uncommitted bump depends on
-        whether any project already holds the version, counted by publish-dist from its own upload (the
-        index's pages lag by minutes). Either way the checkout stays on ``branch``, where the bump is."""
-        fd, summary_path = tempfile.mkstemp(prefix="csis-publish-summary.", dir=self.env.get("TMPDIR") or None)
-        os.close(fd)
-        summary = Path(summary_path)
-        try:
-            rc = self.publish(index, summary=summary)
-            if rc == 0:
-                return
-            held, total = 0, "?"
-            if summary.is_file():
-                for line in summary.read_text().splitlines():
-                    if line.startswith("held "):
-                        held = int(line[5:])
-                    elif line.startswith("total "):
-                        total = line[6:]
-        finally:
-            summary.unlink(missing_ok=True)
-        if held > 0:
-            when = "again in a day" if rc == NOT_NOW else "again"
-            raise Refused(f"release: the upload to {name} stopped part-way: {held} of {total} projects hold {version}, "
-                          "and those files can never be uploaded again under another version. KEEP the uncommitted "
-                          f"bump to {version}, here on {branch}; run `just publish {index}` {when} until every "
-                          f"project holds it, then `just release-finish {index}` commits, tags, records and pushes "
-                          "the release", rc)
-        raise Refused(f"release: the upload to {name} failed and no project holds {version}; the bump is uncommitted "
-                      f"here on {branch} -- discard it with: git checkout -- pyproject.toml packages/*/pyproject.toml "
-                      "uv.lock")
+    def pin_released_families(self, who: str) -> None:
+        """After the bump: every released-elsewhere name of the root's extras pinned exactly at the newest
+        TestPyPI release inside its range (``with-released-families --newest test``), so the released umbrella
+        names every one of the system's names exactly and the one install form takes each from TestPyPI
+        (specification 013, D1). The ranges come back after the tag (``restore_released_ranges``)."""
+        self.released_ranges = {}
+        done = self.run(["uv", "run", "--no-sync", "python", str(HERE / "with-released-families"), "--newest", INDEX],
+                        cwd=self.root)
+        if done.rc != 0:
+            raise Refused(f"{who}: the released families' newest TestPyPI releases could not be read (above) -- the "
+                          "umbrella cannot name them exactly; the bump is uncommitted", done.rc)
+        pins = dict(line.split("==", 1) for line in done.out.split() if "==" in line)
+        if not pins:
+            return
+        path = self.root / "pyproject.toml"
+        text = path.read_text()
+        for name, version in pins.items():
+            for spec in sorted(set(re.findall(rf'"{re.escape(name)}([<>=!~,.0-9a-z]*)"', text))):
+                if not spec.startswith("=="):
+                    self.released_ranges[f'"{name}=={version}"'] = f'"{name}{spec}"'
+                    text = text.replace(f'"{name}{spec}"', f'"{name}=={version}"')
+        path.write_text(text)
+        self.say(f"{who}: the released families pinned for this release: "
+                 + ", ".join(f"{n}=={v}" for n, v in sorted(pins.items())))
+        self.lock_or_refuse(who)
 
-    def record_and_tag(self, version: str, *, on_release_branch: bool) -> None:
-        """The release's row in docs/CHANGES.md, the commit `release <version>` and the annotated tag."""
+    def restore_released_ranges(self, who: str, version: str) -> None:
+        """After the tag: the released families back on their ranges, the tree's own between releases, in a
+        commit of its own on the release's branch."""
+        ranges = getattr(self, "released_ranges", {})
+        if not ranges:
+            return
+        path = self.root / "pyproject.toml"
+        text = path.read_text()
+        for exact, spec in ranges.items():
+            text = text.replace(exact, spec)
+        path.write_text(text)
+        self.lock_or_refuse(who)
+        for cmd in (["add", "pyproject.toml", "uv.lock"],
+                    ["commit", "-q", "-m", f"after release {version}: the released families back on their ranges"]):
+            done = self.git(*cmd)
+            if done.rc != 0:
+                raise Refused((done.err + done.out).strip() or f"{who}: git {cmd[0]} failed", done.rc)
+
+    def lock_or_refuse(self, who: str) -> None:
+        done = self.run(["uv", "lock"], cwd=self.root, capture=False)
+        if done.rc != 0:
+            raise Refused(f"{who}: `uv lock` failed (above)", done.rc)
+
+    def record_and_tag(self, version: str, *, on_release_branch: bool, full: bool) -> None:
+        """The release's row in docs/CHANGES.md, the commit `release <version>` and the annotated tag, whose
+        message carries ``FULLY_PROVEN`` when the release ran the full proof."""
         files = self.bumped_files()
         if append_release_row(self.root / CHANGES, version, self.today(), stamp_unreleased=on_release_branch):
             files.append(str(CHANGES))
         else:
             self.say(f"release: no {CHANGES} here to record {version} in")
+        message = ["-m", f"release {version}", *(["-m", FULLY_PROVEN] if full else [])]
         for cmd in (["add", *files], ["commit", "-q", "-m", f"release {version}"],
-                    ["tag", "-a", f"v{version}", "-m", f"release {version}"]):
+                    ["tag", "-a", f"v{version}", *message]):
             done = self.git(*cmd)
             if done.rc != 0:
                 raise Refused((done.err + done.out).strip() or f"release: git {cmd[0]} failed", done.rc)
@@ -749,7 +874,7 @@ class Family:
 
     # --- the commands
 
-    def dry(self, start: str, cut: str, index: str, plan: str, version: str) -> int:
+    def dry(self, start: str, cut: str, full: bool, plan: str, version: str) -> int:
         """The dry form's lines, in the real form's order: the move from develop (read from the refs, refused
         as the real form would refuse it), the resync, the probes, what the release would do, the ending."""
         before = [self.move(cut)] if start != cut else []
@@ -757,13 +882,13 @@ class Family:
             self.fast_forward_or_refuse(cut)
         for cmd in [*(c for group in before for c in group), list(SYNC)]:
             self.say(f"release: {WOULD.format(command=' '.join(cmd))}")
-        self.probes(index, "release", will_sync=True)
+        self.probes(full, will_sync=True)
         self.say(plan)
         for cmd in self.ending(cut, version):
             self.say(f"release: {WOULD.format(command=' '.join(cmd))}")
         return 0
 
-    def before_bump(self, start: str, cut: str, index: str, name: str, new: str) -> None:
+    def before_bump(self, start: str, cut: str, full: bool, new: str) -> None:
         """The move from develop, the resync, the venv's probes, the gate and the index again; a refusal or a
         failure in any of them returns the checkout to ``start`` with the release branch where it was."""
         old = ""
@@ -776,84 +901,57 @@ class Family:
                     if done.rc != 0:
                         raise Refused(f"release: `{' '.join(cmd)}` failed (above)", done.rc)
             self.sync("release")
-            self.probes(index, "release")
-            self.gate(name)
-            # the bar takes twenty minutes; an index that went down meanwhile leaves a clean tree
-            self.ready_or_refuse(index, name, new)
+            self.probes(full)
+            self.gate(full)
+            # the gate takes minutes (full-test nearly an hour); an index that went down meanwhile leaves a clean tree
+            self.ready_or_refuse(new)
         except Refused as e:
             if old:
                 raise self.go_back(start, cut, old, e) from None
             raise
 
-    def release(self, target: str, index: str = "test", dry: str = "no") -> int:
-        name = self.index_name(index, "release")
-        start = self.branch_guard("release", ancestor_check=True)
+    def release(self, target: str, *words: str, applying: bool = False) -> int:
+        """The release; ``words`` are ``--full`` (the full proof, recorded in the tag) and ``yes`` (the dry
+        form), in any order; ``pypi`` is refused first. ``applying`` (release-take with ``main``) is a take into
+        an applying cycle, which the advisory names."""
+        said = self.words("release", words, RELEASE_WORDS, NOT_A_RELEASE_WORD)
+        full, dry = "--full" in said, "yes" in said
+        start = self.branch_guard("release")
         cut = self.cut_branch(start)
-        if dry != "yes":
+        if not dry:
             self.clean_or_refuse()
         current = self.current_version("release")
         new, bump_args = self.version_plan(target, current)
         self.planned = new
-        self.ready_or_refuse(index, name, new)
-        self.token(name, "release")
+        self.ready_or_refuse(new)
         if self.tagged(new):
             raise Refused(f"release: v{new} is already tagged here -- a version is never re-cut, even after its files "
                           "were deleted from the index")
         self.remote_or_refuse("release")
         self.fetched_or_refuse("release", cut)
         self.tags_behind("release", new)
-        gate = "full-test" if name == "pypi" else "test && just test-docker-install"
-        if dry == "yes":
-            return self.dry(start, cut, index,
-                            f"release: dry -- on {cut}, {current} would become {new}: {name} ready and free of it, "
-                            f"untagged, token present, the probes above passed. The real form: just {gate}, the index "
-                            f"again, bump-my-version {' '.join(bump_args)}, uv lock, just publish {index}, commit "
-                            f"'release {new}' (with its {CHANGES} row), tag v{new}, then the pushes below", new)
-        self.before_bump(start, cut, index, name, new)
+        if not full:
+            self.advise("release", applying=applying)
+        if dry:
+            gate = "just full-test" if full else "just test, just test-docker-install"
+            record = f" (its message: '{FULLY_PROVEN}')" if full else ""
+            return self.dry(start, cut, full,
+                            f"release: dry -- on {cut}, {current} would become {new}: {NAME} ready and free of it, "
+                            f"untagged, the probes above passed. The real form: {gate}, the index again, "
+                            f"bump-my-version {' '.join(bump_args)}, uv lock, the released families pinned at their "
+                            f"newest TestPyPI releases, "
+                            f"{'the modification-test evidence committed in the live configuration, ' if full else ''}"
+                            f"commit 'release {new}' (with its {CHANGES} row), tag v{new}{record}, the families back "
+                            "on their ranges, then the pushes below; the tag's push publishes it to TestPyPI", new)
+        self.before_bump(start, cut, full, new)
         self.bump(bump_args)
-        self.upload(index, name, new, cut)
-        if name == "pypi":
+        self.pin_released_families("release")
+        if full:
             commit_evidence(read_sibling(self.sibling.path, run=self.run), new, run=self.run)
-        self.record_and_tag(new, on_release_branch=cut == self.release_branch)
-        pushed = self.run_ending("release", new, name, cut)
-        self.say(RELEASED.format(version=new, name=name, pushed=pushed, branch=self.ends_on(cut)))
-        return 0
-
-    def finish(self, index: str = "test") -> int:
-        name = self.index_name(index, "release-finish")
-        branch = self.branch_guard("release-finish", ancestor_check=False)
-        self.probes(index, "release-finish")
-        new = self.current_version("release-finish")
-        shown = self.git("show", "HEAD:pyproject.toml").out
-        committed = next((m.group(1) for m in (re.match(r'^version = "(.*)"$', line) for line in shown.splitlines())
-                          if m), "")
-        if committed == new:
-            raise Refused(f"release-finish: {new} is already committed -- there is no uncommitted bump to finish")
-        if self.tagged(new):
-            raise Refused(f"release-finish: v{new} is already tagged here")
-        others = [line for line in self.git("status", "--porcelain").out.splitlines() if not BUMPED.match(line)]
-        if others:
-            raise Refused(f"release-finish: the tree must hold the bump to {new} and nothing else:\n" + "\n".join(others))
-        self.remote_or_refuse("release-finish")
-        self.fetched_or_refuse("release-finish", branch)
-        self.tags_behind("release-finish", new)
-        rc = self.index_ready(index, new, "--all-held")
-        if rc == 1:
-            raise Refused(f"release-finish: not every project holds {new} on {name} (above) -- run `just publish "
-                          f"{index}` until it completes (the index's pages lag an upload by minutes)")
-        if rc == NOT_NOW:
-            raise Refused(f"release-finish: {name} cannot be asked now (above) -- nothing was changed", NOT_NOW)
-        if rc != 0:
-            raise Refused(f"release-finish: the publish-target probe could not run (exit {rc})", 2)
-        if name == "pypi":
-            tree = read_sibling(self.sibling.path, run=self.run)
-            if not tree.configured:
-                raise Refused(f"release-finish: no live configuration at {tree.path} (cfg/_config.yml) for the "
-                              "modification-test evidence -- nothing was changed")
-            commit_evidence(tree, new, run=self.run, tolerate_missing=True)
-        self.record_and_tag(new, on_release_branch=branch == self.release_branch)
-        pushed = self.run_ending("release-finish", new, name, branch)
-        self.say(FINISHED.format(version=new, name=name, pushed=pushed, branch=self.ends_on(branch)))
+        self.record_and_tag(new, on_release_branch=cut == self.release_branch, full=full)
+        self.restore_released_ranges("release", new)
+        pushed = self.run_ending("release", new, cut)
+        self.say(RELEASED.format(version=new, pushed=pushed, branch=self.ends_on(cut)))
         return 0
 
     def take_tree_or_refuse(self) -> None:
@@ -869,24 +967,45 @@ class Family:
         if why:
             raise Refused(f"release-take: {NO_TAKE_TREE.format(root=root, why=why)}")
 
-    def release_take(self, target: str, index: str, *words: str) -> int:
-        """The release, then ``UV_REFRESH=1 just take <version>`` in the live configuration (``main`` passed
-        through); the variable reaches the take alone."""
-        for word in words:
-            if word not in TAKE_WORDS:
-                raise Refused(f"release-take: {NOT_A_TAKE_WORD.format(word=word)}", 2)
-        main = "main" in words
-        dry = "yes" if "yes" in words else "no"
+    def knows_command(self, version: str) -> list[str]:
+        return ["uv", "run", "--no-sync", "python", str(HERE / "index-knows"), INDEX_URL, PROJECT, version]
+
+    def wait_listed(self, version: str, root: Path, line: str) -> None:
+        """scripts/index-knows, asked every ``index_interval`` seconds until TestPyPI lists the umbrella at
+        ``version`` (the publish workflow uploads it last), ``index_wait_minutes`` at most; then refused, with
+        the take to run by hand once it is listed."""
+        self.say(f"release-take: {WAITING.format(version=version, interval=self.index_interval, minutes=self.index_wait_minutes)}")
+        deadline = self.clock() + self.index_wait_minutes * 60
+        while True:
+            done = self.run(self.knows_command(version), cwd=self.root)
+            if done.rc == 0:
+                self.say(f"release-take: {LISTED.format(version=version)}")
+                return
+            if self.clock() >= deadline:
+                for said in (done.out + done.err).splitlines():
+                    if said.strip():
+                        self.say(said)
+                raise Refused(f"release-take: {NOT_LISTED.format(version=version, minutes=self.index_wait_minutes, root=root, command=line)}")
+            self.sleep(self.index_interval)
+
+    def release_take(self, target: str, *words: str) -> int:
+        """The release, then the wait for TestPyPI to list the version, then ``UV_REFRESH=1 just take
+        <version>`` in the live configuration (``main`` passed through); the variable reaches the take alone."""
+        said = self.words("release-take", words, TAKE_WORDS, NOT_A_TAKE_WORD)
+        main = "main" in said
+        dry = "yes" in said
         self.take_tree_or_refuse()
         root = self.sibling.path
-        self.release(target, index, dry)
-        if dry == "yes":
+        self.release(target, *(w for w in ("--full", "yes") if w in said), applying=main)
+        if dry:
+            self.say(f"release-take: {WOULD.format(command=' '.join(self.knows_command(self.planned)) + ' (until TestPyPI lists it)')}")
             self.say(f"release-take: {WOULD.format(command=f'cd {root} && {take_line(self.planned, main)}')}")
             return 0
         version = self.current_version("release-take")
         line = take_line(version, main)
         if not self.tagged(version):
             raise Refused(f"release-take: {NOT_READ_BACK.format(version=version, root=root, command=line)}")
+        self.wait_listed(version, root, line)
         done = self.run(["just", "take", version, *(["main"] if main else [])], cwd=root, capture=False,
                         env={**self.env, **TAKE_ENV})
         if done.rc != 0:
@@ -895,63 +1014,31 @@ class Family:
         self.say(f"release-take: {TAKEN.format(version=version, root=root, main=TAKEN_MAIN if main else '')}")
         return 0
 
-    def publish(self, index: str = "test", *, summary: Path | None = None) -> int:
-        """Build and upload the version in the tree: the index asked first (a partial upload of this version is
-        what a re-run completes, so a project that already holds it is reported, not refused), `dist/` cleaned,
-        every package built, then scripts/publish-dist: one project at a time, sdist and wheel together,
-        dependencies first and cs-image-system last; a 429 is exit 75 with what is left; when everything was
-        already there, one file is sent again to prove the token. Returns publish-dist's exit code."""
-        name = self.index_name(index, "publish")
-        var = self.token(name, "publish")
-        version = self.current_version("publish")
-        rc = self.index_ready(index, version)
-        if rc == NOT_NOW:
-            raise Refused(f"publish: {name} cannot take an upload now (above) -- nothing was uploaded; it is the "
-                          f"index's condition: `just index-ready {index} wait` waits for it", NOT_NOW)
-        if rc != 0:
-            raise Refused(f"publish: the publish-target probe could not run (exit {rc})", 2)
-        shutil.rmtree(self.root / "dist", ignore_errors=True)
-        built = self.run(["just", "build"], cwd=self.root, capture=False)
-        if built.rc != 0:
-            raise Refused("", built.rc)
-        packages = len(published_members(self.root))
-        cmd = ["uv", "run", "--no-sync", "python", str(HERE / "publish-dist"), index, "--version", version,
-               "--token-var", var]
-        if summary is not None:
-            cmd += ["--summary", str(summary)]
-        done = self.run(cmd, cwd=self.root, capture=False)
-        if done.rc != 0:
-            return done.rc
-        self.say(PUBLISHED.format(version=version, name=name, packages=packages))
-        return 0
-
 
 # ------------------------------------------------------------------- main
 
 def main(argv: list[str]) -> int:
     ap = argparse.ArgumentParser(prog="release.py", description=(__doc__ or "").splitlines()[0])
-    ap.add_argument("command", choices=["release", "release-finish", "release-take", "publish", "probes"])
+    ap.add_argument("command", choices=["release", "release-take", "probes"])
     ap.add_argument("args", nargs="*")
+    ap.add_argument("--full", action="store_true", help="the full proof (full-test, the sessions, the evidence)")
     ap.add_argument("--release-branch", default="main")
     ap.add_argument("--config-root", default=None)
     ap.add_argument("--root", type=Path, default=None, help="the system checkout (default: the working directory)")
-    ns = ap.parse_args(argv)
+    ns = ap.parse_intermixed_args(argv)
     root = (ns.root or Path.cwd()).resolve()
     family = Family(root=root, sibling=read_sibling(ns.config_root), release_branch=ns.release_branch)
+    words = [*ns.args, *(["--full"] if ns.full else [])]
     try:
         if ns.command == "release":
             if not ns.args:
                 ap.error("release needs a version part or a version")
-            return family.release(*ns.args[:3])
+            return family.release(*words)
         if ns.command == "release-take":
-            if len(ns.args) < 2:
-                ap.error("release-take needs a version part or a version, and the index")
-            return family.release_take(*ns.args)
-        if ns.command == "release-finish":
-            return family.finish(*ns.args[:1])
-        if ns.command == "publish":
-            return family.publish(*ns.args[:1])
-        family.probes(*ns.args[:2])
+            if not ns.args:
+                ap.error("release-take needs a version part or a version")
+            return family.release_take(*words)
+        family.probes(*words)
         return 0
     except Refused as e:
         if e.message:

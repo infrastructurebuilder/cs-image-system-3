@@ -248,12 +248,15 @@ def own_versions(root: Path = REPO) -> dict[str, str]:
 
 
 def expected_pin(owner: str, dependency: str, workspace: str, own: dict[str, str]) -> str:
-    """What ``owner`` must pin ``dependency`` as: the contract by the range of
-    its compatible series, always; an SDK member exactly at ITS version, or by
+    """What ``owner`` must pin ``dependency`` as: the contract exactly at its
+    own version from the released umbrella (specification 013: every one of
+    the system's names a release installs is exact, so the install form takes
+    each from TestPyPI) and by the range of its compatible series from every
+    other package; an SDK member exactly at ITS version, or by
     the range of its series from a package in SDK_BY_RANGE that is not on the
     same version line; every other sibling exactly at the workspace's version."""
     if dependency == CONTRACT:
-        return contract_range(own[CONTRACT])
+        return f"=={own[CONTRACT]}" if owner == "cs-image-system" else contract_range(own[CONTRACT])
     if dependency in RELEASED_ELSEWHERE:
         return str(SpecifierSet(RELEASED_ELSEWHERE[dependency]))
     if dependency in own:

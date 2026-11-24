@@ -11,9 +11,9 @@ name: CI
 # tests with nothing but themselves and `docker-alone` the docker family's own
 # tests in an environment that holds only that package; `docker-install`
 # installs the docker extra alone and validates and dry-runs its starter; `live` proves the system against real clouds
-# over the FROZEN FIXTURE, read-only; `publish` uploads a pushed `v*` tag to
-# the index (TestPyPI always, PyPI for a final version). The
-# reference configuration (cs-image-system-testconfig) is driven, recorded and
+# over the FROZEN FIXTURE, read-only. A pushed `v*` tag is published by its
+# own workflow, publish.yml (TestPyPI, by trusted publishing); nothing here
+# uploads. The reference configuration (cs-image-system-testconfig) is driven, recorded and
 # performed by its OWN workflow, from the release; nothing here reads it. The
 # jobs that reach a cloud (`live`) are gated on the secrets the operator
 # provides -- until they exist every such leg reports SKIPPED and the job
@@ -256,103 +256,3 @@ jobs:
         # the recipe layers it in from the index; the starters' clouds are stubbed (spec 005, R11)
         if: steps.gate.outputs.ready == 'true'
         run: just test-cloud-starters
-
-  publish:
-    # A pushed `v*` tag publishes the release: to TestPyPI always, to
-    # PyPI when the tag is not a development version. `just publish` skips every
-    # file the index already holds with the same content, so a release the
-    # operator published locally with `just release` is checked here, not
-    # uploaded twice; one published from CI alone is uploaded here. The tag
-    # must name the version in the tree it points at. Each index's token is a
-    # repository secret until the package names are stable enough for trusted
-    # publishing (one pending publisher per project name). Nothing is uploaded
-    # unless the parts proved themselves alone and the docker extra installed
-    # alone validated and dry-ran its starter, on the same commit.
-    needs: [verify, core-alone, terraform-alone, docker-alone, docker-install]
-    if: startsWith(github.ref, 'refs/tags/v')
-    runs-on: ubuntu-24.04
-    container:
-      # The runner image: AlmaLinux 10 with every tool a job calls at a pinned
-      # version (docs/CI_RUNNER.md lists them); moved by `init-config --force` with the
-      # release's other lines. The host's docker socket lets the modification tests drive
-      # the host daemon through the image's docker client.
-      # Unset, CSIS_RUNNER_IMAGE is this release's image and the job logs in to ghcr.io with its own
-      # token, as the runner always did (an empty credential is invalid). A team that runs its own
-      # build names it in the variable; a registry other than ghcr.io needs the variable
-      # CSIS_RUNNER_IMAGE_USERNAME and the secret CSIS_RUNNER_IMAGE_PASSWORD. Release refreshes never
-      # touch them.
-      image: ${{ vars.CSIS_RUNNER_IMAGE || 'ghcr.io/infrastructurebuilder/csis-ci:alma10-20261016.4' }}
-      credentials:
-        username: ${{ vars.CSIS_RUNNER_IMAGE_USERNAME || github.actor }}
-        password: ${{ secrets.CSIS_RUNNER_IMAGE_PASSWORD || github.token }}
-      options: -v /var/run/docker.sock:/var/run/docker.sock
-    steps:
-      - name: Gate on the index tokens
-        id: gate
-        env:
-          HAVE_TEST_PYPI_TOKEN: ${{ secrets.TEST_PYPI_TOKEN != '' }}
-          HAVE_PYPI_TOKEN: ${{ secrets.PYPI_TOKEN != '' }}
-          HAVE_STARTER_PUSH_TOKEN: ${{ secrets.STARTER_PUSH_TOKEN != '' }}
-          IS_DEV: ${{ contains(github.ref_name, '.dev') }}
-        run: |
-          # The same rule as the other jobs: none configured is SKIPPED and said in the
-          # job summary; a tag that needs a token which is missing or EMPTY is a FAILURE
-          # by name. A development tag needs TestPyPI's token alone; a final tag both.
-          if [ "$HAVE_TEST_PYPI_TOKEN" != true ] && [ "$HAVE_PYPI_TOKEN" != true ]; then
-            echo "publish: SKIPPED -- no index token is configured, so nothing is uploaded (TEST_PYPI_TOKEN: an API token for test.pypi.org; PYPI_TOKEN: one for pypi.org, needed for a final version)"
-            { echo "## publish: SKIPPED"; echo "No index token is configured; nothing was uploaded for $GITHUB_REF_NAME. A green conclusion here is not proof that anything ran."; } >> "$GITHUB_STEP_SUMMARY"
-            echo "ready=false" >> "$GITHUB_OUTPUT"; echo "pypi=false" >> "$GITHUB_OUTPUT"; echo "starters=false" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-          [ "$HAVE_TEST_PYPI_TOKEN" = true ] || { echo "publish: FAILED -- TEST_PYPI_TOKEN is missing or EMPTY and every version goes to TestPyPI first"; exit 1; }
-          if [ "$IS_DEV" = true ]; then
-            echo "publish: $GITHUB_REF_NAME is a development version -- TestPyPI alone"
-            echo "pypi=false" >> "$GITHUB_OUTPUT"; echo "starters=false" >> "$GITHUB_OUTPUT"
-          else
-            [ "$HAVE_PYPI_TOKEN" = true ] || { echo "publish: FAILED -- $GITHUB_REF_NAME is a final version and PYPI_TOKEN is missing or EMPTY"; exit 1; }
-            echo "publish: $GITHUB_REF_NAME is a final version -- TestPyPI, then PyPI"
-            echo "pypi=true" >> "$GITHUB_OUTPUT"
-            # then the template repositories, which need their own token
-            if [ "$HAVE_STARTER_PUSH_TOKEN" = true ]; then
-              echo "starters=true" >> "$GITHUB_OUTPUT"
-            else
-              echo "publish: the template repositories are SKIPPED -- STARTER_PUSH_TOKEN is not configured"
-              { echo "## publish-starters: SKIPPED"; echo "STARTER_PUSH_TOKEN is not configured; the template repositories were not published for $GITHUB_REF_NAME."; } >> "$GITHUB_STEP_SUMMARY"
-              echo "starters=false" >> "$GITHUB_OUTPUT"
-            fi
-          fi
-          echo "ready=true" >> "$GITHUB_OUTPUT"
-
-      - name: Check out the tag
-        if: steps.gate.outputs.ready == 'true'
-        uses: actions/checkout@v5
-
-
-
-      - name: Install dependencies
-        if: steps.gate.outputs.ready == 'true'
-        run: just init
-
-      - name: The tag names the version in the tree
-        if: steps.gate.outputs.ready == 'true'
-        run: |
-          version=$(uv run --no-sync bump-my-version show current_version)
-          [ "v$version" = "$GITHUB_REF_NAME" ] || { echo "publish: FAILED -- the tag is $GITHUB_REF_NAME but the tree says $version"; exit 1; }
-
-      - name: Publish to TestPyPI
-        if: steps.gate.outputs.ready == 'true'
-        env:
-          UV_PUBLISH_TOKEN: ${{ secrets.TEST_PYPI_TOKEN }}
-        run: just publish test
-
-      - name: Publish to PyPI
-        if: steps.gate.outputs.ready == 'true' && steps.gate.outputs.pypi == 'true'
-        env:
-          UV_PUBLISH_TOKEN: ${{ secrets.PYPI_TOKEN }}
-        run: just publish pypi
-
-      - name: Publish the template repositories
-        if: steps.gate.outputs.ready == 'true' && steps.gate.outputs.pypi == 'true' && steps.gate.outputs.starters == 'true'
-        env:
-          STARTER_PUSH_TOKEN: ${{ secrets.STARTER_PUSH_TOKEN }}
-        run: just publish-starters

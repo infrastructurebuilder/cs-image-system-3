@@ -219,13 +219,13 @@ Three commitments show up everywhere:
   Windows and BSD containers and orchestrators (Swarm, Kubernetes) are not
   built.
 - **Releases are of the whole system.** `just release` cuts a version
-  from `main`: one bump moves every version line and pin, every
-  workspace project is built and uploaded to the index named (TestPyPI,
-  the default, gated on the bar, for a development version; PyPI, gated
-  on `full-test`, for a final one), and the commit is tagged
-  `v<version>`. The pushed `v*` tag makes CI upload to TestPyPI always
-  and, for a final version, to PyPI too, skipping whatever the index
-  already holds, and then push the five starter template repositories.
+  from `main`: one bump moves every version line and pin, the
+  acceptance tests run (`--full`: `full-test`), and the commit is tagged
+  `v<version>`. The pushed `v*` tag makes the `Publish` workflow upload
+  every workspace project to TestPyPI, skipping whatever the index
+  already holds, and then, for a final version, push the five starter
+  template repositories. Until 1.0 nothing goes to PyPI: a release is
+  on TestPyPI alone (the operator's standing decision).
   No package of this repository is released on its own. The Google Cloud
   family and the Okta plugin are the two exceptions to "the whole
   system": each is released from its own repository on a version line of
