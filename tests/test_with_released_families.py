@@ -71,3 +71,14 @@ def test_a_range_nothing_meets_is_exit_1_and_an_unasked_index_exit_2():
 def test_a_command_is_needed():
     done = subprocess.run([sys.executable, str(SCRIPT)], capture_output=True, text=True)
     assert done.returncode == 2 and "name the command" in done.stderr
+
+
+def test_newest_names_the_newest_release_inside_each_range_and_refuses_one_unmet():
+    from packaging.version import Version
+    reqs = W.requirements()
+    inside = {Version("0.2.0"), Version("0.2.1"), Version("0.3.0")}
+    found = W.newest("test", asked=lambda _index, _name: inside)
+    assert set(found) == {W.Requirement(r).name for r in reqs} and set(found.values()) == {Version("0.2.1")}
+    import pytest
+    with pytest.raises(LookupError, match="NO release"):
+        W.newest("test", asked=lambda _index, _name: {Version("0.1.0")})

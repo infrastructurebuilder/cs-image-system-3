@@ -699,6 +699,55 @@ class Family:
             if done.rc != 0:
                 raise Refused("", done.rc)
 
+    def pin_released_families(self, who: str) -> None:
+        """After the bump: every released-elsewhere name of the root's extras pinned exactly at the newest
+        TestPyPI release inside its range (``with-released-families --newest test``), so the released umbrella
+        names every one of the system's names exactly and the one install form takes each from TestPyPI
+        (specification 013, D1). The ranges come back after the tag (``restore_released_ranges``)."""
+        self.released_ranges = {}
+        done = self.run(["uv", "run", "--no-sync", "python", str(HERE / "with-released-families"), "--newest", "test"],
+                        cwd=self.root)
+        if done.rc != 0:
+            raise Refused(f"{who}: the released families' newest TestPyPI releases could not be read (above) -- the "
+                          "umbrella cannot name them exactly; the bump is uncommitted", done.rc)
+        pins = dict(line.split("==", 1) for line in done.out.split() if "==" in line)
+        if not pins:
+            return
+        path = self.root / "pyproject.toml"
+        text = path.read_text()
+        for name, version in pins.items():
+            for spec in sorted(set(re.findall(rf'"{re.escape(name)}([<>=!~,.0-9a-z]*)"', text))):
+                if not spec.startswith("=="):
+                    self.released_ranges[f'"{name}=={version}"'] = f'"{name}{spec}"'
+                    text = text.replace(f'"{name}{spec}"', f'"{name}=={version}"')
+        path.write_text(text)
+        self.say(f"{who}: the released families pinned for this release: "
+                 + ", ".join(f"{n}=={v}" for n, v in sorted(pins.items())))
+        self.lock_or_refuse(who)
+
+    def restore_released_ranges(self, who: str, version: str) -> None:
+        """After the tag: the released families back on their ranges, the tree's own between releases, in a
+        commit of its own on the release's branch."""
+        ranges = getattr(self, "released_ranges", {})
+        if not ranges:
+            return
+        path = self.root / "pyproject.toml"
+        text = path.read_text()
+        for exact, spec in ranges.items():
+            text = text.replace(exact, spec)
+        path.write_text(text)
+        self.lock_or_refuse(who)
+        for cmd in (["add", "pyproject.toml", "uv.lock"],
+                    ["commit", "-q", "-m", f"after release {version}: the released families back on their ranges"]):
+            done = self.git(*cmd)
+            if done.rc != 0:
+                raise Refused((done.err + done.out).strip() or f"{who}: git {cmd[0]} failed", done.rc)
+
+    def lock_or_refuse(self, who: str) -> None:
+        done = self.run(["uv", "lock"], cwd=self.root, capture=False)
+        if done.rc != 0:
+            raise Refused(f"{who}: `uv lock` failed (above)", done.rc)
+
     def upload(self, index: str, name: str, version: str, branch: str) -> None:
         """`publish`, with the advice a failed upload needs: what to do with the uncommitted bump depends on
         whether any project already holds the version, counted by publish-dist from its own upload (the
@@ -807,14 +856,18 @@ class Family:
             return self.dry(start, cut, index,
                             f"release: dry -- on {cut}, {current} would become {new}: {name} ready and free of it, "
                             f"untagged, token present, the probes above passed. The real form: just {gate}, the index "
-                            f"again, bump-my-version {' '.join(bump_args)}, uv lock, just publish {index}, commit "
-                            f"'release {new}' (with its {CHANGES} row), tag v{new}, then the pushes below", new)
+                            f"again, bump-my-version {' '.join(bump_args)}, uv lock, the released families pinned at their newest "
+                            f"TestPyPI releases, just publish {index}, commit "
+                            f"'release {new}' (with its {CHANGES} row), tag v{new}, the families back on their ranges, then the "
+                            "pushes below", new)
         self.before_bump(start, cut, index, name, new)
         self.bump(bump_args)
+        self.pin_released_families("release")
         self.upload(index, name, new, cut)
         if name == "pypi":
             commit_evidence(read_sibling(self.sibling.path, run=self.run), new, run=self.run)
         self.record_and_tag(new, on_release_branch=cut == self.release_branch)
+        self.restore_released_ranges("release", new)
         pushed = self.run_ending("release", new, name, cut)
         self.say(RELEASED.format(version=new, name=name, pushed=pushed, branch=self.ends_on(cut)))
         return 0

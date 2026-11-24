@@ -25,7 +25,7 @@ dependencies = [
     "cs-image-system-base==0.2.2",
     "cs-image-system-bash-mod-plugin==0.1.12",
     "cs-image-system-default-os-plugin==0.1.12",
-    "cs-image-system-contract>=0.5,<0.6",
+    "cs-image-system-contract==0.5.2",
     "cs-image-system-engine==0.1.12",
     "cs-image-system-hashicorp-utils==0.2.2",
     "cs-image-system-local-state-plugin==0.1.12",
@@ -120,12 +120,20 @@ cs-image-system-local-state-plugin = { workspace = true }
 cs-image-system-posix-identity-plugin = { workspace = true }
 cs-image-system-docker-plugin = { workspace = true }
 cs-image-system-tofu-roots = { workspace = true }
+# The names released from their own repositories (the Google Cloud family, the Okta
+# plugin) come from TestPyPI, where every release goes until 1.0 (specification 013):
+# the lock takes each of them there and every other name from PyPI
+# (tests/test_index_pins.py holds it).
+cs-image-system-gcloud-runtime-plugin = { index = "testpypi" }
+cs-image-system-tf-gcp-plugin = { index = "testpypi" }
+cs-image-system-gcs-state-plugin = { index = "testpypi" }
+cs-image-system-okta-opa-plugin = { index = "testpypi" }
 
 # The indexes a release is published to: `uv publish --index <name>` reads the
 # publish-url and skips files already present with the same content (the url is the check
-# url). Both are explicit, so neither takes part in resolving this workspace's dependencies;
-# a consumer installs from TestPyPI with PyPI as the extra index (docs/OPERATIONS.md,
-# "Installing a release").
+# url). Both are explicit, so neither takes part in resolving this workspace's dependencies
+# but for the names pinned to one above; a consumer installs from TestPyPI with PyPI as the
+# extra index (docs/OPERATIONS.md, "Installing a release").
 [[tool.uv.index]]
 name = "testpypi"
 url = "https://test.pypi.org/simple/"

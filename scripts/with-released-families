@@ -8,6 +8,7 @@ repositories layered in from the index.
     with-released-families COMMAND [ARG ...]
     with-released-families --print
     with-released-families --check test|pypi
+    with-released-families --newest test|pypi
 
 A family released from a repository of its own (the Google Cloud family,
 spec 005; the Okta identity plugin, spec 008) is not in this workspace's
@@ -23,6 +24,9 @@ TestPyPI, or ``pypi``) whether it holds a release inside every such range, a
 line each, the newest one named: 0 when every range is met, 1 when one is not
 (the umbrella would name a family no one can install), 2 when the index
 could not be asked (nothing is guessed). A release asks it first.
+``--newest INDEX`` prints, one a line, ``<name>==<version>`` for the newest
+release inside each such range, with the same exits: a release pins its
+umbrella's extras to them (specification 013, D1).
 """
 from __future__ import annotations
 
@@ -102,12 +106,42 @@ def check(index: str, *, asked: Callable[[str, str], set[Version]] = published,
     return 0 if met else 1
 
 
+def newest(index: str, *, asked: Callable[[str, str], set[Version]] = published,
+           pyproject: Path = REPO / "pyproject.toml") -> dict[str, Version]:
+    """The newest release on ``index`` inside each released-elsewhere requirement's range, by name;
+    raises ``LookupError`` naming the requirement no release meets (``Unasked`` when the index could
+    not be asked)."""
+    found: dict[str, Version] = {}
+    for text in requirements(pyproject):
+        req = Requirement(text)
+        inside = sorted(v for v in asked(index, req.name) if req.specifier.contains(v))
+        if not inside:
+            raise LookupError(f"{req.name}{req.specifier}: NO release on the {index} index")
+        found[req.name] = max(found.get(req.name, inside[-1]), inside[-1])
+    return found
+
+
+def print_newest(index: str) -> int:
+    try:
+        for name, version in sorted(newest(index).items()):
+            print(f"{name}=={version}")
+    except Unasked as e:
+        print(f"with-released-families: the {index} index could not be asked: {e}", file=sys.stderr)
+        return 2
+    except LookupError as e:
+        print(f"with-released-families: {e}", file=sys.stderr)
+        return 1
+    return 0
+
+
 def main(argv: list[str]) -> int:
     if argv == ["--print"]:
         print(" ".join(with_options()))
         return 0
     if len(argv) == 2 and argv[0] == "--check" and argv[1] in INDEX_JSON:
         return check(argv[1])
+    if len(argv) == 2 and argv[0] == "--newest" and argv[1] in INDEX_JSON:
+        return print_newest(argv[1])
     if not argv or argv[0].startswith("-"):
         print("with-released-families: name the command to run, or --print", file=sys.stderr)
         return 2

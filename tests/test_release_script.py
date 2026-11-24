@@ -1233,3 +1233,25 @@ def test_a_release_to_the_test_index_without_docker_is_refused_first(tmp_path: P
         _family(root, shell, said=said).probes("test")
     assert "docker" in e.value.message and "test-docker-install" in e.value.message
     assert "nothing was changed" in e.value.message and shell.count("just test") == 0
+
+
+def test_a_release_pins_the_released_families_exactly_then_restores_their_ranges(tmp_path: Path):
+    """Specification 013, D1: the release commit and its tag name each
+    released-elsewhere name exactly at the newest TestPyPI release inside its
+    range; the commit after the tag puts the ranges back, the tree's own
+    between releases."""
+    root = _system_repo(tmp_path)
+    pyproject = root / "pyproject.toml"
+    pyproject.write_text(pyproject.read_text() + '\n[project.optional-dependencies]\nfam = ["x-fam>=0.2,<0.3"]\n'
+                         'all = ["x-fam>=0.2,<0.3"]\n')
+    _git(root, "commit", "-qam", "a family released elsewhere")               # on main, checked out
+    _git(root, "branch", "-f", "develop", "main")
+    _git(root, "push", "-q", "-f", "origin", "develop", "main")
+    shell = FakeShell([*_answers(root), ("with-released-families --newest test", R.Done(0, "x-fam==0.2.1\n"))])
+    assert _family(root, shell).release("patch", "test") == 0
+    tagged = _git(root, "show", "v0.1.1.dev1:pyproject.toml")
+    assert tagged.count('"x-fam==0.2.1"') == 2 and ">=0.2,<0.3" not in tagged
+    assert _git(root, "show", "HEAD:pyproject.toml").count('"x-fam>=0.2,<0.3"') == 2
+    assert _git(root, "log", "-2", "--format=%s").splitlines() == [
+        "after release 0.1.1.dev1: the released families back on their ranges", "release 0.1.1.dev1"]
+    assert shell.first("with-released-families --newest") < shell.first("publish-dist")   # pinned before the upload
