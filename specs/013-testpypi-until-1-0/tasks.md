@@ -56,8 +56,10 @@ Filled in as tasks complete.
 | T026 | 2026-11-24, `just test` in each (VIRTUAL_ENV unset, after `just init`): OKTA lint and REUSE clean, pyright 0 errors, 193 passed; GCLOUD likewise, 170 passed. The lock check's counts: OKTA 15 names of the system from TestPyPI, 67 third-party names from PyPI and none from TestPyPI; GCLOUD 12 and 72, none from TestPyPI |
 | T032 | 2026-11-24, `/speckit-converge`: 9 requirements (two dropped), 5 success criteria (two dropped), 18 acceptance scenarios, the plan's decisions and its list of what the change makes false, Constitution IX and X checked; two partial findings, appended as T036 and T037. Not findings: the install hint in `extras.py`, the starters' READMEs and `docs/PLUGINS.md` (T028's drop; none names PyPI as where a release is); specification 008's and 010's release tasks (none names PyPI) |
 | T036 | OKTA `cddee62`, GCLOUD `7fe5974`, not pushed: each `docs/RELEASING.md` names the change that lifts the decision at 1.0 (the refusal, the PyPI job, the system's names back on PyPI), linking the operations guide; markdown only, read by no test there; `just lint` clean in each |
-| T037 | `spec.md` FR-005 narrowed to T021's drop, with its cost named: the isolated runs' guard against a change under a published version sees only PyPI's versions |
+| T037 | **Undone by T038.** `spec.md` FR-005 narrowed to T021's drop, with its cost named: the isolated runs' guard against a change under a published version sees only PyPI's versions |
 | T035 | 2026-11-24: `spec.md`'s status line and the row for 013 in `specs/README.md` say phases 1 to 9 are implemented, not merged, and what is the operator's |
+| T038 | 2026-11-24, at the operator's word ("Restore T021", after T037 named its cost). Before the change, read live: TestPyPI holds every version PyPI holds of the SDK's three libraries (the kit 0.1.1 to 0.2.1, hashicorp-utils likewise, tofu-roots 0.1.7 to 0.2.1), every file identical by sha256, so neither end of a range moves today. `scripts/isolated-run`: `INDEX_JSON` and `INDEX_VERSION_JSON` read test.pypi.org; a run that takes an SDK library from the index (`pinned`) installs with `INDEX_OPTIONS`, the one install form, PyPI first per name; a run from this repository's build alone names no index. `tests/test_isolated_run.py`: three tests (the index asked; a published low end installed by its pin with the form; a build-only run naming no index), 38 passed. `spec.md` FR-005 restored and a clarification added; `plan.md`'s trim note says so. No guide names the isolated runs' index (each says "the index") |
+| T039 | 2026-11-24: `just test`: lint clean, pyright 0 errors, 2,493 passed, 23 skipped; the isolated runs core 377, the Terraform libraries 6, 37 and 6, docker 62, 62 and 38, each `0 skipped`. The low ends read TestPyPI live: the kit, hashicorp-utils and tofu-roots 0.2.0 "from the index", installed by the form; the high ends this repository's 0.2.2 build, unpublished |
 
 ---
 
@@ -185,3 +187,8 @@ CI job, with every system name from TestPyPI.
 
 - [X] T036 In OKTA and GCLOUD, write in each `docs/RELEASING.md` the one named change that lifts the decision at 1.0 (the release script's refusal of `pypi`, the publish workflow's PyPI job, the install form), as `docs/OPERATIONS.md` "Lifting the decision at 1.0" says each does; commit in each repository per FR-008 (partial)
 - [X] T037 Narrow FR-005's "the SDK's published files" in `spec.md` to T021's drop (the isolated runs read PyPI's published versions and digests, so an SDK version TestPyPI alone holds counts as unpublished there), naming what it costs: the "changed under a published version" guard sees only versions on PyPI per FR-005 / T021 (partial)
+
+## Phase 10: T021 restored (the operator, 2026-11-24: "Restore T021")
+
+- [X] T038 Restore T021: make `scripts/isolated-run` read TestPyPI's JSON for the SDK's published versions and digests (`INDEX_JSON`, `INDEX_VERSION_JSON`) and install a published version, named by its pin, with the one install form (`INDEX_OPTIONS`), with tests in `tests/test_isolated_run.py`; FR-005 whole again in `spec.md` (T037's narrowing undone)
+- [X] T039 Checkpoint: `just test`; record it

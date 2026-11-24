@@ -98,6 +98,11 @@ it, and nothing else is.
   (one statement in the operations guide, not every install line), and
   their success criteria SC-004 and SC-005. The patch-only versions rule
   needs no code: it is a standing rule a bump follows
+- Q (the operator, after the convergence named its cost): "Restore
+  T021" → A: the isolated runs read TestPyPI for the SDK's published
+  versions and digests, and install a published one by the one install
+  form, so their guard against a change under a published version sees
+  the versions TestPyPI alone holds (FR-005 whole again)
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -285,13 +290,9 @@ release.
 - **FR-004** *(dropped 2026-11-24)*: Each family's acceptance tests MUST run against the system's
   newest TestPyPI release inside its ranges, and its oldest-versions leg
   against the oldest its ranges allow.
-- **FR-005** *(narrowed 2026-11-24, with T021's drop)*: The probes a
-  release runs first (the versions already held, the families released
-  elsewhere) MUST read TestPyPI. The isolated runs keep reading PyPI for
-  the SDK's published versions and files, so an SDK version TestPyPI
-  alone holds counts as unpublished there: it is installed as this
-  repository's build, said by name, and the guard against a change
-  under a published version sees only the versions on PyPI.
+- **FR-005** *(restored 2026-11-24, the operator: "Restore T021")*: The
+  probes a release runs first (the versions already held, the families
+  released elsewhere, the SDK's published files) MUST read TestPyPI.
 - **FR-006** *(dropped 2026-11-24: final releases only, as before)*: The starter template repositories MUST be pushed for each
   release.
 - **FR-007** *(narrowed 2026-11-24: one statement in the operations guide)*: Every document in the three repositories and the starters

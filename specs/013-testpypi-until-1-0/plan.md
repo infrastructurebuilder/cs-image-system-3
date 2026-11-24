@@ -15,8 +15,9 @@
 > CI reading TestPyPI for our names; one section of the operations guide.
 > What went: the families' job against the newest release, their
 > oldest-versions leg through TestPyPI, every install line rewritten,
-> the starters on every release, the overlay's and the isolated runs'
-> TestPyPI reads (spec.md, Clarifications 2026-11-24; tasks.md). The
+> the starters on every release, the overlay's TestPyPI reads (the
+> isolated runs' was restored the same day, T038) (spec.md, Clarifications
+> 2026-11-24; tasks.md). The
 > plan below is kept as written; the tasks say what is done.
 
 ## Summary
