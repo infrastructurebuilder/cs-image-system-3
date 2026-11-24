@@ -6,6 +6,19 @@
 
 **Users served**: operators; an adopting team; a plugin author.
 
+> **Trimmed 2026-11-24** (the operator: "All I want is to pause real
+> releases to pypi and ignore semantic versioning rules until we get
+> closer to a 'real' release"; "trim spec 013 to the minimum"). What
+> stands: PyPI refused in all three repositories; the lighter check, the
+> advisory and `--full`; the release's probes and pins reading TestPyPI;
+> trusted publishing here; the locks, the take recipe and the starters'
+> CI reading TestPyPI for our names; one section of the operations guide.
+> What went: the families' job against the newest release, their
+> oldest-versions leg through TestPyPI, every install line rewritten,
+> the starters on every release, the overlay's and the isolated runs'
+> TestPyPI reads (spec.md, Clarifications 2026-11-24; tasks.md). The
+> plan below is kept as written; the tasks say what is done.
+
 ## Summary
 
 Every release of the three repositories goes to TestPyPI, and PyPI is

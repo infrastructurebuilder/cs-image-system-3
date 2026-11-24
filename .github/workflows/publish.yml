@@ -1,0 +1,165 @@
+# SPDX-FileCopyrightText: 2026 Mykel Alvis <mykelalvis@infrastructurebuilder.org>
+#
+# SPDX-License-Identifier: Apache-2.0
+
+name: Publish
+
+# A pushed `v<version>` tag publishes that version of every public project of this
+# workspace (the root and each packages/* member not classified `Private :: Do Not
+# Upload`), by trusted publishing: the index trusts this repository, this workflow
+# file and the job's GitHub environment, and the job proves it is them with a
+# short-lived OIDC token. No upload token is stored anywhere, here or in the
+# repository's secrets. docs/OPERATIONS.md says how the trust is set up and what a
+# fork must change.
+#
+# TestPyPI only, for every version, until 1.0: nothing here uploads to PyPI. Each
+# project's sdist and wheel go up together, in dependency order (scripts/publish-dist's
+# order: the packages the others depend on first, `cs-image-system` last), so an
+# upload cut off leaves only complete projects. A file the index already holds is
+# skipped (`uv publish --index` checks the index it publishes to; `--check-url`
+# cannot be combined with `--index`), so a rerun after a partial failure uploads
+# what is missing and nothing twice. Then the template repositories take the
+# release (`just publish-starters`, on its own token). The release itself ran the
+# acceptance tests before it tagged; ci.yml runs on the same commit beside this.
+# tests/test_publish_commands_parse.py holds every `uv publish` line here to one uv
+# accepts.
+on:
+  push:
+    tags: ["v*"]
+
+jobs:
+  build:
+    # only the repository the index trusts publishes; a fork names its own here (docs/OPERATIONS.md)
+    if: github.repository == 'infrastructurebuilder/cs-image-system-3'
+    runs-on: ubuntu-24.04
+    container:
+      # the runner image, as every job of ci.yml runs in it (docs/CI_RUNNER.md)
+      image: ${{ vars.CSIS_RUNNER_IMAGE || 'ghcr.io/infrastructurebuilder/csis-ci:alma10-20261016.4' }}
+      credentials:
+        username: ${{ vars.CSIS_RUNNER_IMAGE_USERNAME || github.actor }}
+        password: ${{ secrets.CSIS_RUNNER_IMAGE_PASSWORD || github.token }}
+      options: -v /var/run/docker.sock:/var/run/docker.sock
+    permissions:
+      packages: read          # the runner image is pulled with this job's token
+      contents: read
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Install dependencies
+        run: just init
+
+      - name: The tag names the version in the tree
+        run: |
+          version=$(sed -n 's/^version = "\(.*\)"$/\1/p' pyproject.toml | head -1)
+          [ "v$version" = "$GITHUB_REF_NAME" ] || { echo "publish: FAILED -- the tag is $GITHUB_REF_NAME but the tree says $version"; exit 1; }
+          echo "publish: $version, to TestPyPI"
+
+      - name: Build
+        # every workspace member, sdist and wheel, under dist/ (the private ones too: they are left behind below)
+        run: just build
+
+      - name: Gather the public projects in upload order
+        # one folder per public project, numbered in scripts/publish-dist's dependency order, holding
+        # that project's sdist and wheel at its own version (the contract and the SDK's libraries keep
+        # versions of their own)
+        run: |
+          uv run --no-sync python - <<'EOF'
+          import importlib.machinery
+          import importlib.util
+          import shutil
+          from pathlib import Path
+
+          loader = importlib.machinery.SourceFileLoader("publish_dist", "scripts/publish-dist")
+          spec = importlib.util.spec_from_loader("publish_dist", loader)
+          assert spec is not None
+          pd = importlib.util.module_from_spec(spec)
+          loader.exec_module(pd)
+          root = Path.cwd()
+          version = pd._pyproject(root / "pyproject.toml")["project"]["version"]
+          versions = pd.project_versions(root)
+          order = pd.upload_order(root)
+          for n, project in enumerate(order, 1):
+              folder = root / "upload" / f"{n:02d}-{project}"
+              folder.mkdir(parents=True)
+              for f in pd.files_of(root / "dist", project, versions.get(project, version)):
+                  shutil.copy2(f, folder)
+              print(f"publish: {n:2d} {project} {versions.get(project, version)}")
+          print(f"publish: {len(order)} public projects")
+          EOF
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: dist
+          path: upload/
+          if-no-files-found: error
+
+  testpypi:
+    needs: build
+    if: github.repository == 'infrastructurebuilder/cs-image-system-3'
+    runs-on: ubuntu-24.04
+    environment: testpypi
+    permissions:
+      id-token: write          # the OIDC token TestPyPI's trusted publisher checks
+      contents: read
+    steps:
+      - uses: actions/checkout@v5     # pyproject.toml's [[tool.uv.index]] names testpypi
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+
+      - uses: actions/download-artifact@v8
+        with:
+          name: dist
+          path: dist/
+
+      - name: Publish to TestPyPI
+        run: |
+          for project in dist/*/; do
+            echo "publish: $project"
+            uv publish --trusted-publishing always --index testpypi "$project"*
+          done
+
+  starters:
+    # the template repositories take a FINAL release, once every project is on the index;
+    # a development release (`.dev`) leaves them where they are (specification 013, trimmed)
+    needs: [build, testpypi]
+    if: github.repository == 'infrastructurebuilder/cs-image-system-3' && !contains(github.ref_name, '.dev')
+    runs-on: ubuntu-24.04
+    container:
+      image: ${{ vars.CSIS_RUNNER_IMAGE || 'ghcr.io/infrastructurebuilder/csis-ci:alma10-20261016.4' }}
+      credentials:
+        username: ${{ vars.CSIS_RUNNER_IMAGE_USERNAME || github.actor }}
+        password: ${{ secrets.CSIS_RUNNER_IMAGE_PASSWORD || github.token }}
+      options: -v /var/run/docker.sock:/var/run/docker.sock
+    permissions:
+      packages: read          # the runner image is pulled with this job's token
+      contents: read
+    steps:
+      - name: Gate on the starter token
+        id: gate
+        env:
+          HAVE_STARTER_PUSH_TOKEN: ${{ secrets.STARTER_PUSH_TOKEN != '' }}
+        run: |
+          # A green conclusion is not proof that a step ran: without the token the
+          # template repositories are SKIPPED, and the job summary says so.
+          if [ "$HAVE_STARTER_PUSH_TOKEN" = true ]; then
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "publish-starters: SKIPPED -- STARTER_PUSH_TOKEN is not configured (Contents and Workflows read/write on every template repository)"
+            { echo "## publish-starters: SKIPPED"; echo "STARTER_PUSH_TOKEN is not configured; the template repositories were not published for $GITHUB_REF_NAME."; } >> "$GITHUB_STEP_SUMMARY"
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Check out the tag
+        if: steps.gate.outputs.ready == 'true'
+        uses: actions/checkout@v5
+
+      - name: Install dependencies
+        if: steps.gate.outputs.ready == 'true'
+        run: just init
+
+      - name: Publish the template repositories
+        if: steps.gate.outputs.ready == 'true'
+        env:
+          STARTER_PUSH_TOKEN: ${{ secrets.STARTER_PUSH_TOKEN }}
+        run: just publish-starters

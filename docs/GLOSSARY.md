@@ -357,17 +357,19 @@ performs on. Read
 ### release
 
 Two releases share the word. A release of the system is a version of
-the `cs-image-system` packages cut to the index (`just release <part>
-[test|pypi]`), tagged `v<version>`, which a configuration repository then
-takes. A release of an image is the `release` lifecycle: an image that
-declares `release: {model}` is marked the current released build for
+the `cs-image-system` packages cut and tagged `v<version>` (`just
+release <part> [--full]`), published to TestPyPI by the tag's push
+(every release goes there, and only there, until 1.0), which a
+configuration repository then takes. A release of an image is the
+`release` lifecycle: an image that declares `release: {model}` is marked the current released build for
 that model once its post-bake tests have a passing record, and
 `require_released_builds` makes `validate` refuse an unreleased pin. The
 page in hand makes clear which; a starter's `just release <runtime>` is
 the performing run that makes image releases. Read
-[OPERATIONS.md, "Post-bake tests and releases"](OPERATIONS.md#post-bake-tests-and-releases)
+[OPERATIONS.md, "Post-bake tests and releases"](OPERATIONS.md#post-bake-tests-and-releases),
+[OPERATIONS.md, "`just build`, `just release`, `just publish-tree`"](OPERATIONS.md#just-build-just-release-just-publish-tree)
 and
-[OPERATIONS.md, "`just build`, `just release`, `just publish`"](OPERATIONS.md#just-build-just-release-just-publish-just-publish-tree).
+[OPERATIONS.md, "Releasing until 1.0"](OPERATIONS.md#releasing-until-10).
 
 ### retention
 

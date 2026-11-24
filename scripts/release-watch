@@ -9,8 +9,10 @@
 
 The runs are found by commit, never by time. In this repository the commit
 is the tag ``v<version>``'s, which the release pushed as ``main`` and
-``develop`` too: the tag's run of CI (the ``publish`` job), ``main``'s and
-``develop``'s runs of CI, and ``develop``'s run of "CI from scratch". In the
+``develop`` too: the tag's runs of CI and of Publish (which uploads every
+public project to TestPyPI, then pushes the template repositories),
+``main``'s and ``develop``'s runs of CI, and ``develop``'s run of "CI from
+scratch". In the
 live configuration (``--config-root``) the commit is the one the take pushed:
 the ``Take <version>`` commit on ``develop``, or the record committed right
 after it; its run of CI on ``develop`` and, when ``origin/main`` holds that
@@ -24,11 +26,11 @@ looks again; only when no look is answered until the timeout does the watch
 end on the reason. Then one line each: passed, failed (its conclusion),
 never started (no run of that workflow on that branch for the commit), or
 still running. A green job is not proof that its steps ran, so two runs are
-read further when green: the tag's, for which the index the version belongs
-on (TestPyPI for a development version, PyPI for a final one) must list
-``cs-image-system <version>`` (scripts/index-knows) and, for a final version,
-every template repository (scripts/starter-tree --list) must hold the tag
-``v<version>`` (``git ls-remote --tags``, as ``just publish-starters`` asks);
+read further when green: the tag's Publish run, for which TestPyPI (every
+release goes there, and only there, until 1.0) must list ``cs-image-system
+<version>`` (scripts/index-knows) and every template repository
+(scripts/starter-tree --list) must hold the tag ``v<version>`` (``git
+ls-remote --tags``, as ``just publish-starters`` asks), for every release;
 and the configuration's ``main``, whose ``perform`` job's log must carry the
 guard's verdict (its ``runtime-unchanged:`` lines, none CHANGED, or the line
 that no runtime is guarded) and whose bake plan (``bake plan: <key>: bake:
@@ -72,8 +74,9 @@ REPO = HERE.parent
 SHAPE = re.compile(r"^[0-9]+\.[0-9]+\.[0-9]+(\.dev[0-9]+)?$")
 GH_FALLBACK = "/usr/local/opt/gh/bin/gh"
 PROJECT = "cs-image-system"
-INDEX_URLS = {"testpypi": "https://test.pypi.org/simple/", "pypi": "https://pypi.org/simple/"}
-CI, FROM_SCRATCH = "CI", "CI from scratch"
+#: every release is published to TestPyPI, and only there, until 1.0
+INDEX, INDEX_URL = "testpypi", "https://test.pypi.org/simple/"
+CI, FROM_SCRATCH, PUBLISH = "CI", "CI from scratch", "Publish"
 #: the record's commit subject (`run --all --commit`), the one a take may push right after its own
 RECORD_SUBJECT = "cs-image-system dry-run generation "
 #: the configuration's performing job, and its step whose bake plan is what was baked
@@ -191,12 +194,8 @@ class Expected:
     commit: str
     workflow: str
     branch: str
-    kind: str = ""                      #: "tag" or "config-main": the runs read beyond their colour
+    kind: str = ""                      #: "publish" or "config-main": the runs read beyond their colour
     found: dict = field(default_factory=dict)
-
-
-def index_of(version: str) -> str:
-    return "testpypi" if ".dev" in version else "pypi"
 
 
 def bake_keys(log: str) -> list[str]:
@@ -308,10 +307,23 @@ class Watch:
         commit = self.git(self.root, "rev-parse", "-q", "--verify", f"refs/tags/{tag}^{{commit}}").out.strip()
         if not commit:
             raise Refused(f"release-watch: {NOT_TAGGED.format(version=self.version, root=self.root)}")
-        return [Expected(f"system tag {tag} ({CI})", self.root, commit, CI, tag, "tag"),
-                Expected(f"system main ({CI})", self.root, commit, CI, "main"),
-                Expected(f"system develop ({CI})", self.root, commit, CI, "develop"),
-                Expected(f"system develop ({FROM_SCRATCH})", self.root, commit, FROM_SCRATCH, "develop")]
+        pushed = self.pushed_commit(tag, commit)
+        return [Expected(f"system tag {tag} ({CI})", self.root, commit, CI, tag),
+                Expected(f"system tag {tag} ({PUBLISH})", self.root, commit, PUBLISH, tag, "publish"),
+                Expected(f"system main ({CI})", self.root, pushed, CI, "main"),
+                Expected(f"system develop ({CI})", self.root, pushed, CI, "develop"),
+                Expected(f"system develop ({FROM_SCRATCH})", self.root, pushed, FROM_SCRATCH, "develop")]
+
+    def pushed_commit(self, tag: str, commit: str) -> str:
+        """The commit the release pushed as main and develop: the one right after the tag that puts
+        the released families back on their ranges (``after release <version>: ...``), when the release
+        made it, else the tag's own commit."""
+        listed = self.git(self.root, "log", "--format=%H %P %s", f"{tag}..refs/heads/main").out.splitlines()
+        for line in listed:
+            sha, parent, *subject = line.split(" ", 2)
+            if parent == commit and (subject[0] if subject else "").startswith(f"after release {self.version}:"):
+                return sha
+        return commit
 
     def taken_commit(self) -> str:
         """The commit the take pushed: the ``Take <version>`` commit on develop, or the record right after it."""
@@ -381,13 +393,12 @@ class Watch:
     # --- beyond the colour
 
     def index_reads(self) -> tuple[bool, str]:
-        index = index_of(self.version)
-        done = self.run(["uv", "run", "--no-sync", "python", str(HERE / "index-knows"), INDEX_URLS[index], PROJECT,
+        done = self.run(["uv", "run", "--no-sync", "python", str(HERE / "index-knows"), INDEX_URL, PROJECT,
                          self.version], cwd=self.root)
         for line in (done.out + done.err).splitlines():
             if line.strip():
                 self.say(line)
-        fields = {"index": index, "project": PROJECT, "version": self.version}
+        fields = {"index": INDEX, "project": PROJECT, "version": self.version}
         if done.rc == 0:
             return True, INDEX_HOLDS.format(**fields)
         return False, (INDEX_LACKS if done.rc == 1 else INDEX_UNASKED).format(**fields)
@@ -433,9 +444,9 @@ class Watch:
         if found.get("conclusion") != "success":
             return False, FAILED.format(conclusion=found.get("conclusion") or "no conclusion", url=url)
         reads: list[tuple[bool, str]] = []
-        if exp.kind == "tag":
+        if exp.kind == "publish":
             reads.append(self.index_reads())
-            if ".dev" not in self.version:
+            if ".dev" not in self.version:           # the templates take a final release alone (publish.yml)
                 reads.append(self.templates_read())
         elif exp.kind == "config-main":
             reads.extend(self.perform_read(exp))

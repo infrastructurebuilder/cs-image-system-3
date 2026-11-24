@@ -40,11 +40,14 @@ names are reserved, in lifecycle order:
 | `build`     | Every workspace member as sdist + wheel under `dist/`; no tests                        |
 | `test`      | The fast suite, all blocking: ruff, pyright, the unit tests (the golden included)      |
 | `full-test` | `test` plus the docker-backed modification tests and, when the runtime sessions are present, a headless dry `run --all` with `state query --strict`; an absent prerequisite reports SKIPPED |
-| `release`   | `just release <part\|version> [test\|pypi]`: probe the index, the token and the container daemon, then the bar and the install check (TestPyPI) or `full-test` (PyPI), bump every version line and pin, lock, `build`, publish, commit, tag `v<version>` |
+| `release`   | `just release <part\|version> [--full]`: probe TestPyPI and the container daemon, say when a full proof is probably needed, then the lighter check (`test` and the install check) or, with `--full`, `full-test`, bump every version line and pin, lock, commit, tag `v<version>` and push; the tag's push publishes to TestPyPI, the one index until 1.0 ([docs/OPERATIONS.md](docs/OPERATIONS.md#releasing-until-10)) |
 
-`just` alone lists every recipe, the contract first. `just publish
-[test|pypi]` builds and uploads the version in the tree (TestPyPI by
-default; a pushed `v*` tag makes CI do the same). `just cli …` runs
+`just` alone lists every recipe, the contract first. Nothing is
+uploaded from your local machine: a pushed `v*` tag runs the publish
+workflow, which uploads every public project to TestPyPI by trusted
+publishing, with no token ("Releasing until 1.0" in
+[docs/OPERATIONS.md](docs/OPERATIONS.md#releasing-until-10) says why
+TestPyPI alone, and how to install a release). `just cli …` runs
 the CLI against the reference configuration for the system's own live
 proofs; `just fixture-live` proves the frozen fixture against the real
 accounts; `just public-safe` is the gate that keeps secrets and people

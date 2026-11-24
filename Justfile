@@ -75,115 +75,96 @@ test: lint typecheck pytest test-core test-terraform-alone test-docker-alone
 full-test: test
 	@just full-test-legs
 
-# Cut a release, run from develop: the probes first -- the branch (develop, from which it
-# moves to `release_branch` itself; `release_branch` with develop an ancestor; or a
-# maintenance branch), a clean tree, the
-# index itself (its upload endpoint and every project page answer, and no project
-# holds the version), the index token, the tag, the remote -- then from develop the
-# checkout of `release_branch` and its fast-forward to develop, `uv sync --all-extras --no-extra gcloud --no-extra okta --no-extra all`,
-# the venv's probes, the bar, the index asked AGAIN (the
-# bar takes twenty minutes), the bump, the lock, the
-# build and the upload, and only then the release's row in docs/CHANGES.md, the commit and
-# the tag, so a failed upload leaves
-# an uncommitted bump to discard and never a tagged, unpublished version. TARGET is a
-# part for bump-my-version (`patch`, `minor` and `major` open the next version as its
-# first development release, 0.1.0 -> 0.1.1.dev1; `dev` is the next development release
-# of the same version; `stage` finalises it, 0.1.1.dev2 -> 0.1.1) or an explicit version.
-# INDEX is `test` (TestPyPI, the default) or `pypi`: a development release to TestPyPI is
-# gated on `test`, the bar, and `test-docker-install` (it needs a container daemon); a PyPI
-# release on `full-test` (which holds the install check), the modification-test evidence
-# in the live configuration and a clean live checkout. A refusal before the bump returns
-# the checkout to the branch it started on. After the tag: `git push origin main
-# v<version>` (main and its own tag by name, so no other local tag travels: GitHub starts
-# no tag run when more than three tags are pushed at once), develop checked out,
-# fast-forwarded to main and pushed, and `uv sync --all-extras --no-extra gcloud --no-extra okta --no-extra all` again (a maintenance
-# branch: that branch and its tag pushed, develop untouched); the pushed tag makes CI
-# publish (it uploads nothing the index already holds). A failed step there names itself
-# and the commands left. `yes` as the third argument is the dry form:
-# the probes, the version, and every move and push it would make; nothing changed.
-# The family's logic is scripts/release.py (every step a function, tested with a stubbed
-# shell); the recipes here hand it the branch and the live configuration's root.
-[doc("From develop, gated on the bar (test) or full-test (pypi): probe, bump, lock, build, publish, commit, tag v<version>, push main and develop; `yes` = dry")]
-release target index="test" dry="no":
-	@uv run --no-sync --project "{{justfile_directory()}}" python "{{justfile_directory()}}/scripts/release.py" release "{{target}}" "{{index}}" "{{dry}}" \
-		--release-branch "{{release_branch}}" --config-root {{quote(config_root)}}
-
-# Finish a release whose upload `release` could not complete: after it
-# stopped part-way and `just publish INDEX` was run again until every project held the version
-# -- a first PyPI release of many projects takes days. On `release_branch`, with the bump
-# uncommitted and nothing else changed, and only when the index holds the version for every
-# project: the modification-test evidence (on PyPI), the docs/CHANGES.md row, the commit, the
-# tag; then the release's own ending: `git push origin main v<version>`, develop's
-# fast-forward to main and its push, and `uv sync --all-extras --no-extra gcloud --no-extra okta --no-extra all`.
-[doc("After a release's upload was completed by `just publish`: check every project holds the version, then commit, tag and push it")]
-release-finish index="test":
-	@uv run --no-sync --project "{{justfile_directory()}}" python "{{justfile_directory()}}/scripts/release.py" release-finish "{{index}}" \
+# Cut a release, run from develop. Until the operator declares 1.0 a release goes to TestPyPI
+# alone (the standing decision): `pypi` is refused, naming it, before anything is asked, and
+# the release uploads nothing itself -- it commits, tags and pushes, and the tag's push runs
+# .github/workflows/publish.yml, which uploads every public project to TestPyPI by trusted
+# publishing (no token anywhere). In order: the cheap probes first -- the words, the branch
+# (develop, from which it moves to `release_branch` itself; `release_branch` with develop an
+# ancestor; or a maintenance branch), a clean tree, TestPyPI itself (it answers, and no project
+# holds the version), the tag, the remote -- then the advisory: when a path changed since the
+# newest fully proven release (its tag's message says `fully proven: full-test`) is one only the
+# full proof exercises, one line says a full proof is probably needed and why; it never refuses.
+# Then from develop the checkout of `release_branch` and its fast-forward to develop,
+# `uv sync --all-extras --no-extra gcloud --no-extra okta --no-extra all`, the venv's probes
+# (the own versions and the families released elsewhere asked of TestPyPI, the surfaces,
+# docker), the gate, TestPyPI asked AGAIN, the bump, the lock, the families released elsewhere
+# pinned exactly, the release's row in docs/CHANGES.md, the commit and the tag. TARGET is a
+# part for bump-my-version (`patch`, `minor` and `major` open the next version as its first
+# development release, 0.1.0 -> 0.1.1.dev1; `dev` is the next development release of the same
+# version; `stage` finalises it, 0.1.1.dev2 -> 0.1.1) or an explicit version. WORDS, in any
+# order: `--full` gates on the full proof a PyPI release used to run -- `full-test`, the live
+# configuration's session probes and its modification-test evidence (committed there) -- and
+# records it in the tag's message; without it the gate is the lighter check, `test` and
+# `test-docker-install` (it needs a container daemon). `yes` is the dry form: the probes, the
+# advisory, the version, and every move and push it would make; nothing changed. A refusal
+# before the bump returns the checkout to the branch it started on. After the tag: `git push
+# origin main v<version>` (main and its own tag by name, so no other local tag travels: GitHub
+# starts no tag run when more than three tags are pushed at once), develop checked out,
+# fast-forwarded to main and pushed, and the venv synced again (a maintenance branch: that
+# branch and its tag pushed, develop untouched). A failed step there names itself and the
+# commands left. The family's logic is scripts/release.py (every step a function, tested with
+# a stubbed shell); the recipes here hand it the branch and the live configuration's root.
+[doc("From develop: probe, advise, gate (the lighter check, or `--full`'s full proof), bump, commit, tag v<version>, push main and develop; the tag's push publishes to TestPyPI; `yes` = dry")]
+release target *words:
+	@uv run --no-sync --project "{{justfile_directory()}}" python "{{justfile_directory()}}/scripts/release.py" release "{{target}}" {{words}} \
 		--release-branch "{{release_branch}}" --config-root {{quote(config_root)}}
 
 # The release walk's two repositories in one command: the live configuration (`config_root`) is
 # asked first (configured, a git checkout, with a `take` recipe); then the release, as `release`
-# runs it; then `just take <version>` there, the version read back from what the release cut, with
-# `main` passed through when given (the take then pushes develop to main: main performs). A release
-# that refuses or fails runs no take; a take that stops says so, with the command that finishes it
-# there. WORDS: `main`, `yes` (the dry form: the release's, then the take it would run), both, or neither.
-[doc("The release (as `release` runs it), then `just take <version>` in the live configuration; `main`: the take pushes main too; `yes` = dry")]
-release-take target index *words:
-	@uv run --no-sync --project "{{justfile_directory()}}" python "{{justfile_directory()}}/scripts/release.py" release-take "{{target}}" "{{index}}" {{words}} \
+# runs it; then a wait until TestPyPI lists `cs-image-system <version>` (scripts/index-knows,
+# every thirty seconds, an hour at most: the tag's push publishes it, the umbrella last); then
+# `just take <version>` there, the version read back from what the release cut, with `main`
+# passed through when given (the take then pushes develop to main: main performs, an applying
+# cycle, which the advisory names unless `--full`). A release that refuses or fails runs no take;
+# a version TestPyPI does not list in time, or a take that stops, says so with the command that
+# finishes it there. WORDS, in any order: `--full`, `main`, `yes` (the dry form: the release's,
+# then the wait and the take it would run), any of them, or none.
+[doc("The release (as `release` runs it), a wait for TestPyPI to list it, then `just take <version>` in the live configuration; `main`: the take pushes main too; `yes` = dry")]
+release-take target *words:
+	@uv run --no-sync --project "{{justfile_directory()}}" python "{{justfile_directory()}}/scripts/release.py" release-take "{{target}}" {{words}} \
 		--release-branch "{{release_branch}}" --config-root {{quote(config_root)}}
 
 # Wait on the runs a release walk started and say one verdict line each, found by commit: here the
-# tag's run of CI, main's, develop's and develop's "CI from scratch"; in the live configuration the
-# take's develop and, when main was pushed, main. A green job is not proof its steps ran: for the
-# tag's run the index (TestPyPI for a development version, PyPI for a final one) must list the
-# version and every template repository must hold its tag; for the configuration's main the perform
-# job's guard verdict is read, and what it baked. Exit 0 only when every verdict is good; sixty
-# minutes at most (scripts/release-watch --timeout). The logic is scripts/release-watch.
+# tag's runs of CI and of Publish, main's, develop's and develop's "CI from scratch"; in the live
+# configuration the take's develop and, when main was pushed, main. A green job is not proof its
+# steps ran: for the tag's Publish run TestPyPI (every release goes there, and only there, until
+# 1.0) must list the version and every template repository must hold its tag; for the
+# configuration's main the perform job's guard verdict is read, and what it baked. Exit 0 only when
+# every verdict is good; sixty minutes at most (scripts/release-watch --timeout). The logic is
+# scripts/release-watch.
 [doc("Wait on the runs a release walk started (here and in the live configuration) and say one verdict each; exit 0 only when all are good")]
 release-watch version:
 	@uv run --no-sync --project "{{justfile_directory()}}" python "{{justfile_directory()}}/scripts/release-watch" "{{version}}" \
 		--root "{{justfile_directory()}}" --config-root {{quote(config_root)}}
 
-# What a release needs and `full-test` only finds out twenty minutes in, asked
-# first and in one line each, before anything changes. For every index: the venv is in step with
-# the lock (`uv sync --all-extras --no-extra gcloud --no-extra okta --no-extra all --check`), because every recipe runs `uv run --no-sync` and a venv
-# behind the checkout answers with stale metadata. Then, for a release, every package whose version the
-# release does not move (the bump's `glob_exclude`: the contract) is either not on the index or held
-# there as this tree's build, file for file (scripts/own-versions-current), because an index never takes a
-# second build under one version and would refuse the upload after the gate. For a PyPI release also: docker answers (the
-# modification-test, posix, bake-step and runner-image legs run in it) and every runtime session of
-# the live configuration is present (`just preflight`, the gate full-test itself uses: without it the
-# live legs would be SKIPPED, which a release cannot accept) and how many minutes the soonest-expiring session has left
-# (scripts/session-minutes-left; refused only when a token has already lapsed, otherwise said). The dry form of `release` prints the
-# same verdicts. `release-finish` asks the venv alone: it runs no bar and builds nothing.
+# What a release needs and its gate only finds out twenty minutes in, asked first and in one
+# line each, before anything changes: the venv is in step with the lock (`uv sync --all-extras
+# --no-extra gcloud --no-extra okta --no-extra all --check`), because every recipe runs `uv run
+# --no-sync` and a venv behind the checkout answers with stale metadata; every package whose
+# version the release does not move (the bump's `glob_exclude`: the contract) is either not on
+# TestPyPI or held there as this tree's build, file for file (scripts/own-versions-current),
+# because an index never takes a second build under one version and would refuse the publish
+# workflow's upload after the tag; every family released elsewhere has a TestPyPI release inside
+# the range the extras name (scripts/with-released-families --check test); the SDK's surfaces;
+# docker answers (the install check and full-test's legs run in it). PROOF `full` (a release's
+# `--full`) also asks that every runtime session of the live configuration is present (`just
+# preflight`, the gate full-test itself uses: without it the live legs would be SKIPPED, which a
+# release cannot accept) and how many minutes the soonest-expiring session has left
+# (scripts/session-minutes-left; refused only when a token has already lapsed, otherwise said).
+# `pypi` is refused (TestPyPI until 1.0). The dry form of `release` prints the same verdicts.
 [private]
-_release-probes index who="release":
-	@uv run --no-sync --project "{{justfile_directory()}}" python "{{justfile_directory()}}/scripts/release.py" probes "{{index}}" "{{who}}" \
+_release-probes proof="light":
+	@uv run --no-sync --project "{{justfile_directory()}}" python "{{justfile_directory()}}/scripts/release.py" probes "{{proof}}" \
 		--config-root {{quote(config_root)}}
 
-# Build and upload the version in the tree: `dist/` cleaned, every package
-# built, every file uploaded to INDEX -- `test` (TestPyPI, the default) or `pypi` -- by
-# scripts/publish-dist, one project at a time, with the files the index
-# already holds with the same content skipped (the index's url is the check url), so a
-# re-run after a partial failure, or CI after a local publish, uploads what is missing and
-# nothing twice; when nothing was missing, one file is sent again to prove the token.
-# Exit 75 is PyPI's limit on new projects: run it again in a day. The token is UV_PUBLISH_TOKEN, else TEST_PYPI_TOKEN / PYPI_TOKEN (the
-# repository secrets' names), from the environment and never here; the endpoints are the
-# `[[tool.uv.index]]` entries in pyproject.toml. A deleted version can
-# never be uploaded again, on either index: the next upload is a new version.
-# Can the index take an upload now? One line per endpoint (the upload endpoint and every
-# project's page); exit 0 ready, 75 not ready. `wait` probes every minute until it is, two hours at most.
+# Can INDEX (`test`, TestPyPI, the default) take an upload now? One line per endpoint (the upload endpoint and every
+# project's page); exit 0 ready, 75 not ready. `wait` probes every minute until it is, two hours
+# at most. The release asks it first (a version is never re-cut: a deleted version's files can
+# never be uploaded again, on either index); the publish workflow uploads what is missing.
 [doc("Can INDEX (test or pypi) take an upload now? exit 0 ready, 75 not; `wait` probes every minute, two hours at most")]
 index-ready index="test" wait="no":
 	@uv run --no-sync python scripts/publish-target-ready {{index}} {{ if wait == "wait" { "--wait 7200" } else { "" } }}
-
-# The index asked first (a partial upload of this version is what a re-run completes, so a
-# project that already holds it is reported, not refused), then `dist/` cleaned, `just build`,
-# and scripts/publish-dist: one project at a time, sdist and wheel together, dependencies first
-# and cs-image-system last; the two workspace-only plugins (`Private :: Do Not Upload`) are built
-# and never uploaded; a 429 is exit 75 with what is left; a failure shows its cause lines.
-[doc("Build and upload the version in the tree to TestPyPI (`test`, the default) or PyPI (`pypi`); UV_PUBLISH_TOKEN from the environment")]
-publish index="test":
-	@uv run --no-sync --project "{{justfile_directory()}}" python "{{justfile_directory()}}/scripts/release.py" publish "{{index}}"
 
 # ------------------------------------------------------------ development
 
@@ -598,17 +579,18 @@ publish-tree root dest:
 # (`scripts/starter-tree --list`) takes the starter's tree at this release -- its committed files,
 # `.csis-version`, the generated README header, links out of the tree pointed at the tag -- as ONE
 # commit `cs-image-system <version>` on main and the tag `v<version>`, after the public-safe gate with
-# the starter's own allow list. A final version only (a template names a version teams install from
-# PyPI), from a clean checkout of its tag, never twice. `yes` is the dry form: it builds every tree
-# and shows what would change, and pushes nothing. The starters are every tree of docs/examples/
-# with a cfg/ (the one list, read by `scripts/starter-tree --list`); the push needs STARTER_PUSH_TOKEN
-# (Contents and Workflows read/write on every template repository); CI's publish job runs it after PyPI.
+# the starter's own allow list. A final version only (a template takes final releases alone, the
+# ones a team starts from), from a clean checkout of its tag, never twice. `yes` is the dry form: it
+# builds every tree and shows what would change, and pushes nothing. The starters are every tree of
+# docs/examples/ with a cfg/ (the one list, read by `scripts/starter-tree --list`); the push needs
+# STARTER_PUSH_TOKEN (Contents and Workflows read/write on every template repository); the publish
+# workflow's `starters` job (.github/workflows/publish.yml) runs it after the TestPyPI upload.
 [doc("Publish every starter tree of docs/examples as its template repository at a final release's tag; `yes` = dry")]
 publish-starters dry="no":
 	#!/usr/bin/env bash
 	set -euo pipefail
 	version=$(uv run --no-sync bump-my-version show current_version)
-	case "$version" in *.dev*) echo "publish-starters: $version is a development version -- a template names a version teams install from PyPI; nothing was published"; exit 1 ;; esac
+	case "$version" in *.dev*) echo "publish-starters: $version is a development version -- the templates take a final release alone; nothing was published"; exit 1 ;; esac
 	[ -z "$(git status --porcelain)" ] || { echo "publish-starters: the tree is not clean -- nothing was published"; exit 1; }
 	if [ "{{dry}}" != "yes" ]; then
 		git tag --points-at HEAD | grep -qx "v$version" || { echo "publish-starters: HEAD is not the tag v$version -- a template is published from its release's tag (its links point there); nothing was published"; exit 1; }

@@ -6,8 +6,9 @@
 ``develop`` is where work is done and ``main`` is where releases live. The
 one release branch is the Justfile variable ``release_branch``. ``just
 release`` starts on ``develop`` (it moves to ``main`` itself) or on
-``main``; ``just release-finish`` on ``main``; both refuse any other
-checkout and name it; on ``main`` ``release`` also refuses when ``develop``
+``main``; it refuses any other checkout and names it (``release-take``,
+the release and then the take, is the same release); on ``main``
+``release`` also refuses when ``develop``
 is not an ancestor, so a release never leaves a stage behind; a
 maintenance branch ``release/<major.minor>`` is accepted without that
 check, for an old version's fix. The pushes are the script's. The docs say
@@ -61,15 +62,14 @@ def test_the_release_branch_is_main_and_both_recipes_exist():
     rc, out = _just(REPO, "--evaluate", "release_branch")
     assert rc == 0 and out.strip() == "main"
     rc, out = _just(REPO, "--summary")
-    assert rc == 0 and {"release", "release-finish"} <= set(out.split())
+    assert rc == 0 and {"release", "release-take"} <= set(out.split())
 
 
-@pytest.mark.parametrize("recipe", ["release", "release-finish"])
-def test_a_feature_branch_is_refused_naming_main(tmp_path: Path, recipe: str):
+@pytest.mark.parametrize("words", [("yes",), ("--full", "yes")])
+def test_a_feature_branch_is_refused_naming_main(tmp_path: Path, words: tuple[str, ...]):
     root = _repo(tmp_path)
     _git(root, "checkout", "-q", "-b", "feature/x")
-    args = ("0.0.1", "pypi", "yes") if recipe == "release" else ("pypi",)
-    rc, out = _just(root, recipe, *args)
+    rc, out = _just(root, "release", "0.0.1", *words)
     assert rc == 1
     assert "feature/x" in out and REFUSED in out        # the refusal names the checkout
 
@@ -77,7 +77,7 @@ def test_a_feature_branch_is_refused_naming_main(tmp_path: Path, recipe: str):
 def test_main_behind_develop_is_refused_and_the_fast_forward_is_named(tmp_path: Path):
     root = _repo(tmp_path)
     _git(root, "checkout", "-q", "main")
-    rc, out = _just(root, "release", "0.0.1", "pypi", "yes")
+    rc, out = _just(root, "release", "0.0.1", "yes")
     assert rc == 1
     assert "--ff-only" in out and REFUSED in out        # the refusal names the fast-forward
 
@@ -86,32 +86,28 @@ def test_main_at_develop_passes_the_branch_guard(tmp_path: Path):
     root = _repo(tmp_path)
     _git(root, "checkout", "-q", "main")
     _git(root, "merge", "-q", "--ff-only", "develop")
-    _, out = _just(root, "release", "0.0.1", "pypi", "yes")
+    _, out = _just(root, "release", "0.0.1", "yes")
     # past the guard: whatever stops it next (no project here), it is not the branch
     assert REFUSED not in out
 
 
-def test_develop_passes_the_release_guard_and_not_the_finish_guard(tmp_path: Path):
+def test_develop_passes_the_release_guard(tmp_path: Path):
     root = _repo(tmp_path)                                       # on develop, one commit past main
-    _, out = _just(root, "release", "0.0.1", "pypi", "yes")
+    _, out = _just(root, "release", "0.0.1", "yes")
     assert REFUSED not in out                                    # release moves to main itself
-    rc, out = _just(root, "release-finish", "pypi")
-    assert rc == 1 and "develop" in out and REFUSED in out       # the bump to finish is on main
 
 
 def test_a_maintenance_branch_is_accepted_without_the_ancestor_check(tmp_path: Path):
     root = _repo(tmp_path)
     _git(root, "checkout", "-q", "-b", "release/0.1", "main")   # behind develop, by design
-    _, out = _just(root, "release", "0.0.1", "pypi", "yes")
+    _, out = _just(root, "release", "0.0.1", "yes")
     assert "release/0.1" in out and REFUSED not in out   # named as accepted, not refused
-    _, out = _just(root, "release-finish", "pypi")
-    assert REFUSED not in out
 
 
 def test_both_recipes_hand_the_release_branch_to_the_script():
     """The pushes and develop's fast-forward are the script's, held against real scratch remotes in
     tests/test_release_script.py; here, each recipe hands the script the release branch."""
-    for recipe in ("release", "release-finish"):
+    for recipe in ("release", "release-take"):
         rc, body = _just(REPO, "--show", recipe)
         assert rc == 0
         assert "release_branch" in body and "scripts/release.py" in body, recipe      # the recipe hands the branch to the script

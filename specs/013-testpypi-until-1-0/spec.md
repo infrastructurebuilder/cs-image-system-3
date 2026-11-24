@@ -6,7 +6,7 @@
 
 **Created**: 2026-11-23
 
-**Status**: Draft
+**Status**: In progress, 2026-11-24, its scope trimmed to the minimum (Clarifications, 2026-11-24)
 
 **Input**: User description: "Releases go to TestPyPI until 1.0. The operator's standing decision of 2026-11-23: until the operator declares 1.0, every release of cs-image-system-3 (the system, the contract, the kit and the Terraform libraries, every plugin it releases), of the Okta plugin (cs-image-system-okta) and of the Google Cloud family (cs-image-system-google-cloud) is published to TestPyPI only; PyPI keeps its last versions (system 0.1.12, SDK 0.2.1, contract 0.5.0, both families 0.2.1). Versions move only their third number meanwhile (a separate standing rule). Today much of the tooling assumes PyPI: uv and pip resolve from PyPI by default, so this repository's lock takes the families from PyPI through the okta, gcloud and all extras; the families' own locks and CI take the system, the SDK and the test kit from PyPI and so test against the old system; the reference configuration's `just take` and an adopting team's `uv tool install 'cs-image-system[okta]'` install PyPI's versions; the families' Publish workflows upload a final version to PyPI after TestPyPI; scripts/isolated-run resolves the SDK's low and high ends from PyPI and compares built wheels with PyPI's files; the released-elsewhere probe and `with-released-families --check` ask PyPI only; this repository's `just release <v> test` runs only the install check, not full-test nor the session probes, so a TestPyPI release is less proven than a PyPI one was; the starter template repositories are pushed only for a final PyPI release; the documentation's install lines install PyPI's versions. Every consumer must take the cs-image-system packages from TestPyPI, and only those (every other dependency from PyPI: TestPyPI as a general index invites a squatted name), each release must be proven as fully as a PyPI release was, nothing may publish to PyPI until 1.0, and every document that says how to install must say how to install a TestPyPI release. TestPyPI's own limits (it has been wiped before, its rate limits and outages) are accepted risks the documents name. Serves operators (who release and take releases), an adopting team (who installs one), and a plugin author (whose plugin is tested against the system it will run beside)."
 
@@ -80,6 +80,24 @@ it, and nothing else is.
   acceptance tests, beside the committed lock's job
 - Q (D3): the Okta plugin's copy here? → A: marked `Private :: Do Not
   Upload` now
+
+### Session 2026-11-24 (the scope trimmed)
+
+- Q (the operator): "All I want is to pause real releases to pypi and
+  ignore semantic versioning rules until we get closer to a 'real'
+  release. This spec suddenly feels excessive." → A: **trimmed to the
+  minimum**. Kept: PyPI refused in all three repositories (FR-001); the
+  lighter check, the advisory and `--full` (FR-002, FR-002a); the
+  release's probes reading TestPyPI (FR-005); trusted publishing, already
+  built (FR-009); the lifting at 1.0, said once (FR-008). FR-003 is
+  narrowed to the consumers that must read TestPyPI for a release to be
+  usable at all: the reference configuration's take, the starters' CI and
+  each repository's lock. Dropped: FR-004 (the families' job against the
+  newest release and their oldest-versions leg through TestPyPI), FR-006
+  (the starters stay pushed for final releases only, as before), FR-007
+  (one statement in the operations guide, not every install line), and
+  their success criteria SC-004 and SC-005. The patch-only versions rule
+  needs no code: it is a standing rule a bump follows
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -260,19 +278,19 @@ release.
   the starters' workflows, the contract or the SDK), or when the reference
   configuration is about to take it into an applying cycle, naming the
   reason; it MUST NOT refuse on that ground alone.
-- **FR-003**: Every consumer (the reference configuration, an adopting
-  team's install, each repository's lock and CI) MUST take every
-  `cs-image-system` package from TestPyPI and every other dependency from
-  PyPI.
-- **FR-004**: Each family's acceptance tests MUST run against the system's
+- **FR-003** *(narrowed 2026-11-24)*: The consumers a release must reach
+  to be usable (the reference configuration's take, the starters' CI, and
+  each repository's lock) MUST take every `cs-image-system` package from
+  TestPyPI and every other dependency from PyPI.
+- **FR-004** *(dropped 2026-11-24)*: Each family's acceptance tests MUST run against the system's
   newest TestPyPI release inside its ranges, and its oldest-versions leg
   against the oldest its ranges allow.
 - **FR-005**: The probes a release runs first (the versions already held,
   the families released elsewhere, the SDK's published files) MUST read
   TestPyPI.
-- **FR-006**: The starter template repositories MUST be pushed for each
+- **FR-006** *(dropped 2026-11-24: final releases only, as before)*: The starter template repositories MUST be pushed for each
   release.
-- **FR-007**: Every document in the three repositories and the starters
+- **FR-007** *(narrowed 2026-11-24: one statement in the operations guide)*: Every document in the three repositories and the starters
   that says how to install MUST say how to install a TestPyPI release, and
   MUST link one statement of TestPyPI's limits.
 - **FR-008**: Lifting the decision at 1.0 MUST be one named change per
@@ -304,9 +322,9 @@ release.
 - **SC-003**: After a release, the reference configuration, a clean
   install and every repository's lock name that release, with zero
   third-party packages taken from TestPyPI.
-- **SC-004**: Each family's tests run against the system's newest release
+- **SC-004** *(dropped 2026-11-24)*: Each family's tests run against the system's newest release
   in 100% of their runs.
-- **SC-005**: Every install line in the documents installs the newest
+- **SC-005** *(dropped 2026-11-24)*: Every install line in the documents installs the newest
   release when followed on a clean machine.
 
 ## Assumptions
