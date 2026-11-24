@@ -14,6 +14,7 @@ import subprocess
 import sys
 from pathlib import Path
 
+import pytest
 from packaging.version import Version
 
 REPO = Path(__file__).resolve().parents[1]
@@ -38,9 +39,27 @@ def test_the_requirements_are_the_released_elsewhere_extras_own():
     assert W.RELEASED_ELSEWHERE == ("gcloud", "okta")
     owned = extras["gcloud"] + extras["okta"]
     assert W.requirements() == owned
-    assert W.with_options() == [f"--with={r}" for r in owned]
+    assert W.with_options()[:len(owned)] == [f"--with={r}" for r in owned]
     printed = subprocess.run([sys.executable, str(SCRIPT), "--print"], capture_output=True, text=True, check=True)
     assert printed.stdout.split() == W.with_options()
+
+
+def test_the_checkouts_contract_and_sdk_are_layered_under_the_families():
+    """The overlay resolves the families' requirements on their own: without this checkout's contract and SDK
+    under them it took the published kit 0.2.1 and hid the checkout's 0.2.2 (`IDS`), so every live command
+    failed to import."""
+    import tomllib
+    editables = [o.split("=", 1)[1] for o in W.with_options() if o.startswith("--with-editable=")]
+    names = [tomllib.loads((Path(e) / "pyproject.toml").read_text())["project"]["name"] for e in editables]
+    assert names == list(W.CHECKOUT_SDK)
+    assert all(Path(e).is_absolute() and Path(e).parent == REPO / "packages" for e in editables)   # any cwd
+
+
+def test_a_workspace_without_one_of_them_is_named(tmp_path: Path):
+    (tmp_path / "packages" / "base").mkdir(parents=True)
+    (tmp_path / "packages" / "base" / "pyproject.toml").write_text('[project]\nname = "cs-image-system-base"\n')
+    with pytest.raises(LookupError, match="cs-image-system-contract"):
+        W.checkout_sdk(tmp_path)
 
 
 def _check(answers: dict[str, set[str]] | Exception) -> tuple[int, list[str]]:

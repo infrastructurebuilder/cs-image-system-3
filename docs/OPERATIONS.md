@@ -2999,7 +2999,10 @@ extra but `gcloud` and `all`, and the recipes that load a tree declaring
 it (`just cli`, `full-test`'s legs over the reference configuration, the
 release's session probe, `just test-cloud-starters`, and the writing of
 the templates in `just publish-starters`) layer it in from the index for
-that one command (`scripts/with-released-families`). The Google Cloud
+that one command (`scripts/with-released-families`), with this checkout's
+contract and SDK layered under it: the overlay resolves the family on its
+own, and would otherwise take their newest published versions and hide
+what only the checkout holds yet. The Google Cloud
 family's own READMEs, documents and tests are in its repository; its
 configuration fields are in
 [its `docs/CONFIGURATION.md`](https://github.com/infrastructurebuilder/cs-image-system-google-cloud/blob/develop/docs/CONFIGURATION.md).
