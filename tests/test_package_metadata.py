@@ -529,3 +529,15 @@ def test_an_sdk_line_moves_alone_with_every_exact_pin_on_it_and_no_range(tree: P
     docker = tomllib.loads((tree / "packages/docker-plugin/pyproject.toml").read_text())["project"]
     assert all(str(q.specifier) == "<0.3,>=0.2" for n, q in _requirements(docker)[0].items()
                if n in set().union(*SDK_LINES.values()))
+
+
+def test_no_manifest_pins_the_okta_plugin_exactly():
+    """Spec 008, FR-007: no workspace manifest names the Okta plugin by an
+    exact pin; only the root's extras name it, by its series range."""
+    for path in [ROOT, *(p / "pyproject.toml" for p in PACKAGES)]:
+        project = _project(path)
+        pins = dict(_requirements(project)[0])
+        for reqs in _extras(project).values():
+            pins.update(reqs)
+        req = pins.get("cs-image-system-okta-opa-plugin")
+        assert req is None or not str(req.specifier).startswith("=="), f"{path}: {req}"

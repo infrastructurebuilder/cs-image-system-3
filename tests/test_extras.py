@@ -206,3 +206,17 @@ def test_a_word_no_extra_carries_is_unknown_with_the_registered_words_listed(tmp
     assert result.exit_code == 1, result.output
     assert "runtime type 'nonsense'" in result.output and "register aws, docker" in result.output
     assert "Validation failed with 1 error(s)." in result.output
+
+
+def test_the_okta_and_all_extras_take_the_okta_plugin_by_its_series_range():
+    """Spec 008, FR-007: the Okta plugin is released from its own repository,
+    so the `okta` extra and `all` name it by a range, never an exact pin a
+    release here would move (`tests/test_package_metadata.py` holds that a
+    bump leaves the range alone)."""
+    import tomllib
+
+    from packaging.requirements import Requirement
+    optional = tomllib.loads((REPO / "pyproject.toml").read_text())["project"]["optional-dependencies"]
+    for extra in ("okta", "all"):
+        found = [Requirement(r) for r in optional[extra] if Requirement(r).name == "cs-image-system-okta-opa-plugin"]
+        assert [str(r.specifier) for r in found] == ["<0.3,>=0.2"], (extra, optional[extra])

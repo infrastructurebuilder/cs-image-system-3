@@ -2,16 +2,21 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""The starters that declare the Google Cloud family, with every provider installed.
+"""The starters that declare a provider released elsewhere, with every provider installed.
 
-``standard-gce`` and ``complete`` declare the Google Cloud family, which is
-released from its own repository: this workspace's venv does not hold it,
-so ``tests/test_docs_examples.py`` cannot load either tree. These tests can:
-``just test-cloud-starters`` runs them with the family layered in from the
-index by the ``gcloud`` extra's ranges (spec 005, research R11), a
-``full-test`` leg and a step of CI's ``live`` job. Each starter validates;
-``standard-gce`` dry-runs every lifecycle (FR-012); ``complete`` loads under
-each of its overlays and carries every variation. The default collection leaves
+``standard-gce`` and ``complete`` declare the Google Cloud family, and
+``standard-aws`` and ``complete`` declare Okta groups: the family and the
+Okta identity plugin are released from their own repositories, so this
+workspace's venv holds neither, and ``tests/test_docs_examples.py`` cannot
+load these trees. These tests can: ``just test-cloud-starters`` runs them
+with the family and the plugin layered in from the index by the
+``gcloud`` and ``okta`` extras' ranges (spec 005, research R11; spec 008,
+T047), a ``full-test`` leg and a step of CI's ``live`` job. Each starter
+validates; ``standard-gce`` and ``standard-aws`` dry-run every lifecycle;
+``complete`` loads under each of its overlays and carries every variation.
+The Okta plugin asks only that its credentials be present at a load (spec
+008, T003), so the starters get dummy ones (``stub_opa_credentials_from``)
+and nothing reaches Okta. The default collection leaves
 this directory out (``norecursedirs`` in ``pyproject.toml``), and the recipe
 runs it under the strict session, so a missing family fails instead of
 skipping.
@@ -86,6 +91,23 @@ def test_a_google_cloud_starter_validates_and_dry_runs_every_lifecycle(tmp_path,
         os.chdir(cwd)
 
 
+def test_the_okta_starter_validates_and_dry_runs_every_lifecycle(tmp_path, monkeypatch, rendered_starters):
+    """Spec 008, T047: with the Okta plugin from the index, ``standard-aws``
+    (its groups on Okta's builders) validates and dry-runs every lifecycle,
+    emitting its Okta identity root."""
+    cwd = os.getcwd()
+    try:
+        root, ctx = _starter(tmp_path, monkeypatch, rendered_starters, "standard-aws")
+        assert _validation_errors(ctx) == []
+        assert {"okta"} <= {gb.identity_type() for gb in ctx.group_builders.values()}
+        summary = drive_lifecycles(ctx, "all", apply=False)
+        assert summary.ok, summary.error
+        emitted = {p.relative_to(root / "generated").parts[0] for p in (root / "generated").rglob("*") if p.is_file()}
+        assert {"base-image", "identity", "instance-image"} <= emitted, sorted(emitted)
+    finally:
+        os.chdir(cwd)
+
+
 @pytest.mark.parametrize("overlay", ["apply-identity-and-storage", "gce-cycle-launch", "gce-cycle-decommission",
                                      "archive-volume", "gce-cycle-storage-teardown"])
 def test_the_complete_tree_loads_under_each_overlay(tmp_path, monkeypatch, overlay, rendered_starters):
@@ -117,5 +139,6 @@ def test_the_complete_tree_carries_every_variation(tmp_path, monkeypatch, render
     assert {osb.model.get_family() for osb in ctx.os_builders.values()} == {"rhel", "debian", "ubuntu"}
     assert {b.model.type_ for b in ctx.state_backends.values()} == {"s3", "local", "gcs"}
     assert any(getattr(g.model, "workload_connection", None) for g in ctx.group_builders.values())
+    assert "okta" in {g.identity_type() for g in ctx.group_builders.values()}   # the Okta plugin, from the index
     assert (root / "meta-state" / "aliases.txt").is_file()
     assert any(i.get_name() == "gce-node" for i in ctx.instances)
