@@ -6,7 +6,7 @@
 
 **Created**: 2026-11-23
 
-**Status**: In progress, 2026-11-24, its scope trimmed to the minimum (Clarifications, 2026-11-24)
+**Status**: In progress, 2026-11-24: its scope trimmed to the minimum (Clarifications, 2026-11-24), and phases 1 to 9 implemented on `feature/013-testpypi-until-1-0` (not merged), with the Okta plugin's and the Google Cloud family's changes on a branch of the same name in each (not pushed). T033 (the first TestPyPI-only release, with `--full`) and T034 (the reference configuration's take and `config-drift`) are the operator's. Records are in [tasks.md](tasks.md).
 
 **Input**: User description: "Releases go to TestPyPI until 1.0. The operator's standing decision of 2026-11-23: until the operator declares 1.0, every release of cs-image-system-3 (the system, the contract, the kit and the Terraform libraries, every plugin it releases), of the Okta plugin (cs-image-system-okta) and of the Google Cloud family (cs-image-system-google-cloud) is published to TestPyPI only; PyPI keeps its last versions (system 0.1.12, SDK 0.2.1, contract 0.5.0, both families 0.2.1). Versions move only their third number meanwhile (a separate standing rule). Today much of the tooling assumes PyPI: uv and pip resolve from PyPI by default, so this repository's lock takes the families from PyPI through the okta, gcloud and all extras; the families' own locks and CI take the system, the SDK and the test kit from PyPI and so test against the old system; the reference configuration's `just take` and an adopting team's `uv tool install 'cs-image-system[okta]'` install PyPI's versions; the families' Publish workflows upload a final version to PyPI after TestPyPI; scripts/isolated-run resolves the SDK's low and high ends from PyPI and compares built wheels with PyPI's files; the released-elsewhere probe and `with-released-families --check` ask PyPI only; this repository's `just release <v> test` runs only the install check, not full-test nor the session probes, so a TestPyPI release is less proven than a PyPI one was; the starter template repositories are pushed only for a final PyPI release; the documentation's install lines install PyPI's versions. Every consumer must take the cs-image-system packages from TestPyPI, and only those (every other dependency from PyPI: TestPyPI as a general index invites a squatted name), each release must be proven as fully as a PyPI release was, nothing may publish to PyPI until 1.0, and every document that says how to install must say how to install a TestPyPI release. TestPyPI's own limits (it has been wiped before, its rate limits and outages) are accepted risks the documents name. Serves operators (who release and take releases), an adopting team (who installs one), and a plugin author (whose plugin is tested against the system it will run beside)."
 
@@ -285,9 +285,13 @@ release.
 - **FR-004** *(dropped 2026-11-24)*: Each family's acceptance tests MUST run against the system's
   newest TestPyPI release inside its ranges, and its oldest-versions leg
   against the oldest its ranges allow.
-- **FR-005**: The probes a release runs first (the versions already held,
-  the families released elsewhere, the SDK's published files) MUST read
-  TestPyPI.
+- **FR-005** *(narrowed 2026-11-24, with T021's drop)*: The probes a
+  release runs first (the versions already held, the families released
+  elsewhere) MUST read TestPyPI. The isolated runs keep reading PyPI for
+  the SDK's published versions and files, so an SDK version TestPyPI
+  alone holds counts as unpublished there: it is installed as this
+  repository's build, said by name, and the guard against a change
+  under a published version sees only the versions on PyPI.
 - **FR-006** *(dropped 2026-11-24: final releases only, as before)*: The starter template repositories MUST be pushed for each
   release.
 - **FR-007** *(narrowed 2026-11-24: one statement in the operations guide)*: Every document in the three repositories and the starters

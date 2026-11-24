@@ -54,6 +54,10 @@ Filled in as tasks complete.
 | T024 | 2026-11-24, in OKTA on `feature/013-testpypi-until-1-0` (from its develop, `git flow feature start`), committed `fbca987`, not pushed: a `testpypi` source for each of the 15 names of the system the lock reaches (the command line, the core plugins of the instance fixture, the AWS family of the `instance` group, the contract, the kit, the Terraform libraries, the engine), the engine named in a new `index-pins` group (it is reached only through `cs-image-system-system`); `uv lock` by hand (no Justfile target): the 15 names at TestPyPI, the versions unchanged (0.1.12 and 0.2.1, the contract 0.5.0); `tests/tooling/test_index_pins.py` (T007's two checks and that every such name keeps its source); `publish.yml` loses the `pypi` job and the `final` output; `scripts/release` refuses `pypi` with exit 2 naming the decision, before anything is asked (a `Declined` refusal), with a test; the two release tests that named `pypi` name `test`; README, `docs/RELEASING.md` (a paragraph, and the passages describing the PyPI upload) and the Justfile's comment |
 | T025 | 2026-11-24, in GCLOUD likewise, committed `c5c6981`, not pushed (its untracked `.claude/` is not ours, left): 12 names of the system with a `testpypi` source, the engine in `index-pins`; the lock moved them from PyPI's 0.1.11 and 0.2.0 to TestPyPI's 0.1.12 and 0.2.1 (the contract 0.5.0); the same test, workflow, script and documents |
 | T026 | 2026-11-24, `just test` in each (VIRTUAL_ENV unset, after `just init`): OKTA lint and REUSE clean, pyright 0 errors, 193 passed; GCLOUD likewise, 170 passed. The lock check's counts: OKTA 15 names of the system from TestPyPI, 67 third-party names from PyPI and none from TestPyPI; GCLOUD 12 and 72, none from TestPyPI |
+| T032 | 2026-11-24, `/speckit-converge`: 9 requirements (two dropped), 5 success criteria (two dropped), 18 acceptance scenarios, the plan's decisions and its list of what the change makes false, Constitution IX and X checked; two partial findings, appended as T036 and T037. Not findings: the install hint in `extras.py`, the starters' READMEs and `docs/PLUGINS.md` (T028's drop; none names PyPI as where a release is); specification 008's and 010's release tasks (none names PyPI) |
+| T036 | OKTA `cddee62`, GCLOUD `7fe5974`, not pushed: each `docs/RELEASING.md` names the change that lifts the decision at 1.0 (the refusal, the PyPI job, the system's names back on PyPI), linking the operations guide; markdown only, read by no test there; `just lint` clean in each |
+| T037 | `spec.md` FR-005 narrowed to T021's drop, with its cost named: the isolated runs' guard against a change under a published version sees only PyPI's versions |
+| T035 | 2026-11-24: `spec.md`'s status line and the row for 013 in `specs/README.md` say phases 1 to 9 are implemented, not merged, and what is the operator's |
 
 ---
 
@@ -147,10 +151,10 @@ CI job, with every system name from TestPyPI.
 
 ## Phase 8: Polish & Cross-Cutting Concerns
 
-- [ ] T032 Run `/speckit-converge`; complete any task it appends
+- [X] T032 Run `/speckit-converge`; complete any task it appends
 - [ ] T033 **RELEASE** (the operator's): the first TestPyPI-only release, the batched one (specifications 002, 003, 006 and 010), with `--full` (the advisory names it: the contract, the SDK and the release tooling changed); walk quickstart steps 3 and 4 and record each result; PyPI's newest versions unchanged (SC-001)
 - [ ] T034 In REF, after T033's take: its `Justfile`, CI workflows and `CI_SETUP.md` carry the one install form (the take's refresh); `just config-drift` green; record it
-- [ ] T035 Bring the specification's files up to date: the status line of `spec.md` and the row for 013 in `specs/README.md`, with the date
+- [X] T035 Bring the specification's files up to date: the status line of `spec.md` and the row for 013 in `specs/README.md`, with the date
 
 ---
 
@@ -176,3 +180,8 @@ CI job, with every system name from TestPyPI.
   advises, and publishes by its tag.
 - Then the consumers (US2), the families (US3), the documents (US4), the
   starters (US5), and the first release.
+
+## Phase 9: Convergence
+
+- [X] T036 In OKTA and GCLOUD, write in each `docs/RELEASING.md` the one named change that lifts the decision at 1.0 (the release script's refusal of `pypi`, the publish workflow's PyPI job, the install form), as `docs/OPERATIONS.md` "Lifting the decision at 1.0" says each does; commit in each repository per FR-008 (partial)
+- [X] T037 Narrow FR-005's "the SDK's published files" in `spec.md` to T021's drop (the isolated runs read PyPI's published versions and digests, so an SDK version TestPyPI alone holds counts as unpublished there), naming what it costs: the "changed under a published version" guard sees only versions on PyPI per FR-005 / T021 (partial)
