@@ -6,7 +6,7 @@
 
 **Created**: 2026-11-22
 
-**Status**: Draft
+**Status**: Planned 2026-11-24 ([plan](plan.md))
 
 **Input**: User description: "Create a spec to deal with the pyright ignores. Take a new look at the code to see if there is a simple solution, but still move it to a spec. Ask questions where relevant." (REMINDERS.md, Before 1.0, \"The nine variable-override ignores\", the operator 2026-11-12 at hygiene bundle XXV item 5: nine pydantic fields carry `# pyright: ignore[reportIncompatibleVariableOverride]` where a subclass narrows a field's type on purpose; keep them, or make the base models generic over the field's type so that no ignore is needed.)
 
@@ -60,6 +60,18 @@ its accessor already answers "maybe none".
   specification? → A: No: this specification ends at this repository,
   with the kit and the Terraform library released; each family drops its
   own when it next takes the kit, in its own repository
+
+### Session 2026-11-24 (at planning)
+
+- Q: Removing the description's exception widens the kit's surface
+  entry for it (`str` to `str | None`), a reshape the surface check
+  refuses without a new middle number, while the operator's rule of
+  2026-11-23 moves only the last number. How is the description
+  handled? → A: Deferred. This specification removes the five
+  provider exceptions; the description keeps its exception until the
+  operator ends the patch-only rule, and `REMINDERS.md` keeps a line
+  for it. Story 3, FR-006 and the description's share of FR-003 and
+  SC-001 wait with it
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -117,7 +129,11 @@ the kit's range) passes its own tests against the kit after it.
 
 ---
 
-### User Story 3 - An OS builder entry's description needs no exception (Priority: P2)
+### User Story 3 - An OS builder entry's description needs no exception (Priority: P2; DEFERRED 2026-11-24)
+
+**Deferred** (Clarifications, 2026-11-24): this story waits for the
+first new middle number of the kit after the patch-only rule ends. It
+is kept as written so that the work it needs is not lost.
 
 The OS builder entry's `description` carries its template default
 without narrowing the type the kit gives it.
@@ -186,16 +202,18 @@ that repository is changed by this specification.
   a type argument, with no type-check exception needed.
 - **FR-002**: A subclass that names no type argument MUST keep the kit's
   general class and default, unchanged.
-- **FR-003**: Every field in this repository that carries a
+- **FR-003** (the description excepted: deferred 2026-11-24): Every
+  field in this repository that carries a
   `reportIncompatibleVariableOverride` exception today MUST carry none,
   and the type check MUST report zero errors.
 - **FR-004**: The loader MUST refuse an unknown key under a narrowed
   field exactly as today, naming the same field path.
 - **FR-005**: The shared fixture and the reference configuration MUST
   validate and emit byte-identically before and after.
-- **FR-006**: An OS builder entry's description MUST keep its template
-  default when the key is absent, and an explicitly empty description
-  MUST be accepted as no description.
+- **FR-006** (DEFERRED 2026-11-24, with story 3): An OS builder
+  entry's description MUST keep its template default when the key is
+  absent, and an explicitly empty description MUST be accepted as no
+  description.
 - **FR-007**: The kit's and the Terraform library's versions MUST move by
   their version rule for the change, and their surface baselines with
   them; a plugin at the low end of their range MUST pass its own tests.
@@ -221,7 +239,9 @@ that repository is changed by this specification.
 
 ### Measurable Outcomes
 
-- **SC-001**: Zero `reportIncompatibleVariableOverride` exceptions remain
+- **SC-001** (as deferred 2026-11-24: one remains, the
+  description's): Zero `reportIncompatibleVariableOverride` exceptions
+  remain
   in this repository (six today), with the type check at zero errors.
 - **SC-002**: Every unknown key under a narrowed field is still refused
   at load, in every case the tests hold today.
