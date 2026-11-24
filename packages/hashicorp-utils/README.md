@@ -448,7 +448,7 @@ roots emit, and what they need, are
 
 **What depends on it.** The terraform roots of
 [tofu-roots](../tofu-roots/README.md) and, beside them, the identity
-roots of [okta-opa-plugin](../okta-opa-plugin/README.md) and the three
+roots of [okta-opa-plugin](https://github.com/infrastructurebuilder/cs-image-system-okta/blob/develop/packages/okta-opa-plugin/README.md) (in its own repository) and the three
 provider root plugins; [packer-plugin](../packer-plugin/README.md) for
 the packer collector; the three runtime plugins for the formatter
 options. The state plugins and the base library depend on nothing here.

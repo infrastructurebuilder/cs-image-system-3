@@ -25,8 +25,8 @@ source "amazon-ebs" "imgfile-basic-dask" {
         csis_series         = "imgfile-basic-dask",
         csis_parent         = "series:basic-rh-10",
         csis_run            = "2026_08_26t12_00_00",
-        csis_fingerprint    = "adbfaf90914fe7e5",
-        csis_identity_types = "okta",
+        csis_fingerprint    = "5470f101734229bd",
+        csis_identity_types = "posix",
         csis_storage_types  = "ebs,efs,s3",
     }
     associate_public_ip_address = false

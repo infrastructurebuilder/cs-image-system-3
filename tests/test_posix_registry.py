@@ -97,7 +97,8 @@ def test_an_unreadable_registry_is_refused_as_unable_to_check(tmp_path, monkeypa
     assert run.ctx.group_builders[IDENTITY].registered_servers(GROUP) is None
     errors = lp.validate_claimed_hostnames(run.ctx, [Lifecycle.INSTANCE_IMAGE])
     # every POSIX-owned instance is refused: `test` here, and the fixture's own `container-test`
-    assert sorted(e.split("'")[1] for e in errors) == ["container-test", "test"]
+    # and `test2` (its image's group, coops, is a POSIX group)
+    assert sorted(e.split("'")[1] for e in errors) == ["container-test", "test", "test2"]
     assert all("could not check" in e for e in errors)
 
 

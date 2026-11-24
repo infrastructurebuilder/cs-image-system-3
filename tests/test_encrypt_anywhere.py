@@ -397,13 +397,13 @@ def test_decrypt_file_is_the_inverse_of_encrypt_file(tmp_path):
     assert back == original, "comments, ordering and every other byte survive the round trip"
 
 
-def test_the_fixture_hides_the_domain_and_not_the_names():
+def test_the_fixture_hides_the_addresses_and_not_the_names():
+    """The fixture's posix user builders derive no address (they declare no
+    domain), so what it hides is each explicit address."""
     import yaml
-    builders = yaml.safe_load((FIXTURE_CONFIG / "cfg" / "group-builders.yml").read_text())
-    ub = next(b for b in builders["user_builders"] if b.get("email_domain"))
-    assert is_marker_str(ub["email_domain"]), "the domain is encrypted"
-    assert ub["default_user_email_template"].endswith("@{{ builder.email_domain }}")
     users = yaml.safe_load((FIXTURE_CONFIG / "groups" / "users.yaml").read_text())
+    emails = [u["email"] for u in users["users"] if u.get("email")]
+    assert emails and all(is_marker_str(e) for e in emails), "every explicit address is encrypted"
     names = [u["first_name"] for u in users["users"] if "first_name" in u]
     assert names and not any(is_marker_str(n) for n in names), "first names stand in clear"
 

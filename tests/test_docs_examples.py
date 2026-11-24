@@ -25,7 +25,9 @@ trees are pinned minimal, the complete tree is pinned to name every plugin
 type, and every ``ENC[age:...]`` marker in the trees must open with the
 test identity. The wheel test alone reads the SOURCE under
 ``docs/examples``. A starter whose providers are not installed here (the
-Google Cloud family is released from its own repository) is left out, and
+Google Cloud family and the Okta identity plugin are released from their
+own repositories) is left out (its markers are still read, from its
+source), and
 ``complete``'s own tests are in ``tests/cloud_starters`` (``just
 test-cloud-starters``). Documentation only: nothing here changes what the
 code does.
@@ -65,7 +67,6 @@ PLUGIN_TYPES: dict[str, set[str]] = {
     "default-os-plugin": {"rhel", "debian", "ubuntu"},      # fedora and alpine are the same plugin, unused here
     "docker-plugin": {"docker", "tofu-docker", "tf-docker-volume"},
     "local-state-plugin": {"local"},
-    "okta-opa-plugin": {"okta-tf", "okta-tf-ro"},
     "posix-identity-plugin": {"posix"},
     "packer-plugin": {"packer"},
     "tf-ebs-instance-plugin": {"tofu", "tf-aws-ebs", "tf-aws-efs", "tf-aws-s3"},
@@ -185,8 +186,9 @@ def test_the_standard_trees_are_minimal(standard_tree):
 
 
 # the cloud of each standard tree rendered here (standard-gce's, gcloud, is
-# checked where the Google Cloud family is installed: spec 005, research R11)
-STANDARD_CLOUD = {"standard-aws": "aws", "standard-aws-posix": "aws", "standard-docker": "docker"}
+# checked where the Google Cloud family is installed: spec 005, research R11;
+# standard-aws's, aws, where the Okta identity plugin is: spec 008)
+STANDARD_CLOUD = {"standard-aws-posix": "aws", "standard-docker": "docker"}
 
 
 def test_the_standard_trees_use_their_cloud_alone(rendered_starters):
@@ -233,8 +235,11 @@ def test_every_marker_in_the_examples_opens_with_the_test_identity(monkeypatch, 
     from cs_image_system.base.encryption import _identities_for, decrypt_marker
     identities = _identities_for(str(REPO / "tests" / "fixtures" / "config" / ".age-identity"))
     seen = 0
-    for name in TREES:
-        for p in sorted((rendered_starters / name).rglob("*")):
+    # a starter not rendered here (its providers are released elsewhere) is read
+    # from its source: a marker opens with the identity alone, no plugin needed
+    roots = [rendered_starters / name for name in TREES] + [EXAMPLES / n for n in STARTERS if n not in TREES]
+    for root in roots:
+        for p in sorted(root.rglob("*")):
             if not p.is_file() or p.suffix not in (".yml", ".yaml", ".md", ".txt"):
                 continue
             for m in MARKER.finditer(p.read_text()):
@@ -286,7 +291,7 @@ def test_every_example_is_a_whole_repository_a_team_can_copy(rendered_starters):
     assert sorted(STARTERS) == sorted(p.name for p in EXAMPLES.iterdir() if p.is_dir() and not p.name.startswith("_"))
     assert starters_root().resolve() == EXAMPLES.resolve()          # an editable checkout resolves the source
     modules = installed_modules()
-    assert len(modules) >= 9, sorted(modules)
+    assert len(modules) >= 8, sorted(modules)         # 9 until the Okta identity plugin left (spec 008)
     for name in TREES:
         root = rendered_starters / name
         for rel in STARTER_FILES:

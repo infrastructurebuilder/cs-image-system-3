@@ -122,7 +122,7 @@ def test_write_starter_writes_the_modules_with_stamps_into_the_declared_base(tmp
     assert (dest / ".csis-version").read_text() == "9.9.9\n"
     assert "module_source_base: tfmodules" in (dest / "cfg" / "_config.yml").read_text()
     modules = installed_modules()
-    assert len(modules) >= 9
+    assert len(modules) >= 8                      # 9 until the Okta identity plugin left (spec 008)
     for name, module in modules.items():
         copy = dest / "tfmodules" / name
         stamp = Stamp.read(copy / STAMP_FILE)
@@ -174,11 +174,11 @@ def test_init_config_refreshes_an_unmodified_copy_of_another_release(tmp_path: P
 
 def test_init_config_adopts_an_unstamped_identical_copy(tmp_path: Path):
     tree = _tree(tmp_path)
-    (tree / "tfmodules" / "okta_opa_module" / STAMP_FILE).unlink()
+    (tree / "tfmodules" / "aws_storage_s3" / STAMP_FILE).unlink()
     result = _invoke(str(tree))
     assert result.exit_code == 0, result.output
-    assert "okta_opa_module: adopted" in result.output
-    assert (tree / "tfmodules" / "okta_opa_module" / STAMP_FILE).is_file()
+    assert "aws_storage_s3: adopted" in result.output
+    assert (tree / "tfmodules" / "aws_storage_s3" / STAMP_FILE).is_file()
 
 
 def test_init_config_refuses_an_edited_copy_by_name_even_with_force(tmp_path: Path):

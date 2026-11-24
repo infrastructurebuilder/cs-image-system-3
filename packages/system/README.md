@@ -874,7 +874,7 @@ prints the names of what it needs and never a value.
   `OKTAPAM_KEY` / `OKTAPAM_SECRET`, for `identity export-gids`, the state
   query and `prune-attachments`; `OKTA_API_*` for the okta provider at
   plan time; `OPA_TOKEN` for `verify login` as the workload. These are the
-  identity plugin's contract ([okta-opa-plugin](../okta-opa-plugin/README.md)).
+  identity plugin's contract ([okta-opa-plugin](https://github.com/infrastructurebuilder/cs-image-system-okta/blob/develop/packages/okta-opa-plugin/README.md)).
 - The whole environment is exposed to the configuration's templates as
   `ENV` during the load, so a `{{ ENV['X'] }}` in the tree reads any
   variable.
@@ -1318,7 +1318,7 @@ warnings and goes on.
   [docs/DESIGN.md](../../docs/DESIGN.md): the headless contract;
   [docs/PLUGINS.md](../../docs/PLUGINS.md): the package index.
 - The plugins whose steps the runner scripts call through this CLI:
-  [okta-opa-plugin](../okta-opa-plugin/README.md) (`export-gids`,
+  [okta-opa-plugin](https://github.com/infrastructurebuilder/cs-image-system-okta/blob/develop/packages/okta-opa-plugin/README.md) (`export-gids`,
   `prune-attachments`, `identity-attributes`),
   [tf-ebs-instance-plugin](../tf-ebs-instance-plugin/README.md) and
   [tf-gcp-plugin](https://github.com/infrastructurebuilder/cs-image-system-google-cloud/blob/develop/packages/tf-gcp-plugin/README.md) (`verify instance`,

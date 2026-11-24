@@ -54,7 +54,7 @@ def test_module_sources_resolve_from_every_workspace_depth(relocated):
             assert target.is_dir(), f"{tf}: module source {m.group(1)} does not resolve"
             assert target.parent == (relocated.config_root.parent / "tfmodules").resolve()
             sources += 1
-    assert sources >= 8  # groups + storages + instances
+    assert sources >= 7  # storages + instances (the fixture's POSIX identity emits no root)
 
 
 def test_absolute_and_remote_module_sources_pass_through(relocated):
@@ -104,7 +104,7 @@ def test_meta_state_commit_carries_read_models_pins_and_generated_iac(relocated)
     assert "meta-state/identity.yaml" in files
     assert "meta-state/storage.yaml" in files
     assert "meta-state/runs.yaml" in files
-    assert any(f.startswith("generated/identity/") and f.endswith(".tf") for f in files)
+    assert any(f.startswith("generated/storage/") and f.endswith(".tf") for f in files)
     assert any(f.startswith("generated/instance-image/") for f in files)
     subject = _git(root, "log", "-1", "--pretty=%s")
     assert subject.startswith("cs-image-system") and "dry-run" in subject

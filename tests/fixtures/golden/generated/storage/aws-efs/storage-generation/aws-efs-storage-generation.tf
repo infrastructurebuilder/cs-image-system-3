@@ -14,10 +14,3 @@ provider "aws" {
     profile = "noaa"
     alias = "aws_efs"
 }
-data "terraform_remote_state" "oktagroups" {
-    backend = "local"
-    
-    config = {
-        path = "../../../../state/oktagroups.tfstate"
-    }
-}

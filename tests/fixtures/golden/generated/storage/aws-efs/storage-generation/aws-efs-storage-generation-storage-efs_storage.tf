@@ -9,12 +9,12 @@ module "storage_efs_storage" {
   transition_to_ia = "AFTER_30_DAYS"
   access_points = {
     "coops" = {
-      "gid" = data.terraform_remote_state.oktagroups.outputs.group_gids["coops"]
+      "gid" = 3102
       "path" = "/coops"
       "permissions" = "2775"
     }
     "stofs" = {
-      "gid" = data.terraform_remote_state.oktagroups.outputs.group_gids["stofs"]
+      "gid" = 3103
       "path" = "/stofs"
       "permissions" = "2775"
     }

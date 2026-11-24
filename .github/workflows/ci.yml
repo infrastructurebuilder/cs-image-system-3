@@ -156,8 +156,8 @@ jobs:
 
   live:
     # The system's live proof over the frozen fixture: the fixture
-    # names the real account's networks and project and the real OPA team, so
-    # with the read-only identities `just fixture-live` validates it online, dry-runs
+    # names the real account's networks and project, so
+    # with the read-only AWS identity `just fixture-live` validates it online, dry-runs
     # every lifecycle over a private copy (state query off: the fixture's
     # declarations are synthetic) and runs its modification tests under docker.
     # Reads only; never --no-dry-run. Pushes and the nightly schedule, never
@@ -191,9 +191,6 @@ jobs:
         id: gate
         env:
           HAVE_AWS_ROLE_ARN: ${{ secrets.AWS_ROLE_ARN != '' }}
-          HAVE_OKTA_API_PRIVATE_KEY: ${{ secrets.OKTA_API_PRIVATE_KEY != '' }}
-          HAVE_TF_VAR_NOS_KEY: ${{ secrets.TF_VAR_NOS_KEY != '' }}
-          HAVE_TF_VAR_NOS_SECRET: ${{ secrets.TF_VAR_NOS_SECRET != '' }}
         run: |
           # A secret that is MISSING and one that is EMPTY read the same here ('' either
           # way), so the distinction is made on the SET: none configured is an
@@ -202,12 +199,12 @@ jobs:
           # is configured-and-broken -- a FAILURE that names them. The fixture's age
           # identity is committed beside it, so no identity secret is needed here.
           missing=""; present=0
-          for name in AWS_ROLE_ARN OKTA_API_PRIVATE_KEY TF_VAR_NOS_KEY TF_VAR_NOS_SECRET; do
+          for name in AWS_ROLE_ARN; do
             have="HAVE_$name"
             if [ "${!have}" = true ]; then present=$((present + 1)); else missing="$missing $name"; fi
           done
           if [ "$present" -eq 0 ]; then
-            echo "live: SKIPPED -- no live secret is configured, so no step runs (AWS_ROLE_ARN: a federated READ-ONLY AWS role (EC2 describe for `validate --online`); OKTA_API_PRIVATE_KEY / TF_VAR_NOS_KEY / TF_VAR_NOS_SECRET: the Okta triple the Okta workspace asserts at load)"
+            echo "live: SKIPPED -- no live secret is configured, so no step runs (AWS_ROLE_ARN: a federated READ-ONLY AWS role (EC2 describe for `validate --online`); the fixture's identity is POSIX and needs no credential)"
             { echo "## live: SKIPPED"; echo "No live secret is configured; no step ran. A green conclusion here is not proof that anything ran."; } >> "$GITHUB_STEP_SUMMARY"
             echo "ready=false" >> "$GITHUB_OUTPUT"
           elif [ -n "$missing" ]; then
@@ -252,10 +249,6 @@ jobs:
 
       - name: The fixture against the clouds
         if: steps.gate.outputs.ready == 'true'
-        env:
-          OKTA_API_PRIVATE_KEY: ${{ secrets.OKTA_API_PRIVATE_KEY }}
-          TF_VAR_nos_coastal_modeling_cloud_sandbox_key: ${{ secrets.TF_VAR_NOS_KEY }}
-          TF_VAR_nos_coastal_modeling_cloud_sandbox_secret: ${{ secrets.TF_VAR_NOS_SECRET }}
         run: just fixture-live
 
       - name: The starters that need every provider

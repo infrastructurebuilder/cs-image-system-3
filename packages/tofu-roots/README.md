@@ -24,7 +24,7 @@ nothing to say. The three provider root plugins
 [tf-gcp-plugin](https://github.com/infrastructurebuilder/cs-image-system-google-cloud/blob/develop/packages/tf-gcp-plugin/README.md) for Google Cloud, in its own repository and installed with the `gcloud` extra,
 [docker-plugin](../docker-plugin/README.md) for a container
 daemon) subclass the two bases, and the identity roots of
-[okta-opa-plugin](../okta-opa-plugin/README.md) mix in the root mixin.
+[okta-opa-plugin](https://github.com/infrastructurebuilder/cs-image-system-okta/blob/develop/packages/okta-opa-plugin/README.md), in its own repository and installed with the `okta` extra, mix in the root mixin.
 
 It builds on [hashicorp-utils](../hashicorp-utils/README.md), the
 library that collects provider, backend and variable requirements per

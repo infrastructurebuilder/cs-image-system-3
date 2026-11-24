@@ -66,11 +66,12 @@ def test_gated_sequences_clear_stale_planfiles_and_recheck_flags(fixture_run):
     plan->gate->apply sequence, and (with the apply flag on) apply-check
     guards the apply at execution time."""
     fixture_run.ctx.config["apply_storage"] = True
-    summary = fixture_run.run(["identity", "storage"], apply=True)
+    fixture_run.ctx.config["apply_instances"] = False
+    summary = fixture_run.run(["storage", "instance-image"], apply=True)
     assert summary.ok, summary.error
     storage = _script(fixture_run, "storage")
-    identity = _script(fixture_run, "identity")
-    for script in (storage, identity):
+    instances = _script(fixture_run, "instance-image")
+    for script in (storage, instances):
         assert "rm -f tfplan" in script
         rm_i, plan_i = script.index("rm -f tfplan"), script.index("plan -input=false")
         assert rm_i < plan_i
@@ -79,8 +80,8 @@ def test_gated_sequences_clear_stale_planfiles_and_recheck_flags(fixture_run):
     assert storage.index("gate-plan") < storage.index("apply-check --lifecycle storage") \
         < storage.index("apply -input=false tfplan")
     # flag off -> no apply, hence no check to emit
-    assert "apply-check" not in identity
-    assert "apply -input=false" not in identity
+    assert "apply-check" not in instances
+    assert "apply -input=false" not in instances
 
 
 def test_apply_check_refuses_when_flag_is_off_now(fixture_run, tmp_path, capsys):

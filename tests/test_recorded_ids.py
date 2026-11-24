@@ -275,7 +275,10 @@ def _with_external_identities(tmp_path, monkeypatch, holds: dict[str, dict[str, 
     ``holds`` (builder name -> group name -> the id its provider assigned),
     the first answering the pool 170000-189999 and each next one the 20,000
     ids above; ``recorded`` is written as
-    ``meta-state/ids.yaml`` first. Returns the loaded run."""
+    ``meta-state/ids.yaml`` first. The groups an external identity holds
+    (``extgroup``, ``extother``) are names the fixture's POSIX tree does not
+    declare: a POSIX group of the same name would defer to the external
+    id. Returns the loaded run."""
     import yaml
     from external_identity import EXTERNAL_POOL, stub_external_identity
     from harness import FixtureRun, copy_config
@@ -302,14 +305,14 @@ def _validate_and_record(run, record: bool = True) -> list[str]:
 
 
 def test_an_external_groups_id_read_first_is_recorded_as_read_with_its_pool(tmp_path, monkeypatch):
-    run, _root = _with_external_identities(tmp_path, monkeypatch, {"ext-a": {"coops": 180007}})
+    run, _root = _with_external_identities(tmp_path, monkeypatch, {"ext-a": {"extgroup": 180007}})
     try:
         assert _validate_and_record(run) == []
         doc = run.ctx.meta_state.recorded_ids()
     finally:
         run.restore_cwd()
-    assert doc["ids"]["group"]["coops"] == {"id": 180007, "identity": "ext-a", "external": True, "how": "read",
-                                            "recorded_run": doc["ids"]["group"]["coops"]["recorded_run"]}
+    assert doc["ids"]["group"]["extgroup"] == {"id": 180007, "identity": "ext-a", "external": True, "how": "read",
+                                            "recorded_run": doc["ids"]["group"]["extgroup"]["recorded_run"]}
     assert doc["pools"]["ext-a"] == {"min": 170000, "max": 189999, "how": "read"}
     # no declared and no pooled id may take it afterwards
     assert len(_problems([_posix("group", "pxother", 180007)], recorded=doc)) == 1
@@ -318,8 +321,8 @@ def test_an_external_groups_id_read_first_is_recorded_as_read_with_its_pool(tmp_
 
 
 def test_a_later_read_of_another_id_is_refused_and_the_record_kept(tmp_path, monkeypatch):
-    recorded = _recorded(groups={"coops": (180007, "ext-a")})
-    run, root = _with_external_identities(tmp_path, monkeypatch, {"ext-a": {"coops": 180008}}, recorded=recorded)
+    recorded = _recorded(groups={"extgroup": (180007, "ext-a")})
+    run, root = _with_external_identities(tmp_path, monkeypatch, {"ext-a": {"extgroup": 180008}}, recorded=recorded)
     before = (root / "meta-state" / "ids.yaml").read_text()
     try:
         problems = _validate_and_record(run)
@@ -331,24 +334,24 @@ def test_a_later_read_of_another_id_is_refused_and_the_record_kept(tmp_path, mon
 
 def test_an_external_id_read_onto_a_posix_names_recorded_id_is_refused_naming_both(tmp_path, monkeypatch):
     recorded = _recorded(groups={"pxgroup": (3101, "posix-local")})
-    run, _root = _with_external_identities(tmp_path, monkeypatch, {"ext-a": {"coops": 3101}}, recorded=recorded)
+    run, _root = _with_external_identities(tmp_path, monkeypatch, {"ext-a": {"extgroup": 3101}}, recorded=recorded)
     try:
         problems = _validate_and_record(run, record=False)
     finally:
         run.restore_cwd()
     hit = [p for p in problems if "3101" in p]
-    assert len(hit) == 1 and "coops" in hit[0] and "pxgroup" in hit[0] and "cannot move" in hit[0]
+    assert len(hit) == 1 and "extgroup" in hit[0] and "pxgroup" in hit[0] and "cannot move" in hit[0]
 
 
 def test_a_second_external_identity_joins_the_same_check_with_no_core_change(tmp_path, monkeypatch):
     run, _root = _with_external_identities(tmp_path, monkeypatch,
-                                           {"ext-a": {"coops": 180007}, "ext-b": {"tcmet": 180007}})
+                                           {"ext-a": {"extgroup": 180007}, "ext-b": {"extother": 180007}})
     try:
         problems = _validate_and_record(run, record=False)
     finally:
         run.restore_cwd()
     hit = [p for p in problems if "180007" in p]
-    assert len(hit) == 1 and "coops" in hit[0] and "tcmet" in hit[0] and "configuration error" in hit[0]
+    assert len(hit) == 1 and "extgroup" in hit[0] and "extother" in hit[0] and "configuration error" in hit[0]
 
 
 # --------------------------------------------- convergence (T053, T054, T056, T060)

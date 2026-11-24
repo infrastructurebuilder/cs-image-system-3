@@ -1950,7 +1950,7 @@ profile, `aws sso login --profile <p>`) then `just full-test-legs`
 
 ### Setting up
 
-`just init` runs `uv sync --all-extras --no-extra gcloud --no-extra all` and installs the pre-commit hook
+`just init` runs `uv sync --all-extras --no-extra gcloud --no-extra okta --no-extra all` and installs the pre-commit hook
 (`git config core.hooksPath .githooks`). It is idempotent. Python is run
 as `uv run python`; the CLI as `uv run cs-image-system` (what every recipe
 does). The Justfile here is the DEVELOPER's:
@@ -2290,7 +2290,7 @@ order:
 2. from `develop`, the move: `git checkout main` and `git merge
    --ff-only develop`. A `main` that cannot fast-forward (it holds
    commits `develop` does not) is refused before the checkout, on
-   `develop`; then `uv sync --all-extras --no-extra gcloud --no-extra all`, from every starting branch,
+   `develop`; then `uv sync --all-extras --no-extra gcloud --no-extra okta --no-extra all`, from every starting branch,
    because a branch switch rewrites the files the two branches differ in
    and the venv falls behind the checkout (the venv probe refused a
    release once, right after a switch to `main` by hand). From here to
@@ -2301,7 +2301,7 @@ order:
 3. the probes (`release.py probes`, behind the private recipe
    `_release-probes`, one line each, before
    anything changes; the dry form prints the same verdicts): the venv is
-   in step with the lock (`uv sync --all-extras --no-extra gcloud --no-extra all --check`, because every
+   in step with the lock (`uv sync --all-extras --no-extra gcloud --no-extra okta --no-extra all --check`, because every
    recipe runs `uv run --no-sync` and a venv behind the checkout answers
    with stale metadata; after the resync it passes, and a refusal names
    the checkout whose venv is behind, for a run whose venv is another
@@ -2381,7 +2381,7 @@ order:
    already holds); then `git
    checkout develop`, `git merge --ff-only main` and `git push origin
    develop`, so `develop` takes `main` back; and last `uv sync
-   --all-extras --no-extra gcloud --no-extra all` again, since the switch and the moved lock left the venv
+   --all-extras --no-extra gcloud --no-extra okta --no-extra all` again, since the switch and the moved lock left the venv
    behind once more. From a maintenance branch the ending is `git push
    origin release/<major.minor> v<version>` and the resync; `develop`
    is not touched. The irreversible act is the upload, which comes
@@ -2396,7 +2396,7 @@ committed and tagged locally, and the line names the command that failed
 and every command left, joined with `&&`, to run by hand once its cause
 is fixed. For a refused push of `main` the rest is `git push origin
 main v<version> && git checkout develop && git merge --ff-only main &&
-git push origin develop && uv sync --all-extras --no-extra gcloud --no-extra all`.
+git push origin develop && uv sync --all-extras --no-extra gcloud --no-extra okta --no-extra all`.
 
 **The release branch.** `develop` is where work is done and
 `main` is where releases live. `main` is always `develop` plus release
@@ -2745,6 +2745,22 @@ family's own READMEs, documents and tests are in its repository; its
 configuration fields are in
 [its `docs/CONFIGURATION.md`](https://github.com/infrastructurebuilder/cs-image-system-google-cloud/blob/develop/docs/CONFIGURATION.md).
 
+**The Okta identity plugin comes from its own repository too.** Its one
+package, `cs-image-system-okta-opa-plugin` (the `okta-tf` and
+`okta-tf-ro` group and user builders, and the `workload` and `verify
+login` commands it mounts), is built, tested and released from
+[cs-image-system-okta](https://github.com/infrastructurebuilder/cs-image-system-okta)
+(spec 008), on a version line of its own (0.2.x). An operator installs
+it with the `[okta]` extra (or `[all]`) above, which names it by the
+range of that line (`>=0.2,<0.3`), exactly as the Google Cloud family's
+extra names its three. This repository's workspace does not hold it:
+`just init` leaves the `okta` extra out as well, the frozen fixture's
+identity is POSIX, and the recipes that load a tree declaring it layer
+it in from the index through the same `scripts/with-released-families`.
+Its README, with its configuration reference, and its tests are in its
+repository:
+[packages/okta-opa-plugin/README.md](https://github.com/infrastructurebuilder/cs-image-system-okta/blob/develop/packages/okta-opa-plugin/README.md).
+
 A configuration repository's `Justfile` reads the extras its tree needs
 from the `type:` words under `cfg/` (`just extras` prints them, as
 `aws,okta`), and `just take <version>` and every CI job install
@@ -2914,7 +2930,7 @@ repository's, which the release ships.
 
 | Recipe | What it does | Needs |
 | --- | --- | --- |
-| `init` | `uv sync --all-extras --no-extra gcloud --no-extra all`, then `hooks` | nothing |
+| `init` | `uv sync --all-extras --no-extra gcloud --no-extra okta --no-extra all`, then `hooks` | nothing |
 | `build` | sdist + wheel of every workspace member under `dist/` (the system package carries the five starter trees) | nothing |
 | `test` | lint → typecheck → pytest → `test-core` → `test-terraform-alone` → `test-docker-alone`, all blocking (the bar) | nothing |
 | `full-test` | `test`, then `full-test-legs`: the dev-pin resolution check (`scripts/dev-pin-resolves`), the docker legs (`test-mods --strict`, `test-posix-accounts`, `test-bake-steps`, `runner-image`, `test-docker-bake`, `test-docker-cycle`, `test-podman-cycle`, `test-podman-desktop-cycle`) and, gated on `preflight`, a dry `run --all` and `state query --strict` over a copy of the reference configuration | docker, the network, reference configuration, runtime sessions; each leg skips loudly |

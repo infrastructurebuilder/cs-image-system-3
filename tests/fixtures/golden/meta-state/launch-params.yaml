@@ -24,29 +24,25 @@ instances:
     user_data_sha256: 2d715466c934e1a924c1ec083cd5cec16f4044df2d873caaae11af328fcef012
   test:
     build: unbound
-    enrollment:
-      enrollment: sftd-token
-      server_label: sftd.tx.group=coops
+    enrollment: {}
     ephemeral: false
     group: coops
     hostname: test-001
-    identity_type: okta
+    identity_type: posix
     image: imgfile-basic-cloudflow
     launched: false
     machine_type: t3.medium
     mounts: []
     run: 2026_08_26t12_00_00
     session: ssm
-    user_data_sha256: 6b08b82f63b05c57d94e8f37a07f3ae29d0683a729f3849ac7c2453bc66b0163
+    user_data_sha256: 5d56e348a42d7a907d25b941786c65876419668a62c4bc597509c4ad3f4cd601
   test2:
     build: unbound
-    enrollment:
-      enrollment: sftd-token
-      server_label: sftd.tx.group=coops
+    enrollment: {}
     ephemeral: false
     group: coops
     hostname: test2-001
-    identity_type: okta
+    identity_type: posix
     image: imgfile-basic-dask
     launched: false
     machine_type: t3.medium
@@ -61,4 +57,4 @@ instances:
       type: ebs
     run: 2026_08_26t12_00_00
     session: ssm
-    user_data_sha256: be2d504a9377048bcb743ef83a2816a1328b174ede526a140a65aaeb32ef2919
+    user_data_sha256: 5696b2704f010f77416d4ecf3a95feadaa5f3a5ae74df8064caead71f14e4ec1

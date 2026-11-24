@@ -43,10 +43,10 @@ release_branch := "main"
 export TF_PLUGIN_CACHE_DIR := justfile_directory() / ".tofu-plugin-cache"
 
 # One-time setup: the toolchain and every workspace package (idempotent). Every extra but
-# `gcloud` and `all`: the Google Cloud family is released from its own repository, and this
-# repository's tests pass without it (spec 005)
+# `gcloud`, `okta` and `all`: the Google Cloud family and the Okta plugin are released from their
+# own repositories, and this repository's tests pass without them (specs 005 and 008)
 init:
-	@uv sync --all-extras --no-extra gcloud --no-extra all
+	@uv sync --all-extras --no-extra gcloud --no-extra okta --no-extra all
 	@mkdir -p "$TF_PLUGIN_CACHE_DIR"
 	@just hooks
 
@@ -70,8 +70,7 @@ test: lint typecheck pytest test-core test-terraform-alone test-docker-alone
 # `state query --strict`. A leg whose prerequisite is absent reports SKIPPED
 # loudly with its reason and does not fail the run; a leg that runs and fails
 # does. Two legs are never skipped: `test-docker-install` and
-# `test-docker-live`, which fail when the container daemon does not answer. Identity credentials (OKTA_API_*, TF_VAR_<team>_*) are not gated: a
-# dry run without them warns and skips the identity roots' plan.
+# `test-docker-live`, which fail when the container daemon does not answer.
 [doc("`test` plus the docker-backed modification tests and, when the runtime sessions are present, a headless dry run --all with state query --strict")]
 full-test: test
 	@just full-test-legs
@@ -81,7 +80,7 @@ full-test: test
 # maintenance branch), a clean tree, the
 # index itself (its upload endpoint and every project page answer, and no project
 # holds the version), the index token, the tag, the remote -- then from develop the
-# checkout of `release_branch` and its fast-forward to develop, `uv sync --all-extras --no-extra gcloud --no-extra all`,
+# checkout of `release_branch` and its fast-forward to develop, `uv sync --all-extras --no-extra gcloud --no-extra okta --no-extra all`,
 # the venv's probes, the bar, the index asked AGAIN (the
 # bar takes twenty minutes), the bump, the lock, the
 # build and the upload, and only then the release's row in docs/CHANGES.md, the commit and
@@ -97,7 +96,7 @@ full-test: test
 # the checkout to the branch it started on. After the tag: `git push origin main
 # v<version>` (main and its own tag by name, so no other local tag travels: GitHub starts
 # no tag run when more than three tags are pushed at once), develop checked out,
-# fast-forwarded to main and pushed, and `uv sync --all-extras --no-extra gcloud --no-extra all` again (a maintenance
+# fast-forwarded to main and pushed, and `uv sync --all-extras --no-extra gcloud --no-extra okta --no-extra all` again (a maintenance
 # branch: that branch and its tag pushed, develop untouched); the pushed tag makes CI
 # publish (it uploads nothing the index already holds). A failed step there names itself
 # and the commands left. `yes` as the third argument is the dry form:
@@ -115,7 +114,7 @@ release target index="test" dry="no":
 # uncommitted and nothing else changed, and only when the index holds the version for every
 # project: the modification-test evidence (on PyPI), the docs/CHANGES.md row, the commit, the
 # tag; then the release's own ending: `git push origin main v<version>`, develop's
-# fast-forward to main and its push, and `uv sync --all-extras --no-extra gcloud --no-extra all`.
+# fast-forward to main and its push, and `uv sync --all-extras --no-extra gcloud --no-extra okta --no-extra all`.
 [doc("After a release's upload was completed by `just publish`: check every project holds the version, then commit, tag and push it")]
 release-finish index="test":
 	@uv run --no-sync --project "{{justfile_directory()}}" python "{{justfile_directory()}}/scripts/release.py" release-finish "{{index}}" \
@@ -146,7 +145,7 @@ release-watch version:
 
 # What a release needs and `full-test` only finds out twenty minutes in, asked
 # first and in one line each, before anything changes. For every index: the venv is in step with
-# the lock (`uv sync --all-extras --no-extra gcloud --no-extra all --check`), because every recipe runs `uv run --no-sync` and a venv
+# the lock (`uv sync --all-extras --no-extra gcloud --no-extra okta --no-extra all --check`), because every recipe runs `uv run --no-sync` and a venv
 # behind the checkout answers with stale metadata. Then, for a release, every package whose version the
 # release does not move (the bump's `glob_exclude`: the contract) is either not on the index or held
 # there as this tree's build, file for file (scripts/own-versions-current), because an index never takes a

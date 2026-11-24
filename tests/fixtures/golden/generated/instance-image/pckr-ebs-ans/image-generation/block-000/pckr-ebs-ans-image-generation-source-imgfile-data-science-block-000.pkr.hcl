@@ -25,8 +25,8 @@ source "amazon-ebs" "imgfile-data-science" {
         csis_series         = "imgfile-data-science",
         csis_parent         = "series:my-deb-12",
         csis_run            = "2026_08_26t12_00_00",
-        csis_fingerprint    = "d915efceaae2e657",
-        csis_identity_types = "okta",
+        csis_fingerprint    = "ac5b39be08705b14",
+        csis_identity_types = "posix",
         csis_storage_types  = "ebs",
     }
     associate_public_ip_address = false

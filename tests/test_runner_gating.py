@@ -156,9 +156,9 @@ def test_lifecycle_state_bindings_are_disjoint(fixture_run):
     bindings = lifecycle_state_bindings(fixture_run.ctx)
     assert summary.state_bindings == bindings      # the summary carries the same evidence
     # every lifecycle with terraform workspaces binds them to distinct state files:
-    # the identity roots (the read-only group root has its own state file too) and
-    # every storage and instance builder the fixture declares
-    assert set(bindings["identity"]) == {"okta-tf-users", "oktagroups", "okta-groups-ro"}
+    # every storage and instance builder the fixture declares; the fixture's POSIX
+    # identity has no terraform root, so its lifecycle binds nothing
+    assert bindings["identity"] == {}
     assert set(bindings["storage"]) == _declared(fixture_run, "storage-builders.yml", "storage_builders")
     assert set(bindings["instance-image"]) == _declared(fixture_run, "instance-builders.yml", "instance_builders")
     assert bindings["base-image"] == {}

@@ -68,7 +68,7 @@ def test_release_requires_evidence_and_records(fixture_run):
         release(fixture_run.ctx, "imgfile-basic-dask", "ami-0dask0001")
     ms.write("mod-tests.yaml", {"results": {h: {"status": "pass", "idempotent": True}}})
     entry = release(fixture_run.ctx, "imgfile-basic-dask", "ami-0dask0001", model="secofs", note="first cut")
-    assert entry["model"] == "secofs" and entry["capabilities"]["identity_types"] == ["okta"]
+    assert entry["model"] == "secofs" and entry["capabilities"]["identity_types"] == ["posix"]
     data = yaml.safe_load((fixture_run.meta_state / "releases.yaml").read_text())
     assert data["current"]["secofs"]["imgfile-basic-dask"] == "ami-0dask0001"
     assert released_builds(ms, "imgfile-basic-dask") == {"ami-0dask0001"}

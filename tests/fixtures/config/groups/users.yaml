@@ -1,14 +1,12 @@
 users:
-  # Names are the bare OPA usernames (PLAN.md local-migration Q3) — exactly what
-  # oktapam_user_group_attachment and group members/admins lists use, matching
-  # the OPA team's user list (verified). Email is used ONLY to look
-  # the user up in the parent Okta org: explicit `email:` when given, otherwise
-  # derived from the builder's default_user_email_template (name@example.invalid).
-  # first_name/last_name are required data (never derived from 'name').
+  # Synthetic personas (their names and the domains of their emails are
+  # encrypted to the fixture's recipient, and decrypt to example personas):
+  # POSIX accounts on the default user builder, each drawing its uid from
+  # the builder's id_pool, with a user-private group of the same name.
   - name: ENC[age:YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSBBeXNlTmFDeXN1NUxKNll2UTdNNlgxMVdWbFdHTjZJM3FiYStRN0tBeHhnCitDRHZHUWcvWjhhaUU1RWhDczZaUjRIcXdZUlJ4dkFTV0FkVXRKdDlCencKLS0tIEs2K2RrTmdtWTBEZ01kaGthVHVabWhVVDNieWtVK05YRHVKS3BuZTY3dXMKL6SV9wExndvLOcCh6sUtuTlSJXf8sKaELjPkg2bk9q8JPpVuBsbLJnAE9A==]
     first_name: Avery
     last_name: Alpha
-  - name: ENC[age:YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSA2dG5xa0Z5MFJabGVOKzB2emhyTzZ2TExzUzJFMk81RkIrNTlNZzFwYlJVCjFMR0J6blNQZW9zdTd2Q3hIeE1vT2xUeGsvS0tTT2w3WWJXWldlL3FGTkUKLS0tIE1IRk5qeXh3SFY4eWd2emNTb3VFVDkwTjFUdytJYmVPRld2TE9UcS85RlUKkef/iVd9FBuLg1k/hQdho889/tmwL06JWA6MQPorqWw4FvsgwDAndIYaVw==]  # exact OPA username casing
+  - name: ENC[age:YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSA2dG5xa0Z5MFJabGVOKzB2emhyTzZ2TExzUzJFMk81RkIrNTlNZzFwYlJVCjFMR0J6blNQZW9zdTd2Q3hIeE1vT2xUeGsvS0tTT2w3WWJXWldlL3FGTkUKLS0tIE1IRk5qeXh3SFY4eWd2emNTb3VFVDkwTjFUdytJYmVPRld2TE9UcS85RlUKkef/iVd9FBuLg1k/hQdho889/tmwL06JWA6MQPorqWw4FvsgwDAndIYaVw==]
     first_name: Blake
     last_name: Bravo
     email: ENC[age:YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSBFb1FYME9MZGc5b1RBSWMvTzlkKzhTaWNhYVhrMGlXZkU5OFU1Mit6ank4CjZPc2pwQXM5NlhvSDlMQUpCYXp5VGRpVENvcDZaQUVUZGVCSTVlWld3SHcKLS0tIHRXRG1BN3ZFNDltUVdaczU3Q3B5amJMRGg1endNOXFvT3lRZGRoWGVVWTgK45M1NjAO7K3438shGhIPV4n/I0SUOv0kUXL9Z4PiynC50E06Md6vVb8AUiKZ3P25ahwhN7q2yA==]
@@ -52,8 +50,6 @@ users:
     first_name: Kendall
     last_name: Kilo
     email: ENC[age:YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSBBaVBwNzV5dmk1ekUwMTcvR0VEZDhBYTZkNEVaaGRnL2NnaFM1QklKaUdnCkxWaFR0OGV6LzZzRG0vcTVSZkp1TkNpVjZKYlFrTnd6T0NTV0pCaFpCTW8KLS0tIDhOSkNwTjM0azF0d0crd2JVbFd3WUpmNkVBd1hZSUNidDNXcktrRHUwaUkK+jBFOt0RLVYg1YqpqcLRDtmbWEceZaMi09yhYiDEz+NR/MsX2frAtk9IgSkOxPNq2KX0kJJoh98=]
-  # Live OPA secofs membership; details
-  # from the OPA user records, read-only.
   - name: ENC[age:YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSBZWitQNWl3OWJBOUhJWk9HQzhzN2VCamxET3VPYitpNmRrVTdVZ0lwT2o0Ckg5ZTdpWUZnRGNlWm0za2hCTHZXWXBDQU8wVWtlamNDTzQxODA4NmRnNDgKLS0tIFBZWVdMZDhwY2RQR08xS1BDUkQzMUhZZFNIVXh6K0NKRkVtVUh0U3RUMncKgwrOp0CE6Xytjw/4rVPbWbBD9CLWkVUzTEzdv4tlwOmuw0s4NPp34yj8AA==]
     first_name: Lennox
     last_name: Lima
@@ -69,9 +65,6 @@ users:
     first_name: Oakley
     last_name: Oscar
     email: ENC[age:YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSBGTktqVnVsaHI4bG84SGhZS1RDMDFya20raDVqSDhjMGdQU0NCL245bWhRCi81aUhhdUEvWkRyTnpDTFFIV2VydXVBM21VRnk0ZGZnd1NBbXpoSS9OSUUKLS0tIGN3cjdqZmRpc2FSZ2RYMmJmdTNLTzNJdEtxd3M4enViMWl0bm5lRnRUZmcKt9lMEBu9GpPu8FCCUJxxtnrFvgrUUAahOHEnpPLh5eheec33te6lX9H68vFQJ1h5LSE=]
-  # Live OPA tcmet membership (the tcmet reconciliation);
-  # details read from the OPA user records
-  # (GET /v1/teams/{team}/users/{user}, read-only).
   - name: ENC[age:YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSBaK252RW9SNlY5OFk3VzhKcXFQWXh3clRuT29EaU02NnA5YjcveGdJSVMwCndvaWk5K2N2MW1YcjhKWTZDMXdBUzB4SnZ2SWN0bWl6MTVZbHFBZVBSb0EKLS0tIDNmWVRsN0FFR0h1TkxURFZqRlQvOTV4VXFUbWFybkNxZlZNTlFZYzJ5QVkKw5KQW8//qgzwyC5NiTJiIUtWe5oERHqc8HtzkmIh71grAUhgIts=]
     first_name: Parker
     last_name: Papa

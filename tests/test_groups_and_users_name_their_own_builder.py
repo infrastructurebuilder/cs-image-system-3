@@ -35,26 +35,36 @@ from cs_image_system.contract.constants import DEFAULT, VCT
 from cs_image_system.engine import orchestrator
 
 #: The tree's items whose written type names a builder other than the
-#: default one, and that builder: the fixture's posix group and personas,
-#: and the group the copy adds on a template (dummy) group builder.
+#: default one, and that builder: the fixture's posix group and its two
+#: personas, which the copy moves onto a second posix group builder and a
+#: second posix user builder, and the group the copy adds on a template
+#: (dummy) group builder.
 WRITTEN_TYPES = {
-    ("group", "pxgroup"): "posix-local",
+    ("group", "pxgroup"): "posix-other",
     ("group", "dummygroup"): "dummy-groups",
-    ("user", "taylor_tango"): "posix-users",
-    ("user", "unity_uniform"): "posix-users",
+    ("user", "taylor_tango"): "posix-other-users",
+    ("user", "unity_uniform"): "posix-other-users",
 }
 
 
 def _tree(tmp_path: Path) -> Path:
-    """A copy of the fixture with a second group builder of another type
-    (the dummy plugin's), and one group on it, in place of the read-only
-    lookup group (`readers`, which the fixture is losing)."""
+    """A copy of the fixture with a second posix group builder and a second
+    posix user builder, which pxgroup and its two personas name, and a group
+    builder of another type (the dummy plugin's) with one group on it; every
+    other group and user stays on the default builders."""
     root = copy_config(tmp_path)
-    (root / "groups" / "group-lookup.yaml").unlink()
     path = root / "cfg" / "group-builders.yml"
     data = yaml.safe_load(path.read_text())
+    data["group_builders"].append({"name": "posix-other", "type": "posix"})
     data["group_builders"].append({"name": "dummy-groups", "type": "dummy", "org": "example", "team": "example"})
+    data["user_builders"].append({"name": "posix-other-users", "type": "posix"})
     path.write_text(yaml.safe_dump(data, sort_keys=False))
+    for name, old, new in (("group-pxgroup.yaml", "type: posix-local", "type: posix-other"),
+                           ("users.yaml", "type: posix-users", "type: posix-other-users")):
+        group_file = root / "groups" / name
+        text = group_file.read_text()
+        assert old in text, name
+        group_file.write_text(text.replace(old, new))
     (root / "groups" / "group-dummy.yaml").write_text(yaml.safe_dump(
         {"groups": [{"name": "dummygroup", "type": "dummy-groups", "description": "a group on the dummy builder"}]},
         sort_keys=False))
@@ -178,20 +188,20 @@ def test_the_loader_parents_by_a_written_type_only(tmp_path: Path, monkeypatch):
     stub_environment(monkeypatch)
     ctx = load_context(_tree(tmp_path))
     cvt = ctx.template_resolver.converter
-    posix_local = ctx.reg.get_instance_by_name_or_alias(VCT.GROUP_BUILDER_MODEL, "posix-local")
+    posix_other = ctx.reg.get_instance_by_name_or_alias(VCT.GROUP_BUILDER_MODEL, "posix-other")
     another = ctx.reg.get_instance_by_name_or_alias(VCT.GROUP_BUILDER_MODEL, "dummy-groups")
-    assert posix_local is not None and another is not None
+    assert posix_other is not None and another is not None
 
-    written = cvt.structure({"name": "probe_written", "type": "posix-local"}, Group)
+    written = cvt.structure({"name": "probe_written", "type": "posix-other"}, Group)
     left_default = cvt.structure({"name": "probe_default", "type": DEFAULT}, Group)
     names_nothing = cvt.structure({"name": "probe_nothing", "type": "no-such-builder"}, Group)
-    parented = cvt.structure({"name": "probe_parented", "type": "posix-local"}, Group)
+    parented = cvt.structure({"name": "probe_parented", "type": "posix-other"}, Group)
     parented.model_id = another.global_id
 
     for item in (written, left_default, names_nothing, parented):
         orchestrator.parent_by_written_type(ctx.reg, item)
 
-    assert written.model_id == posix_local.global_id
+    assert written.model_id == posix_other.global_id
     assert left_default.model_id is None
     assert names_nothing.model_id is None
     assert parented.model_id == another.global_id
@@ -202,28 +212,28 @@ def test_the_loader_parents_a_type_left_at_default_by_the_default(tmp_path: Path
     ctx = load_context(_tree(tmp_path))
     cvt = ctx.template_resolver.converter
     default_model = _default_model(ctx, VCT.GROUP_BUILDER_MODEL)
-    posix_local = ctx.reg.get_instance_by_name_or_alias(VCT.GROUP_BUILDER_MODEL, "posix-local")
-    assert posix_local is not None
-    assert default_model is not posix_local
+    posix_other = ctx.reg.get_instance_by_name_or_alias(VCT.GROUP_BUILDER_MODEL, "posix-other")
+    assert posix_other is not None
+    assert default_model is not posix_other
 
     left_default = cvt.structure({"name": "probe_default", "type": DEFAULT}, Group)
-    written = cvt.structure({"name": "probe_written", "type": "posix-local"}, Group)
+    written = cvt.structure({"name": "probe_written", "type": "posix-other"}, Group)
     parented = cvt.structure({"name": "probe_parented", "type": DEFAULT}, Group)
-    parented.model_id = posix_local.global_id
+    parented.model_id = posix_other.global_id
 
     for item in (left_default, written, parented):
         orchestrator.parent_by_default_type(ctx.reg, item)
 
     assert left_default.model_id == default_model.global_id
     assert written.model_id is None
-    assert parented.model_id == posix_local.global_id
+    assert parented.model_id == posix_other.global_id
 
 
 def test_an_aliased_item_parented_early_registers_again(tmp_path: Path, monkeypatch):
     stub_environment(monkeypatch)
     ctx = load_context(_tree(tmp_path))
     cvt = ctx.template_resolver.converter
-    written = cvt.structure({"name": "probe_written", "type": "posix-local", "aliases": ["probe-w"]}, Group)
+    written = cvt.structure({"name": "probe_written", "type": "posix-other", "aliases": ["probe-w"]}, Group)
     left_default = cvt.structure({"name": "probe_default", "type": DEFAULT, "aliases": ["probe-d"]}, Group)
 
     orchestrator.parent_by_written_type(ctx.reg, written)

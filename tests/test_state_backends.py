@@ -143,15 +143,14 @@ def test_the_flag_off_is_refused_naming_every_root_that_reads_a_producer(tmp_pat
     assert errors, "the flag off loaded and validated with roots that read remote state"
     import re
     consumers = {re.search(r"the root '([^']+)'", e).group(1) for e in errors}   # type: ignore[union-attr]
-    # every instance root reads the storage roots and the identity root; the
-    # storage roots whose storages carry group gids read the identity root
+    # every instance root reads the storage roots; the storage roots take
+    # the POSIX groups' literal gids and read no producer's state
     cfg = root / "cfg"
     instance_roots = {e["name"] for e in yaml.safe_load((cfg / "instance-builders.yml").read_text())["instance_builders"]}
     storage_roots = {e["name"] for e in yaml.safe_load((cfg / "storage-builders.yml").read_text())["storage_builders"]}
-    assert instance_roots <= consumers <= instance_roots | storage_roots, errors
-    assert {"aws-ebs", "aws-efs"} <= consumers, errors
+    assert consumers == instance_roots and not consumers & storage_roots, errors
     by_root = {re.search(r"the root '([^']+)'", e).group(1): e for e in errors}   # type: ignore[union-attr]
-    assert "'oktagroups'" in by_root["aws-ebs"] and "'aws-ebs'" in by_root["open-tofu"]
+    assert "'aws-ebs'" in by_root["open-tofu"] and "'aws-efs'" in by_root["open-tofu"]
 
 
 def test_the_flag_off_names_each_consumer_and_its_producer(tmp_path: Path, monkeypatch):

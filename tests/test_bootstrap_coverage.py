@@ -223,19 +223,6 @@ def test_a_section_audits_what_it_never_makes():
         assert all(why for _, _, why in rendered.coverage)
 
 
-def test_the_okta_section_audits_what_it_never_makes():
-    from cs_image_system.okta_opa_plugin.bootstrap import render
-    rendered = render({"workload_connection": "github-widgets", "workload_role": "widgets-ci", "team": "acme",
-                       "api_host": "acme.pam.okta.com", "production_branch": "main", "connection_exists": True,
-                       "connection_active": False, "connection_requires_repository": True, "role_exists": False,
-                       "role_bound": False, "role_pinned": False, "builder_names_them": False, "okta_app_authenticates": True,
-                       "okta_app_read_only": True, "okta_app_readable": False})
-    statuses = {res: status for res, status, _ in rendered.coverage}
-    assert statuses["the OPA workload connection `github-widgets`"] == "BY HAND"
-    assert statuses["the OPA service user and its key pair"] == "BY HAND"
-    assert all(why for _, _, why in rendered.coverage)
-
-
 # ------------------------------------------------------------- the roles and the modules
 def test_the_write_role_carries_the_read_document():
     for path in [module_path("bootstrap_aws") / "main.tf"]:

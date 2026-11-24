@@ -35,9 +35,10 @@ W = _load()
 def test_the_requirements_are_the_released_elsewhere_extras_own():
     import tomllib
     extras = tomllib.loads((REPO / "pyproject.toml").read_text())["project"]["optional-dependencies"]
-    assert W.RELEASED_ELSEWHERE == ("gcloud",)
-    assert W.requirements() == extras["gcloud"]
-    assert W.with_options() == [f"--with={r}" for r in extras["gcloud"]]
+    assert W.RELEASED_ELSEWHERE == ("gcloud", "okta")
+    owned = extras["gcloud"] + extras["okta"]
+    assert W.requirements() == owned
+    assert W.with_options() == [f"--with={r}" for r in owned]
     printed = subprocess.run([sys.executable, str(SCRIPT), "--print"], capture_output=True, text=True, check=True)
     assert printed.stdout.split() == W.with_options()
 

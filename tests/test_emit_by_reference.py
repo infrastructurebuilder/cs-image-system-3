@@ -71,44 +71,6 @@ def test_the_collector_emits_a_decrypted_value_as_a_reference_to_its_ciphertext(
     assert col.generate_sensitive_blocks("other") == []
 
 
-def test_the_user_lookup_reads_a_declared_email_by_reference_and_a_plain_one_as_a_literal():
-    from cs_image_system.okta_opa_plugin.okta_tf_models import OktaTFUser
-    col = TerraformCollector()
-    marker = encrypt_value("pat.trip@example.org", [RECIPIENT])
-    sensitive = lambda key, value: col.sensitive_ref("ws", key, value)   # noqa: E731
-    declared = "\n".join(OktaTFUser(_user(email=marker), lookup_depends_on=False, sensitive=sensitive)
-                         .generate_terraform_data())
-    assert 'value = local.sensitive["email_pat_trip"]' in declared
-    assert "pat.trip@example.org" not in declared
-    managed = "\n".join(OktaTFUser(_user(email=marker), sensitive=sensitive).generate_terraform())
-    assert 'login = local.sensitive["email_pat_trip"]' in managed
-    assert 'email = local.sensitive["email_pat_trip"]' in managed
-    assert 'first_name = "Pat"' in managed                     # plain stays plain
-    assert col.sensitive_values("ws") == {"email_pat_trip": marker}   # one value, both uses
-    literal = "\n".join(OktaTFUser(_user(email="pat.trip@example.org"), lookup_depends_on=False,
-                                   sensitive=sensitive).generate_terraform_data())
-    assert 'value = "pat.trip@example.org"' in literal
-
-
-def test_a_declared_encrypted_workspace_credential_reaches_the_provider_block_by_reference(monkeypatch):
-    from cs_image_system.hashicorp_utils.collector import ConfiguredTerraformProvider
-    from cs_image_system.okta_opa_plugin.okta_opa_tf_group_models import OktaTfGroupBuilderModel
-    from cs_image_system.okta_opa_plugin.okta_tf_models import OKTATF
-    from cs_image_system.okta_opa_plugin.okta_tf_workspace import OKTAPAM_PROVIDER
-    monkeypatch.delenv("TF_VAR_team_key", raising=False)
-    monkeypatch.setenv("TF_VAR_team_secret", "s")                    # the secret stays environment-side
-    key = encrypt_value("real-key", [RECIPIENT])
-    ws = OktaTfGroupBuilderModel(type_=OKTATF, name="ws", org="o", team="team", key=key, required_providers=[
-        ConfiguredTerraformProvider(name=OKTAPAM_PROVIDER, source="okta/oktapam", version=">= 0.4")])
-    ws.finalize()
-    col = TerraformCollector()                                        # the run's, handed over by the builder
-    cfg = ws.transform_provider(ws.required_providers[0], "ws", col).config
-    assert str(cfg["oktapam_key"]) == 'local.sensitive["oktapam_key"]'
-    assert str(cfg["oktapam_secret"]) == "var.team_secret"
-    assert "real-key" not in "\n".join(col.generate_sensitive_blocks("ws"))
-    assert col.sensitive_values("ws") == {"oktapam_key": key}
-
-
 def test_decrypt_json_speaks_the_external_data_source_protocol():
     from typer.testing import CliRunner
 
@@ -122,36 +84,6 @@ def test_decrypt_json_speaks_the_external_data_source_protocol():
     assert bad.exit_code == 1 and "JSON object" in bad.output
     none = CliRunner().invoke(app, ["--root-dir", str(FIXTURE_CONFIG), "decrypt"])
     assert none.exit_code == 1 and "marker is required" in none.output
-
-
-def test_the_fixture_emission_carries_only_ciphertexts_the_configuration_carries(tmp_path, monkeypatch):
-    run = FixtureRun(tmp_path, monkeypatch)
-    try:
-        assert run.run("identity", apply=True).ok
-        emitted = tree(run.generated)
-        users_tf = next(v for k, v in emitted.items() if k.endswith("users-data.tf"))
-        root_tf = next(v for k, v in emitted.items() if k.endswith("okta-tf-users-user-generation.tf"))
-    finally:
-        run.restore_cwd()
-    source = (FIXTURE_CONFIG / "groups" / "users.yaml").read_text()
-    # a DERIVED address carries the ciphertext of the piece it was
-    # derived from -- the domain, declared in cfg/ -- so the emission's
-    # ciphertexts come from the whole tree, not from the roster alone
-    declared = {m for f in FIXTURE_CONFIG.rglob("*.y*ml") if "generated" not in f.parts
-                for m in MARKER.findall(f.read_text())}
-    emitted_markers = set(MARKER.findall(users_tf)) | set(MARKER.findall(root_tf))
-    assert emitted_markers and emitted_markers <= declared, "the emission carries the SAME ciphertexts as the YAML"
-    # every declared email is read by reference and its text is not in the emission
-    declared_emails = [decrypt_marker(m) for m in re.findall(r"^\s+email:\s*(ENC\[age:[^\]]+\])", source, re.M)]
-    assert len(declared_emails) == 10
-    all_text = "\n".join(emitted.values())
-    for email in declared_emails:
-        assert email not in all_text
-    # EVERY address is read by reference -- the ten declared
-    # explicitly, and the nine derived from the encrypted domain, which used to
-    # be quoted in clear because a derived value had no ciphertext of its own
-    assert users_tf.count('value = local.sensitive["email_') == 19
-    assert 'data "external" "sensitive"' in root_tf and re.search(r'source\s*=\s*"hashicorp/external"', root_tf)
 
 
 def test_the_base_image_emission_carries_the_admin_keys_ciphertext_and_never_the_key(tmp_path, monkeypatch):
@@ -212,11 +144,11 @@ def test_no_declared_encrypted_value_but_a_username_reaches_the_emission_or_meta
                 (public_by_decision if key in PUBLIC_BY_DECISION_KEYS else hidden).add(decrypt_marker(node))
         walk(yaml.safe_load(path.read_text()) or {})
     hidden -= public_by_decision       # a username also declared elsewhere is still public
-    # the fixture hides the ADDRESS DOMAIN and the ten explicit
-    # addresses, not the first and last names: encrypting those bought nothing
-    # while the address derived from them named person and organisation both
-    assert len(hidden) >= 10, "the fixture declares encrypted addresses and a domain"
-    assert "example.invalid" in hidden, "the derived address's domain is hidden"
+    # the fixture hides the ten explicit addresses, not the first and last
+    # names: encrypting those bought nothing (its posix user builders derive
+    # no address, so no domain is declared to hide)
+    assert len(hidden) >= 10, "the fixture declares encrypted addresses"
+    assert len([v for v in hidden if EMAIL.fullmatch(v)]) == 10, "the explicit addresses are hidden"
     # whole tokens only: a last name is a part of the public username
     # (`avery.alpha`, label `avery_alpha`), which is not the declared value
     def in_clear(value: str) -> bool:

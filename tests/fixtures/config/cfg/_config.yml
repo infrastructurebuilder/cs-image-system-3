@@ -32,7 +32,6 @@ config:
   some_key: some_value
   another_key: another_value
   systemuser: "{{ ENV.USER }}"
-  okta_gateway_selector: "environment=staging"
   # Mandatory local admin user on every base image (DESIGN Q2/N9/N12): a LIST
   # of PUBLIC keys (rotation = add new, migrate, remove old); the schema refuses
   # anything resembling private-key material. Per-base override: admin_public_keys

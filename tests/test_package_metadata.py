@@ -68,8 +68,9 @@ EXTRA_DISTRIBUTIONS = {
     "okta": {"cs-image-system-okta-opa-plugin"},
 }
 #: the distributions released from a repository of their own, on their own version line: the umbrella's
-#: extras name them by the range of that line, which a bump never moves (spec 005: the Google Cloud family)
-RELEASED_ELSEWHERE = {name: ">=0.2,<0.3" for name in EXTRA_DISTRIBUTIONS["gcloud"]}
+#: extras name them by the range of that line, which a bump never moves (spec 005: the Google Cloud family;
+#: spec 008: the Okta identity plugin)
+RELEASED_ELSEWHERE = {name: ">=0.2,<0.3" for name in EXTRA_DISTRIBUTIONS["gcloud"] | EXTRA_DISTRIBUTIONS["okta"]}
 
 
 def _project(path: Path) -> dict:
@@ -228,7 +229,7 @@ def contract_range(contract_version: str) -> str:
 #: (`just test-docker-alone`, `just test-terraform-alone`), and the Google
 #: Cloud family, which ranged on the SDK it is now tested against from its
 #: own repository (spec 005).
-SDK_BY_RANGE = {"cs-image-system-docker-plugin", "cs-image-system-tofu-roots", "cs-image-system-okta-opa-plugin"}
+SDK_BY_RANGE = {"cs-image-system-docker-plugin", "cs-image-system-tofu-roots"}
 #: the SDK's two version lines; members of one line pin each other exactly
 SDK_VERSION_LINES = ({"cs-image-system-base"}, {"cs-image-system-hashicorp-utils", "cs-image-system-tofu-roots"})
 
@@ -323,7 +324,7 @@ def test_the_root_is_the_core_and_each_provider_is_an_extra():
     assert not (set(siblings) & provided), "a package is both a dependency and an extra's"
     assert set(siblings) | (provided - set(RELEASED_ELSEWHERE)) == _published()
     assert not (set(RELEASED_ELSEWHERE) & _published()), "a distribution released elsewhere is published here"
-    assert len(_published()) == 17 and len(siblings) == 12 and len(provided) == 8
+    assert len(_published()) == 16 and len(siblings) == 12 and len(provided) == 8
     assert not any(n for n in siblings if "runtime" in n or n.startswith("cs-image-system-tf-") or "okta" in n
                    or n in ("cs-image-system-gcs-state-plugin",)), "the bare install carries a provider"
     names = {i["name"]: i for i in root["tool"]["uv"]["index"]}

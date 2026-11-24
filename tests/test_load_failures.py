@@ -69,18 +69,6 @@ def test_lapsed_aws_keys_are_the_environments_failure_with_the_remedy_for_keys(c
     assert "RequestExpired" in result.output and "Traceback" not in result.output
 
 
-def test_a_missing_opa_key_pair_is_the_environments_failure(cli_root, monkeypatch):
-    from cs_image_system.system import cli as gc  # patched where it is read
-
-    def boom(*a, **kw):
-        raise ValueError("Okta builder oktagroups is missing a key value.  Expected to find environment variable "
-                         "TF_VAR_nos_key for team nos in org acme")
-    monkeypatch.setattr(gc, "read_config_and_transform", boom)
-    result = _invoke(cli_root, "validate")
-    assert result.exit_code == 2, result.output
-    assert "TF_VAR_" in result.output and "Traceback" not in result.output
-
-
 def test_an_unknown_failure_keeps_its_traceback_and_so_does_verbose(cli_root, monkeypatch):
     from cs_image_system.system import cli as gc  # patched where it is read
 

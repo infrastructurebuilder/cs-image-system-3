@@ -76,7 +76,7 @@ declares `other`).
 | [packer-plugin](../packages/packer-plugin/README.md) | image builders | the one `packer` image builder, for every runtime (the older keys `packer-ebs`, `packer-gce` and `packer-docker` still load for one release) |
 | [ansible-plugin](../packages/ansible-plugin/README.md) | modifications | `ansible` (playbooks) |
 | [bash-mod-plugin](../packages/bash-mod-plugin/README.md) | modifications | `bash-remote` (script, scripts, ensure) |
-| [okta-opa-plugin](../packages/okta-opa-plugin/README.md) | groups and users | the OPA group builder, the managed and read-only user builders |
+| [okta-opa-plugin](https://github.com/infrastructurebuilder/cs-image-system-okta/blob/develop/packages/okta-opa-plugin/README.md), in the Okta identity plugin's repository | groups and users | the OPA group builder, the managed and read-only user builders |
 | [posix-identity-plugin](../packages/posix-identity-plugin/README.md) | groups and users | `posix` (a group and a user builder: POSIX accounts with declared ids) |
 | [tf-ebs-instance-plugin](../packages/tf-ebs-instance-plugin/README.md) | instances and storages | the AWS terraform roots: `tofu` (instances) and `tf-aws-ebs`, `tf-aws-efs`, `tf-aws-s3` (storages); a subclass of tofu-roots' neutral roots with the `aws` provider |
 | [tf-gcp-plugin](https://github.com/infrastructurebuilder/cs-image-system-google-cloud/blob/develop/packages/tf-gcp-plugin/README.md), in the Google Cloud family's repository | instances and storages | the GCE terraform roots: `tofu-gce` (instances) and `tf-gcp-pd`, `tf-gcp-filestore`, `tf-gcp-gcs` (storages); a subclass of tofu-roots' neutral roots with the `google` provider, with no dependency on the AWS root |
@@ -299,7 +299,7 @@ name is never a silent replacement. Two plugins that mount different
 things under one name are both skipped, with one error line that names
 both; a plugin that takes a built-in command's name is skipped alone.
 The script still starts, and `--help` still answers. The examples: the okta-opa plugin's
-[`cli.py`](../packages/okta-opa-plugin/src/cs_image_system/okta_opa_plugin/cli.py)
+[`cli.py`](https://github.com/infrastructurebuilder/cs-image-system-okta/blob/develop/packages/okta-opa-plugin/src/cs_image_system/okta_opa_plugin/cli.py)
 mounts the `workload` sub-app (`describe`, `token`, `probe`) and `verify
 login`; the posix-identity plugin's
 [`cli.py`](../packages/posix-identity-plugin/src/cs_image_system/posix_identity_plugin/cli.py)

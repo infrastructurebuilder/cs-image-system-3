@@ -41,9 +41,10 @@ and `cfg/_config.yml` `encryption.recipients`). The harness exports it as
 and decryption happens at load. Encrypting with a committed key protects
 nothing — it exercises the mechanism — so the people are **synthetic**:
 nineteen personas with phonetic-alphabet surnames (`avery.alpha` ...
-`sawyer`), explicit addresses on example domains and derived ones on
-`@example.invalid` (`cfg/group-builders.yml` `default_user_email_template`),
-in the shape of a real roster: the same explicit/derived split, one
-mixed-case username, the same memberships. `tests/test_fixture_personas.py`
+`sawyer`), explicit addresses on example domains (a persona without one
+derives none: the POSIX user builder needs no address), in the shape of a
+real roster: one mixed-case username, the same memberships. They are POSIX
+accounts on the default user builder, `posix-users`, drawing their uids
+from its pool. `tests/test_fixture_personas.py`
 pins that a real roster cannot return unnoticed, and the fixture's
 `public_safe.allow` carries no real domain.

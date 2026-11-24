@@ -10,8 +10,9 @@ repositories layered in from the index.
     with-released-families --check test|pypi
 
 A family released from a repository of its own (the Google Cloud family,
-spec 005) is not in this workspace's venv: `just init` leaves its extra out,
-so this repository's tests pass without it. A command that loads a tree
+spec 005; the Okta identity plugin, spec 008) is not in this workspace's
+venv: `just init` leaves its extra out, so this repository's tests pass
+without it. A command that loads a tree
 declaring it -- the reference configuration, a starter that needs every
 provider -- runs here as ``uv run --no-sync --with=<req> ... COMMAND``: the
 family is layered in for that command alone, by its extra's own ranges in
@@ -39,7 +40,7 @@ from packaging.version import InvalidVersion, Version
 
 REPO = Path(__file__).resolve().parents[1]
 #: the root's extras whose distributions are released from their own repositories
-RELEASED_ELSEWHERE = ("gcloud",)
+RELEASED_ELSEWHERE = ("gcloud", "okta")
 
 
 def requirements(pyproject: Path = REPO / "pyproject.toml") -> list[str]:

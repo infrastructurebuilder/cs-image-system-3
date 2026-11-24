@@ -57,7 +57,7 @@ def _seed(root: Path, builds: list[dict], pins: dict | None = None) -> None:
 def _build(build_id: str, series: str, caps=None, run="r0") -> dict:
     return {"build_id": build_id, "series": series, "runtime": "aws-east2-runtime",
             "name": f"{series}-{run}", "parent": "vendor", "run": run,
-            "capabilities": caps or {"identity_types": ["okta"],
+            "capabilities": caps or {"identity_types": ["posix"],
                                      # pd/gcs joined the declaration with GCP readiness;
                                      # gce-test resolves through these seeded pins (N11)
                                      "storage_types": ["ebs", "efs", "gcs", "pd", "s3"]}}
@@ -97,7 +97,7 @@ def test_every_build_is_uniquely_named_and_lineage_tagged(fixture_run):
     assert _tag(base, "csis_series", "basic-rh-10")
     assert _tag(base, "csis_parent", "vendor")
     assert _tag(base, "csis_run", "2026_08_26t12_00_00")
-    assert _tag(base, "csis_identity_types", "okta")
+    assert _tag(base, "csis_identity_types", "posix")
     # the stamp is the bake's runtime's storage types (pd and gcs are GCE's)
     assert _tag(base, "csis_storage_types", "ebs,efs,s3")
     assert re.search(r'csis_fingerprint\s+= "[0-9a-f]{16}"', base)
@@ -128,7 +128,7 @@ def test_bake_records_lineage_and_first_binds_the_base_edge(fixture_run):
     by_id = {b["build_id"]: b for b in lineage}
     base = by_id["ami-0base0001"]
     assert base["series"] == "basic-rh-10" and base["parent"] == "vendor"
-    assert base["capabilities"] == {"identity_types": ["okta"], "storage_types": ["ebs", "efs", "s3"]}   # item 21: this runtime's
+    assert base["capabilities"] == {"identity_types": ["posix"], "storage_types": ["ebs", "efs", "s3"]}   # item 21: this runtime's
     assert base["name"] == f"NOSCSB-AWS-RH10-basic-rh-10-aws-my-rhel8-{FIXED_TIMESTAMP}"
     dask = by_id["ami-0dask0001"]
     assert dask["parent"] == "ami-0base0001"            # resolved from this run's base manifest

@@ -15,7 +15,6 @@
     "${workspaceFolder}/packages/engine/src",
     "${workspaceFolder}/packages/hashicorp-utils/src",
     "${workspaceFolder}/packages/local-state-plugin/src",
-    "${workspaceFolder}/packages/okta-opa-plugin/src",
     "${workspaceFolder}/packages/packer-plugin/src",
     "${workspaceFolder}/packages/posix-identity-plugin/src",
     "${workspaceFolder}/packages/system/src",

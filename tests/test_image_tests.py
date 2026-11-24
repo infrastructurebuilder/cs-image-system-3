@@ -52,10 +52,9 @@ def test_base_image_bake_ends_with_capability_verification(fixture_run):
     # the ciphertext and the key body is taken in the shell, after materialize
     assert "ENC[age:" in sect and "awk '{print $2}'" in sect          # key body verified
     assert "AAAAC3NzaC1lZDI1NTE5AAAAIPlaceholderKey" not in sect
-    assert "command -v sftd" in sect and "! systemctl is-enabled sftd" in sect   # dormant
+    assert "command -v groupadd >/dev/null" in sect                  # the declared posix type's tools
     assert "mount.efs" in sect and "command -v aws" in sect
     assert "rpm -q nfs-utils" in sect                                 # the fixture's declared tests
-    assert "grep -q -- dist.scaleft.com /etc/yum.repos.d/oktapam-stable.repo" in sect
     # verification is the LAST provisioner for that source
     assert build.rindex('only   = ["amazon-ebs.basic-rh-10"]') == sect.index('only   = ["amazon-ebs.basic-rh-10"]') + build.index("in-bake verification for base image basic-rh-10")
 
@@ -64,8 +63,7 @@ def test_instance_image_bake_verifies_activation_and_declared_tests(fixture_run)
     assert fixture_run.run(["instance-image"], apply=False).ok
     build = (fixture_run.generated / INST_BUILD).read_text()
     sect = _section(build, "instance image imgfile-basic-dask")
-    assert "grep -q 'tx.group: coops' /etc/sft/sftd.yaml" in sect
-    assert "systemctl is-enabled sftd" in sect
+    assert "test \\\"$(getent group coops | cut -d: -f3)\\\" = '3102'" in sect   # coops, a posix group
     assert "( git --version ) 2>&1 | grep -q -- 'git version'" in sect
     # the package assertion is still dpkg-guarded, but it must also
     # be able to STOP the bake: the `|| { ... }` form it used to have could not,
@@ -73,15 +71,31 @@ def test_instance_image_bake_verifies_activation_and_declared_tests(fixture_run)
     assert "rpm -q git" in sect and "dpkg -s git" in sect
     assert "exit 1" in sect, "a package assertion that cannot fail the bake is not an assertion"
     assert "id -u csisadmin" in sect
-    assert build.index("tx.group: coops") < build.index("in-bake verification for instance image imgfile-basic-dask")
+    assert build.index("groupadd -g 3102 coops") < build.index("in-bake verification for instance image imgfile-basic-dask")
 
 
-def test_a_base_image_declaring_posix_verifies_its_tools_in_the_bake(fixture_run):
+def test_a_base_image_declaring_posix_verifies_its_tools_in_the_bake(tmp_path, monkeypatch):
     """The capability checks come from the plugin of each declared type:
     basic-rhel-9 declares posix, so its verification proves the shadow tools
-    and sudo, and it is still the last provisioner for that source."""
-    assert fixture_run.run(["base-image"], apply=False).ok
-    build = (fixture_run.generated / BASE_BUILD).read_text()
+    and sudo, and it is still the last provisioner for that source. Every base
+    image of the fixture declares posix, so a copy has basic-rh-10 declare
+    none (its one dependent image moved onto basic-rhel-9): its verification
+    has no posix check."""
+    root = copy_config(tmp_path)
+    p = root / "cfg" / "os-builders.yml"
+    data = yaml.safe_load(p.read_text())
+    next(o for o in data["os_builders"] if o["name"] == "basic-rh-10")["identity_types"] = []
+    p.write_text(yaml.safe_dump(data, sort_keys=False))
+    p = root / "images" / "image1.yaml"
+    data = yaml.safe_load(p.read_text())
+    next(i for i in data["images"] if i["name"] == "imgfile-basic-dask")["source_image"] = "basic-rhel-9"
+    p.write_text(yaml.safe_dump(data, sort_keys=False))
+    fixture_run = FixtureRun(tmp_path, monkeypatch, config_root=root)
+    try:
+        assert fixture_run.run(["base-image"], apply=False).ok
+        build = (fixture_run.generated / BASE_BUILD).read_text()
+    finally:
+        fixture_run.restore_cwd()
     sect = _section(build, "base image basic-rhel-9")
     assert '"set -e",' in sect and "id -u csisadmin" in sect
     for tool in ("groupadd", "useradd", "gpasswd", "visudo"):
@@ -135,4 +149,4 @@ def test_lineage_records_assertion_counts(fixture_run):
     builds = {b["build_id"]: b for b in yaml.safe_load((fixture_run.meta_state / "lineage.yaml").read_text())["builds"]}
     assert builds["ami-0base0001"]["tests"]["in_bake"] is True
     assert builds["ami-0base0001"]["tests"]["assertions"] >= 8
-    assert builds["ami-0dask0001"]["tests"]["assertions"] >= 5
+    assert builds["ami-0dask0001"]["tests"]["assertions"] >= 4      # coops's gid, git twice, the admin user

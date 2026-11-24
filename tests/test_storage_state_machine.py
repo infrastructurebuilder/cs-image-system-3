@@ -4,9 +4,8 @@
 
 """The storage roots and the storage state machine.
 
-* a storage root resolves gids through ``data.terraform_remote_state`` --
-  no literal gid anywhere in generated IaC -- and keeps its own state in
-  its declared backend; the storage read-model is the instance inventory;
+* a storage root takes the POSIX groups' declared gids and keeps its own
+  state in its declared backend; the storage read-model is the instance inventory;
   the runner is gated;
 * state transitions validate (unattached-only guards, no resurrection,
   tombstone permanence), fire the plugin's transition action and are
@@ -28,8 +27,6 @@ from typing import Any, cast
 import pytest
 import yaml
 from harness import FixtureRun, command_lines, copy_config, load_context, stub_environment, tree
-
-LITERAL_GID = re.compile(r"\b(?:owner_)?gid\s*=\s*\d+\b")
 
 
 @pytest.fixture
@@ -67,24 +64,19 @@ def _seed_storage_state(root: Path, states: dict[str, str]) -> None:
                               for n, s in states.items()}})
 
 
-def test_storage_root_consumes_gids_by_reference_only(fixture_run):
+def test_storage_root_takes_the_posix_gids_and_keeps_its_own_state(fixture_run):
     assert fixture_run.run(["identity", "storage"], apply=False).ok
     efs = tree(fixture_run.generated / "storage" / "aws-efs" / "storage-generation")
     root = efs["aws-efs-storage-generation.tf"]
-    assert 'data "terraform_remote_state" "oktagroups"' in root
-    assert "oktagroups.tfstate" in root
+    # the POSIX groups' gids are declared, not exported by an identity root: no remote-state read
+    assert "terraform_remote_state" not in root
     module = efs["aws-efs-storage-generation-storage-efs_storage.tf"]
-    assert 'data.terraform_remote_state.oktagroups.outputs.group_gids["coops"]' in module
-    assert 'data.terraform_remote_state.oktagroups.outputs.group_gids["stofs"]' in module
+    assert re.search(r'"coops" = \{\s*"gid" = 3102\b', module) and re.search(r'"stofs" = \{\s*"gid" = 3103\b', module)
     assert '"path" = "/coops"' in module and '"permissions" = "2775"' in module
     assert 'output "storage_efs_storage"' in module
     # the storage root keeps its own state in the second S3 backend
-    # and reads the identity root's from the LOCAL backend -- across buckets and types
     backend = efs["aws-efs-storage-generation.tfbackend.hcl"]
     assert 'bucket = "my-east1-tfstate-bucket"' in backend and 'key = "statefiles/csia/aws_efs.tfstate"' in backend
-    assert 'backend = "local"' in root and 'path = "../../../../state/oktagroups.tfstate"' in root
-    everything = "\n".join(tree(fixture_run.generated / "storage").values())
-    assert not LITERAL_GID.search(everything), "a literal gid leaked into storage IaC (N7)"
     # ebs carries no gid at the cloud level (ownership is applied at mount time)
     ebs = tree(fixture_run.generated / "storage" / "aws-ebs" / "storage-generation")
     assert "group_gids" not in ebs["aws-ebs-storage-generation-storage-mnt_data.tf"]

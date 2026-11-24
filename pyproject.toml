@@ -58,7 +58,7 @@ docker = [
     "cs-image-system-docker-plugin==0.1.12",
 ]
 okta = [
-    "cs-image-system-okta-opa-plugin==0.1.12",
+    "cs-image-system-okta-opa-plugin>=0.2,<0.3",
 ]
 all = [
     "cs-image-system-aws-runtime-plugin==0.1.12",
@@ -68,7 +68,7 @@ all = [
     "cs-image-system-tf-gcp-plugin>=0.2,<0.3",
     "cs-image-system-gcs-state-plugin>=0.2,<0.3",
     "cs-image-system-docker-plugin==0.1.12",
-    "cs-image-system-okta-opa-plugin==0.1.12",
+    "cs-image-system-okta-opa-plugin>=0.2,<0.3",
 ]
 
 [project.urls]
@@ -107,7 +107,6 @@ cs-image-system-contract = { workspace = true }
 cs-image-system-engine = { workspace = true }
 cs-image-system-contract-example-plugin = { workspace = true }
 cs-image-system-system = { workspace = true }
-cs-image-system-okta-opa-plugin = { workspace = true }
 cs-image-system-aws-runtime-plugin = { workspace = true }
 cs-image-system-packer-plugin = { workspace = true }
 cs-image-system-ansible-plugin = { workspace = true }
@@ -197,7 +196,6 @@ testpaths = ["tests",
  "packages/base/tests",
   "packages/engine/tests",
   "packages/system/tests",
-   "packages/okta-opa-plugin/tests",
    "packages/packer-plugin/tests",
    "packages/aws-runtime-plugin/tests",
    "packages/ansible-plugin/tests",
@@ -224,7 +222,6 @@ pythonpath = [
     "packages/contract/src",
     "packages/contract-example-plugin/src",
     "packages/system/src",
-    "packages/okta-opa-plugin/src",
     "packages/packer-plugin/src",
     "packages/aws-runtime-plugin/src",
     "packages/ansible-plugin/src",
@@ -324,7 +321,6 @@ extraPaths = [
     "packages/engine/src",
     "packages/hashicorp-utils/src",
     "packages/local-state-plugin/src",
-    "packages/okta-opa-plugin/src",
     "packages/packer-plugin/src",
     "packages/posix-identity-plugin/src",
     "packages/system/src",

@@ -10,18 +10,18 @@ fixture (``tests/fixtures/config``: owned by the tests, never a
 live configuration) with all external touchpoints stubbed:
 
 * no cloud: AWS networking discovery and vendor-AMI queries are
-  replaced; nothing in these tests can read or write AWS/Okta;
+  replaced; nothing in these tests can read or write AWS;
 * no tools: ``ExecutableModel.execute`` is journaled, never run;
-* deterministic: the run timestamp and ``USER`` are pinned, and dummy okta /
-  oktapam credentials are present so command lists never depend on the
-  developer's shell.
+* deterministic: the run timestamp and ``USER`` are pinned, so command
+  lists never depend on the developer's shell.
 
 The harness is a composition. What names no provider is the published test
 kit (``cs_image_system.system.testing``), which a provider's own suite uses
 directly. What stands in for a provider is that provider's own stub
 function where its package ships one (docker, the terraform roots library);
-the stubs for AWS are kept here (the Okta plugin ships its own), beside the frozen
-fixture that declares all of them.
+the stubs for AWS are kept here, beside the frozen fixture that declares
+all of them. The fixture's identity is the POSIX identity plugin's, which
+reaches no service and needs no stub.
 """
 from __future__ import annotations
 
@@ -171,10 +171,6 @@ def plain(value: Any) -> Any:
     return kit.plain(value, FIXTURE_CONFIG / kit.IDENTITY_FILE)
 
 
-#: the OPA team the fixture's Okta builders name, as its credential variables spell it
-FIXTURE_TEAM = "nos_coastal_modeling_cloud_sandbox"
-
-
 def _clouds(monkeypatch, retags: list[tuple[str, dict[str, str]]]) -> None:
     """The AWS stubs."""
     # The cloud discovery stubs: a LOAD never calls them --
@@ -188,7 +184,7 @@ def _clouds(monkeypatch, retags: list[tuple[str, dict[str, str]]]) -> None:
     from cs_image_system.aws_runtime.aws_runtime_builders import AwsCloudBuilder
     monkeypatch.setattr(AwsCloudBuilder, "query_provider_image",
                         lambda self, osb: (VENDOR_AMI, "amazon", {}))
-    # The read-only state-query hooks would reach AWS/OPA: answer "nothing
+    # The read-only state-query hooks would reach AWS: answer "nothing
     # of ours exists" by default. Tests of the query itself re-patch these
     # AFTER constructing their FixtureRun.
     monkeypatch.setattr(AwsCloudBuilder, "query_images", lambda self, series: [])
@@ -214,22 +210,14 @@ class _NoMachines:
         raise RuntimeError(f"EC2 is not reachable from the tests ({name})")
 
 
-def _unreachable_opa(method: str, url: str, headers: dict[str, str], body: bytes | None) -> Any:
-    raise RuntimeError(f"OPA is not reachable from the tests ({method} {url.split('?')[0]})")
-
-
 def _no_network(monkeypatch) -> None:
-    """The lowest seams to AWS's machines and to OPA, answered in-process,
-    so a call no other stub answers never reaches a network (spec 010,
-    R13: six tests reached the AWS login endpoint and the fixture's OPA
-    host through them). A test's own EC2 fake, installed before its run is
-    built, stands; a test's OPA transport (``_urllib_transport``) is above
-    this seam and so stands too."""
+    """The lowest seam to AWS's machines, answered in-process, so a call no
+    other stub answers never reaches a network (spec 010, R13: six tests
+    reached the AWS login endpoint through it). A test's own EC2 fake,
+    installed before its run is built, stands."""
     from cs_image_system.aws_runtime import aws_utils
     if getattr(aws_utils.ec2_client, "__module__", "") == aws_utils.__name__:
         monkeypatch.setattr(aws_utils, "ec2_client", lambda session_config: _NoMachines())
-    from cs_image_system.okta_opa_plugin import opa_gids
-    monkeypatch.setattr(opa_gids, "_urllib_transport_full", _unreachable_opa)
 
 
 def stub_environment(monkeypatch) -> list[str]:
@@ -245,18 +233,13 @@ def stub_environment(monkeypatch) -> list[str]:
     package's own stub as the clouds' are answered here, so no test reaches
     a daemon and the golden pins the docker emission."""
     retags: list[tuple[str, dict[str, str]]] = []
-    retirements: list[tuple[str, str]] = []
-    from cs_image_system.okta_opa_plugin import testing as okta_testing
     journal = kit.stub_core(monkeypatch, FIXTURE_CONFIG / kit.IDENTITY_FILE, stubs=(
-        lambda mp: okta_testing.credentials(mp, (FIXTURE_TEAM,)),
         lambda mp: _clouds(mp, retags),
         lambda mp: docker_testing.stub(mp, retags),
         roots_testing.stub,
-        lambda mp: okta_testing.stub(mp, retirements),
         _no_network,
     ))
     stub_environment.retags = retags  # type: ignore[attr-defined]
-    stub_environment.retirements = retirements  # type: ignore[attr-defined]
     return journal
 
 

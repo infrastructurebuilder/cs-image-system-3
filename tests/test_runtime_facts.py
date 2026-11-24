@@ -116,6 +116,9 @@ def test_apply_runtime_lets_that_runtimes_roots_apply_and_the_check_carries_it(r
 
 JUSTFILES = {"Justfile": "{{live_cli}}",                                            # the developer's
              "docs/examples/_skeleton/Justfile": "{{cli}}"}                         # a configuration repository's (every starter's)
+# the commands an extra's plugin mounts (``CommandMount``) and that the starter Justfile
+# calls: checked where that extra is installed, named here where it is not
+PLUGIN_COMMANDS = {"workload": "okta"}
 
 
 def _justfile_cli_invocations() -> list[tuple[str, list[str]]]:
@@ -171,8 +174,14 @@ def test_every_justfile_recipe_calls_the_cli_with_options_it_actually_has():
         return {opt: not p.is_flag for p in cmd.params if isinstance(p, TyperOption)
                 for opt in list(p.opts) + list(p.secondary_opts)}
 
+    from tests.starter_support import installed_extras
+    absent = {word for word, extra in PLUGIN_COMMANDS.items() if extra not in installed_extras()}
     problems = []
+    not_here: set[str] = set()
     for no, argv in _justfile_cli_invocations():
+        if argv[:1] and argv[0] in absent and argv[0] not in root.commands:
+            not_here.add(argv[0])                                       # its plugin is not installed here
+            continue
         cmd = root
         allowed = options(root)
         i = 0
@@ -194,3 +203,4 @@ def test_every_justfile_recipe_calls_the_cli_with_options_it_actually_has():
         if isinstance(cmd, TyperGroup):
             problems.append(f"{no}: `{cmd.name or 'cs-image-system'}` needs a subcommand")
     assert not problems, "\n".join(problems)
+    assert not_here == absent, "a plugin command named here is no longer called"

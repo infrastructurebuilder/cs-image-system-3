@@ -155,7 +155,8 @@ def test_bundle_is_staged_and_installed(fixture_run):
     assert "/usr/local/bin/csis-mods" in build
     # installed after the image's own mods and its activation
     sect = build[build.index('only = ["amazon-ebs.imgfile-basic-dask"]'):]
-    assert sect.index("tx.group: coops") < sect.index("local modification bundle for imgfile-basic-dask")
+    assert sect.index("identity activation for owning group 'coops'") \
+        < sect.index("local modification bundle for imgfile-basic-dask")
     # base images carry no bundle
     assert "csis-mods" not in (fixture_run.generated / "base-image" / "pckr-ebs-ans" / "image-generation" / "block-000"
                                / "pckr-ebs-ans-image-generation-block-000-build.pkr.hcl").read_text()

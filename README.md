@@ -108,8 +108,8 @@ The plugins, discovered through Python entry points, one package each:
   ansible playbooks. **bare**
 - [bash-mod-plugin](packages/bash-mod-plugin/README.md) — modifications as
   shell scripts and `ensure` items. **bare**
-- [okta-opa-plugin](packages/okta-opa-plugin/README.md) — Okta users and
-  OPA groups. `[okta]`
+- [okta-opa-plugin](https://github.com/infrastructurebuilder/cs-image-system-okta/blob/develop/packages/okta-opa-plugin/README.md) — Okta users and
+  OPA groups. `[okta]`, in the Okta identity plugin's own repository
 - [posix-identity-plugin](packages/posix-identity-plugin/README.md) —
   POSIX groups and users on the machines, with declared ids. **bare**
 - [tf-ebs-instance-plugin](packages/tf-ebs-instance-plugin/README.md) —

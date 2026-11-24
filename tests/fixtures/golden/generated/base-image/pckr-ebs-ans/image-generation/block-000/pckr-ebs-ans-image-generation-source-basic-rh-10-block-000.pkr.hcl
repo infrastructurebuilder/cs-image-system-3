@@ -20,8 +20,8 @@ source "amazon-ebs" "basic-rh-10" {
         csis_series         = "basic-rh-10",
         csis_parent         = "vendor",
         csis_run            = "2026_08_26t12_00_00",
-        csis_fingerprint    = "c9cc67f16b8c856c",
-        csis_identity_types = "okta",
+        csis_fingerprint    = "041a520348c5855b",
+        csis_identity_types = "posix",
         csis_storage_types  = "ebs,efs,s3",
     }
     associate_public_ip_address = false

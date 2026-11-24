@@ -74,15 +74,22 @@ def test_every_group_member_is_a_roster_user():
 
 
 def test_the_derived_address_cannot_be_delivered():
-    builders = (FIXTURE_CONFIG / "cfg" / "group-builders.yml").read_text()
-    templates = re.findall(r"^\s*default_user_email_template:\s*\"([^\"]+)\"", builders, flags=re.M)
-    # the domain is its own declared value and is encrypted, so the
-    # template names it rather than spelling it; it still decrypts to a domain
-    # that cannot receive mail
-    assert templates and all(t.endswith("@{{ builder.email_domain }}") for t in templates)
-    domains = re.findall(r"^\s*email_domain:\s*(\S+)", builders, flags=re.M)
-    assert domains, "the fixture declares the domain as its own value"
-    assert all(_plain(d).endswith(EXAMPLE_DOMAINS) for d in domains)
+    from cs_image_system.base.models.user_builder import UserBuilderModel
+    builders = yaml.safe_load((FIXTURE_CONFIG / "cfg" / "group-builders.yml").read_text())["user_builders"]
+    assert builders
+    for builder in builders:
+        template = builder.get("default_user_email_template", UserBuilderModel.default_user_email_template)
+        domain = builder.get("email_domain")
+        if domain is None:
+            # no domain declared (the fixture's posix user builders): the
+            # derived address is the username alone, with no domain to deliver to
+            assert "@" not in template, builder["name"]
+        else:
+            # a domain is its own declared value, encrypted, so the template
+            # names it rather than spelling it; it decrypts to a domain that
+            # cannot receive mail
+            assert template.endswith("@{{ builder.email_domain }}"), builder["name"]
+            assert _plain(domain).endswith(EXAMPLE_DOMAINS), builder["name"]
     config = yaml.safe_load((FIXTURE_CONFIG / "cfg" / "_config.yml").read_text())
     allow = config.get("public_safe", {}).get("allow", [])
     assert not any(a.endswith(".gov") for a in allow), "the fixture needs no allowance for a real domain"
