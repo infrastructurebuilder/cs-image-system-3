@@ -1015,9 +1015,11 @@ suite pins the rest of what this section describes; among them
 [`tests/test_state_backends.py`](../../tests/test_state_backends.py)
 (the single `dateformat` default, the command built once, a
 zero-minute session is expired),
-[`tests/test_login_proof.py`](../../tests/test_login_proof.py),
-[`tests/test_workload_access.py`](../../tests/test_workload_access.py)
-and [`tests/test_identity_plan_in_mirror.py`](../../tests/test_identity_plan_in_mirror.py).
+[`tests/test_login_proof_posix.py`](../../tests/test_login_proof_posix.py);
+the Okta identity plugin's halves are in its own repository:
+[`tests/instance/test_login_proof.py`](https://github.com/infrastructurebuilder/cs-image-system-okta/blob/develop/tests/instance/test_login_proof.py),
+[`tests/instance/test_workload_access.py`](https://github.com/infrastructurebuilder/cs-image-system-okta/blob/develop/tests/instance/test_workload_access.py)
+and [`tests/instance/test_identity_plan_in_mirror.py`](https://github.com/infrastructurebuilder/cs-image-system-okta/blob/develop/tests/instance/test_identity_plan_in_mirror.py).
 `just test` is the acceptance bar.
 
 ## When it fails

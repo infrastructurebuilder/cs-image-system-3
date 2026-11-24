@@ -1351,7 +1351,7 @@ itself needs is short.
   [gcloud-runtime-plugin](https://github.com/infrastructurebuilder/cs-image-system-google-cloud/blob/develop/packages/gcloud-runtime-plugin/README.md),
   [gcs-state-plugin](https://github.com/infrastructurebuilder/cs-image-system-google-cloud/blob/develop/packages/gcs-state-plugin/README.md),
   [local-state-plugin](../local-state-plugin/README.md),
-  [okta-opa-plugin](../okta-opa-plugin/README.md),
+  [okta-opa-plugin](https://github.com/infrastructurebuilder/cs-image-system-okta/blob/develop/packages/okta-opa-plugin/README.md),
   [packer-plugin](../packer-plugin/README.md),
   [posix-identity-plugin](../posix-identity-plugin/README.md),
   [tf-ebs-instance-plugin](../tf-ebs-instance-plugin/README.md),

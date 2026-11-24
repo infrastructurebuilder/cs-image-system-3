@@ -223,7 +223,7 @@ def _answers(root: Path, *, new: str = "0.1.1.dev1", ready: int = 0, held: int =
     ]
 
 
-SYNC = ["uv", "sync", "--all-extras", "--no-extra", "gcloud", "--no-extra", "all"]
+SYNC = ["uv", "sync", "--all-extras", "--no-extra", "gcloud", "--no-extra", "okta", "--no-extra", "all"]
 MOVE = [["git", "checkout", "main"], ["git", "merge", "--ff-only", "develop"]]
 ENDING_MAIN = [["git", "push", "origin", "main", "v0.1.1.dev1"], ["git", "checkout", "develop"],
                ["git", "merge", "--ff-only", "main"], ["git", "push", "origin", "develop"], SYNC]
@@ -338,7 +338,7 @@ def test_a_test_index_asks_the_venv_the_own_versions_and_the_daemon_alone(tmp_pa
     _family(root, shell, said=said).probes("test")
     assert said == [f"release: {R.VENV_OK}", OWN_LINE, "release: docker answers"]
     assert shell.count("docker info") == 1 and shell.count("just preflight") == 0
-    assert shell.first("uv sync --all-extras --no-extra gcloud --no-extra all --check") < shell.first(OWN)
+    assert shell.first("uv sync --all-extras --no-extra gcloud --no-extra okta --no-extra all --check") < shell.first(OWN)
     assert shell.texts()[shell.first(OWN)].endswith(f"scripts/{OWN} test --root {root}")
 
 
@@ -392,7 +392,7 @@ def test_a_family_released_elsewhere_that_pypi_lacks_is_refused_before_the_gate(
 def test_a_stale_venv_is_refused_for_every_index_in_one_line(tmp_path: Path, index: str):
     root = _system_repo(tmp_path)
     with pytest.raises(R.Refused) as e:
-        _family(root, FakeShell([("uv sync --all-extras --no-extra gcloud --no-extra all --check", R.Done(1))])).probes(index)
+        _family(root, FakeShell([("uv sync --all-extras --no-extra gcloud --no-extra okta --no-extra all --check", R.Done(1))])).probes(index)
     assert e.value.code == 1 and "behind" in e.value.message and "just init" in e.value.message
 
 
@@ -504,7 +504,7 @@ def test_the_dry_form_prints_what_it_would_do_and_touches_nothing(tmp_path: Path
     env = {"TEST_PYPI_TOKEN": "t"}
     assert _family(root, shell, env=env, said=said).release("patch", "test", "yes") == 0
     # the dry form answers "would this release go through": the own-version probe runs in it too
-    assert shell.count(OWN) == 1 and shell.first("uv sync --all-extras --no-extra gcloud --no-extra all --check") < shell.first(OWN)
+    assert shell.count(OWN) == 1 and shell.first("uv sync --all-extras --no-extra gcloud --no-extra okta --no-extra all --check") < shell.first(OWN)
     plan = _dry_plan(said)
     assert said.index(OWN_LINE) < said.index(plan)
     assert plan.startswith("release: dry") and "on main, 0.1.0 would become 0.1.1.dev1:" in plan
@@ -513,7 +513,7 @@ def test_the_dry_form_prints_what_it_would_do_and_touches_nothing(tmp_path: Path
         assert needle in plan, needle
     assert _would_lines(said) == _would([SYNC, *ENDING_MAIN]) and _moves(shell) == []
     # the order: the index, then the token, the tag, then the venv probe; nothing after the dry line
-    assert shell.first("publish-target-ready") < shell.first("uv sync --all-extras --no-extra gcloud --no-extra all --check")
+    assert shell.first("publish-target-ready") < shell.first("uv sync --all-extras --no-extra gcloud --no-extra okta --no-extra all --check")
     assert "--refuse-held" in shell.texts()[shell.first("publish-target-ready")]
     for never in ("just test", "bump-my-version bump", "uv lock", "publish-dist", "just build"):
         assert shell.count(never) == 0, never
@@ -540,7 +540,7 @@ def test_the_real_form_probes_gates_asks_again_bumps_uploads_then_commits_and_ta
     fam = _family(root, shell, said=said)
     assert fam.release("patch", "test") == 0
     t = shell.texts()
-    order = [shell.first(n) for n in ("publish-target-ready", "uv sync --all-extras --no-extra gcloud --no-extra all --check", OWN, "just test",
+    order = [shell.first(n) for n in ("publish-target-ready", "uv sync --all-extras --no-extra gcloud --no-extra okta --no-extra all --check", OWN, "just test",
                                       "just test-docker-install", "bump-my-version bump patch", "uv lock",
                                       "just build", "publish-dist")]
     assert order == sorted(order), t                                       # the install check before anything moves
@@ -638,7 +638,7 @@ def test_from_develop_the_release_moves_to_main_cuts_pushes_and_comes_back(tmp_p
     assert _moves(shell) == [*MOVE, SYNC, *ENDING_MAIN]
     t = shell.texts()
     first_sync = t.index(" ".join(SYNC))
-    assert t.index(" ".join(MOVE[1])) < first_sync < shell.first("uv sync --all-extras --no-extra gcloud --no-extra all --check") < shell.first(OWN)
+    assert t.index(" ".join(MOVE[1])) < first_sync < shell.first("uv sync --all-extras --no-extra gcloud --no-extra okta --no-extra all --check") < shell.first(OWN)
     assert shell.first("git tag -a") < t.index(" ".join(ENDING_MAIN[0])) and t[-1] == " ".join(SYNC)
     head = _git(root, "rev-parse", "HEAD")
     assert _head(root) == "develop" and _git(root, "log", "-1", "--format=%s") == "release 0.1.1.dev1"
@@ -720,7 +720,7 @@ def _sync_fails(cmd: list[str]):
 
 
 @pytest.mark.parametrize(("where", "answer", "code", "said"), [
-    ("the venv", ("uv sync --all-extras --no-extra gcloud --no-extra all --check", R.Done(1)), 1, None),
+    ("the venv", ("uv sync --all-extras --no-extra gcloud --no-extra okta --no-extra all --check", R.Done(1)), 1, None),
     ("the resync", ("uv sync", _sync_fails), 4, f"release: {R.SYNC_FAILED}"),
     ("a probe", (OWN, R.Done(1)), 1, f"release: {R.UNBUMPED}"),
     ("the bar", ("just test", R.Done(3)), 3, ""),
@@ -819,7 +819,7 @@ def test_the_dry_form_says_a_venv_behind_the_checkout_and_goes_on(tmp_path: Path
     """The real form syncs the venv before it asks, so the dry form says it is behind rather than refusing."""
     root = _system_repo(tmp_path, branch="develop", develop_ahead=True)
     said: list[str] = []
-    shell = FakeShell([("uv sync --all-extras --no-extra gcloud --no-extra all --check", R.Done(1)), *_answers(root)])
+    shell = FakeShell([("uv sync --all-extras --no-extra gcloud --no-extra okta --no-extra all --check", R.Done(1)), *_answers(root)])
     assert _family(root, shell, said=said).release("patch", "test", "yes") == 0
     assert f"release: {R.VENV_WILL_SYNC}" in said and f"release: {R.VENV_OK}" not in said
     assert _moves(shell) == [] and _head(root) == "develop"
@@ -995,7 +995,7 @@ def test_release_finish_commits_and_tags_only_a_completed_upload(tmp_path: Path)
     shell = FakeShell(answers)
     fam = _family(root, shell, said=said)
     assert fam.finish("test") == 0
-    assert shell.first("uv sync --all-extras --no-extra gcloud --no-extra all --check") < shell.first("publish-target-ready") < shell.first("git add")
+    assert shell.first("uv sync --all-extras --no-extra gcloud --no-extra okta --no-extra all --check") < shell.first("publish-target-ready") < shell.first("git add")
     assert _git(root, "log", "-1", "--format=%s") == "release 0.1.1.dev1" and _git(root, "tag", "-l") == "v0.1.1.dev1"
     assert _git(root, "status", "--porcelain") == "" and R.changes_row("0.1.1.dev1", "2001-02-03") in (root / "docs" / "CHANGES.md").read_text()
     assert said[-1] == R.FINISHED.format(version="0.1.1.dev1", name="testpypi",

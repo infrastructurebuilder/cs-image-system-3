@@ -556,6 +556,17 @@ socket), not the team's host: they are throwaway containers.
 
 ### 3.5 Okta and Okta Privileged Access
 
+This section is for a tree that declares Okta groups (an `okta-tf` or
+`okta-tf-ro` builder in `cfg/group-builders.yml`), as `standard-aws`,
+`standard-gce` and `complete` do. Such a tree needs the secrets below in
+its own CI: the Okta identity plugin, which the release installs through
+the `okta` extra, reads at every load that they are set, and the live
+and perform jobs load the tree. A tree with no Okta group (the
+`standard-aws-posix` and `standard-docker` starters) needs none of them
+and skips this section. They serve your repository's CI alone; the
+system repository's own CI does not use them, since its test fixture
+declares no Okta group.
+
 **The Okta API services app** (for the `okta/okta` provider's user
 lookups): key-based client authentication, the read scopes granted, the
 `*.manage` scopes not granted, DPoP off. Its private key is the
@@ -667,9 +678,9 @@ prints.
 | `GCP_WORKLOAD_IDENTITY_PROVIDER` | the GCP auth steps | live, perform | the provider's full name (section 3.4) |
 | `GCP_SERVICE_ACCOUNT` | the GCP auth steps | live, perform | the READ-ONLY service account's address (section 3.4) |
 | `GCP_APPLY_SERVICE_ACCOUNT` | the GCP auth step before the performing run; held through the login proof | perform, when recording | the WRITE service account's address, or the read-only one (section 3.4, step 4) |
-| `OKTA_API_PRIVATE_KEY` | the load's check that the `okta/okta` provider can authenticate | live, perform | the services app's private key, PEM (section 3.5) |
-| `TF_VAR_KEY` | the load, exported as `TF_VAR_<team>_key` | live, perform | the OPA service user's API key |
-| `TF_VAR_SECRET` | the load, exported as `TF_VAR_<team>_secret` | live, perform | the OPA service user's API secret |
+| `OKTA_API_PRIVATE_KEY` | the load's check that the `okta/okta` provider can authenticate (a tree that declares Okta groups) | live, perform | the services app's private key, PEM (section 3.5) |
+| `TF_VAR_KEY` | the load, exported as `TF_VAR_<team>_key` (a tree that declares Okta groups) | live, perform | the OPA service user's API key |
+| `TF_VAR_SECRET` | the load, exported as `TF_VAR_<team>_secret` (a tree that declares Okta groups) | live, perform | the OPA service user's API secret |
 | `DOCKER_HOST_SSH_KEY` | the "Reach the docker host" step | live (optional), perform when recording | the private key of a user on the docker host who may use its daemon, PEM (section 3.4a) |
 | `DOCKER_HOST_KNOWN_HOSTS` | the same step | live (optional), perform when recording | the docker host's `known_hosts` line, checked by hand (section 3.4a) |
 | `CSIS_CONFIG_IDENTITY` | every load, to open `ENC[age:...]` values | live, perform | CI's age identity (section 3.6) |

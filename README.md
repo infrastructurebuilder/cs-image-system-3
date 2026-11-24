@@ -66,11 +66,15 @@ cs-image-system` installs the core and the plugins marked **bare**, each
 provider's plugins come with the extra marked beside them (`[aws]`,
 `[gcloud]`, `[docker]`, `[okta]`; `[all]` is every one), and the two
 marked **never published** are workspace-only. The Google Cloud family's
-three plugins are listed below too, but they are not in `packages/`: they
-live in its own repository, are released there on a version
-line of their own, and the `[gcloud]` and `[all]` extras name them by
-that line's range, so this workspace's venv does not hold them ("Installing
-a release" in [docs/OPERATIONS.md](docs/OPERATIONS.md) says how an
+three plugins and the Okta identity plugin are listed below too, but they
+are not in `packages/`: the Google Cloud family lives in
+[cs-image-system-google-cloud](https://github.com/infrastructurebuilder/cs-image-system-google-cloud)
+and the Okta plugin in
+[cs-image-system-okta](https://github.com/infrastructurebuilder/cs-image-system-okta).
+Each is released there on a version line of its own, and the `[gcloud]`,
+`[okta]` and `[all]` extras name them by that line's range, so this
+workspace's venv holds neither ("Installing a release" in
+[docs/OPERATIONS.md](docs/OPERATIONS.md#installing-a-release) says how an
 operator installs them). The core (all **bare**):
 
 - [contract](packages/contract/README.md) — the plugin contract: the
@@ -108,8 +112,8 @@ The plugins, discovered through Python entry points, one package each:
   ansible playbooks. **bare**
 - [bash-mod-plugin](packages/bash-mod-plugin/README.md) — modifications as
   shell scripts and `ensure` items. **bare**
-- [okta-opa-plugin](packages/okta-opa-plugin/README.md) — Okta users and
-  OPA groups. `[okta]`
+- [okta-opa-plugin](https://github.com/infrastructurebuilder/cs-image-system-okta/blob/develop/packages/okta-opa-plugin/README.md) — Okta users and
+  OPA groups. `[okta]`, in the Okta identity plugin's own repository
 - [posix-identity-plugin](packages/posix-identity-plugin/README.md) —
   POSIX groups and users on the machines, with declared ids. **bare**
 - [tf-ebs-instance-plugin](packages/tf-ebs-instance-plugin/README.md) —
@@ -142,17 +146,22 @@ declared through the `cs_image_system.modules` entry point);
 <dir>` writes them into a tree.
 `tests/` is the suite, with the frozen fixture configuration under
 `tests/fixtures/config/` and the golden emission under
-`tests/fixtures/golden/`; both declare AWS and docker only, and the
-Google Cloud family's fixture and golden are in its own repository.
+`tests/fixtures/golden/`; both declare AWS and docker only, and their
+groups and users are POSIX ones with literal gids, so the golden holds no
+Okta identity root. The Google Cloud family's fixture and golden are in
+its own repository, and the Okta plugin's instance suite, with its own
+fixture and golden, is in the Okta plugin's.
 `docs/examples/` holds the five starter
 configuration repositories the release ships and `init-config` writes
 out: `complete`, `standard-aws`, `standard-aws-posix`, `standard-docker`
 and `standard-gce`. Two of them, `standard-gce` and `complete`, declare
-the Google Cloud family; their tests are under `tests/cloud_starters/`,
-which `just test-cloud-starters` runs with the Google Cloud family layered
-in from the package index for that run alone: a `full-test` leg and a step
-of CI's `live` job, never part of `just test`, whose runs hold no Google
-Cloud package. The reference configuration is its own
+the Google Cloud family, and `standard-aws`, `standard-gce` and
+`complete` declare Okta groups; the tests of `standard-gce`,
+`standard-aws` and `complete` are under `tests/cloud_starters/`, which
+`just test-cloud-starters` runs with the Google Cloud family and the Okta
+plugin layered in from the package index for that run alone: a
+`full-test` leg and a step of CI's `live` job, never part of `just test`,
+whose runs hold no Google Cloud or Okta package. The reference configuration is its own
 repository, `cs-image-system-testconfig`, which stands alone with its own
 `Justfile` and CI; it is checked out beside this one (`CSIS_CONFIG_ROOT`
 overrides) for the system's own live proofs only, and the tests never

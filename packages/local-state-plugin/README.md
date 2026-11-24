@@ -78,22 +78,23 @@ places where the disk has one.
 
 ## Emission
 
-The frozen fixture binds its identity roots (`oktagroups`, `okta-tf-users`)
-to `local-dev` (`cfg/state-backends-3.yml`, `path: state`), so the golden
-carries
-[oktagroups-group-generation.tfbackend.hcl](../../tests/fixtures/golden/generated/identity/oktagroups/group-generation/oktagroups-group-generation.tfbackend.hcl):
+The frozen fixture binds its docker roots (`tofu-docker`, `docker-volume`)
+to `local-dev` (`cfg/state-backends-3.yml`, `path: state`): the docker
+runtime names it as its `state_configuration`, and the two roots inherit
+it. So the golden carries
+[docker-volume-storage-generation.tfbackend.hcl](../../tests/fixtures/golden/generated/storage/docker-volume/storage-generation/docker-volume-storage-generation.tfbackend.hcl):
 
 ```hcl
-# Backend 'local-dev' (local) partial configuration for workspace oktagroups
-path = "../../../../state/oktagroups.tfstate"
+# Backend 'local-dev' (local) partial configuration for workspace docker-volume
+path = "../../../../state/docker_volume.tfstate"
 ```
 
-and, in every storage and instance root that reads the identity root's
-outputs, a `data "terraform_remote_state" "oktagroups"` with
-`backend = "local"` and `config = { path = "../../../../state/oktagroups.tfstate" }`
--- a read across backend types, since those roots keep their own state in
-S3. The runner header lists `# state: workspace oktagroups ->
-local://state/oktagroups.tfstate`.
+and, in every instance root that reads the volume root's outputs, a
+`data "terraform_remote_state" "docker_volume"` with `backend = "local"`
+and `config = { path = "../../../../state/docker_volume.tfstate" }` --
+in `open-tofu`, a read across backend types, since that root keeps its
+own state in S3. The runner header lists `# state: workspace
+docker-volume -> local://state/docker_volume.tfstate`.
 
 ## Example configuration
 
@@ -182,7 +183,7 @@ saying where each piece comes from.
   configuration root from either tree and one state file serves both. No
   `_private/state/` is ever created.
 - **Reads across types.** A consumer root (an S3-bound storage or
-  instance root reading the identity root's outputs) gets a
+  instance root reading a local-bound root's outputs) gets a
   `terraform_remote_state` data source with `backend = "local"` and the
   same relative `path`. Terraform reads that file on the machine where the
   consumer's plan runs: the producer's state must be present THERE.

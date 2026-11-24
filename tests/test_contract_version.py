@@ -56,7 +56,7 @@ def test_every_dependent_pins_the_contract_to_its_compatible_series():
             assert str(siblings[CONTRACT].specifier) == expected, \
                 f"{project['name']} pins the contract as {siblings[CONTRACT].specifier}"
     assert "cs-image-system" in dependents and "cs-image-system-base" in dependents
-    assert len(dependents) >= 18, dependents
+    assert len(dependents) >= 17, dependents
 
 
 def test_the_workspace_bump_excludes_the_contract_explicitly():

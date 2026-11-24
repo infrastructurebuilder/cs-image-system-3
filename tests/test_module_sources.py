@@ -30,7 +30,6 @@ EXPECTED = {
     # the docker package is one distribution (cs-image-system-docker-plugin), and a module's namespace is
     # its distribution's; the package's REGISTRATIONS keep the namespaces docker-runtime and tf-docker
     "docker": {"docker_container", "docker_volume"},
-    "okta-opa": {"okta_opa_module"},
     "base": {"bootstrap_github"},
 }
 # every module the installed plugins ship
@@ -203,15 +202,15 @@ def test_an_unstamped_identical_copy_is_adopted(tmp_path: Path):
 def test_an_unstamped_different_copy_is_refused_without_force_and_replaced_with_it(tmp_path: Path):
     dest = tmp_path / "tfmodules"
     m.materialise_modules(dest)
-    copy = dest / "okta_opa_module"
+    copy = dest / "docker_container"
     (copy / m.STAMP_FILE).unlink()
     (copy / "main.tf").write_text("# from before the stamps\n")
     report = m.materialise_modules(dest)
-    assert not report.ok and report.refused == ["okta_opa_module"]
-    assert "--force overwrites it" in next(x for x in report.lines() if "REFUSED okta_opa_module" in x)
+    assert not report.ok and report.refused == ["docker_container"]
+    assert "--force overwrites it" in next(x for x in report.lines() if "REFUSED docker_container" in x)
     forced = m.materialise_modules(dest, force=True)
-    assert forced.ok and forced.written == ["okta_opa_module"] and any("--force" in n for n in forced.notes)
-    assert (copy / "main.tf").read_bytes() == (m.installed_modules()["okta_opa_module"].path / "main.tf").read_bytes()
+    assert forced.ok and forced.written == ["docker_container"] and any("--force" in n for n in forced.notes)
+    assert (copy / "main.tf").read_bytes() == (m.installed_modules()["docker_container"].path / "main.tf").read_bytes()
     assert _stamp(copy).hash == m.content_hash(copy)
 
 

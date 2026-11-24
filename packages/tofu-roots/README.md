@@ -24,7 +24,7 @@ nothing to say. The three provider root plugins
 [tf-gcp-plugin](https://github.com/infrastructurebuilder/cs-image-system-google-cloud/blob/develop/packages/tf-gcp-plugin/README.md) for Google Cloud, in its own repository and installed with the `gcloud` extra,
 [docker-plugin](../docker-plugin/README.md) for a container
 daemon) subclass the two bases, and the identity roots of
-[okta-opa-plugin](../okta-opa-plugin/README.md) mix in the root mixin.
+[okta-opa-plugin](https://github.com/infrastructurebuilder/cs-image-system-okta/blob/develop/packages/okta-opa-plugin/README.md), in its own repository and installed with the `okta` extra, mix in the root mixin.
 
 It builds on [hashicorp-utils](../hashicorp-utils/README.md), the
 library that collects provider, backend and variable requirements per
@@ -76,9 +76,10 @@ sequence) mixes `TerraformRootMixin` in next to its `BuilderBase`
 subclass. The mixin is duck-typed against `BuilderBase`: it relies on
 `self.name`, `self.get_path_for_phase(phase, suffix=...)`,
 `self.get_executable_copy()` and, when present, `self._get_context()` and
-`self.model`. In the workspace the mixin is on `OktaTfGroupBuilder` (and
-its read-only subclass) and `OktaTfUserBuilder` in the identity plugin,
-and on the two provider-neutral roots of this package,
+`self.model`. The mixin is on `OktaTfGroupBuilder` (and its read-only
+subclass) and `OktaTfUserBuilder` in the Okta identity plugin, which is
+no longer in this workspace but in its own repository, and on the two
+provider-neutral roots of this package,
 `TofuInstanceBuilderBase` and `TofuStorageBuilderBase`, from which every
 provider's instance and storage root inherits it.
 

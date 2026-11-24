@@ -7,8 +7,8 @@
 
 * a copy of the fixture with every reference it holds rewritten in the
   qualified form (runtimes, the builders items name by ``type``, state
-  backends, image builders, images, groups, users, a source image and a
-  posix delegate) loads, validates and generates exactly the emission of
+  backends, image builders, images, groups, users and a source image)
+  loads, validates and generates exactly the emission of
   the bare fixture, file for file;
 * the rewrite reaches every kind of reference the fixture writes, so the
   comparison covers each of them.
@@ -42,7 +42,6 @@ REFERENCES: dict[str, tuple[VCT, ...]] = {
     "members": (VCT.USER_MODEL,),
     "admins": (VCT.USER_MODEL,),
     "source_image": (VCT.BASE_IMAGE_MODEL, VCT.IMAGE_MODEL),
-    "posix": (VCT.GROUP_BUILDER_MODEL,),
 }
 #: an item's ``type`` names its builder; a builder's ``type`` is a class word, not a reference
 ITEM_TYPE: dict[str, VCT] = {
@@ -140,7 +139,7 @@ def emissions(tmp_path_factory) -> tuple[dict[str, str], dict[str, str], set[str
 def test_the_rewrite_reaches_every_kind_of_reference(emissions):
     _bare, _qualified_out, written = emissions
     assert written == {"admins", "default_image_builder", "group", "groups", "image", "image_builder",
-                       "members", "posix", "runtime", "source_image", "state_configuration",
+                       "members", "runtime", "source_image", "state_configuration",
                        "groups.type", "images.type", "instances.type",
                        "modifications.type", "storages.type", "users.type"}
 

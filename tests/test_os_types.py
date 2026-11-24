@@ -140,14 +140,6 @@ def test_an_alpine_image_bakes_through_the_hooks(fixture_run):
     assert alpine.ansible_python_install_command() == "command -v python3 >/dev/null 2>&1 || apk add --no-cache python3"
 
 
-def test_okta_refuses_an_alpine_image_rather_than_guessing(fixture_run):
-    """OktaPAM publishes deb and rpm repositories and nothing for alpine:
-    the identity plugin says so instead of emitting another family's lines."""
-    okta = fixture_run.ctx.group_builders["oktagroups"]
-    with pytest.raises(ValueError, match="publishes no apk package"):
-        okta.base_image_prerequisites("alpine")
-
-
 def test_a_package_test_needs_the_os_type():
     from cs_image_system.base.image_tests import declared_test_commands
     with pytest.raises(ValueError, match="needs the image's OS type"):

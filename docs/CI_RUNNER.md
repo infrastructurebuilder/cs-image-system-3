@@ -18,12 +18,18 @@ workflow calls them:
 | Job | Targets, in order | Needs |
 | --- | --- | --- |
 | `verify` | `just --list`, `just public-safe` | the release installed; no secret |
-| `live` | `just validate`, `just config-drift`, `just state-query --strict`, `just test-mods --strict`, `just mirror-clean` | the read-only cloud identities, the OPA key pair, the age identity, a docker daemon (the docker starter: the age identity, and the docker host's ssh key when it is to be reached) |
+| `live` | `just validate`, `just config-drift`, `just state-query --strict`, `just test-mods --strict`, `just mirror-clean` | the read-only cloud identities, the OPA key pair (a tree that declares Okta groups), the age identity, a docker daemon (the docker starter: the age identity, and the docker host's ssh key when it is to be reached) |
 | `perform` | `just record`, `just dry`, `just cloud-perform <runtime>`, `just ci-login-proof --runtime <runtime>`, `just record` again, `just state-query --strict`, `just mirror-clean` | the write identity for the performing step and the login proof, and push access to the repository |
 
 The release itself is installed by the job from the index
-(`uv tool install cs-image-system==<the content of .csis-version>`); a
-development version comes from TestPyPI with PyPI as the extra index.
+(`uv tool install 'cs-image-system[<extras>]==<the content of .csis-version>'`,
+the extras being what `just extras` reads from the tree's `type:`
+words); a development version comes from TestPyPI with PyPI as the extra
+index. A tree that declares Okta groups gets the Okta identity plugin
+through its `okta` extra, from the plugin's own repository's releases;
+the runner needs nothing more for it. How that install works is stated
+once, in
+[OPERATIONS.md, "Installing a release"](OPERATIONS.md#installing-a-release).
 
 ## 2. The machine
 
@@ -53,13 +59,13 @@ development version comes from TestPyPI with PyPI as the extra index.
   OPA workload connection is proved the same way (`workload probe`).
 - **The secrets the gate reads**, as the workflow names them
   ([CI_SETUP.md](examples/_skeleton/CI_SETUP.md), 3.7): the Okta API
-  key, the OPA key pair, the age identity, the role ARNs or service
-  account names. A job with none configured is skipped and says so; one
+  key and the OPA key pair (for a tree that declares Okta groups), the
+  age identity, the role ARNs or service account names. A job with none configured is skipped and says so; one
   with some missing fails by name.
 - **The network it must reach:** the package indexes (PyPI and
   TestPyPI), the registries the tools come from (below) and Docker Hub
   for the test images, the clouds' APIs (AWS in the runtime's region,
-  Google's, Okta's), and the repository to push the records back.
+  Google's, Okta's for a tree that declares Okta groups), and the repository to push the records back.
 - **Write access to the repository** for the performing job alone, so
   the records it commits can be pushed.
 

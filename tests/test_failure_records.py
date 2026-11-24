@@ -166,9 +166,9 @@ def test_the_after_apply_hooks_run_after_a_failed_apply_so_what_applied_is_recor
         seen: list[str] = []
         monkeypatch.setattr(rl, "_execute_in_process", lambda ctx, lc: False)
         monkeypatch.setattr(rl, "_AFTER_APPLY", [lambda ctx, lc: seen.append(lc.value)])
-        summary = run.run(["identity"], apply=True)
-        assert not summary.ok and summary.apply.get("identity") == "failed"
-        assert seen == ["identity"], "the hooks ran once, after the failed apply"
+        summary = run.run(["storage"], apply=True)
+        assert not summary.ok and summary.apply.get("storage") == "failed"
+        assert seen == ["storage"], "the hooks ran once, after the failed apply"
     finally:
         run.restore_cwd()
 

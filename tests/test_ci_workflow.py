@@ -85,8 +85,10 @@ def test_live_proves_the_fixture_read_only_and_is_gated():
     assert "pull_request" in live["if"]
     assert live["permissions"] == {"id-token": "write", "contents": "read", "packages": "read"}   # packages: the runner image's pull
     gate = next(s for s in live["steps"] if s.get("id") == "gate")
-    for secret in ("AWS_ROLE_ARN", "OKTA_API_PRIVATE_KEY", "TF_VAR_NOS_KEY", "TF_VAR_NOS_SECRET"):
-        assert secret in yaml.safe_dump(gate["env"]), secret
+    assert "AWS_ROLE_ARN" in yaml.safe_dump(gate["env"])
+    # the fixture's identity is POSIX (spec 008): no Okta credential anywhere in the job
+    for secret in ("OKTA_API_PRIVATE_KEY", "TF_VAR_NOS_KEY", "TF_VAR_NOS_SECRET"):
+        assert secret not in yaml.safe_dump(live), secret
     # the fixture's identity is committed beside it: no identity secret here
     assert "CSIS_CONFIG_IDENTITY" not in yaml.safe_dump(live)
     # none configured skips (and says so in the job summary); some configured
@@ -102,9 +104,7 @@ def test_live_proves_the_fixture_read_only_and_is_gated():
     creds = [s for s in live["steps"] if (s.get("uses") or "").startswith("aws-actions/")]
     assert [c["with"]["role-to-assume"] for c in creds] == ["${{ secrets.AWS_ROLE_ARN }}"]
     proof = next(s for s in live["steps"] if "run" in s and s["run"].strip() == "just fixture-live")
-    for var in ("OKTA_API_PRIVATE_KEY", "TF_VAR_nos_coastal_modeling_cloud_sandbox_key",
-                "TF_VAR_nos_coastal_modeling_cloud_sandbox_secret"):
-        assert var in proof["env"], var
+    assert "env" not in proof                                             # no credential but the AWS role's
     # the tools validate checks for come with the runner image, placed where
     # the fixture's executables.yml pins them; nothing installs them on the runner any more
     image = str((live.get("container") or {}).get("image", ""))

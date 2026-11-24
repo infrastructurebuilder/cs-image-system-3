@@ -72,7 +72,7 @@ def _registered_models() -> list[type]:
 def test_every_registered_models_fields_appear_in_configuration():
     conf = CONFIGURATION.read_text()
     models = _registered_models()
-    assert len(models) >= 35, [m.__name__ for m in models]      # the registry's models, not an empty walk
+    assert len(models) >= 30, [m.__name__ for m in models]      # the registry's models, not an empty walk
     missing: list[str] = []
     for cls in models:
         for f in dataclasses.fields(cls):
@@ -121,7 +121,7 @@ def test_every_recipe_of_the_justfile_appears_in_the_recipe_catalogue():
 def test_every_package_appears_in_the_readmes_list():
     readme = README.read_text()
     packages = sorted(p.name for p in (REPO / "packages").iterdir() if (p / "pyproject.toml").is_file())
-    assert len(packages) >= 19, packages
+    assert len(packages) >= 18, packages
     missing = [p for p in packages if f"packages/{p}/README.md" not in readme]
     assert missing == [], f"packages the README's list does not link: {missing}"
 

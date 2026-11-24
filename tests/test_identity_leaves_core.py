@@ -9,7 +9,6 @@ group-builder hook -- and exist exactly when the plugin is installed.
 """
 from __future__ import annotations
 
-from pathlib import Path
 from types import SimpleNamespace
 from typing import Any, cast
 
@@ -20,7 +19,6 @@ from test_container_runtime import IMAGE, RUNTIME, _stub_daemon, docker_overlay,
 from typer.testing import CliRunner
 
 from cs_image_system.contract.commands import CommandMount
-from cs_image_system.contract.constants import VCT
 
 runner = CliRunner()
 
@@ -119,40 +117,6 @@ def _entry(name: str, mounts_fn) -> SimpleNamespace:
     return SimpleNamespace(name=name, load=lambda: mounts_fn)
 
 
-def test_which_commands_each_identity_plugins_entry_point_brings(monkeypatch):
-    from cs_image_system.okta_opa_plugin.cli import command_mounts as okta_mounts
-    from cs_image_system.posix_identity_plugin.cli import command_mounts as posix_mounts
-    from cs_image_system.system import cli
-    # no identity plugin: neither command
-    root, verify = _root()
-    monkeypatch.setattr(cli, "entry_points", lambda group: [])
-    assert cli.mount_plugin_commands(root) == []
-    assert "workload" not in {g.name for g in root.registered_groups}
-    assert "login" not in {c.name for c in verify.registered_commands}
-    result = runner.invoke(root, ["verify", "login"])
-    assert result.exit_code != 0 and "No such command" in result.output
-    # the posix plugin alone: `verify login` present, `workload` absent
-    root, verify = _root()
-    monkeypatch.setattr(cli, "entry_points", lambda group: [_entry("posix_identity_plugin", posix_mounts)])
-    assert cli.mount_plugin_commands(root) == ["verify/login"]
-    assert "workload" not in {g.name for g in root.registered_groups}
-    assert "login" in {c.name for c in verify.registered_commands}
-    # okta-opa alone: both
-    root, verify = _root()
-    monkeypatch.setattr(cli, "entry_points", lambda group: [_entry("okta_opa_plugin", okta_mounts)])
-    assert cli.mount_plugin_commands(root) == ["workload", "verify/login"]
-    assert "workload" in {g.name for g in root.registered_groups}
-    assert "login" in {c.name for c in verify.registered_commands}
-    # both installed (name order): one `verify login`, the core's callback
-    from cs_image_system.engine.commands.login_proof import verify_login_command
-    root, verify = _root()
-    monkeypatch.setattr(cli, "entry_points", lambda group: [_entry("okta_opa_plugin", okta_mounts),
-                                                             _entry("posix_identity_plugin", posix_mounts)])
-    assert cli.mount_plugin_commands(root) == ["workload", "verify/login"]
-    logins = [c for c in verify.registered_commands if c.name == "login"]
-    assert len(logins) == 1 and logins[0].callback is verify_login_command
-
-
 def test_which_commands_each_identity_plugin_brings_through_its_entry_point(monkeypatch):
     """The same rule over the posix plugin and a stub identity plugin that
     brings a sub-app of its own beside the shared `verify login`."""
@@ -195,113 +159,10 @@ def test_which_commands_each_identity_plugin_brings_through_its_entry_point(monk
     assert len(logins) == 1 and logins[0].callback is verify_login_command
 
 
-def test_the_installed_cli_carries_the_okta_commands_from_the_real_entry_point(monkeypatch):
-    """The console script read the installed entry point at import: the two
-    commands answer `--help` without a tree (the root callback reads the
-    help request off the process arguments, which the runner sets here)."""
-    import sys
-
-    from typer.main import get_command
-
-    from cs_image_system.engine.commands.login_proof import verify_login_command
-    from cs_image_system.system.cli import app
-    assert "workload" in {g.name for g in app.registered_groups}
-    assert [c.callback for g in app.registered_groups if g.name == "verify" and g.typer_instance
-            for c in g.typer_instance.registered_commands if c.name == "login"] == [verify_login_command]
-    root = get_command(app)
-    verify = root.commands["verify"]  # type: ignore[attr-defined]
-    assert "login" in verify.commands and "workload" in root.commands  # type: ignore[attr-defined]
-    for args in (["workload", "--help"], ["verify", "login", "--help"], ["workload", "token", "--help"]):
-        monkeypatch.setattr(sys, "argv", ["cs-image-system", *args])
-        result = runner.invoke(app, args)
-        assert result.exit_code == 0, result.output
-        assert "Usage: " in result.output
-
-
 # ------------------------------------------------------------ the user model
-
-def _with_a_profile_field(root: Path) -> None:
-    path = root / "groups" / "users.yaml"
-    text = path.read_text()
-    old = "    last_name: Alpha\n"
-    assert old in text
-    path.write_text(text.replace(old, old + '    mobile_phone: "+1-555-0100"\n    department: Modeling\n', 1))
-
-
-def test_a_tree_with_okta_profile_fields_loads_with_the_plugin_and_is_refused_without_it(tmp_path, monkeypatch):
-    from cs_image_system.base.models.user import User
-    from cs_image_system.engine.config_loader import read_config_and_transform
-    from cs_image_system.engine.loader import installed_registry
-    from cs_image_system.okta_opa_plugin.okta_user import OktaUser
-    stub_environment(monkeypatch)
-    root = copy_config(tmp_path)
-    _with_a_profile_field(root)
-    ctx = load_context(root)
-    avery = next(u for u in ctx.users if u.first_name == "Avery")
-    assert isinstance(avery, OktaUser) and isinstance(avery, User)
-    assert avery.mobile_phone == "+1-555-0100" and avery.department == "Modeling"
-    assert avery.get_display_name() == avery.name, "the base display name survives the profile field of that name"
-    assert avery.get_self_injected_name() == "user", "templates say {{ user.name }} whatever the subclass"
-    assert "{{" not in str(avery.email) and str(avery.email).startswith(avery.name)
-    others = [u for u in ctx.users if u is not avery]
-    assert others and all(isinstance(u, OktaUser) and u.mobile_phone is None for u in others)
-    # the plugin's emitter reads the fields from the subclass
-    from cs_image_system.okta_opa_plugin.okta_tf_models import OktaTFUser
-    hcl = "\n".join(OktaTFUser(avery, provider="okta.x").generate_terraform())
-    assert 'mobile_phone = "+1-555-0100"' in hcl and 'department = "Modeling"' in hcl
-    # without the plugin's injected model, the core's User is the item model and the keys are unknown
-    reg = installed_registry()           # the plugins loaded into a registry of the test's own; the run below loads into it
-    for key in reg.registration_keys(VCT.USER_MODEL):
-        del reg.models[key]
-    reg.defaults_registry.pop(VCT.USER_MODEL, None)
-    with pytest.raises(Exception, match="mobile_phone|department|[Ee]xtra"):
-        read_config_and_transform(cast(Any, SimpleNamespace(obj={})), root, False, dry_run=True, overlays=[],
-                                  undeclare=[], reg=reg)
-
-
-def test_the_core_user_carries_no_profile_field():
-    import dataclasses
-
-    from cs_image_system.base.models.user import User
-    from cs_image_system.okta_opa_plugin.okta_user import OKTA_PROFILE_FIELDS
-    names = {f.name for f in dataclasses.fields(User)}
-    assert not names & set(OKTA_PROFILE_FIELDS), names & set(OKTA_PROFILE_FIELDS)
-    assert {"name", "first_name", "last_name", "middle_name", "email", "description", "is_service_account",
-            "is_enabled", "managed", "attributes", "uid", "public_keys"} <= names
-    assert not hasattr(User, "as_profile")
 
 
 # ------------------------------------------------------- the container runtime
-
-def test_each_identity_plugin_answers_the_container_runtime_question():
-    from cs_image_system.base.basic.builder_base_group import GroupBuilderBase
-    from cs_image_system.okta_opa_plugin.okta_opa_tf_group_builder import OktaTfGroupBuilder
-    from cs_image_system.posix_identity_plugin.posix_builders import PosixGroupBuilder
-    okta = OktaTfGroupBuilder.container_runtime_objection(cast(Any, None))
-    assert okta and "sftd" in okta and "container" in okta
-    assert PosixGroupBuilder.container_runtime_objection(cast(Any, None)) is None
-
-    class _Other(GroupBuilderBase):
-        @classmethod
-        def identity_type(cls) -> str:
-            return "other"
-    default = GroupBuilderBase.container_runtime_objection(cast(Any, _Other.__new__(_Other)))
-    assert default and "'other'" in default, "an identity type that has not said it works in a container is not assumed to"
-
-
-def test_validate_refuses_an_okta_group_and_accepts_a_posix_group_on_a_container_runtime(tmp_path, monkeypatch):
-    from cs_image_system.engine.commands.validate import check_container_runtimes
-    stub_environment(monkeypatch)
-    _stub_daemon(monkeypatch)
-    root = copy_config(tmp_path)
-    docker_overlay(root, group="coops")                       # an okta group
-    errors = [str(e) for e in check_container_runtimes(load_context(root))]
-    assert len(errors) == 1 and IMAGE in errors[0] and RUNTIME in errors[0] and "(okta)" in errors[0], errors
-    assert "sftd" in errors[0], "the sentence ends with the okta builder's own objection"
-    root = copy_config(tmp_path, "posix-tree")
-    docker_overlay(root)                                      # pxgroup, a posix group
-    assert check_container_runtimes(load_context(root)) == []
-
 
 def test_an_identity_plugin_that_says_nothing_about_containers_objects_and_posix_does_not():
     from cs_image_system.base.basic.builder_base_group import GroupBuilderBase
@@ -337,20 +198,6 @@ def test_validate_refuses_an_objecting_group_and_accepts_a_posix_group_on_a_cont
 
 # --------------------------------------------------------- the core's words
 
-def test_the_core_reads_the_accounts_report_and_the_alias_verdict_by_the_contract():
-    import inspect
-
-    from cs_image_system.contract.group import ACCOUNTS_IN_PLACE, ACCOUNTS_REPORT_PREFIX, ALIASES_CHANGED
-    from cs_image_system.engine import accounts_reconcile, provider_aliases
-    from cs_image_system.okta_opa_plugin.server_aliases import alt_names_script
-    assert ACCOUNTS_IN_PLACE.startswith(ACCOUNTS_REPORT_PREFIX)
-    assert "ACCOUNTS_IN_PLACE" in inspect.getsource(accounts_reconcile)
-    assert "ALIASES_CHANGED" in inspect.getsource(provider_aliases)
-    assert "alias_registration_script" in inspect.getsource(provider_aliases)
-    assert not hasattr(provider_aliases, "alt_names_script") and not hasattr(provider_aliases, "SFTD_YAML")
-    assert ALIASES_CHANGED in alt_names_script(["a-b"])
-
-
 def test_the_core_reads_the_accounts_report_and_the_alias_verdict_by_the_contracts_words():
     """The core's half: the accounts report and the alias verdict are read by
     the contract's constants, and the alias script is a builder's, not the core's."""
@@ -363,20 +210,3 @@ def test_the_core_reads_the_accounts_report_and_the_alias_verdict_by_the_contrac
     assert "ALIASES_CHANGED" in inspect.getsource(provider_aliases)
     assert "alias_registration_script" in inspect.getsource(provider_aliases)
     assert not hasattr(provider_aliases, "alt_names_script") and not hasattr(provider_aliases, "SFTD_YAML")
-
-
-def test_the_state_query_words_for_workload_access_are_the_plugins(tmp_path, monkeypatch):
-    from cs_image_system.contract.group import WORKLOAD_CONNECTION_INACTIVE, WORKLOAD_ROLE_ABSENT
-    from cs_image_system.engine import state_query as sq
-    from cs_image_system.okta_opa_plugin.okta_opa_tf_group_builder import OktaTfGroupBuilder
-    stub_environment(monkeypatch)
-    ctx = load_context(copy_config(tmp_path))
-    gb = next(b for b in ctx.group_builders.values() if isinstance(b, OktaTfGroupBuilder))
-    expected = {"role": "ci-role", "policy": "g_v1_security_policy_ci", "mirrors": "g_v1_security_policy_user"}
-    real = {"role": {"present": False}, "policy": {"present": False}}
-    [drift] = sq.workload_drift("g", expected, real, gb)
-    assert "CI_SETUP.md section 3.5" in drift.detail and "OPA" in drift.detail
-    [plain] = sq.workload_drift("g", expected, real)                     # no builder: the core's words
-    assert "OPA" not in plain.detail and "ci-role" in plain.detail
-    assert "DRAFT" in gb.workload_access_detail(WORKLOAD_CONNECTION_INACTIVE, expected, real)
-    assert "OPA" in gb.workload_access_detail(WORKLOAD_ROLE_ABSENT, expected, real)

@@ -39,61 +39,37 @@ build {
       "sudo chmod 0755 /run/csis-step",
     ]
   }
-  # identity activation for owning group 'secofs' (okta)
+  # identity activation for owning group 'secofs' (posix)
   provisioner "shell" {
     only   = ["amazon-ebs.imgfile-basic-cloudflow-notdocker"]
     execute_command = "chmod +x {{ .Path }}; if [ -r /run/csis-step ]; then {{ .Vars }} sh /run/csis-step {{ .Path }}; else {{ .Vars }} {{ .Path }}; fi"
     inline = [
-      "# identity activation for group 'secofs' (okta) on image imgfile-basic-cloudflow-notdocker",
-      "sudo mkdir -p /etc/sft",
-      "printf 'Labels:\\n  tx.group: secofs\\n' | sudo tee /etc/sft/sftd.yaml",
-      "sudo systemctl enable sftd",
+      "# identity activation for group 'secofs' (posix) on image imgfile-basic-cloudflow-notdocker",
       "sudo bash -s <<'CSIS_POSIX_ACCOUNTS'",
       "#!/usr/bin/env bash",
       "# cs-image-system posix accounts (stage 75): idempotent; adopts what is equal, refuses what differs",
       "set -euo pipefail",
       "conflict() { echo \"posix accounts: $*\" >&2; exit 3; }",
-      "# the login hook: members join their groups at each login (stage 75)",
-      "install -d -m 0755 /etc/csis/groups",
-      "install -d -m 0700 /etc/csis/keys",
-      "cat > /usr/local/sbin/csis-group-login <<'CSIS_LOGIN_HOOK'",
-      "#!/bin/bash",
-      "# cs-image-system (stage 75): at each login, join the user to every group whose",
-      "# member list (/etc/csis/groups/<group>.members, one name a line) names them, and",
-      "# install their keys when /etc/csis/keys/<user> exists. Run by pam_exec; never fails.",
-      "[ \"$${PAM_TYPE:-}\" = \"open_session\" ] || exit 0",
-      "user=\"$${PAM_USER:-}\"",
-      "[ -n \"$user\" ] && getent passwd \"$user\" >/dev/null || exit 0",
-      "for list in /etc/csis/groups/*.members; do",
-      "  [ -e \"$list\" ] || continue",
-      "  group=$(basename \"$list\" .members)",
-      "  grep -qxF -- \"$user\" \"$list\" || continue",
-      "  getent group \"$group\" >/dev/null || continue",
-      "  id -nG \"$user\" | tr ' ' '\\n' | grep -qxF -- \"$group\" || gpasswd -a \"$user\" \"$group\" >/dev/null 2>&1 || true",
-      "done",
-      "if [ -f \"/etc/csis/keys/$user\" ]; then",
-      "  home=$(getent passwd \"$user\" | cut -d: -f6)",
-      "  install -d -m 0700 -o \"$user\" -g \"$(id -g \"$user\")\" \"$home/.ssh\" 2>/dev/null &&",
-      "    install -m 0600 -o \"$user\" -g \"$(id -g \"$user\")\" \"/etc/csis/keys/$user\" \"$home/.ssh/authorized_keys\" 2>/dev/null || true",
+      "# group secofs (gid 3105)",
+      "if getent group secofs >/dev/null; then",
+      "  have=$(getent group secofs | cut -d: -f3)",
+      "  [ \"$have\" = 3105 ] || conflict \"group secofs has gid $have here; the configuration says 3105\"",
+      "else",
+      "  if other=$(getent group 3105 | cut -d: -f1) && [ -n \"$other\" ]; then",
+      "    conflict \"gid 3105 belongs to group $other here; the configuration gives it to secofs\"",
+      "  fi",
+      "  groupadd -g 3105 secofs",
       "fi",
-      "exit 0",
-      "CSIS_LOGIN_HOOK",
-      "chmod 0755 /usr/local/sbin/csis-group-login",
-      "grep -qxF 'session optional pam_exec.so quiet /usr/local/sbin/csis-group-login' /etc/pam.d/sshd || echo 'session optional pam_exec.so quiet /usr/local/sbin/csis-group-login' >> /etc/pam.d/sshd",
       "CSIS_POSIX_ACCOUNTS",
     ]
   }
-  # in-bake verification for instance image imgfile-basic-cloudflow-notdocker: 4 assertion(s)
+  # in-bake verification for instance image imgfile-basic-cloudflow-notdocker: 1 assertion(s)
   provisioner "shell" {
     only   = ["amazon-ebs.imgfile-basic-cloudflow-notdocker"]
     inline = [
       "set -e",
-      "# verify: activated for group 'secofs'",
-      "grep -q 'tx.group: secofs' /etc/sft/sftd.yaml",
-      "systemctl is-enabled sftd >/dev/null 2>&1",
-      "# verify: the posix login hook is installed (stage 75)",
-      "test -x /usr/local/sbin/csis-group-login",
-      "grep -q csis-group-login /etc/pam.d/sshd",
+      "# verify: group 'secofs' stands with gid 3105",
+      "test \"$(getent group secofs | cut -d: -f3)\" = '3105'",
     ]
   }
   post-processor "manifest" {

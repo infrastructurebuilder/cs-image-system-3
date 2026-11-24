@@ -308,23 +308,18 @@ def test_a_real_run_executes_its_deferred_system_steps_in_process(tmp_path, monk
         monkeypatch.setattr(in_process, "_RUNNER", runner)
         summary = run.run(["storage", "identity", "release"], apply=True)
         assert summary.ok, summary.error
-        assert summary.apply["storage"] == "executed" and summary.apply["identity"] == "executed"
+        assert summary.apply["storage"] == "executed"
+        assert summary.apply["identity"] == "no-script"                     # the POSIX identity emits no root
         assert summary.apply["release"] == "executed"
         assert steps and all(ctx is run.ctx for ctx, _, _ in steps)         # every step saw the loaded context
         tails = [" ".join(a) for _, a, _ in steps]
         head = f"--root-dir {run.config_root} --no-dry-run"
         assert any(t.startswith("gate-plan --planfile tfplan") for t in tails), tails
-        assert any(t.startswith(f"{head} prune-attachments --builder ") for t in tails), tails
         assert any(t == f"{head} release --declared" for t in tails), tails
         # the working directory rides along as the executable recorded it:
         # the root's directory, relative to the lifecycle's generation directory
         wd = next(w for _, a, w in steps if a[0] == "gate-plan")
         assert wd is not None and not wd.is_absolute() and wd.name.endswith("-generation"), wd
-        # the generation-time `materialize .` before the identity roots' plan
-        # is a build executable of the generation paths: those run it through
-        # the same seam, so it reaches the runner and never execute()
-        assert any(t == f"{head} materialize ." for t in tails), tails
-        assert not any(line.endswith(f"{SYSTEM_CLI} {head} materialize .") for line in run.journal), run.journal
     finally:
         run.restore_cwd()
 

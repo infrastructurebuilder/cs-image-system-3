@@ -68,8 +68,9 @@ EXTRA_DISTRIBUTIONS = {
     "okta": {"cs-image-system-okta-opa-plugin"},
 }
 #: the distributions released from a repository of their own, on their own version line: the umbrella's
-#: extras name them by the range of that line, which a bump never moves (spec 005: the Google Cloud family)
-RELEASED_ELSEWHERE = {name: ">=0.2,<0.3" for name in EXTRA_DISTRIBUTIONS["gcloud"]}
+#: extras name them by the range of that line, which a bump never moves (spec 005: the Google Cloud family;
+#: spec 008: the Okta identity plugin)
+RELEASED_ELSEWHERE = {name: ">=0.2,<0.3" for name in EXTRA_DISTRIBUTIONS["gcloud"] | EXTRA_DISTRIBUTIONS["okta"]}
 
 
 def _project(path: Path) -> dict:
@@ -228,7 +229,7 @@ def contract_range(contract_version: str) -> str:
 #: (`just test-docker-alone`, `just test-terraform-alone`), and the Google
 #: Cloud family, which ranged on the SDK it is now tested against from its
 #: own repository (spec 005).
-SDK_BY_RANGE = {"cs-image-system-docker-plugin", "cs-image-system-tofu-roots", "cs-image-system-okta-opa-plugin"}
+SDK_BY_RANGE = {"cs-image-system-docker-plugin", "cs-image-system-tofu-roots"}
 #: the SDK's two version lines; members of one line pin each other exactly
 SDK_VERSION_LINES = ({"cs-image-system-base"}, {"cs-image-system-hashicorp-utils", "cs-image-system-tofu-roots"})
 
@@ -323,7 +324,7 @@ def test_the_root_is_the_core_and_each_provider_is_an_extra():
     assert not (set(siblings) & provided), "a package is both a dependency and an extra's"
     assert set(siblings) | (provided - set(RELEASED_ELSEWHERE)) == _published()
     assert not (set(RELEASED_ELSEWHERE) & _published()), "a distribution released elsewhere is published here"
-    assert len(_published()) == 17 and len(siblings) == 12 and len(provided) == 8
+    assert len(_published()) == 16 and len(siblings) == 12 and len(provided) == 8
     assert not any(n for n in siblings if "runtime" in n or n.startswith("cs-image-system-tf-") or "okta" in n
                    or n in ("cs-image-system-gcs-state-plugin",)), "the bare install carries a provider"
     names = {i["name"]: i for i in root["tool"]["uv"]["index"]}
@@ -528,3 +529,15 @@ def test_an_sdk_line_moves_alone_with_every_exact_pin_on_it_and_no_range(tree: P
     docker = tomllib.loads((tree / "packages/docker-plugin/pyproject.toml").read_text())["project"]
     assert all(str(q.specifier) == "<0.3,>=0.2" for n, q in _requirements(docker)[0].items()
                if n in set().union(*SDK_LINES.values()))
+
+
+def test_no_manifest_pins_the_okta_plugin_exactly():
+    """Spec 008, FR-007: no workspace manifest names the Okta plugin by an
+    exact pin; only the root's extras name it, by its series range."""
+    for path in [ROOT, *(p / "pyproject.toml" for p in PACKAGES)]:
+        project = _project(path)
+        pins = dict(_requirements(project)[0])
+        for reqs in _extras(project).values():
+            pins.update(reqs)
+        req = pins.get("cs-image-system-okta-opa-plugin")
+        assert req is None or not str(req.specifier).startswith("=="), f"{path}: {req}"

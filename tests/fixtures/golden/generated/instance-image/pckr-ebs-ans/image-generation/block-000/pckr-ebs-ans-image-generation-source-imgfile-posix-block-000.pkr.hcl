@@ -25,8 +25,8 @@ source "amazon-ebs" "imgfile-posix" {
         csis_series         = "imgfile-posix",
         csis_parent         = "series:basic-rhel-9",
         csis_run            = "2026_08_26t12_00_00",
-        csis_fingerprint    = "dbf7272429f3b6c5",
-        csis_identity_types = "okta,posix",
+        csis_fingerprint    = "c4fba5b9c395e8fc",
+        csis_identity_types = "posix",
         csis_storage_types  = "ebs,efs,s3",
     }
     associate_public_ip_address = false

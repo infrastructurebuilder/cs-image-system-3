@@ -252,7 +252,7 @@ class StorageBuilderBase(BuilderBase[TSTORAGE], StorageBuilderProtocol):
     @staticmethod
     def group_subtree_task(mount: dict[str, Any], group: str) -> dict[str, Any]:
         mp = mount["mount_point"]
-        return {"name": f"private subtree {mp}/{group} (gid by reference)",
+        return {"name": f"private subtree {mp}/{group} (gid from group_gid)",
                 "ansible.builtin.file": {"path": f"{mp}/{group}", "state": "directory",
                                          "group": "{{ group_gid }}", "mode": str(mount["share_mode"])}}
 

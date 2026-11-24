@@ -96,10 +96,8 @@ def test_base_image_bakes_admin_user_and_declared_prerequisites_dormant(fixture_
     assert "ENC[age:" in build
     assert "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIPlaceholderKey" not in build
     assert "NOPASSWD:ALL" in build
-    # okta prerequisites: agent installed, DORMANT
-    assert "scaleft-server-tools" in build
-    assert "systemctl disable --now sftd" in build
-    assert "rm -f /var/lib/sftd/enrollment.token" in build
+    # the declared identity type's prerequisites (posix: checked, dormant)
+    assert "# identity type 'posix' prerequisites, dormant" in build
     # storage prerequisites for every declared type on rhel-8/9 ...
     assert "amazon-efs-utils" in build
     assert "awscli" in build
@@ -108,25 +106,25 @@ def test_base_image_bakes_admin_user_and_declared_prerequisites_dormant(fixture_
     deb_section = "".join(s.split("provisioner")[0] for s in deb[1:])
     assert "nfs-common" not in deb_section
     # activation NEVER happens on a base image
-    assert "sftd.yaml" not in build and "tx.group" not in build
+    assert "groupadd -g" not in build and "identity activation" not in build
 
 
 def test_a_base_image_declaring_posix_bakes_its_prerequisites_and_no_activation(fixture_run):
-    """The prerequisites of a declared identity type are its plugin's, on the
-    base image that declares it (basic-rhel-9 declares posix), and nothing
-    of any group is activated there."""
+    """The prerequisites of a declared identity type are its plugin's, on each
+    base image that declares it (every base image of the fixture declares
+    posix), and nothing of any group is activated there."""
     assert fixture_run.run(["base-image"], apply=False).ok
     build = _base_build(fixture_run)
     section = build[build.index("# identity type 'posix' prerequisites, dormant"):]
     section = section[:section.index("\n  # ")]
-    assert 'only   = ["amazon-ebs.basic-rhel-9"]' in section
     assert "command -v groupadd >/dev/null && command -v useradd >/dev/null" in section
     declaring = {o["name"] for o in yaml.safe_load((fixture_run.config_root / "cfg" / "os-builders.yml").read_text())
                  ["os_builders"] if "posix" in (o.get("identity_types") or [])}
     baked = set()
     for part in build.split("# identity type 'posix' prerequisites, dormant")[1:]:
         baked.add(part.split('only   = ["amazon-ebs.', 1)[1].split('"', 1)[0])
-    assert "basic-rhel-9" in baked and baked <= declaring, "only a base image declaring posix bakes its prerequisites"
+    assert {"basic-rh-10", "basic-rhel-9"} <= baked and baked <= declaring, \
+        "only a base image declaring posix bakes its prerequisites"
     # activation NEVER happens on a base image
     assert "groupadd -g" not in build and "identity activation" not in build
 
@@ -222,13 +220,13 @@ def test_per_base_image_key_override(tmp_path, monkeypatch):
 def test_instance_image_bakes_activation_for_its_own_group(fixture_run):
     assert fixture_run.run(["instance-image"], apply=False).ok
     build = _instance_build(fixture_run)
-    # imgfile-basic-dask belongs to coops; imgfile-data-science to stofs
-    assert "tx.group: coops" in build
-    assert "tx.group: stofs" in build
+    # imgfile-basic-dask belongs to coops (gid 3102); imgfile-data-science to stofs (gid 3103)
+    assert "groupadd -g 3102 coops" in build
+    assert "groupadd -g 3103 stofs" in build
     dask = build[build.index("identity activation for owning group 'coops'"):].split("provisioner")[1]
-    assert "tx.group: coops" in dask and "systemctl enable sftd" in dask
+    assert 'only   = ["amazon-ebs.imgfile-basic-dask"]' in dask and "groupadd -g 3102 coops" in dask
     # activation comes AFTER the image's modifications
-    assert build.index('playbook_file = "setup_dask.yml"') < build.index("tx.group: coops")
+    assert build.index('playbook_file = "setup_dask.yml"') < build.index("groupadd -g 3102 coops")
 
 
 def test_an_instance_image_of_a_posix_group_bakes_its_own_groups_activation(fixture_run):
@@ -276,7 +274,7 @@ def test_capabilities_resolve_through_pins_to_the_stamped_build(tmp_path, monkey
         ms.mkdir(exist_ok=True)
         _write_yaml(ms / "lineage.yaml", {"builds": [{
             "build_id": "ami-0base0001", "series": "basic-rh-10", "name": "basic-rh-10-x",
-            "capabilities": {"identity_types": ["okta"], "storage_types": ["efs", "s3"]}}]})
+            "capabilities": {"identity_types": ["posix"], "storage_types": ["efs", "s3"]}}]})
         _write_yaml(ms / "pins.yaml", {"images": {"imgfile-basic-dask": "ami-0base0001"}, "instances": {}})
     run = _prepared(tmp_path, monkeypatch, mutate)
     try:
@@ -310,38 +308,6 @@ def test_chain_inherits_the_root_stamp(tmp_path, monkeypatch):
 
 
 # ----------------------------------------------------- launch parameters
-
-def test_launch_parameters_are_generated_by_reference_and_recorded(fixture_run):
-    assert fixture_run.run(["instance-image"], apply=False).ok
-    inst = tree(fixture_run.generated / "instance-image" / "open-tofu" / "instance-generation")
-    module = inst["open-tofu-instance-generation-instance-test2.tf"]
-    assert 'templatefile("${path.module}/user-data-test2.sh.tftpl"' in module
-    assert 'data.terraform_remote_state.oktagroups.outputs.group_gids["coops"]' in module
-    assert 'data.terraform_remote_state.aws_ebs.outputs.storage_mnt_data.volume_id' in module
-    assert '"device_name" = "/dev/xvdf"' in module
-    assert "var.enrollment_token" in module
-    tpl = inst["user-data-test2.sh.tftpl"]
-    # device resolution: legacy name first, Nitro by-id fallback from the
-    # volume id (found live: /dev/xvdf never appears on t3/Nitro)
-    assert "DEV='/dev/xvdf'" in tpl and "/mnt/data" in tpl
-    assert 'ebs["mnt_data"].volume_id' in tpl
-    assert "nvme-Amazon_Elastic_Block_Store_" in tpl
-    assert 'mkfs -t xfs "$DEV"' in tpl
-    assert "chgrp \"$GID\" '/mnt/data/coops'" in tpl and "chmod 2770 '/mnt/data/coops'" in tpl
-    assert "/var/lib/sftd/enrollment.token" in tpl
-    root = inst["open-tofu-instance-generation.tf"]
-    assert 'variable "enrollment_token"' in root and "sensitive = true" in root
-    assert 'data "terraform_remote_state" "oktagroups"' in root
-    lp = yaml.safe_load((fixture_run.meta_state / "launch-params.yaml").read_text())
-    rec = lp["instances"]["test2"]
-    assert rec["group"] == "coops" and rec["identity_type"] == "okta"
-    assert rec["mounts"][0] == {"storage": "mnt_data", "type": "ebs", "builder": "aws-ebs",
-                                "mount_point": "/mnt/data", "group": "coops", "share_mode": "2770",
-                                "public_read": False, "device": "/dev/xvdf"}
-    assert rec["enrollment"] == {"enrollment": "sftd-token", "server_label": "sftd.tx.group=coops"}
-    assert rec["launched"] is False
-    assert "token" not in yaml.safe_dump(rec).replace("sftd-token", "").replace("enrollment.token", "")
-
 
 STUB_KIND = "stub-enrollment"
 

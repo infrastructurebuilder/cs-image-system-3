@@ -62,17 +62,13 @@ build {
       "sudo chown -R csisadmin:csisadmin /home/csisadmin/.ssh",
     ]
   }
-  # identity type 'okta' prerequisites, dormant
+  # identity type 'posix' prerequisites, dormant
   provisioner "shell" {
     only   = ["amazon-ebs.basic-rh-10"]
     execute_command = "chmod +x {{ .Path }}; if [ -r /run/csis-step ]; then {{ .Vars }} sh /run/csis-step {{ .Path }}; else {{ .Vars }} {{ .Path }}; fi"
     inline = [
-      "# identity type 'okta' prerequisites (oktagroups): OPA agent, dormant",
-      "sudo rpm --import https://dist.scaleft.com/GPG-KEY-OktaPAM-2023",
-      "printf '[oktapam-stable]\\nname=Okta PAM Stable - $basearch\\nbaseurl=https://dist.scaleft.com/repos/rpm/stable/rhel/$releasever/$basearch\\ngpgcheck=1\\nrepo_gpgcheck=1\\nenabled=1\\ngpgkey=https://dist.scaleft.com/GPG-KEY-OktaPAM-2023\\n' | sudo tee /etc/yum.repos.d/oktapam-stable.repo",
-      "sudo yum install -y scaleft-server-tools",
-      "sudo systemctl disable --now sftd || true",
-      "sudo rm -f /var/lib/sftd/enrollment.token",
+      "# identity type 'posix' prerequisites (posix-local): the shadow tools and sudo, present on every supported family -- checked, not installed",
+      "command -v groupadd >/dev/null && command -v useradd >/dev/null && command -v gpasswd >/dev/null && command -v visudo >/dev/null",
     ]
   }
   # storage type 'ebs' prerequisites
@@ -111,7 +107,7 @@ build {
       "sudo systemctl enable amazon-ssm-agent",
     ]
   }
-  # in-bake verification for base image basic-rh-10: 13 assertion(s)
+  # in-bake verification for base image basic-rh-10: 12 assertion(s)
   provisioner "shell" {
     only   = ["amazon-ebs.basic-rh-10"]
     inline = [
@@ -120,10 +116,11 @@ build {
       "id -u csisadmin >/dev/null 2>&1",
       "sudo test -f /home/csisadmin/.ssh/authorized_keys",
       "sudo grep -q -- \"$(echo 'ENC[age:YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSBrbzlLM25IMlEvdWtkOUxNWVg1cDBxeUJQUEZLZHVjUzh4ZzROdmFpcTBrCitNSGJncm9PTWR4bzBsbGsyUEZTUWFZZ25Ja2JrUEtGcGNyaWMvc0k3SlEKLS0tIHkwbTQ4VFBTS3BGcm9hdG1RNHNVUjlibzJNL0UycGdNbzhWb0trV0s3LzgK0178wSJZ9P74ygZxA7hNhYpJWwT+YLH+rFrEZvk7TbCEsIgvH3OKRYMCtkA9Muf6Lm5uIe6HU4eUhm6rXfcYi5V+W3u5UpfK44dj0Z3UCHsSZuEUyP9H/rYZyt8nr3THNh3r2ZDofOuXH+i1osQJk8I9x0isMnBoxYUeOWZqtzsODENxSQ==]' | awk '{print $2}')\" /home/csisadmin/.ssh/authorized_keys",
-      "# verify: OPA agent present and dormant",
-      "command -v sftd >/dev/null 2>&1 || test -x /usr/sbin/sftd || test -x /usr/bin/sftd",
-      "! systemctl is-enabled sftd >/dev/null 2>&1",
-      "test ! -e /var/lib/sftd/enrollment.token",
+      "# verify: groupadd, useradd, gpasswd, visudo present",
+      "command -v groupadd >/dev/null",
+      "command -v useradd >/dev/null",
+      "command -v gpasswd >/dev/null",
+      "command -v visudo >/dev/null",
       "# verify: EFS/NFS mount tooling present",
       "command -v mount.efs >/dev/null 2>&1 || command -v mount.nfs >/dev/null 2>&1 || command -v mount.nfs4 >/dev/null 2>&1",
       "# verify: AWS CLI present",
@@ -131,8 +128,6 @@ build {
       "# verify: SSM agent baked",
       "command -v amazon-ssm-agent >/dev/null 2>&1 || test -x /usr/bin/amazon-ssm-agent || snap list amazon-ssm-agent >/dev/null 2>&1",
       "systemctl is-enabled amazon-ssm-agent >/dev/null 2>&1 || systemctl is-enabled snap.amazon-ssm-agent.amazon-ssm-agent.service >/dev/null 2>&1",
-      "test -e /etc/yum.repos.d/oktapam-stable.repo",
-      "grep -q -- dist.scaleft.com /etc/yum.repos.d/oktapam-stable.repo",
       "if ! rpm -q nfs-utils >/dev/null 2>&1 && ! { command -v dpkg >/dev/null 2>&1 && dpkg -s nfs-utils >/dev/null 2>&1; }; then printf 'package %s is not installed\\n' nfs-utils >&2; exit 1; fi",
     ]
   }
@@ -192,19 +187,6 @@ build {
       "sudo chown -R csisadmin:csisadmin /home/csisadmin/.ssh",
     ]
   }
-  # identity type 'okta' prerequisites, dormant
-  provisioner "shell" {
-    only   = ["amazon-ebs.basic-rhel-9"]
-    execute_command = "chmod +x {{ .Path }}; if [ -r /run/csis-step ]; then {{ .Vars }} sh /run/csis-step {{ .Path }}; else {{ .Vars }} {{ .Path }}; fi"
-    inline = [
-      "# identity type 'okta' prerequisites (oktagroups): OPA agent, dormant",
-      "sudo rpm --import https://dist.scaleft.com/GPG-KEY-OktaPAM-2023",
-      "printf '[oktapam-stable]\\nname=Okta PAM Stable - $basearch\\nbaseurl=https://dist.scaleft.com/repos/rpm/stable/rhel/$releasever/$basearch\\ngpgcheck=1\\nrepo_gpgcheck=1\\nenabled=1\\ngpgkey=https://dist.scaleft.com/GPG-KEY-OktaPAM-2023\\n' | sudo tee /etc/yum.repos.d/oktapam-stable.repo",
-      "sudo yum install -y scaleft-server-tools",
-      "sudo systemctl disable --now sftd || true",
-      "sudo rm -f /var/lib/sftd/enrollment.token",
-    ]
-  }
   # identity type 'posix' prerequisites, dormant
   provisioner "shell" {
     only   = ["amazon-ebs.basic-rhel-9"]
@@ -250,7 +232,7 @@ build {
       "sudo systemctl enable amazon-ssm-agent",
     ]
   }
-  # in-bake verification for base image basic-rhel-9: 14 assertion(s)
+  # in-bake verification for base image basic-rhel-9: 11 assertion(s)
   provisioner "shell" {
     only   = ["amazon-ebs.basic-rhel-9"]
     inline = [
@@ -259,10 +241,6 @@ build {
       "id -u csisadmin >/dev/null 2>&1",
       "sudo test -f /home/csisadmin/.ssh/authorized_keys",
       "sudo grep -q -- \"$(echo 'ENC[age:YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSBrbzlLM25IMlEvdWtkOUxNWVg1cDBxeUJQUEZLZHVjUzh4ZzROdmFpcTBrCitNSGJncm9PTWR4bzBsbGsyUEZTUWFZZ25Ja2JrUEtGcGNyaWMvc0k3SlEKLS0tIHkwbTQ4VFBTS3BGcm9hdG1RNHNVUjlibzJNL0UycGdNbzhWb0trV0s3LzgK0178wSJZ9P74ygZxA7hNhYpJWwT+YLH+rFrEZvk7TbCEsIgvH3OKRYMCtkA9Muf6Lm5uIe6HU4eUhm6rXfcYi5V+W3u5UpfK44dj0Z3UCHsSZuEUyP9H/rYZyt8nr3THNh3r2ZDofOuXH+i1osQJk8I9x0isMnBoxYUeOWZqtzsODENxSQ==]' | awk '{print $2}')\" /home/csisadmin/.ssh/authorized_keys",
-      "# verify: OPA agent present and dormant",
-      "command -v sftd >/dev/null 2>&1 || test -x /usr/sbin/sftd || test -x /usr/bin/sftd",
-      "! systemctl is-enabled sftd >/dev/null 2>&1",
-      "test ! -e /var/lib/sftd/enrollment.token",
       "# verify: groupadd, useradd, gpasswd, visudo present",
       "command -v groupadd >/dev/null",
       "command -v useradd >/dev/null",
@@ -327,19 +305,13 @@ build {
       "sudo chown -R csisadmin:csisadmin /home/csisadmin/.ssh",
     ]
   }
-  # identity type 'okta' prerequisites, dormant
+  # identity type 'posix' prerequisites, dormant
   provisioner "shell" {
     only   = ["amazon-ebs.my-deb-12"]
     execute_command = "chmod +x {{ .Path }}; if [ -r /run/csis-step ]; then {{ .Vars }} sh /run/csis-step {{ .Path }}; else {{ .Vars }} {{ .Path }}; fi"
     inline = [
-      "# identity type 'okta' prerequisites (oktagroups): OPA agent, dormant",
-      "command -v curl >/dev/null 2>&1 && command -v gpg >/dev/null 2>&1 || { sudo apt-get -o DPkg::Lock::Timeout=600 update -y; sudo apt-get -o DPkg::Lock::Timeout=600 install -y curl gnupg; }",
-      "curl -fsSL https://dist.scaleft.com/GPG-KEY-OktaPAM-2023 | sudo gpg --dearmor -o /usr/share/keyrings/oktapam-2023-archive-keyring.gpg",
-      "echo 'deb [signed-by=/usr/share/keyrings/oktapam-2023-archive-keyring.gpg] https://dist.scaleft.com/repos/deb focal okta' | sudo tee /etc/apt/sources.list.d/oktapam-stable.list",
-      "sudo apt-get -o DPkg::Lock::Timeout=600 update -y",
-      "sudo apt-get -o DPkg::Lock::Timeout=600 install -y scaleft-server-tools",
-      "sudo systemctl disable --now sftd || true",
-      "sudo rm -f /var/lib/sftd/enrollment.token",
+      "# identity type 'posix' prerequisites (posix-local): the shadow tools and sudo, present on every supported family -- checked, not installed",
+      "command -v groupadd >/dev/null && command -v useradd >/dev/null && command -v gpasswd >/dev/null && command -v visudo >/dev/null",
     ]
   }
   # storage type 'ebs' prerequisites
@@ -360,7 +332,7 @@ build {
       "sudo systemctl enable amazon-ssm-agent",
     ]
   }
-  # in-bake verification for base image my-deb-12: 8 assertion(s)
+  # in-bake verification for base image my-deb-12: 9 assertion(s)
   provisioner "shell" {
     only   = ["amazon-ebs.my-deb-12"]
     inline = [
@@ -369,10 +341,11 @@ build {
       "id -u csisadmin >/dev/null 2>&1",
       "sudo test -f /home/csisadmin/.ssh/authorized_keys",
       "sudo grep -q -- \"$(echo 'ENC[age:YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSBrbzlLM25IMlEvdWtkOUxNWVg1cDBxeUJQUEZLZHVjUzh4ZzROdmFpcTBrCitNSGJncm9PTWR4bzBsbGsyUEZTUWFZZ25Ja2JrUEtGcGNyaWMvc0k3SlEKLS0tIHkwbTQ4VFBTS3BGcm9hdG1RNHNVUjlibzJNL0UycGdNbzhWb0trV0s3LzgK0178wSJZ9P74ygZxA7hNhYpJWwT+YLH+rFrEZvk7TbCEsIgvH3OKRYMCtkA9Muf6Lm5uIe6HU4eUhm6rXfcYi5V+W3u5UpfK44dj0Z3UCHsSZuEUyP9H/rYZyt8nr3THNh3r2ZDofOuXH+i1osQJk8I9x0isMnBoxYUeOWZqtzsODENxSQ==]' | awk '{print $2}')\" /home/csisadmin/.ssh/authorized_keys",
-      "# verify: OPA agent present and dormant",
-      "command -v sftd >/dev/null 2>&1 || test -x /usr/sbin/sftd || test -x /usr/bin/sftd",
-      "! systemctl is-enabled sftd >/dev/null 2>&1",
-      "test ! -e /var/lib/sftd/enrollment.token",
+      "# verify: groupadd, useradd, gpasswd, visudo present",
+      "command -v groupadd >/dev/null",
+      "command -v useradd >/dev/null",
+      "command -v gpasswd >/dev/null",
+      "command -v visudo >/dev/null",
       "# verify: SSM agent baked",
       "command -v amazon-ssm-agent >/dev/null 2>&1 || test -x /usr/bin/amazon-ssm-agent || snap list amazon-ssm-agent >/dev/null 2>&1",
       "systemctl is-enabled amazon-ssm-agent >/dev/null 2>&1 || systemctl is-enabled snap.amazon-ssm-agent.amazon-ssm-agent.service >/dev/null 2>&1",

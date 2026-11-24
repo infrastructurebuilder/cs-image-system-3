@@ -129,3 +129,26 @@ def test_release_finish_asks_the_venv_alone(tmp_path: Path):
     done = _probes(tmp_path, "pypi", docker_ok=False, who="release-finish")
     assert done.returncode == 0 and done.stdout.startswith("release-finish:") and "in step" in done.stdout
     assert OWN not in done.stdout and ELSEWHERE not in done.stdout     # it builds and uploads nothing
+
+
+def test_a_release_refuses_when_no_published_okta_plugin_meets_its_range():
+    """Spec 008, T048: the released-elsewhere probe reads both released-
+    elsewhere extras, so an index that holds the Google Cloud family's
+    releases but none of the Okta plugin inside its range refuses the
+    release (exit 1), naming the plugin; with one inside it, it passes."""
+    import importlib.machinery
+    import importlib.util
+
+    from packaging.version import Version
+    loader = importlib.machinery.SourceFileLoader("with_released_families", str(REPO / "scripts" / ELSEWHERE))
+    spec = importlib.util.spec_from_loader("with_released_families", loader)
+    assert spec is not None
+    script = importlib.util.module_from_spec(spec)
+    loader.exec_module(script)
+
+    def index(okta: set[Version]):
+        return lambda _index, name: okta if name == "cs-image-system-okta-opa-plugin" else {Version("0.2.1")}
+    said: list[str] = []
+    assert script.check("test", asked=index({Version("0.1.12")}), say=said.append) == 1
+    assert any("cs-image-system-okta-opa-plugin" in line and "NO release" in line for line in said)
+    assert script.check("test", asked=index({Version("0.2.1")}), say=lambda _line: None) == 0

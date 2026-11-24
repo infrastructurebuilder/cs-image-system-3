@@ -14,8 +14,9 @@ package, over its own fixture:
 packages/docker-plugin/tests/pipeline/test_container_runtime.py. What is
 held here needs more than the docker package:
 
-* an identity plugin's objection to a container runtime (the okta group
-  builder's words, and the dummy builder's, the base's default); the preflight's one line per session, with the state
+* an identity plugin's objection to a container runtime (the dummy
+  builder's, the base's default; the Okta group builder's own words are
+  tested in its repository); the preflight's one line per session, with the state
   backends' sessions beside the daemon's; an unreachable daemon as the
   core's one-line load failure; the packer plugin reading a docker
   build's manifest;
@@ -139,17 +140,6 @@ def _errors(root: Path, monkeypatch) -> list[str]:
     from cs_image_system.engine.commands.validate import collect_validation_errors
     ctx = load_context(root)
     return [str(e) for e in collect_validation_errors(ctx)]
-
-
-def test_an_opa_group_on_a_docker_runtime_is_refused_in_the_builders_words(tmp_path, monkeypatch):
-    root = copy_config(tmp_path)
-    docker_overlay(root, group="coops")
-    stub_environment(monkeypatch)
-    _stub_daemon(monkeypatch)
-    errors = _errors(root, monkeypatch)
-    hits = [e for e in errors if IMAGE in e and "coops" in e and RUNTIME in e]
-    assert len(hits) == 1, errors
-    assert "(okta)" in hits[0] and "sftd" in hits[0], "the objection is the okta builder's, in its words"
 
 
 def dummy_group(root: Path, name: str = "dummygroup") -> str:

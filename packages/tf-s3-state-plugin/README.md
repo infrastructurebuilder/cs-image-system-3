@@ -262,7 +262,7 @@ sources, and `init` runs bare.
 
 From the frozen golden emission over the test fixture. The fixture binds
 its storage roots to `s3-east1`, its instance roots to `s3-east2` and
-its identity roots to the `local` backend `local-dev`, so
+its docker roots to the `local` backend `local-dev`, so
 there is one partial configuration per root; the four S3 ones all carry
 `encrypt = true` and `use_lockfile = true`:
 
@@ -273,10 +273,10 @@ there is one partial configuration per root; the four S3 ones all carry
 | `aws-efs` | [aws-efs-storage-generation.tfbackend.hcl](../../tests/fixtures/golden/generated/storage/aws-efs/storage-generation/aws-efs-storage-generation.tfbackend.hcl) |
 | `aws-s3` | [aws-s3-storage-generation.tfbackend.hcl](../../tests/fixtures/golden/generated/storage/aws-s3/storage-generation/aws-s3-storage-generation.tfbackend.hcl) |
 
-The two identity roots' files,
-[oktagroups-group-generation.tfbackend.hcl](../../tests/fixtures/golden/generated/identity/oktagroups/group-generation/oktagroups-group-generation.tfbackend.hcl)
+The two docker roots' files,
+[tofu-docker-instance-generation.tfbackend.hcl](../../tests/fixtures/golden/generated/instance-image/tofu-docker/instance-generation/tofu-docker-instance-generation.tfbackend.hcl)
 and
-[okta-tf-users-user-generation.tfbackend.hcl](../../tests/fixtures/golden/generated/identity/okta-tf-users/user-generation/okta-tf-users-user-generation.tfbackend.hcl),
+[docker-volume-storage-generation.tfbackend.hcl](../../tests/fixtures/golden/generated/storage/docker-volume/storage-generation/docker-volume-storage-generation.tfbackend.hcl),
 are `local` renderings (a `path` line alone) and are not this plugin's.
 
 The `open-tofu` file, in full:
@@ -293,13 +293,13 @@ profile = "noaa"
 
 The consumer side, in
 [open-tofu-instance-generation.tf](../../tests/fixtures/golden/generated/instance-image/open-tofu/instance-generation/open-tofu-instance-generation.tf):
-the empty `backend "s3" {}` inside `terraform {}`, and five
+the empty `backend "s3" {}` inside `terraform {}`, and four
 `data "terraform_remote_state"` blocks. Three (`aws_efs`, `aws_ebs`,
 `aws_s3`) carry `backend = "s3"` and a `config` naming the PRODUCER's
 bucket (`s3-east1`'s), its state file under the producer's prefix, the
-region and the profile; the other two (`docker_volume`, `oktagroups`)
-carry `backend = "local"` and a `path`, because those roots keep their
-state on disk.
+region and the profile; the fourth (`docker_volume`) carries
+`backend = "local"` and a `path`, because that root keeps its state on
+disk.
 
 The runner scripts,
 [run-storage.sh](../../tests/fixtures/golden/generated/storage/run-storage.sh)

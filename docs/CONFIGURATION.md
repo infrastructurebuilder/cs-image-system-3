@@ -300,7 +300,6 @@ config:
   module_source_base: ../tfmodules
   some_key: some_value
   systemuser: "{{ ENV.USER }}"
-  okta_gateway_selector: "environment=staging"
   admin_public_keys:
     - "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIPlaceholderKeyReplaceMeReplaceMeReplaceMe csis-admin-placeholder"
 ```
@@ -758,13 +757,10 @@ default base (the fixture also declares `my-deb-12` and `basic-rhel-9`):
 ---
 os_builders:
   - name: basic-rh-10
-    identity_types: [okta]
+    identity_types: [posix]
     storage_types: [ebs, efs, s3]
     tests:
       packages: [nfs-utils]
-      files:
-        - path: /etc/yum.repos.d/oktapam-stable.repo
-          contains: "dist.scaleft.com"
     update:
       policy: security
       packages: [openssl]
@@ -1483,58 +1479,59 @@ storage_builders:
 
 ## 9. `cfg/group-builders.yml`
 
-Keys: `group_builders` and `user_builders`. Models:
-[`okta_tf_models.py`](../packages/okta-opa-plugin/src/cs_image_system/okta_opa_plugin/okta_tf_models.py),
-[`okta_tf_workspace.py`](../packages/okta-opa-plugin/src/cs_image_system/okta_opa_plugin/okta_tf_workspace.py),
-[`group_builder.py`](../packages/base/src/cs_image_system/base/models/group_builder.py),
+Keys: `group_builders` and `user_builders`. Two identity plugins answer
+to them. The posix-identity plugin (type `posix`) is in this repository,
+and its fields are below. The Okta identity plugin (types `okta-tf` and
+`okta-tf-ro`) is released from its own repository,
+[cs-image-system-okta](https://github.com/infrastructurebuilder/cs-image-system-okta),
+and installed with the `okta` extra
+([OPERATIONS.md, "Installing a release"](OPERATIONS.md#installing-a-release)).
+Its fields moved with it: the one source for them is
+[the Okta plugin's `docs/CONFIGURATION.md`](https://github.com/infrastructurebuilder/cs-image-system-okta/blob/develop/docs/CONFIGURATION.md),
+and this section keeps only a short description of each Okta builder,
+linking the table that holds its fields. Models:
+[`okta_tf_models.py`](https://github.com/infrastructurebuilder/cs-image-system-okta/blob/develop/packages/okta-opa-plugin/src/cs_image_system/okta_opa_plugin/okta_tf_models.py)
+and
+[`okta_tf_workspace.py`](https://github.com/infrastructurebuilder/cs-image-system-okta/blob/develop/packages/okta-opa-plugin/src/cs_image_system/okta_opa_plugin/okta_tf_workspace.py)
+in the Okta plugin's repository;
+[`posix_models.py`](../packages/posix-identity-plugin/src/cs_image_system/posix_identity_plugin/posix_models.py);
+and the kit's
+[`group_builder.py`](../packages/base/src/cs_image_system/base/models/group_builder.py)
+and
 [`user_builder.py`](../packages/base/src/cs_image_system/base/models/user_builder.py).
 
 ### 9.1 The Okta terraform workspace (shared by group and user builders)
 
-`OktaTfWorkspaceModelMixin`. Each builder owns one terraform root.
-
-| Field | Type | Default | Meaning and allowed values |
-| --- | --- | --- | --- |
-| `org` | str | required | the Okta org name; `okta` provider `org_name` |
-| `team` | str | required | the OPA team; also names the credential variables (below) |
-| `key` | EncryptedStr | `default` | the oktapam API key. Left at default it becomes `var.<team>_key`, filled from `TF_VAR_<team>_key`; a literal may be `ENC[age:…]` and is then emitted by reference |
-| `secret` | EncryptedStr | `default` | likewise, `TF_VAR_<team>_secret` |
-| `api_host` | str | `https://{{ this.org }}.pam.okta.com` | the OPA API host |
-| `okta_base_url` | str | `okta.com` | `okta` provider `base_url` (`oktapreview.com` for a preview org) |
-| `default_user_status` | str | `STAGED` | `okta_user.status` for enabled managed users: `ACTIVE`, `STAGED`, `SUSPENDED`, `DEPROVISIONED`; disabled users are always `SUSPENDED`. Not validated here: another value is emitted as written and refused by the provider |
-| `required_providers` | list | `[]` | `{name (required), version (required), source, config}`; `oktapam` gets its credentials wired through variables, `okta` reads `OKTA_API_*` from the environment and its `config` may carry any provider argument |
-| `state_configuration` | str | `default` | the state backend of the identity roots; `default` takes the default backend (an identity root has no runtime to inherit from) |
-
-`<team>` in a variable name is the team with every non-alphanumeric
-character replaced by `_` (`nos-coastal-modeling-cloud-sandbox` →
-`nos_coastal_modeling_cloud_sandbox`).
+Every `okta-tf` and `okta-tf-ro` builder, group or user, owns one
+terraform root and carries the fields of `OktaTfWorkspaceModelMixin`: the
+Okta org and the OPA team (`org` and `team`, both required), the OPA API
+key pair (`key` and `secret`; left at `default` they are filled from
+`TF_VAR_<team>_key` and `TF_VAR_<team>_secret`, where `<team>` is the
+team with every non-alphanumeric character replaced by `_`), the OPA API
+host, the Okta base URL, the managed users' default status, the
+terraform providers, and the state backend of the identity roots
+(`state_configuration`). The table, with each field's type, default and
+allowed values, is
+[section 1 of the Okta plugin's configuration reference](https://github.com/infrastructurebuilder/cs-image-system-okta/blob/develop/docs/CONFIGURATION.md#1-the-okta-terraform-workspace-shared-by-group-and-user-builders).
+A `posix` builder has none of these fields: it owns no terraform root and
+needs no credential.
 
 ### 9.2 Group builders
 
 `OktaGroupBuilderModel`; types `okta-tf` (managed OPA groups) and
-`okta-tf-ro` (lookups of existing Okta groups only). Common builder fields
-(4.1) and 9.1 plus:
-
-| Field | Type | Default | Meaning |
-| --- | --- | --- | --- |
-| `gateway_selector` | str or null | null | the resource-group project's `gateway_selector`; falls back to `config.okta_gateway_selector` |
-| `workload_connection` | str or null | null | the team's workload connection, by name, made by hand once (CI_SETUP.md section 3.5); with `workload_role` it makes the builder keep one CI login policy per managed group |
-| `workload_role` | str or null | null | the team's workload role, by name; the only principal of every CI login policy |
-| `account_discovery` | bool | `true` | the project's `account_discovery` |
-| `posix` | str | **required** on `okta-tf`, no default | a `type: posix` group builder that makes these groups exist on their machines (created after each applying run with OPA's gid; members join at each login through a baked PAM hook), or `none` for no posix configuration (`validate` and the state query note what that keeps off the machines). Absent, empty, an undeclared name or a non-posix builder is refused at `validate`. Not read by `okta-tf-ro` |
-| `posix_ssh_keys` | bool | `false` | opt-in: the login hook also installs each member's declared `public_keys:` as their `authorized_keys` |
-
-For every managed group `<g>` the `okta-tf` builder emits: the `oktapam`
-groups `<g>_user` and `<g>_admin`; the resource group `<g>_rg`, delegated
-to `<g>_admin` (and to the root group's admin group when the group keeps
-`include_root_group_in_admins`); the project `<g>_rg_login` with the
-gateway selector and account discovery; two security policies (user and
-admin) that select servers by the labels `system.os_type = linux` and
-`sftd.tx.group = <g>`; and one `oktapam_user_group_attachment` per member
-and per admin, whose `username` is the user's `name`. Base images that
-declare `identity_types: [okta]` get the OPA server agent baked, dormant;
-an instance image activates it for its owning group. The identity type
-token is `okta`.
+`okta-tf-ro` (lookups of existing Okta groups only). Beside the fields
+every builder shares (4.1) and the workspace's (9.1), it takes the login
+project's gateway selector and account discovery, the team's workload
+connection and role (which make it keep one CI login policy per managed
+group), and, required on `okta-tf`, `posix:`: the `type: posix` group
+builder that makes these groups exist on their machines, or `none`. For
+every managed group it emits the OPA user and admin groups, a resource
+group, a login project, the user and admin security policies and one
+attachment per member and per admin; base images that declare
+`identity_types: [okta]` get the OPA server agent baked, dormant, and an
+instance image activates it for its owning group. The fields and the
+emission in full are
+[section 2 of the Okta plugin's configuration reference](https://github.com/infrastructurebuilder/cs-image-system-okta/blob/develop/docs/CONFIGURATION.md#2-group-builders).
 
 `PosixGroupBuilderModel`; type `posix` (the posix-identity plugin): the
 groups exist on their machines, created at the bake with their gid,
@@ -1573,25 +1570,29 @@ See the
 
 ### 9.3 User builders
 
-`UserBuilderModel` and `OktaUserBuilderModel`; types `okta-tf` (managed:
-an `okta_user` resource plus a lookup) and `okta-tf-ro` (lookup only;
-`managed: true` on a user is refused). Common builder fields and 9.1 plus:
+Every user builder carries the kit's `UserBuilderModel` fields, beside
+the fields every builder shares (4.1):
 
 | Field | Type | Default | Meaning |
 | --- | --- | --- | --- |
 | `default_user_email_template` | str | `{{ user.name }}` | the email of a user that declares none; `user` is the user being rendered |
 | `default_user_description_template` | str | `User {{ user.name }} / {{ user.email }}` | the description of a user that declares none |
-| `email_as_username` | bool | `true` | when true a user's `name` must equal its `email` (case-insensitive); a blank name is set from the email; a mismatch aborts the load |
+| `email_as_username` | bool | `true` (`false` on `posix`) | when true a user's `name` must equal its `email` (case-insensitive); a blank name is set from the email; a mismatch aborts the load |
 | `email_domain` | str | none | the fragment `default_user_email_template` renders with (`{{ builder.email_domain }}`); the value that is encrypted in the live tree, so a derived address carries the ciphertext (section 13) |
 
-The Okta login of an emitted user is its email. Lookups search
-`profile.login` by that email and skip roles and groups.
+The Okta plugin's `OktaUserBuilderModel`; types `okta-tf` (managed:
+an `okta_user` resource plus a lookup) and `okta-tf-ro` (lookup only;
+`managed: true` on a user is refused), with the workspace's fields (9.1).
+The Okta login of an emitted user is its email; lookups search
+`profile.login` by that email. The Okta user builders' table is
+[section 3 of the Okta plugin's configuration reference](https://github.com/infrastructurebuilder/cs-image-system-okta/blob/develop/docs/CONFIGURATION.md#3-user-builders).
 
 `PosixUserBuilderModel`; type `posix` (the posix-identity plugin): users
 as POSIX accounts, each with a user-private group of the same name and
 id. A user's uid is its `uid:` when it declares one; a user without one
 is given an id from the builder's pool as a group is (9.2), and its
-private group takes the same id. Common builder fields and 9.1 plus:
+private group takes the same id. The fields every builder shares (4.1)
+and every user builder's (above) plus:
 
 | Field | Type | Default | Meaning |
 | --- | --- | --- | --- |
@@ -1599,35 +1600,26 @@ private group takes the same id. Common builder fields and 9.1 plus:
 
 ### 9.4 Example
 
-[`cfg/group-builders.yml`](../tests/fixtures/config/cfg/group-builders.yml):
+[`cfg/group-builders.yml`](../tests/fixtures/config/cfg/group-builders.yml)
+of the frozen fixture, whose identity is POSIX, in short:
 
 ```yaml
 ---
 group_builders:
-  - name: oktagroups
+  - name: posix-local
     is_default: true
-    type: okta-tf
-    executable: open-tofu-1
-    org: "noaa"
-    team: "nos-coastal-modeling-cloud-sandbox"
-    required_providers:
-      - name: oktapam
-        source: okta/oktapam
-        version: '>= 0.6.3'
+    type: posix
 user_builders:
-  - name: okta-tf-users
+  - name: posix-users
     is_default: true
-    type: okta-tf-ro
-    executable: open-tofu-1
-    org: "noaa"
-    team: "nos-coastal-modeling-cloud-sandbox"
-    email_as_username: false
-    default_user_email_template: "{{ user.name }}@example.invalid"
-    required_providers:
-      - name: okta
-        source: okta/okta
-        version: '>= 6.0'
+    type: posix
 ```
+
+An Okta example is
+[section 4 of the Okta plugin's configuration reference](https://github.com/infrastructurebuilder/cs-image-system-okta/blob/develop/docs/CONFIGURATION.md#4-example),
+and the `standard-aws` starter's
+[`cfg/group-builders.yml`](examples/standard-aws/cfg/group-builders.yml)
+is one written to be copied, every decision marked.
 
 ## 10. `cfg/state-backends*.yml`
 
@@ -1692,10 +1684,12 @@ is empty and the next plan would create everything again. A root with
 nothing deployed moves freely. The escape is the operation
 `run --no-dry-run … --migrate-state <root>` (OPERATIONS, "Where state
 lives"); there is no flag that merely proceeds past the refusal. The
-fixture binds its storage roots to `s3-east1`, its identity roots to the
-`local` backend `local-dev`, and its instance roots to the default
-`s3-east2`, so its golden carries both buckets and one local file; the live
-configuration keeps every root on its default backend by decision.
+fixture binds its AWS storage roots to `s3-east1`, its AWS instance root
+to the default `s3-east2`, and its docker roots, through their runtime,
+to the `local` backend `local-dev` (it has no identity root: its groups
+are POSIX ones), so its golden carries both buckets and two local files;
+the live configuration keeps every root on its default backend by
+decision.
 
 ### `s3`
 
@@ -2127,6 +2121,7 @@ groups:
     is_root: true
     is_default: false
     description: "Root admin group with access to everything"
+    gid: 3100
     admins:
       - ENC[age:YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSAvNFdjbVB6VExmbnZNQjFRR1dMel…]
     tags:
@@ -2134,6 +2129,7 @@ groups:
   - name: coops
     is_default: false
     description: "CO-Ops  group"
+    gid: 3102
     members:
       - ENC[age:…]
       - ENC[age:…]
@@ -2155,7 +2151,8 @@ personal names, the email, the keys, the posix `uid`, the management
 mode. An identity plugin may inject a subclass with more fields as the
 default item model, and the loader then structures every `users:` item
 into it: with the okta-opa plugin installed the model is its `OktaUser`
-([`okta_user.py`](../packages/okta-opa-plugin/src/cs_image_system/okta_opa_plugin/okta_user.py)),
+([`okta_user.py`](https://github.com/infrastructurebuilder/cs-image-system-okta/blob/develop/packages/okta-opa-plugin/src/cs_image_system/okta_opa_plugin/okta_user.py),
+in the Okta plugin's own repository),
 which adds the Okta profile fields in the last row below. A tree that
 writes one of those fields loads only with that plugin installed; without
 it the key is unknown and the load refuses the file, naming the key.

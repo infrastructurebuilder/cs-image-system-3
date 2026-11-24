@@ -40,7 +40,8 @@ def _workdir(line: str) -> tuple[str, str]:
 
 def test_the_golden_carries_the_lifecycle_scripts():
     # retention recorded no deferred work over the fixture, so it has no script: that absence IS the gate
-    assert {p.parent.name for p in SCRIPTS} == {"base-image", "identity", "storage", "instance-image", "release"}
+    # the identity lifecycle emits no root, so no script (the fixture's identity is POSIX, spec 008)
+    assert {p.parent.name for p in SCRIPTS} == {"base-image", "storage", "instance-image", "release"}
 
 
 @pytest.mark.parametrize("script", SCRIPTS, ids=lambda p: p.parent.name)

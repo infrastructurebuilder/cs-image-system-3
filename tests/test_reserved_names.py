@@ -186,7 +186,7 @@ def test_every_named_model_class_refuses_every_word_as_a_name_and_an_alias(monke
     # plugin's user with its profile fields): the base class's name counts
     names = {base.__name__ for cls in models for base in cls.__mro__}
     assert {"Group", "User", "Storage", "Image", "Instance"} <= names, names
-    assert len(models) >= 30, names                     # 31 when this was written
+    assert len(models) >= 28, names                     # 31 when this was written; 28 once the Okta builders left (spec 008)
     accepted: list[str] = []
     for cls, model in models.items():
         for value in VARIANTS:
@@ -238,8 +238,9 @@ def test_a_state_backend_written_none_is_refused_not_put_on_the_default(tmp_path
     """`none` would read as unset in the backend chain, which would put the
     root's state on the DEFAULT backend -- the opposite of what it says."""
     root = copy_config(tmp_path)
-    _edit_yaml(root / "cfg" / "group-builders.yml",
-               lambda d: d["group_builders"][0].__setitem__("state_configuration", "none"))
+    # a terraform root's builder that binds a backend by name (the POSIX group builder emits no root)
+    _edit_yaml(root / "cfg" / "storage-builders.yml",
+               lambda d: d["storage_builders"][0].__setitem__("state_configuration", "none"))
     errors = [e for e in _validation_errors(root, monkeypatch) if "state backend 'none'" in e]
     assert len(errors) == 1 and "'no state backend'" in errors[0] and "`local`" in errors[0], errors
 

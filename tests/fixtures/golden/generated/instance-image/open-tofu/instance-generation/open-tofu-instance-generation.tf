@@ -66,13 +66,6 @@ data "terraform_remote_state" "docker_volume" {
         path = "../../../../state/docker_volume.tfstate"
     }
 }
-data "terraform_remote_state" "oktagroups" {
-    backend = "local"
-    
-    config = {
-        path = "../../../../state/oktagroups.tfstate"
-    }
-}
 data "aws_vpc" "csis_instances" {
   provider    = aws.open_tofu
   id = "vpc-0c78d0d63b7a100df"

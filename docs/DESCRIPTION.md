@@ -106,8 +106,8 @@ lifecycles.
   values. The plugins in this repository: the `aws` and `docker`
   runtimes; `default-os` (the OS families a base image is built from);
   `packer` (the image builders for EBS, GCE and docker images); `ansible`
-  and `bash-mod` (modifications); `okta-opa` (Okta users, OPA groups) and
-  `posix-identity` (POSIX groups and users on the machines); the OpenTofu
+  and `bash-mod` (modifications); `posix-identity` (POSIX groups and
+  users on the machines); the OpenTofu
   instance and storage builders for AWS (`tf-ebs-instance`) and docker
   (`tf-docker`); the `s3` and `local` state
   backends; `contract-example` (the `inmem` state backend, the proof that
@@ -117,7 +117,12 @@ lifecycles.
   and the `gcs` state backend, is released from its own repository,
   [cs-image-system-google-cloud](https://github.com/infrastructurebuilder/cs-image-system-google-cloud),
   and installed with the system's `[gcloud]` extra; a tree uses it like
-  any other plugin. Adding a cloud, a storage kind or
+  any other plugin. The Okta identity plugin, `okta-opa` (Okta users and
+  OPA groups, the identities described above), is released the same way
+  from its own repository,
+  [cs-image-system-okta](https://github.com/infrastructurebuilder/cs-image-system-okta),
+  and installed with the `[okta]` extra ("Installing a release" in
+  [OPERATIONS.md](OPERATIONS.md#installing-a-release) says how). Adding a cloud, a storage kind or
   a modification mechanism means adding a plugin, not editing the core.
   Each package has its own README ([docs/PLUGINS.md](PLUGINS.md)).
 - **Lifecycles.** Four generation lifecycles run in order — identity,
@@ -222,11 +227,11 @@ Three commitments show up everywhere:
   and, for a final version, to PyPI too, skipping whatever the index
   already holds, and then push the five starter template repositories.
   No package of this repository is released on its own. The Google Cloud
-  family is the one exception to "the whole system": it is released from
-  its own repository on a version line of its own, the `[gcloud]` and
-  `[all]` extras name it by that line's range (which a bump here never
-  moves), and a release here refuses unless PyPI holds a release of the
-  Google Cloud family inside that range.
+  family and the Okta plugin are the two exceptions to "the whole
+  system": each is released from its own repository on a version line of
+  its own, the `[gcloud]`, `[okta]` and `[all]` extras name each by its
+  line's range (which a bump here never moves), and a release here
+  refuses unless PyPI holds a release of each inside its range.
 
 Where the documentation and the system can diverge, and how to check, is
 [PARITY.md](PARITY.md).

@@ -10,7 +10,12 @@ tree uses them like any other plugin; they are not in `packages/`. They
 live in the Google Cloud family's own repository,
 [cs-image-system-google-cloud](https://github.com/infrastructurebuilder/cs-image-system-google-cloud),
 which builds, tests and releases them on a version line of their own,
-and their links below point there.
+and their links below point there. The tables list the Okta identity
+plugin (`okta-opa-plugin`) the same way and for the same reason: it is
+not in `packages/` either, but in its own repository,
+[cs-image-system-okta](https://github.com/infrastructurebuilder/cs-image-system-okta),
+which builds, tests and releases it on its own version line, and its
+links below point there.
 
 The workspace root is the umbrella, `cs-image-system`: no sources of its
 own, a `==` pin on the core -- the CLI, the engine, the libraries and
@@ -22,9 +27,12 @@ in [OPERATIONS.md](OPERATIONS.md); the table from a `type:` word to its
 extra is `cs_image_system.extras`, the umbrella's one module). The
 `[gcloud]` and `[all]` extras name the Google Cloud family by the range of
 its own line rather than by a `==` pin, since it is released from its own
-repository; the workspace's `just init` therefore syncs every extra but
-those two, and the commands that load a tree declaring the Google Cloud
-family layer it in from the index for that command alone. The dummy plugin
+repository, and the `[okta]` and `[all]` extras name the Okta plugin the
+same way (`>=0.2,<0.3`); the workspace's `just init` therefore syncs every
+extra but those three, and the commands that load a tree declaring the
+Google Cloud family or the Okta plugin layer it in from the index for that
+command alone. How an operator installs either is stated once, in
+["Installing a release"](OPERATIONS.md#installing-a-release). The dummy plugin
 and the
 contract example plugin are workspace-only: classified `Private :: Do
 Not Upload`, installed through the root's `dev` group, never on the
@@ -38,9 +46,9 @@ series. The SDK's libraries (the kit, and the two terraform libraries
 together) each keep a version line of their own: the core and the
 plugins that release with it pin them exactly, and a provider that
 stands alone, as the docker provider does, names them by a range. The
-Google Cloud family, released from its own repository, names the
-contract, the kit and the terraform libraries by ranges too, and the
-umbrella names it by a range in turn.
+Google Cloud family and the Okta plugin, each released from its own
+repository, name the contract, the kit and the terraform libraries by
+ranges too, and the umbrella names each by a range in turn.
 Everything else carries the workspace's one version and is pinned at it.
 [WRITING_A_PROVIDER.md](WRITING_A_PROVIDER.md) says what the SDK's
 version numbers promise.
@@ -76,7 +84,7 @@ declares `other`).
 | [packer-plugin](../packages/packer-plugin/README.md) | image builders | the one `packer` image builder, for every runtime (the older keys `packer-ebs`, `packer-gce` and `packer-docker` still load for one release) |
 | [ansible-plugin](../packages/ansible-plugin/README.md) | modifications | `ansible` (playbooks) |
 | [bash-mod-plugin](../packages/bash-mod-plugin/README.md) | modifications | `bash-remote` (script, scripts, ensure) |
-| [okta-opa-plugin](../packages/okta-opa-plugin/README.md) | groups and users | the OPA group builder, the managed and read-only user builders |
+| [okta-opa-plugin](https://github.com/infrastructurebuilder/cs-image-system-okta/blob/develop/packages/okta-opa-plugin/README.md), in the Okta identity plugin's repository | groups and users | the OPA group builder, the managed and read-only user builders |
 | [posix-identity-plugin](../packages/posix-identity-plugin/README.md) | groups and users | `posix` (a group and a user builder: POSIX accounts with declared ids) |
 | [tf-ebs-instance-plugin](../packages/tf-ebs-instance-plugin/README.md) | instances and storages | the AWS terraform roots: `tofu` (instances) and `tf-aws-ebs`, `tf-aws-efs`, `tf-aws-s3` (storages); a subclass of tofu-roots' neutral roots with the `aws` provider |
 | [tf-gcp-plugin](https://github.com/infrastructurebuilder/cs-image-system-google-cloud/blob/develop/packages/tf-gcp-plugin/README.md), in the Google Cloud family's repository | instances and storages | the GCE terraform roots: `tofu-gce` (instances) and `tf-gcp-pd`, `tf-gcp-filestore`, `tf-gcp-gcs` (storages); a subclass of tofu-roots' neutral roots with the `google` provider, with no dependency on the AWS root |
@@ -99,8 +107,8 @@ inherits it from its distribution: the distribution name with the
 package names its two namespaces itself (`docker-runtime` for the
 runtime, `tf-docker` for the roots), as they were when it was two
 packages, so a tree that wrote a qualified word still loads. The
-packages above (the Google Cloud family's three among them, from its
-own repository) therefore register as `aws-runtime`, `gcloud-runtime`,
+packages above (the Google Cloud family's three and the Okta plugin
+among them, each from its own repository) therefore register as `aws-runtime`, `gcloud-runtime`,
 `docker-runtime`, `tf-docker`, `default-os`, `packer`, `ansible`,
 `bash-mod`, `okta-opa`, `posix-identity`, `tf-ebs-instance`, `tf-gcp`,
 `tf-s3-state`, `contract-example`, `local-state`, `gcs-state` and
@@ -299,7 +307,7 @@ name is never a silent replacement. Two plugins that mount different
 things under one name are both skipped, with one error line that names
 both; a plugin that takes a built-in command's name is skipped alone.
 The script still starts, and `--help` still answers. The examples: the okta-opa plugin's
-[`cli.py`](../packages/okta-opa-plugin/src/cs_image_system/okta_opa_plugin/cli.py)
+[`cli.py`](https://github.com/infrastructurebuilder/cs-image-system-okta/blob/develop/packages/okta-opa-plugin/src/cs_image_system/okta_opa_plugin/cli.py)
 mounts the `workload` sub-app (`describe`, `token`, `probe`) and `verify
 login`; the posix-identity plugin's
 [`cli.py`](../packages/posix-identity-plugin/src/cs_image_system/posix_identity_plugin/cli.py)

@@ -190,7 +190,7 @@ def test_every_installed_plugin_carries_the_namespace_of_its_distribution():
     assert derived["base_plugin"] == "base"
     assert derived["aws_plugin"] == "aws-runtime"
     assert derived["contract_example_plugin"] == "contract-example"
-    assert derived["okta_opa_plugin"] == "okta-opa"
+    assert derived["posix_identity_plugin"] == "posix-identity"
     assert derived["tf-ebs-instance-plugin"] == "tf-ebs-instance"
     assert all(ns for ns in derived.values()), derived
 

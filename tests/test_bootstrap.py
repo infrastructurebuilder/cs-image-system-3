@@ -49,7 +49,7 @@ def _git(root: Path, *args: str) -> str:
     return subprocess.run(["git", "-C", str(root), *args], check=True, capture_output=True, text=True).stdout
 
 
-def _starter_copy(tmp_path: Path, name: str = "standard-aws", remote: str | None = "git@github.com:acme/widgets.git") -> Path:
+def _starter_copy(tmp_path: Path, name: str = "standard-aws-posix", remote: str | None = "git@github.com:acme/widgets.git") -> Path:
     root = tmp_path / "tree"
     shutil.copytree(RENDERED() / name, root)   # a whole tree: the skeleton, the overlay and the modules
     _git(root, "init", "-q", "-b", "develop")
@@ -252,7 +252,7 @@ def test_the_secrets_keep_the_order_a_committed_root_has():
     from cs_image_system.engine.bootstrap.github import secrets_union
     from cs_image_system.engine.bootstrap.questions import Secret
     assert [s.name for s in secrets_union(bs.discover())] == [
-        "AWS_ROLE_ARN", "AWS_APPLY_ROLE_ARN", "OKTA_API_PRIVATE_KEY", "TF_VAR_KEY", "TF_VAR_SECRET",
+        "AWS_ROLE_ARN", "AWS_APPLY_ROLE_ARN",
         "CSIS_CONFIG_IDENTITY", "DOCKER_HOST_SSH_KEY", "DOCKER_HOST_KNOWN_HOSTS", "CSIS_PROOF_SSH_KEY"]
     assert Secret("X", "file").order == 100                     # a section that picks no place comes after them all
     # an output replacing a file keeps the file's place, whichever the script met first

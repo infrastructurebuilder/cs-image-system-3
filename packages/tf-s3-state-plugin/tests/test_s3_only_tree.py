@@ -64,7 +64,12 @@ def test_a_dry_run_over_an_s3_only_tree_puts_every_root_in_a_bucket(tmp_path, mo
         summary = run.run("all")
         assert summary.ok, summary.error
         backend_files = sorted(run.generated.rglob("*.tfbackend.hcl"))
-        assert len(backend_files) >= 8, [str(p.relative_to(run.generated)) for p in backend_files]
+        # every storage and instance root the fixture declares (its POSIX identity has no root)
+        declared = {b["name"] for f, key in (("storage-builders.yml", "storage_builders"),
+                                             ("instance-builders.yml", "instance_builders"))
+                    for b in yaml.safe_load((root / "cfg" / f).read_text())[key]}
+        assert len(declared) >= 6 and {p.parent.parent.name for p in backend_files} == declared, \
+            [str(p.relative_to(run.generated)) for p in backend_files]
         buckets = {e["bucket"] for e in backends.values()}
         for backend_file in backend_files:
             text = backend_file.read_text()

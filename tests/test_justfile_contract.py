@@ -253,9 +253,11 @@ def test_preflight_fails_on_a_credential_that_is_set_but_empty(monkeypatch, tmp_
     Set-but-empty is a failure, reported by NAME, never by value."""
     from cs_image_system.engine.commands.preflight import empty_environment_credentials
     from cs_image_system.engine.loader import installed_registry
+    # OKTA_ is a prefix only the Okta identity plugin declares, and it is not installed here (spec 008)
     assert empty_environment_credentials(installed_registry(),
-                                         {"TF_VAR_X": "", "OKTA_API_TOKEN": "", "AWS_PROFILE": "p", "HOME": ""}) == \
-        ["OKTA_API_TOKEN", "TF_VAR_X"]
+                                         {"TF_VAR_X": "", "OKTA_API_TOKEN": "", "AWS_PROFILE": "p", "HOME": "",
+                                          "AWS_SECRET_ACCESS_KEY": ""}) == \
+        ["AWS_SECRET_ACCESS_KEY", "TF_VAR_X"]
     adc = tmp_path / "adc.json"                  # present while the fixture declares a Google Cloud session; inert after
     adc.write_text(json.dumps({"type": "authorized_user"}))
     result = _preflight(monkeypatch, daemon=True, AWS_ACCESS_KEY_ID="AKIA-test", GOOGLE_APPLICATION_CREDENTIALS=str(adc),

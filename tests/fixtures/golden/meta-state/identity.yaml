@@ -2,9 +2,9 @@ groups:
   basic:
     admins:
     - avery.alpha
-    builder: oktagroups
-    gid_policy: creation-only
-    identity_type: okta
+    builder: posix-local
+    gid_policy: config-time
+    identity_type: posix
     is_root: true
     managed: true
     members: []
@@ -12,9 +12,9 @@ groups:
     admins:
     - avery.alpha
     - casey.charlie
-    builder: oktagroups
-    gid_policy: creation-only
-    identity_type: okta
+    builder: posix-local
+    gid_policy: config-time
+    identity_type: posix
     is_root: false
     managed: true
     members:
@@ -31,22 +31,14 @@ groups:
     members:
     - taylor_tango
     - unity_uniform
-  readers:
-    admins: []
-    builder: okta-groups-ro
-    gid_policy: creation-only
-    identity_type: okta
-    is_root: false
-    managed: false
-    members: []
   secofs:
     admins:
     - avery.alpha
     - lennox.lima
     - oakley
-    builder: oktagroups
-    gid_policy: creation-only
-    identity_type: okta
+    builder: posix-local
+    gid_policy: config-time
+    identity_type: posix
     is_root: false
     managed: true
     members:
@@ -56,9 +48,9 @@ groups:
   stofs:
     admins:
     - avery.alpha
-    builder: oktagroups
-    gid_policy: creation-only
-    identity_type: okta
+    builder: posix-local
+    gid_policy: config-time
+    identity_type: posix
     is_root: false
     managed: true
     members:
@@ -69,9 +61,9 @@ groups:
     - avery.alpha
     - lennox.lima
     - sawyer
-    builder: oktagroups
-    gid_policy: creation-only
-    identity_type: okta
+    builder: posix-local
+    gid_policy: config-time
+    identity_type: posix
     is_root: false
     managed: true
     members:
@@ -81,7 +73,6 @@ groups:
 note: structural facts only; gids flow by terraform remote-state reference (N7)
 run: 2026_08_26t12_00_00
 user_builders:
-  okta-tf-users: okta-tf-ro
   posix-users: posix
 users:
 - avery.alpha

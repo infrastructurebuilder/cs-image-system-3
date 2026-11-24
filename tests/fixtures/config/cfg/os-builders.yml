@@ -6,7 +6,7 @@ os_builders:
   - name: my-deb-12
     # V2 capability declaration (DESIGN 3F1): the ONLY identity and storage
     # types usable downstream of this base image (declared, not merely possible).
-    identity_types: [okta]
+    identity_types: [posix]
     storage_types: [ebs]
     type: debian
     family: debian
@@ -30,7 +30,7 @@ os_builders:
         # `aws` block for debian (this tree's cfg/image-sources.yml over
         # the release's) is the source; `validate` prints what will be asked
   - name: basic-rhel-9
-    identity_types: [okta, posix]   # imgfile-posix (images/image4.yaml) belongs to a posix group
+    identity_types: [posix]   # imgfile-posix (images/image4.yaml) belongs to a posix group
     storage_types: [ebs, efs, s3]
     type: rhel
     family: rhel
@@ -76,16 +76,13 @@ os_builders:
   # the rename; its EL8 pair ami-075901e1bd7965da7/ami-085eeafc0b8efbebc was
   # disposed with it). family stays rhel (the dnf/RHUI family), family_version 10.
   - name: basic-rh-10
-    identity_types: [okta]
+    identity_types: [posix]
     storage_types: [ebs, efs, s3]
     # in-bake assertions (EXPLORE image tests); the bake fails if any fails
     tests:
       # nfs-utils is what the efs prerequisite installs on RHUI RHEL
       # (amazon-efs-utils is Amazon-Linux-only; found live)
       packages: [nfs-utils]
-      files:
-        - path: /etc/yum.repos.d/oktapam-stable.repo
-          contains: "dist.scaleft.com"
     # targeted update policy (EXPLORE): security patches plus openssl,
     # never the kernel; the bake records the resulting package manifest
     update:

@@ -100,10 +100,13 @@ extras its `type:` words name (an AWS tree with Okta groups is
 `cs-image-system[aws,okta]`). Your tree's `Justfile` knows: `just extras`
 prints them, and `just take` installs with them. `[gcloud]` brings the
 Google Cloud family (the `gcloud` runtime, its GCE roots and the `gcs`
-state backend), which is released from its own repository on a version
-line of its own; you install it the same way as any other extra, and
-"Installing a release" in [OPERATIONS.md](OPERATIONS.md) says how its
-versions are named and found.
+state backend), and `[okta]` the Okta identity plugin (the `okta-tf` and
+`okta-tf-ro` group and user builders); each is released from its own
+repository on a version line of its own. You install either the same way
+as any other extra, and
+["Installing a release" in OPERATIONS.md](OPERATIONS.md#installing-a-release)
+is the one place that says how, and how their versions are named and
+found.
 
 ```sh
 uv tool install "cs-image-system[$(just extras)]"    # the command on PATH, with this tree's extras
@@ -1401,14 +1404,14 @@ repository, so their links go to their READMEs there.
   [configuration](../packages/bash-mod-plugin/README.md#configuration-reference) ·
   [tests](../packages/bash-mod-plugin/README.md#what-it-tests-and-verifies) ·
   [failures](../packages/bash-mod-plugin/README.md#when-it-fails)
-- [okta-opa-plugin](../packages/okta-opa-plugin/README.md): groups and users:
+- [okta-opa-plugin](https://github.com/infrastructurebuilder/cs-image-system-okta/blob/develop/packages/okta-opa-plugin/README.md): groups and users:
   OPA groups, resource groups, projects, policies, enrollment tokens, the
   gid shim, the server registry and retirements, the CI login policy, the
   prune step for memberships OPA no longer holds.
-  [prerequisites](../packages/okta-opa-plugin/README.md#prerequisites-and-integration) ·
-  [configuration](../packages/okta-opa-plugin/README.md#configuration-reference) ·
-  [tests](../packages/okta-opa-plugin/README.md#what-it-tests-and-verifies) ·
-  [failures](../packages/okta-opa-plugin/README.md#when-it-fails)
+  [prerequisites](https://github.com/infrastructurebuilder/cs-image-system-okta/blob/develop/packages/okta-opa-plugin/README.md#prerequisites-and-integration) ·
+  [configuration](https://github.com/infrastructurebuilder/cs-image-system-okta/blob/develop/packages/okta-opa-plugin/README.md#configuration-reference) ·
+  [tests](https://github.com/infrastructurebuilder/cs-image-system-okta/blob/develop/packages/okta-opa-plugin/README.md#what-it-tests-and-verifies) ·
+  [failures](https://github.com/infrastructurebuilder/cs-image-system-okta/blob/develop/packages/okta-opa-plugin/README.md#when-it-fails)
 - [posix-identity-plugin](../packages/posix-identity-plugin/README.md): groups
   and users as POSIX accounts on the machines, with the ids the
   configuration declares (`gid:`, `uid:`): the owning group baked into an
@@ -1487,17 +1490,21 @@ Development generally requires a tool that can run `docker` commands, like
 docker desktop or OrbStack (maybe PodMan).
 
 Everything above is for a release. Developing the system is this
-repository, which holds every provider but the Google Cloud family: the
-Google Cloud family is developed, tested and released in its own
-repository,
-[cs-image-system-google-cloud](https://github.com/infrastructurebuilder/cs-image-system-google-cloud),
-and this workspace's venv does not hold it ("Installing a release" in
-[OPERATIONS.md](OPERATIONS.md)). `just init`, then `just test` is the bar
-(lint, types, the
-fast suite over the frozen fixture and its golden emission, which declare
-AWS and docker, and the tests of the two starters that declare the Google
-Cloud family, with the Google Cloud family layered in from the package
-index for the run), `just full-test`
+repository, which holds every provider but the Google Cloud family and
+the Okta identity plugin: each is developed, tested and released in its
+own repository,
+[cs-image-system-google-cloud](https://github.com/infrastructurebuilder/cs-image-system-google-cloud)
+and
+[cs-image-system-okta](https://github.com/infrastructurebuilder/cs-image-system-okta),
+and this workspace's venv holds neither ("Installing a release" in
+[OPERATIONS.md](OPERATIONS.md#installing-a-release)). `just init`, then
+`just test` runs the acceptance tests (lint, types, the fast suite over
+the frozen fixture and its golden emission, which declare AWS and docker
+and whose groups are POSIX ones, so no Okta plugin is needed);
+`just test-cloud-starters` runs the tests of the starters that declare
+the Google Cloud family or Okta groups, with the Google Cloud family and
+the Okta plugin layered in from the package index for that run;
+`just full-test`
 adds the docker-backed modification tests and, when the
 sessions are present, a dry run and a strict state query over a private
 copy of the reference configuration, which is checked out BESIDE this
@@ -1507,7 +1514,7 @@ repository as `cs-image-system-testconfig` for that purpose alone;
 cuts a release to the index (the recipe wraps `scripts/release.py`, which
 also records the release as a row of [CHANGES.md](CHANGES.md)), on
 `main` alone, and is run from `develop`: the recipe checks out `main`,
-fast-forwards it to `develop`, syncs the venv (`uv sync --all-extras --no-extra gcloud --no-extra all`),
+fast-forwards it to `develop`, syncs the venv (`uv sync --all-extras --no-extra gcloud --no-extra okta --no-extra all`),
 cuts the release, pushes `main` with its tag, checks out `develop`,
 fast-forwards it to `main`, pushes it and syncs the venv again, so the
 release walk is the one command and the login halfway. Run from `main`

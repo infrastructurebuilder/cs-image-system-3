@@ -4,7 +4,7 @@
 # changing them means replacing the instance.
 set -euo pipefail
 # delivered by the runtime's session (session); the platform named the machine container-test-001
-# owning group: pxgroup (gid by reference)
+# owning group: pxgroup (gid from the template's group_gid)
 GID="${group_gid}"
 # mount storage container_data (volume) at /mnt/data
 mkdir -p '/mnt/data'

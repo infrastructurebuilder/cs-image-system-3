@@ -43,61 +43,37 @@ build {
       "sudo chmod 0755 /run/csis-step",
     ]
   }
-  # identity activation for owning group 'tcmet' (okta)
+  # identity activation for owning group 'tcmet' (posix)
   provisioner "shell" {
     only   = ["amazon-ebs.imgfile-basic-cloudflow-two"]
     execute_command = "chmod +x {{ .Path }}; if [ -r /run/csis-step ]; then {{ .Vars }} sh /run/csis-step {{ .Path }}; else {{ .Vars }} {{ .Path }}; fi"
     inline = [
-      "# identity activation for group 'tcmet' (okta) on image imgfile-basic-cloudflow-two",
-      "sudo mkdir -p /etc/sft",
-      "printf 'Labels:\\n  tx.group: tcmet\\n' | sudo tee /etc/sft/sftd.yaml",
-      "sudo systemctl enable sftd",
+      "# identity activation for group 'tcmet' (posix) on image imgfile-basic-cloudflow-two",
       "sudo bash -s <<'CSIS_POSIX_ACCOUNTS'",
       "#!/usr/bin/env bash",
       "# cs-image-system posix accounts (stage 75): idempotent; adopts what is equal, refuses what differs",
       "set -euo pipefail",
       "conflict() { echo \"posix accounts: $*\" >&2; exit 3; }",
-      "# the login hook: members join their groups at each login (stage 75)",
-      "install -d -m 0755 /etc/csis/groups",
-      "install -d -m 0700 /etc/csis/keys",
-      "cat > /usr/local/sbin/csis-group-login <<'CSIS_LOGIN_HOOK'",
-      "#!/bin/bash",
-      "# cs-image-system (stage 75): at each login, join the user to every group whose",
-      "# member list (/etc/csis/groups/<group>.members, one name a line) names them, and",
-      "# install their keys when /etc/csis/keys/<user> exists. Run by pam_exec; never fails.",
-      "[ \"$${PAM_TYPE:-}\" = \"open_session\" ] || exit 0",
-      "user=\"$${PAM_USER:-}\"",
-      "[ -n \"$user\" ] && getent passwd \"$user\" >/dev/null || exit 0",
-      "for list in /etc/csis/groups/*.members; do",
-      "  [ -e \"$list\" ] || continue",
-      "  group=$(basename \"$list\" .members)",
-      "  grep -qxF -- \"$user\" \"$list\" || continue",
-      "  getent group \"$group\" >/dev/null || continue",
-      "  id -nG \"$user\" | tr ' ' '\\n' | grep -qxF -- \"$group\" || gpasswd -a \"$user\" \"$group\" >/dev/null 2>&1 || true",
-      "done",
-      "if [ -f \"/etc/csis/keys/$user\" ]; then",
-      "  home=$(getent passwd \"$user\" | cut -d: -f6)",
-      "  install -d -m 0700 -o \"$user\" -g \"$(id -g \"$user\")\" \"$home/.ssh\" 2>/dev/null &&",
-      "    install -m 0600 -o \"$user\" -g \"$(id -g \"$user\")\" \"/etc/csis/keys/$user\" \"$home/.ssh/authorized_keys\" 2>/dev/null || true",
+      "# group tcmet (gid 3104)",
+      "if getent group tcmet >/dev/null; then",
+      "  have=$(getent group tcmet | cut -d: -f3)",
+      "  [ \"$have\" = 3104 ] || conflict \"group tcmet has gid $have here; the configuration says 3104\"",
+      "else",
+      "  if other=$(getent group 3104 | cut -d: -f1) && [ -n \"$other\" ]; then",
+      "    conflict \"gid 3104 belongs to group $other here; the configuration gives it to tcmet\"",
+      "  fi",
+      "  groupadd -g 3104 tcmet",
       "fi",
-      "exit 0",
-      "CSIS_LOGIN_HOOK",
-      "chmod 0755 /usr/local/sbin/csis-group-login",
-      "grep -qxF 'session optional pam_exec.so quiet /usr/local/sbin/csis-group-login' /etc/pam.d/sshd || echo 'session optional pam_exec.so quiet /usr/local/sbin/csis-group-login' >> /etc/pam.d/sshd",
       "CSIS_POSIX_ACCOUNTS",
     ]
   }
-  # in-bake verification for instance image imgfile-basic-cloudflow-two: 4 assertion(s)
+  # in-bake verification for instance image imgfile-basic-cloudflow-two: 1 assertion(s)
   provisioner "shell" {
     only   = ["amazon-ebs.imgfile-basic-cloudflow-two"]
     inline = [
       "set -e",
-      "# verify: activated for group 'tcmet'",
-      "grep -q 'tx.group: tcmet' /etc/sft/sftd.yaml",
-      "systemctl is-enabled sftd >/dev/null 2>&1",
-      "# verify: the posix login hook is installed (stage 75)",
-      "test -x /usr/local/sbin/csis-group-login",
-      "grep -q csis-group-login /etc/pam.d/sshd",
+      "# verify: group 'tcmet' stands with gid 3104",
+      "test \"$(getent group tcmet | cut -d: -f3)\" = '3104'",
     ]
   }
   # before anything else: the build machine settles (aws-east2-runtime)
@@ -165,47 +141,27 @@ provisioner "shell" {
   ]
   execute_command = "chmod +x {{ .Path }}; if [ -r /run/csis-step ]; then {{ .Vars }} sh /run/csis-step {{ .Path }}; else {{ .Vars }} {{ .Path }}; fi"
 }
-  # identity activation for owning group 'coops' (okta)
+  # identity activation for owning group 'coops' (posix)
   provisioner "shell" {
     only   = ["amazon-ebs.imgfile-basic-dask"]
     execute_command = "chmod +x {{ .Path }}; if [ -r /run/csis-step ]; then {{ .Vars }} sh /run/csis-step {{ .Path }}; else {{ .Vars }} {{ .Path }}; fi"
     inline = [
-      "# identity activation for group 'coops' (okta) on image imgfile-basic-dask",
-      "sudo mkdir -p /etc/sft",
-      "printf 'Labels:\\n  tx.group: coops\\n' | sudo tee /etc/sft/sftd.yaml",
-      "sudo systemctl enable sftd",
+      "# identity activation for group 'coops' (posix) on image imgfile-basic-dask",
       "sudo bash -s <<'CSIS_POSIX_ACCOUNTS'",
       "#!/usr/bin/env bash",
       "# cs-image-system posix accounts (stage 75): idempotent; adopts what is equal, refuses what differs",
       "set -euo pipefail",
       "conflict() { echo \"posix accounts: $*\" >&2; exit 3; }",
-      "# the login hook: members join their groups at each login (stage 75)",
-      "install -d -m 0755 /etc/csis/groups",
-      "install -d -m 0700 /etc/csis/keys",
-      "cat > /usr/local/sbin/csis-group-login <<'CSIS_LOGIN_HOOK'",
-      "#!/bin/bash",
-      "# cs-image-system (stage 75): at each login, join the user to every group whose",
-      "# member list (/etc/csis/groups/<group>.members, one name a line) names them, and",
-      "# install their keys when /etc/csis/keys/<user> exists. Run by pam_exec; never fails.",
-      "[ \"$${PAM_TYPE:-}\" = \"open_session\" ] || exit 0",
-      "user=\"$${PAM_USER:-}\"",
-      "[ -n \"$user\" ] && getent passwd \"$user\" >/dev/null || exit 0",
-      "for list in /etc/csis/groups/*.members; do",
-      "  [ -e \"$list\" ] || continue",
-      "  group=$(basename \"$list\" .members)",
-      "  grep -qxF -- \"$user\" \"$list\" || continue",
-      "  getent group \"$group\" >/dev/null || continue",
-      "  id -nG \"$user\" | tr ' ' '\\n' | grep -qxF -- \"$group\" || gpasswd -a \"$user\" \"$group\" >/dev/null 2>&1 || true",
-      "done",
-      "if [ -f \"/etc/csis/keys/$user\" ]; then",
-      "  home=$(getent passwd \"$user\" | cut -d: -f6)",
-      "  install -d -m 0700 -o \"$user\" -g \"$(id -g \"$user\")\" \"$home/.ssh\" 2>/dev/null &&",
-      "    install -m 0600 -o \"$user\" -g \"$(id -g \"$user\")\" \"/etc/csis/keys/$user\" \"$home/.ssh/authorized_keys\" 2>/dev/null || true",
+      "# group coops (gid 3102)",
+      "if getent group coops >/dev/null; then",
+      "  have=$(getent group coops | cut -d: -f3)",
+      "  [ \"$have\" = 3102 ] || conflict \"group coops has gid $have here; the configuration says 3102\"",
+      "else",
+      "  if other=$(getent group 3102 | cut -d: -f1) && [ -n \"$other\" ]; then",
+      "    conflict \"gid 3102 belongs to group $other here; the configuration gives it to coops\"",
+      "  fi",
+      "  groupadd -g 3102 coops",
       "fi",
-      "exit 0",
-      "CSIS_LOGIN_HOOK",
-      "chmod 0755 /usr/local/sbin/csis-group-login",
-      "grep -qxF 'session optional pam_exec.so quiet /usr/local/sbin/csis-group-login' /etc/pam.d/sshd || echo 'session optional pam_exec.so quiet /usr/local/sbin/csis-group-login' >> /etc/pam.d/sshd",
       "CSIS_POSIX_ACCOUNTS",
     ]
   }
@@ -228,17 +184,13 @@ provisioner "shell" {
       "sudo chmod -R go-w /opt/csis/mods",
     ]
   }
-  # in-bake verification for instance image imgfile-basic-dask: 7 assertion(s)
+  # in-bake verification for instance image imgfile-basic-dask: 4 assertion(s)
   provisioner "shell" {
     only   = ["amazon-ebs.imgfile-basic-dask"]
     inline = [
       "set -e",
-      "# verify: activated for group 'coops'",
-      "grep -q 'tx.group: coops' /etc/sft/sftd.yaml",
-      "systemctl is-enabled sftd >/dev/null 2>&1",
-      "# verify: the posix login hook is installed (stage 75)",
-      "test -x /usr/local/sbin/csis-group-login",
-      "grep -q csis-group-login /etc/pam.d/sshd",
+      "# verify: group 'coops' stands with gid 3102",
+      "test \"$(getent group coops | cut -d: -f3)\" = '3102'",
       "if ! rpm -q git >/dev/null 2>&1 && ! { command -v dpkg >/dev/null 2>&1 && dpkg -s git >/dev/null 2>&1; }; then printf 'package %s is not installed\\n' git >&2; exit 1; fi",
       "( git --version ) 2>&1 | grep -q -- 'git version'",
       "id -u csisadmin >/dev/null 2>&1",
@@ -279,61 +231,37 @@ provisioner "shell" {
       "sudo chmod 0755 /run/csis-step",
     ]
   }
-  # identity activation for owning group 'stofs' (okta)
+  # identity activation for owning group 'stofs' (posix)
   provisioner "shell" {
     only   = ["amazon-ebs.imgfile-basic-dask-two"]
     execute_command = "chmod +x {{ .Path }}; if [ -r /run/csis-step ]; then {{ .Vars }} sh /run/csis-step {{ .Path }}; else {{ .Vars }} {{ .Path }}; fi"
     inline = [
-      "# identity activation for group 'stofs' (okta) on image imgfile-basic-dask-two",
-      "sudo mkdir -p /etc/sft",
-      "printf 'Labels:\\n  tx.group: stofs\\n' | sudo tee /etc/sft/sftd.yaml",
-      "sudo systemctl enable sftd",
+      "# identity activation for group 'stofs' (posix) on image imgfile-basic-dask-two",
       "sudo bash -s <<'CSIS_POSIX_ACCOUNTS'",
       "#!/usr/bin/env bash",
       "# cs-image-system posix accounts (stage 75): idempotent; adopts what is equal, refuses what differs",
       "set -euo pipefail",
       "conflict() { echo \"posix accounts: $*\" >&2; exit 3; }",
-      "# the login hook: members join their groups at each login (stage 75)",
-      "install -d -m 0755 /etc/csis/groups",
-      "install -d -m 0700 /etc/csis/keys",
-      "cat > /usr/local/sbin/csis-group-login <<'CSIS_LOGIN_HOOK'",
-      "#!/bin/bash",
-      "# cs-image-system (stage 75): at each login, join the user to every group whose",
-      "# member list (/etc/csis/groups/<group>.members, one name a line) names them, and",
-      "# install their keys when /etc/csis/keys/<user> exists. Run by pam_exec; never fails.",
-      "[ \"$${PAM_TYPE:-}\" = \"open_session\" ] || exit 0",
-      "user=\"$${PAM_USER:-}\"",
-      "[ -n \"$user\" ] && getent passwd \"$user\" >/dev/null || exit 0",
-      "for list in /etc/csis/groups/*.members; do",
-      "  [ -e \"$list\" ] || continue",
-      "  group=$(basename \"$list\" .members)",
-      "  grep -qxF -- \"$user\" \"$list\" || continue",
-      "  getent group \"$group\" >/dev/null || continue",
-      "  id -nG \"$user\" | tr ' ' '\\n' | grep -qxF -- \"$group\" || gpasswd -a \"$user\" \"$group\" >/dev/null 2>&1 || true",
-      "done",
-      "if [ -f \"/etc/csis/keys/$user\" ]; then",
-      "  home=$(getent passwd \"$user\" | cut -d: -f6)",
-      "  install -d -m 0700 -o \"$user\" -g \"$(id -g \"$user\")\" \"$home/.ssh\" 2>/dev/null &&",
-      "    install -m 0600 -o \"$user\" -g \"$(id -g \"$user\")\" \"/etc/csis/keys/$user\" \"$home/.ssh/authorized_keys\" 2>/dev/null || true",
+      "# group stofs (gid 3103)",
+      "if getent group stofs >/dev/null; then",
+      "  have=$(getent group stofs | cut -d: -f3)",
+      "  [ \"$have\" = 3103 ] || conflict \"group stofs has gid $have here; the configuration says 3103\"",
+      "else",
+      "  if other=$(getent group 3103 | cut -d: -f1) && [ -n \"$other\" ]; then",
+      "    conflict \"gid 3103 belongs to group $other here; the configuration gives it to stofs\"",
+      "  fi",
+      "  groupadd -g 3103 stofs",
       "fi",
-      "exit 0",
-      "CSIS_LOGIN_HOOK",
-      "chmod 0755 /usr/local/sbin/csis-group-login",
-      "grep -qxF 'session optional pam_exec.so quiet /usr/local/sbin/csis-group-login' /etc/pam.d/sshd || echo 'session optional pam_exec.so quiet /usr/local/sbin/csis-group-login' >> /etc/pam.d/sshd",
       "CSIS_POSIX_ACCOUNTS",
     ]
   }
-  # in-bake verification for instance image imgfile-basic-dask-two: 4 assertion(s)
+  # in-bake verification for instance image imgfile-basic-dask-two: 1 assertion(s)
   provisioner "shell" {
     only   = ["amazon-ebs.imgfile-basic-dask-two"]
     inline = [
       "set -e",
-      "# verify: activated for group 'stofs'",
-      "grep -q 'tx.group: stofs' /etc/sft/sftd.yaml",
-      "systemctl is-enabled sftd >/dev/null 2>&1",
-      "# verify: the posix login hook is installed (stage 75)",
-      "test -x /usr/local/sbin/csis-group-login",
-      "grep -q csis-group-login /etc/pam.d/sshd",
+      "# verify: group 'stofs' stands with gid 3103",
+      "test \"$(getent group stofs | cut -d: -f3)\" = '3103'",
     ]
   }
   # before anything else: the build machine settles (aws-east2-runtime)
@@ -384,47 +312,27 @@ provisioner "ansible" {
   playbook_file = "setup_data_science.yml"
   extra_arguments = ["-e", "ansible_python_interpreter=/usr/local/bin/csis-ansible-python"]
 }
-  # identity activation for owning group 'stofs' (okta)
+  # identity activation for owning group 'stofs' (posix)
   provisioner "shell" {
     only   = ["amazon-ebs.imgfile-data-science"]
     execute_command = "chmod +x {{ .Path }}; if [ -r /run/csis-step ]; then {{ .Vars }} sh /run/csis-step {{ .Path }}; else {{ .Vars }} {{ .Path }}; fi"
     inline = [
-      "# identity activation for group 'stofs' (okta) on image imgfile-data-science",
-      "sudo mkdir -p /etc/sft",
-      "printf 'Labels:\\n  tx.group: stofs\\n' | sudo tee /etc/sft/sftd.yaml",
-      "sudo systemctl enable sftd",
+      "# identity activation for group 'stofs' (posix) on image imgfile-data-science",
       "sudo bash -s <<'CSIS_POSIX_ACCOUNTS'",
       "#!/usr/bin/env bash",
       "# cs-image-system posix accounts (stage 75): idempotent; adopts what is equal, refuses what differs",
       "set -euo pipefail",
       "conflict() { echo \"posix accounts: $*\" >&2; exit 3; }",
-      "# the login hook: members join their groups at each login (stage 75)",
-      "install -d -m 0755 /etc/csis/groups",
-      "install -d -m 0700 /etc/csis/keys",
-      "cat > /usr/local/sbin/csis-group-login <<'CSIS_LOGIN_HOOK'",
-      "#!/bin/bash",
-      "# cs-image-system (stage 75): at each login, join the user to every group whose",
-      "# member list (/etc/csis/groups/<group>.members, one name a line) names them, and",
-      "# install their keys when /etc/csis/keys/<user> exists. Run by pam_exec; never fails.",
-      "[ \"$${PAM_TYPE:-}\" = \"open_session\" ] || exit 0",
-      "user=\"$${PAM_USER:-}\"",
-      "[ -n \"$user\" ] && getent passwd \"$user\" >/dev/null || exit 0",
-      "for list in /etc/csis/groups/*.members; do",
-      "  [ -e \"$list\" ] || continue",
-      "  group=$(basename \"$list\" .members)",
-      "  grep -qxF -- \"$user\" \"$list\" || continue",
-      "  getent group \"$group\" >/dev/null || continue",
-      "  id -nG \"$user\" | tr ' ' '\\n' | grep -qxF -- \"$group\" || gpasswd -a \"$user\" \"$group\" >/dev/null 2>&1 || true",
-      "done",
-      "if [ -f \"/etc/csis/keys/$user\" ]; then",
-      "  home=$(getent passwd \"$user\" | cut -d: -f6)",
-      "  install -d -m 0700 -o \"$user\" -g \"$(id -g \"$user\")\" \"$home/.ssh\" 2>/dev/null &&",
-      "    install -m 0600 -o \"$user\" -g \"$(id -g \"$user\")\" \"/etc/csis/keys/$user\" \"$home/.ssh/authorized_keys\" 2>/dev/null || true",
+      "# group stofs (gid 3103)",
+      "if getent group stofs >/dev/null; then",
+      "  have=$(getent group stofs | cut -d: -f3)",
+      "  [ \"$have\" = 3103 ] || conflict \"group stofs has gid $have here; the configuration says 3103\"",
+      "else",
+      "  if other=$(getent group 3103 | cut -d: -f1) && [ -n \"$other\" ]; then",
+      "    conflict \"gid 3103 belongs to group $other here; the configuration gives it to stofs\"",
+      "  fi",
+      "  groupadd -g 3103 stofs",
       "fi",
-      "exit 0",
-      "CSIS_LOGIN_HOOK",
-      "chmod 0755 /usr/local/sbin/csis-group-login",
-      "grep -qxF 'session optional pam_exec.so quiet /usr/local/sbin/csis-group-login' /etc/pam.d/sshd || echo 'session optional pam_exec.so quiet /usr/local/sbin/csis-group-login' >> /etc/pam.d/sshd",
       "CSIS_POSIX_ACCOUNTS",
     ]
   }
@@ -447,17 +355,13 @@ provisioner "ansible" {
       "sudo chmod -R go-w /opt/csis/mods",
     ]
   }
-  # in-bake verification for instance image imgfile-data-science: 4 assertion(s)
+  # in-bake verification for instance image imgfile-data-science: 1 assertion(s)
   provisioner "shell" {
     only   = ["amazon-ebs.imgfile-data-science"]
     inline = [
       "set -e",
-      "# verify: activated for group 'stofs'",
-      "grep -q 'tx.group: stofs' /etc/sft/sftd.yaml",
-      "systemctl is-enabled sftd >/dev/null 2>&1",
-      "# verify: the posix login hook is installed (stage 75)",
-      "test -x /usr/local/sbin/csis-group-login",
-      "grep -q csis-group-login /etc/pam.d/sshd",
+      "# verify: group 'stofs' stands with gid 3103",
+      "test \"$(getent group stofs | cut -d: -f3)\" = '3103'",
     ]
   }
   # before anything else: the build machine settles (aws-east2-runtime)

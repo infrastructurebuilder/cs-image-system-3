@@ -178,8 +178,10 @@ and
 configuration is the reference repository beside this one, with its real
 `meta-state/`; `just fixture-live` proves the frozen fixture against the
 real accounts; the `live` CI job is the read-only job that validates, dry
-runs and strictly queries against the clouds and OPA with federated
-read-only identities, and never plans against remote state. Live is not
+runs and strictly queries against the clouds (and OPA, in a tree that
+declares Okta groups; this repository's frozen fixture is POSIX and
+declares none) with federated read-only identities, and never plans
+against remote state. Live is not
 performing: a live job changes nothing, and `perform` is the one job with
 a write identity. Read
 [OPERATIONS.md, "This repository: the `live` job"](OPERATIONS.md#this-repository-the-live-job)
@@ -477,7 +479,9 @@ frozen [walk](../ATTIC/history/WALK-2026-10.md).
 ### workload
 
 A workload is a non-human identity that logs in: CI presents GitHub's
-OIDC token to the team's workload connection in Okta Privileged Access,
+OIDC token to the team's workload connection in Okta Privileged Access
+(through the Okta plugin's `workload` commands; the plugin is released
+from [its own repository](https://github.com/infrastructurebuilder/cs-image-system-okta)),
 which maps it to the team's one workload role, and the identity lifecycle
 makes a CI policy per managed group that mirrors the user policy. The
 connection and the role are made by hand once and named in the group

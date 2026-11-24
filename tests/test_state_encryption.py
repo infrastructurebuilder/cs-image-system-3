@@ -33,7 +33,7 @@ def test_every_emitted_backend_configuration_encrypts():
     `local` backend is a file on disk with no such setting: its
     file carries `path` alone, and the rule does not apply to it."""
     files = sorted(GOLDEN.rglob("*.tfbackend.hcl"))
-    assert len(files) >= 9, "the golden carries a partial backend configuration per terraform root"
+    assert len(files) >= 6, "the golden carries a partial backend configuration per terraform root"
     types: dict[str, int] = {}
     for path in files:
         text = path.read_text()

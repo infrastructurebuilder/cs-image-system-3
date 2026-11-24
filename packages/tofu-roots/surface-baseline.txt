@@ -212,6 +212,7 @@ cs_image_system.tofu_roots.tofu_storage_builder:TofuStorageBuilderBase.get_name 
 cs_image_system.tofu_roots.tofu_storage_builder:TofuStorageBuilderBase.get_path_for_phase = method (self, phase: 'ExecutionLifecyclePhase', discriminator: 'str | None' = None, suffix: 'str | None' = None) -> 'Path'
 cs_image_system.tofu_roots.tofu_storage_builder:TofuStorageBuilderBase.get_tags = method (self) -> 'Mapping[str, str]'
 cs_image_system.tofu_roots.tofu_storage_builder:TofuStorageBuilderBase.get_type = method (self) -> 'str'
+cs_image_system.tofu_roots.tofu_storage_builder:TofuStorageBuilderBase.gid_note = method (self, storage: 'Storage') -> 'str'
 cs_image_system.tofu_roots.tofu_storage_builder:TofuStorageBuilderBase.gid_reference = method (self, group: 'str') -> 'HclRaw'
 cs_image_system.tofu_roots.tofu_storage_builder:TofuStorageBuilderBase.global_id = property
 cs_image_system.tofu_roots.tofu_storage_builder:TofuStorageBuilderBase.group_subtree_lines = staticmethod (mount: 'dict[str, Any]', group: 'str | None') -> 'list[str]'

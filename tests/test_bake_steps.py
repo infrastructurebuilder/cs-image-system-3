@@ -33,6 +33,7 @@ import yaml
 
 from cs_image_system.base import bake_steps
 from tests.harness import FixtureRun, copy_config, load_context, stub_environment
+from tests.starter_support import starters_this_workspace_renders
 
 REPO = Path(__file__).resolve().parent.parent
 RPM_BUSY = "error: can't create transaction lock on /usr/lib/sysimage/rpm/.rpm.lock (Resource temporarily unavailable)"
@@ -274,9 +275,9 @@ def test_the_aws_bakes_wait_for_systems_manager(builds: dict[str, str]):
 
 
 def test_every_package_step_the_system_emits_runs_through_the_runner(builds: dict[str, str]):
-    """The OS update, the identity and storage prerequisites, the session
-    agent, the ansible builder's python and a bash modification: each block
-    carries the execute command. Verification and finalization read the
+    """The OS update, the storage prerequisites, the session agent, the
+    ansible builder's python and a bash modification: each block carries
+    the execute command (the fixture's POSIX identity installs no package). Verification and finalization read the
     package database, never write it, and are left as they were."""
     line = bake_steps.execute_command_line("").strip()
     seen: set[str] = set()
@@ -290,7 +291,7 @@ def test_every_package_step_the_system_emits_runs_through_the_runner(builds: dic
             if packages:
                 assert line in block, f"{path}: a package step outside the runner: {comment or block[:120]}"
                 seen.add(comment.split("(")[0].split("'")[0].strip("# ").split(" for ")[0])
-    assert {"OS update", "identity type", "debug session mechanism"} <= seen, seen
+    assert {"OS update", "storage type", "debug session mechanism"} <= seen, seen
 
 
 def test_a_bash_builder_that_says_how_its_script_runs_keeps_its_own_command(tmp_path: Path, monkeypatch):
@@ -354,7 +355,8 @@ def test_a_starters_base_test_names_only_what_a_base_carries(starter: str):
         "a base test names a package only the image's playbook installs"
 
 
-@pytest.mark.parametrize("starter", ["standard-aws", "standard-aws-posix"])
+@pytest.mark.parametrize("starter", [name for name in ("standard-aws", "standard-aws-posix")
+                                     if name in starters_this_workspace_renders()])
 def test_the_base_bake_itself_installs_what_the_starters_base_test_asserts(starter: str, tmp_path: Path, monkeypatch):
     """Not a list in a test alone: the emitted base bake of the starter has a
     step that installs the package its verification then asks for."""

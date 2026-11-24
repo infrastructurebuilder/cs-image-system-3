@@ -531,8 +531,11 @@ provider, `module_args(storage)`), then
 instance root to read. Tombstones and archived storages get a comment-only
 file.
 
-Gids never appear as literals: `gid_reference(group)` is
-`data.terraform_remote_state.<identity ws>.outputs.group_gids["<group>"]`,
+A provider's gids never appear as literals: `gid_reference(group)` is the
+group builder's `gid_expression`,
+`data.terraform_remote_state.<identity ws>.outputs.group_gids["<group>"]`
+for a group on an identity root, and the declared number for a
+configuration-time gid (a `posix` group's, as in the golden below),
 and `group_subtrees(storage)` maps each allowed group to
 `{gid, path: "/<group>", permissions: <share_mode>}`.
 
@@ -599,10 +602,10 @@ Instance root (`open-tofu`), under
 
 | File | Content |
 |---|---|
-| [open-tofu-instance-generation.tf](../../tests/fixtures/golden/generated/instance-image/open-tofu/instance-generation/open-tofu-instance-generation.tf) | `terraform {}` with `required_providers` and `backend "s3" {}`; `provider "aws"` (region `us-east-2`, profile `noaa`, alias `open_tofu`); `variable "test_ami_id"`, `variable "test2_ami_id"`, `variable "enrollment_token"`; `data "terraform_remote_state"` for `aws_efs`, `aws_ebs`, `aws_s3`, `docker_volume`, `oktagroups`; `data "aws_vpc"` and `resource "aws_security_group" "csis_instances"` |
+| [open-tofu-instance-generation.tf](../../tests/fixtures/golden/generated/instance-image/open-tofu/instance-generation/open-tofu-instance-generation.tf) | `terraform {}` with `required_providers` and `backend "s3" {}`; `provider "aws"` (region `us-east-2`, profile `noaa`, alias `open_tofu`); `variable "test_ami_id"`, `variable "test2_ami_id"`, `variable "enrollment_token"`; `data "terraform_remote_state"` for `aws_efs`, `aws_ebs`, `aws_s3`, `docker_volume` (no identity root: the fixture's groups are POSIX ones, their gids literal); `data "aws_vpc"` and `resource "aws_security_group" "csis_instances"` |
 | [open-tofu-instance-generation-instance-test2.tf](../../tests/fixtures/golden/generated/instance-image/open-tofu/instance-generation/open-tofu-instance-generation-instance-test2.tf) | `module "instance_test2"` calling `../../../../../tfmodules/aws_instance` with `ami_id = var.test2_ami_id`, `ami_name_pattern = "imgfile-basic-dask-pckr-ebs-ans*"`, `instance_type = "t3.medium"`, the security groups, `subnet_id`, `iam_instance_profile`, `user_data = templatefile(...)`, and `ebs_volumes` for `mnt_data` on `/dev/xvdf` |
 | [open-tofu-instance-generation-instance-test.tf](../../tests/fixtures/golden/generated/instance-image/open-tofu/instance-generation/open-tofu-instance-generation-instance-test.tf) | the same shape for `test`, with no storages |
-| [user-data-test2.sh.tftpl](../../tests/fixtures/golden/generated/instance-image/open-tofu/instance-generation/user-data-test2.sh.tftpl) | the launch script: hostname, the `mnt_data` mount at `/mnt/data`, the `coops` subtree with mode `2770`, the enrollment block |
+| [user-data-test2.sh.tftpl](../../tests/fixtures/golden/generated/instance-image/open-tofu/instance-generation/user-data-test2.sh.tftpl) | the launch script: hostname, the `mnt_data` mount at `/mnt/data`, the `coops` subtree with mode `2770`; no enrollment block, since the owning group is a POSIX one |
 | [open-tofu-instance-generation.tfbackend.hcl](../../tests/fixtures/golden/generated/instance-image/open-tofu/instance-generation/open-tofu-instance-generation.tfbackend.hcl) | `bucket`, `key = "statefiles/csia-image-system-test/open_tofu.tfstate"`, `region`, `encrypt = true`, `use_lockfile = true`, `profile` |
 | [run-instance-image.sh](../../tests/fixtures/golden/generated/instance-image/run-instance-image.sh) | the deferred sequence per root, each step entered through `cs-image-system materialize .`: `rm -f tfplan`, `init -input=false -reconfigure -backend-config=...`, `plan -input=false -out=tfplan`, `gate-plan` (no apply: the fixture sets `apply_instances: false`) |
 
@@ -611,9 +614,9 @@ Storage roots, under
 
 | File | Content |
 |---|---|
-| [aws-ebs/storage-generation/aws-ebs-storage-generation.tf](../../tests/fixtures/golden/generated/storage/aws-ebs/storage-generation/aws-ebs-storage-generation.tf) | terraform block, `provider "aws"` alias `aws_ebs`, remote state of `oktagroups` |
+| [aws-ebs/storage-generation/aws-ebs-storage-generation.tf](../../tests/fixtures/golden/generated/storage/aws-ebs/storage-generation/aws-ebs-storage-generation.tf) | terraform block, `provider "aws"` alias `aws_ebs`; no remote state of an identity root, since the fixture's gids are literal |
 | [aws-ebs/storage-generation/aws-ebs-storage-generation-storage-mnt_data.tf](../../tests/fixtures/golden/generated/storage/aws-ebs/storage-generation/aws-ebs-storage-generation-storage-mnt_data.tf) | `module "storage_mnt_data"` against `tfmodules/aws_storage_ebs`: `volume_type = "gp3"`, `encrypted = true`, `name`, `size = 100`, `subnet_id`, merged `tags`; `output "storage_mnt_data"` |
-| [aws-efs/storage-generation/aws-efs-storage-generation-storage-efs_storage.tf](../../tests/fixtures/golden/generated/storage/aws-efs/storage-generation/aws-efs-storage-generation-storage-efs_storage.tf) | `module "storage_efs_storage"`: `performance_mode`, `encrypted`, `transition_to_ia = "AFTER_30_DAYS"`, `access_points` for `coops` and `stofs` with gids by reference and permissions `2775` |
+| [aws-efs/storage-generation/aws-efs-storage-generation-storage-efs_storage.tf](../../tests/fixtures/golden/generated/storage/aws-efs/storage-generation/aws-efs-storage-generation-storage-efs_storage.tf) | `module "storage_efs_storage"`: `performance_mode`, `encrypted`, `transition_to_ia = "AFTER_30_DAYS"`, `access_points` for `coops` and `stofs` with their declared gids (`3102`, `3103`, literal: the groups are POSIX ones) and permissions `2775` |
 | [aws-s3/storage-generation/aws-s3-storage-generation-storage-default_bucket.tf](../../tests/fixtures/golden/generated/storage/aws-s3/storage-generation/aws-s3-storage-generation-storage-default_bucket.tf) | `module "storage_default_bucket"`: `bucket_name`, `lifecycle_rules` (30 days to `STANDARD_IA`), `public_read = true`, merged `tags` |
 | `<B>-storage-generation.tfbackend.hcl` | one per root, e.g. [aws-ebs-storage-generation.tfbackend.hcl](../../tests/fixtures/golden/generated/storage/aws-ebs/storage-generation/aws-ebs-storage-generation.tfbackend.hcl) |
 | [run-storage.sh](../../tests/fixtures/golden/generated/storage/run-storage.sh) | the deferred sequence per root |
@@ -967,9 +970,9 @@ wrapped in `state-migration begin`/`finish`).
   provider from `hashicorp/aws` with no constraint.
 - **`state_configuration` own, runtime's, or default.** The workspace binds
   to the first that names a backend; a consumer's remote-state data source
-  carries the producer's backend, whichever type it is (the golden reads
-  `oktagroups` from a `local` backend and the storage roots from a second
-  S3 bucket).
+  carries the producer's backend, whichever type it is (the golden's
+  instance root reads `docker_volume` from a `local` backend and the AWS
+  storage roots from a second S3 bucket).
 - **A concrete VPC or not.** With `networking.network` set to a real id,
   the root creates `csis-instances` and the module wears it plus
   `addl_security_groups`; with `ssh_ingress_security_group_ids` empty the

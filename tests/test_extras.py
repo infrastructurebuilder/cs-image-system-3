@@ -15,7 +15,8 @@ the starters' ``Justfile`` maps the same words to the same extras in its
 declaring a word whose plugin is not installed prints one configuration
 line naming the extra -- proved by validating a copy of the frozen
 fixture that declares a runtime with ``type: gcloud``: the Google Cloud
-family is released from its own repository and is not installed here.
+family is released from its own repository and is not installed here (nor
+is the Okta identity plugin, spec 008).
 """
 from __future__ import annotations
 
@@ -36,7 +37,8 @@ SKELETON_JUSTFILE = REPO / "docs/examples/_skeleton/Justfile"
 #: the extras whose plugins are released from a repository of their own and are not installed in this
 #: workspace: their words stay in the table (so a tree that declares them is told which extra to install),
 #: and the family's own repository holds them equal to its registrations
-ELSEWHERE = {"gcloud": "infrastructurebuilder/cs-image-system-google-cloud"}
+ELSEWHERE = {"gcloud": "infrastructurebuilder/cs-image-system-google-cloud",
+             "okta": "infrastructurebuilder/cs-image-system-okta"}
 runner = CliRunner()
 
 
@@ -204,3 +206,17 @@ def test_a_word_no_extra_carries_is_unknown_with_the_registered_words_listed(tmp
     assert result.exit_code == 1, result.output
     assert "runtime type 'nonsense'" in result.output and "register aws, docker" in result.output
     assert "Validation failed with 1 error(s)." in result.output
+
+
+def test_the_okta_and_all_extras_take_the_okta_plugin_by_its_series_range():
+    """Spec 008, FR-007: the Okta plugin is released from its own repository,
+    so the `okta` extra and `all` name it by a range, never an exact pin a
+    release here would move (`tests/test_package_metadata.py` holds that a
+    bump leaves the range alone)."""
+    import tomllib
+
+    from packaging.requirements import Requirement
+    optional = tomllib.loads((REPO / "pyproject.toml").read_text())["project"]["optional-dependencies"]
+    for extra in ("okta", "all"):
+        found = [Requirement(r) for r in optional[extra] if Requirement(r).name == "cs-image-system-okta-opa-plugin"]
+        assert [str(r.specifier) for r in found] == ["<0.3,>=0.2"], (extra, optional[extra])

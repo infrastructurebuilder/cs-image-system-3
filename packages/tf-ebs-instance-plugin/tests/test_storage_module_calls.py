@@ -216,7 +216,7 @@ def test_the_ebs_builder_owns_the_device_table_and_the_nvme_fallback():
         {"name": "mount /dev/xvdf at /mnt/data",
          "ansible.posix.mount": {"path": "/mnt/data", "src": "/dev/xvdf", "fstype": "xfs",
                                  "opts": "defaults,nofail", "state": "mounted"}},
-        {"name": "private subtree /mnt/data/coops (gid by reference)",
+        {"name": "private subtree /mnt/data/coops (gid from group_gid)",
          "ansible.builtin.file": {"path": "/mnt/data/coops", "state": "directory",
                                   "group": "{{ group_gid }}", "mode": "2770"}},
     ]

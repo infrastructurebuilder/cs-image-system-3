@@ -233,7 +233,8 @@ environment variables:
 No file under
 [tests/fixtures/config/cfg](../../tests/fixtures/config/cfg) selects the
 builders. An entry that would, shown only to illustrate the shape (the
-fixture's real group and user builders are Okta ones in
+fixture's real group and user builders are POSIX ones, `posix-local` and
+`posix-users`, in
 [group-builders.yml](../../tests/fixtures/config/cfg/group-builders.yml)).
 It loads, validates and runs the identity lifecycle, which emits nothing
 for its groups and one comment-only file for the user builder. `org` and
@@ -533,6 +534,8 @@ are the traps a plugin copied from this template falls into.
 
 - Base classes: [group_builder.py](../base/src/cs_image_system/base/models/group_builder.py), [user_builder.py](../base/src/cs_image_system/base/models/user_builder.py), [builder_base.py](../base/src/cs_image_system/base/basic/builder_base.py), [builder_base_group.py](../base/src/cs_image_system/base/basic/builder_base_group.py), [builder_base_user.py](../base/src/cs_image_system/base/basic/builder_base_user.py), [abstract_plugin_metadata.py](../base/src/cs_image_system/base/basic/abstract_plugin_metadata.py).
 - Plugin loading: [loader.py](../engine/src/cs_image_system/engine/loader.py) (builder plugins), [run_lifecycles.py](../engine/src/cs_image_system/engine/commands/run_lifecycles.py) (hook plugins and `HookSet`), [lifecycles.py](../base/src/cs_image_system/base/lifecycles.py) (`LifecycleSpec`).
-- The real identity plugin the fixture uses: [okta-opa-plugin](../okta-opa-plugin).
+- The real identity plugin the fixture uses: [posix-identity-plugin](../posix-identity-plugin/README.md).
+  The Okta identity plugin, another real one, is released from its own
+  repository: [okta-opa-plugin](https://github.com/infrastructurebuilder/cs-image-system-okta/blob/develop/packages/okta-opa-plugin/README.md).
 - [docs/PLUGINS.md](../../docs/PLUGINS.md) for the package index; [docs/DESIGN.md](../../docs/DESIGN.md) for the design.
 - [The configuration reference](../../docs/CONFIGURATION.md) -- every field of the YAML this plugin reads, with an example.

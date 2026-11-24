@@ -51,19 +51,14 @@ def test_every_root_resolves_a_location_the_run_records_and_the_emission_carries
     assert _errors(fixture_run.ctx) == []
     assert fixture_run.run("all", apply=False).ok
     rec = _records(fixture_run)
-    assert set(rec) >= {"aws-ebs", "aws-efs", "aws-s3", "open-tofu", "oktagroups", "okta-tf-users"}
+    assert set(rec) >= {"aws-ebs", "aws-efs", "aws-s3", "open-tofu"}
     assert rec["aws-ebs"] == {"backend": "s3-east1", "type": "s3", "location": f"{EAST1}/aws_ebs.tfstate",
                               "bucket": "my-east1-tfstate-bucket", "key": "statefiles/csia/aws_ebs.tfstate",
                               "region": "us-east-1", "encrypt": True, "use_lockfile": True, "profile": "noaa",
                               "run": fixture_run.ctx.run_id}
     assert rec["open-tofu"]["bucket"] == "noaa-ioos-cloud-sandbox-tfstate"      # own value: s3-east2
-    assert rec["oktagroups"] == {"backend": "local-dev", "type": "local", "location": "local://state/oktagroups.tfstate",
-                                 "path": "../../../../state/oktagroups.tfstate", "run": fixture_run.ctx.run_id}   # on disk
-    # the read across TYPES: the instance root (s3) reads the identity root's state (local)
-    root_local = (fixture_run.generated / "instance-image" / "open-tofu" / "instance-generation" / "open-tofu-instance-generation.tf").read_text()
-    assert 'backend = "local"' in root_local and 'path = "../../../../state/oktagroups.tfstate"' in root_local
-    header = (fixture_run.generated / "identity" / "run-identity.sh").read_text()
-    assert "# state: workspace oktagroups -> local://state/oktagroups.tfstate" in header
+    # the local record, its read across types and its runner-script header: the docker volume
+    # root's, in test_a_local_root_is_recorded_read_across_types_and_named_in_its_runner_script
     # the cross-backend read: the instance root (backend A) reads storage state in backend B
     inst = fixture_run.generated / "instance-image" / "open-tofu" / "instance-generation"
     root = (inst / "open-tofu-instance-generation.tf").read_text()
@@ -89,7 +84,7 @@ def test_the_chain_reads_the_runtimes_backend_when_the_root_is_silent(tmp_path, 
     assert rec["aws-ebs"]["backend"] == "s3-east1"                # inherited from aws-east2-runtime
     assert rec["docker-volume"]["backend"] == "s3-east2"          # docker-fixture is silent: the default
     assert rec["open-tofu"]["backend"] == "s3-east2"              # names its own
-    assert rec["oktagroups"]["backend"] == "local-dev"            # names its own, a different type
+    # a root naming its own backend of a different type: aws-s3, in the next test
 
 
 def test_a_local_root_is_recorded_read_across_types_and_named_in_its_runner_script(tmp_path, monkeypatch):

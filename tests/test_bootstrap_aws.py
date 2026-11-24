@@ -241,7 +241,7 @@ def test_what_exists_is_read_or_adopted_and_the_state_binds_to_the_bucket_that_s
     # the two role ARNs come from the applied root now, not from files; the rest still from files
     script = (out / "set-secrets.sh").read_text()
     assert "from_output AWS_ROLE_ARN aws_read_role_arn" in script and "from_output AWS_APPLY_ROLE_ARN aws_write_role_arn" in script
-    assert "from_file AWS_ROLE_ARN" not in script and "from_file TF_VAR_KEY" in script
+    assert "from_file AWS_ROLE_ARN" not in script and "from_file CSIS_CONFIG_IDENTITY" in script
     readme = (out / "README.md").read_text()
     assert "adopted by import: csis-github-readonly" in readme and "declared backend" in readme
     assert "export AWS_PROFILE=acme" in readme and "export GITHUB_TOKEN=$(gh auth token)" in readme

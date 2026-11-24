@@ -57,8 +57,8 @@ def test_the_emitted_scripts_still_name_the_bare_command(tmp_path, monkeypatch):
     from harness import FixtureRun
     fixture_run = FixtureRun(tmp_path, monkeypatch)
     try:
-        assert fixture_run.run("identity", apply=False).ok
-        text = (fixture_run.generated / "identity" / "run-identity.sh").read_text()
+        assert fixture_run.run("storage", apply=False).ok
+        text = (fixture_run.generated / "storage" / "run-storage.sh").read_text()
         assert "cs-image-system " in text
         assert sys.executable not in text and "-m cs_image_system.system" not in text
     finally:

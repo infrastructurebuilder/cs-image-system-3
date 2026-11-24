@@ -292,6 +292,18 @@ AWS today cannot move onto docker while the groups are Okta's.
 - **(b)** Phase 1 starts now and moves only the tests of the two POSIX
   images; the rest wait for spec 008. Each waiting file is read twice.
 
+**Landed** 2026-11-23 (spec 008's T055): the Okta plugin is out of this
+repository ([specs/008-relocate-okta-plugin](../008-relocate-okta-plugin/spec.md),
+its phases 1 to 5 committed on `feature/008-relocate-okta-plugin`, not yet
+merged). The shared fixture's groups and users are POSIX: every image is
+owned by a POSIX group (`basic` 3100, `pxgroup` 3101, `coops` 3102, `stofs`
+3103, `tcmet` 3104, `secofs` 3105), so `check_container_runtimes` no longer
+holds any of the six images to AWS, and the Okta plugin's instance-side
+proofs ride on AWS in its own repository (`tests/instance/`, the AWS family
+from the index). This specification's phase 3 may now remove the cloud
+runtime those proofs rode on here; the order of (a) above holds once spec
+008 is merged.
+
 ## R8. The reference configuration needs the AWS family whole
 
 **Read**: every root of the reference keeps its state in S3 (its

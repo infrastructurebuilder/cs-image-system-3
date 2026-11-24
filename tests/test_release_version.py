@@ -60,7 +60,7 @@ def test_every_starter_init_asks_the_command_for_its_version(rendered_starters: 
 def test_the_starters_init_line_names_the_release(rendered_starters: Path):
     from test_starter_recipes import dry_run
     # the recipe's own line, with the command on PATH as `just init` finds it
-    starter = rendered_starters / "standard-aws"
+    starter = rendered_starters / "standard-aws-posix"
     line = next(ln for ln in dry_run(starter, "init").splitlines() if "--version" in ln and ln.startswith("echo"))
     out = subprocess.run(["bash", "-c", line], capture_output=True, text=True, check=True, cwd=starter).stdout
     assert out.startswith("init: ") and f"cs-image-system {version('cs-image-system')}" in out and str(starter) in out, out

@@ -56,7 +56,7 @@ def _tree(tmp_path: Path, **runtime) -> Path:
 
 
 def test_the_docker_plugin_contributes_the_section_and_a_docker_tree_wants_it(tmp_path: Path):
-    assert [s.name for s in bs.discover()] == ["github", "aws", "docker", "okta"]
+    assert [s.name for s in bs.discover()] == ["github", "aws", "docker"]
     assert _section().title == "Container host"
     docker = bs.gather(_tree(tmp_path), git=False, gh=False)
     assert _section().wanted_default(docker) is True

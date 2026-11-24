@@ -36,7 +36,10 @@ def _editor_paths() -> list[str]:
 
 
 def test_pyright_names_every_packages_source_root():
-    roots = {f"packages/{p.name}/src" for p in (REPO / "packages").iterdir() if (p / "src").is_dir()}
+    # a package is a directory with its own pyproject.toml: a package removed
+    # with `git rm` can leave its ignored caches (and so a `src`) on disk
+    roots = {f"packages/{p.name}/src" for p in (REPO / "packages").iterdir()
+             if (p / "pyproject.toml").is_file() and (p / "src").is_dir()}
     assert roots
     assert roots - set(_pyright_paths()) == set()
 
