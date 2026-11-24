@@ -2593,7 +2593,7 @@ are said after each. Each has a row in
 - **The take cannot install the version it was just given.** Minutes
   after the release, `just take <version>` stops on `take:
   cs-image-system[<extras>]==<version> could not be installed from the
-  index (a development release is on TestPyPI, a final one on PyPI) --
+  index (every release is on TestPyPI until 1.0) --
   nothing was changed`, though the index lists the version. uv
   answered from the index page it cached before the upload, which does
   not list the new version yet. In the live configuration, run the take
@@ -3662,9 +3662,9 @@ gh run rerun <run> --failed`).
 ### A configuration repository: the `verify` job
 
 Every push and pull request, no secret, inside the runner image: the
-release named in `.csis-version` (else the latest on the index; a
-development version from TestPyPI with PyPI as the extra index and
-`--index-strategy unsafe-first-match`) is installed with `uv tool
+release named in `.csis-version` (else the latest on PyPI, older than
+TestPyPI's until 1.0; every release from TestPyPI with PyPI as the extra
+index and `--index-strategy unsafe-first-match`) is installed with `uv tool
 install` -- the one thing any job installs -- the `Justfile` parses, and
 `just public-safe` passes.
 

@@ -65,11 +65,11 @@ jobs:
       - name: Install the released system
         run: |
           pin=""; [ -s "$CSIS_VERSION_FILE" ] && pin="==$(cat "$CSIS_VERSION_FILE")"
-          indexes=""
-          # PyPI first (uv ranks --extra-index-url above --index-url), and TestPyPI only for what PyPI
-          # cannot satisfy: the pinned .dev packages. uv's default strategy stops at the first index
-          # that has a name at all, and PyPI has had cs-image-system since 0.1.1.
-          case "$pin" in *.dev*) indexes="--index-url https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple/ --index-strategy unsafe-first-match" ;; esac
+          # every release is on TestPyPI until 1.0 (PyPI keeps only the older ones): PyPI first (uv
+          # ranks --extra-index-url above --index-url), so every third-party package comes from it, and
+          # TestPyPI for what PyPI cannot satisfy, the pinned release. uv's default strategy stops at the
+          # first index that has a name at all, and PyPI has had cs-image-system since 0.1.1.
+          indexes="--index-url https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple/ --index-strategy unsafe-first-match"
           # the extras this tree's `type:` words need (`just extras`): a bare install carries no runtime
           extras=$(just extras)
           uv tool install $indexes "cs-image-system${extras:+[$extras]}${pin}"

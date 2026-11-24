@@ -24,8 +24,8 @@ workflow calls them:
 The release itself is installed by the job from the index
 (`uv tool install 'cs-image-system[<extras>]==<the content of .csis-version>'`,
 the extras being what `just extras` reads from the tree's `type:`
-words); a development version comes from TestPyPI with PyPI as the extra
-index. A tree that declares Okta groups gets the Okta identity plugin
+words); every release comes from TestPyPI until 1.0, with PyPI as the
+extra index. A tree that declares Okta groups gets the Okta identity plugin
 through its `okta` extra, from the plugin's own repository's releases;
 the runner needs nothing more for it. How that install works is stated
 once, in

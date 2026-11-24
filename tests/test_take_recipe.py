@@ -140,7 +140,11 @@ def test_a_release_that_changed_nothing_the_tree_owns_is_taken_in_one_box(world:
     assert _git(world.tree, "log", "-2", "--format=%s").splitlines() == [RECORD, "Take 0.1.6"]
     assert _git(world.origin, "rev-parse", "develop") == _git(world.tree, "rev-parse", "HEAD")  # develop was pushed
     assert _git(world.origin, "log", "-1", "--format=%s", "main") == "first"                  # main was not touched
-    assert "tool install --force --refresh cs-image-system==0.1.6" in world.log.read_text()
+    installed = world.log.read_text().splitlines()[0]
+    # a final release is on TestPyPI too until 1.0 (specification 013): the one install form, every version
+    assert installed.startswith("tool install --force --refresh --index-url https://test.pypi.org/simple/ "
+                                "--extra-index-url https://pypi.org/simple/ --index-strategy unsafe-first-match")
+    assert installed.endswith(" cs-image-system==0.1.6")
 
 
 def test_every_step_runs_by_the_installed_tool_whatever_csis_names(world: World):
