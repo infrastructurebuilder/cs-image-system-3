@@ -47,6 +47,7 @@ from harness import REPO
 from packaging.requirements import Requirement
 from packaging.specifiers import SpecifierSet
 from packaging.utils import canonicalize_name
+from packaging.version import Version
 
 PACKAGES = sorted(p for p in (REPO / "packages").iterdir() if (p / "pyproject.toml").exists())
 ROOT = REPO / "pyproject.toml"
@@ -265,6 +266,22 @@ def expected_pin(owner: str, dependency: str, workspace: str, own: dict[str, str
     return f"=={workspace}"
 
 
+def exactly_inside(req: Requirement, series: str) -> bool:
+    """``req`` pins one version exactly (``==v``), and ``v`` is inside ``series``."""
+    specs = list(req.specifier)
+    return len(specs) == 1 and specs[0].operator == "==" and Version(specs[0].version) in SpecifierSet(series)
+
+
+def follows_its_rule(owner: str, dependency: str, req: Requirement, workspace: str, own: dict[str, str]) -> bool:
+    """``req`` is what ``expected_pin`` gives, or, for a name released from its own repository, an exact pin
+    inside its series range: a release's own commit and tag pin each such name at its newest TestPyPI release
+    inside the range (specification 013, D1) and the commit after the tag puts the range back, so CI on the tag
+    reads the pins."""
+    if str(req.specifier) == expected_pin(owner, dependency, workspace, own):
+        return True
+    return dependency in RELEASED_ELSEWHERE and exactly_inside(req, RELEASED_ELSEWHERE[dependency])
+
+
 def test_every_sibling_pin_is_the_version_its_rule_gives():
     """41.2: the packages that release together from one tag pin each other
     exactly at the workspace's version (`>=` would let versions mix), and
@@ -289,8 +306,8 @@ def test_every_sibling_pin_is_the_version_its_rule_gives():
         for extra, reqs in _extras(project).items():         # the root's extras pin like its dependencies
             pins.update({f"{name} ({extra})": req for name, req in reqs.items()})
         for label, req in pins.items():
-            expected = expected_pin(owner, label.split(" ")[0], version, own)
-            assert str(req.specifier) == expected, f"{project['name']} pins {label} as {req.specifier or 'unpinned'}"
+            assert follows_its_rule(owner, label.split(" ")[0], req, version, own), \
+                f"{project['name']} pins {label} as {req.specifier or 'unpinned'}"
     for name, req in _dev_group(root).items():               # and so does the dev group
         assert str(req.specifier) == f"=={version}", f"the dev group pins {name} as {req.specifier or 'unpinned'}"
 
@@ -426,7 +443,7 @@ def test_a_bump_moves_every_version_line_and_every_pin_at_once(tree: Path):
         for reqs in _extras(project).values():
             pins.update(reqs)
         for name, req in pins.items():
-            assert str(req.specifier) == expected_pin(owner, name, new, own), (path, name)
+            assert follows_its_rule(owner, name, req, new, own), (path, name)
     root_after = tomllib.loads((tree / "pyproject.toml").read_text())
     assert {str(r.specifier) for r in _dev_group(root_after).values()} == {f"=={new}"}
     assert {str(r.specifier) for n, r in _extras(root_after["project"])["all"].items()
@@ -534,13 +551,16 @@ def test_an_sdk_line_moves_alone_with_every_exact_pin_on_it_and_no_range(tree: P
                if n in set().union(*SDK_LINES.values()))
 
 
-def test_no_manifest_pins_the_okta_plugin_exactly():
-    """Spec 008, FR-007: no workspace manifest names the Okta plugin by an
-    exact pin; only the root's extras name it, by its series range."""
+def test_no_manifest_pins_the_okta_plugin_outside_its_series():
+    """Spec 008, FR-007: only the root's extras name the Okta plugin, by its
+    series range; a release's own commit and tag pin it exactly inside that
+    range (specification 013, D1), never at a version a bump here moves."""
     for path in [ROOT, *(p / "pyproject.toml" for p in PACKAGES)]:
         project = _project(path)
         pins = dict(_requirements(project)[0])
         for reqs in _extras(project).values():
             pins.update(reqs)
         req = pins.get("cs-image-system-okta-opa-plugin")
-        assert req is None or not str(req.specifier).startswith("=="), f"{path}: {req}"
+        series = RELEASED_ELSEWHERE["cs-image-system-okta-opa-plugin"]
+        assert req is None or str(req.specifier) == str(SpecifierSet(series)) or exactly_inside(req, series), \
+            f"{path}: {req}"

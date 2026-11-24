@@ -253,8 +253,24 @@ def test_an_index_that_cannot_be_asked_fails_the_run_and_nothing_is_guessed(tmp_
 def test_the_index_asked_is_testpypi_where_every_release_goes_until_1_0():
     """Specification 013 (T021): a version TestPyPI alone holds is published, so
     the run installs it from there and compares this tree's build with its files."""
-    assert I.INDEX_JSON.startswith("https://test.pypi.org/pypi/")
-    assert I.INDEX_VERSION_JSON.startswith("https://test.pypi.org/pypi/")
+    assert I.INDEX_SIMPLE.startswith("https://test.pypi.org/simple/")
+
+
+def test_a_version_counts_as_published_only_once_the_installers_page_lists_its_file(monkeypatch):
+    """The release's own pushes ran CI while the upload was landing: the JSON API listed the kit 0.2.2, the
+    simple page uv installs from did not yet, and the install of `==0.2.2` failed. The versions and digests
+    are read from that simple page, so a version it does not list yet is this repository's build."""
+    files = [{"filename": "cs_image_system_base-0.2.1-py3-none-any.whl", "hashes": {"sha256": "a" * 64}},
+             {"filename": "cs_image_system_base-0.2.1.tar.gz", "hashes": {"sha256": "b" * 64}},
+             {"filename": "cs_image_system_base-0.2.2.tar.gz", "hashes": {"sha256": "c" * 64}},
+             {"filename": "not-a-distribution.txt"}]
+    monkeypatch.setattr(I, "_simple_files", lambda name: files)
+    from packaging.version import Version
+    assert I.published_versions("cs-image-system-base") == {Version("0.2.1"), Version("0.2.2")}
+    assert I.published_digests("cs-image-system-base", Version("0.2.1")) == {
+        "cs_image_system_base-0.2.1-py3-none-any.whl": "a" * 64, "cs_image_system_base-0.2.1.tar.gz": "b" * 64}
+    monkeypatch.setattr(I, "_simple_files", lambda name: files[:2])          # 0.2.2 not on the page yet
+    assert I.published_versions("cs-image-system-base") == {Version("0.2.1")}
 
 
 def _sdk_run(tmp_path: Path, held: tuple[str, ...], built: str, end: str):
