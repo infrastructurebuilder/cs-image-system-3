@@ -4,7 +4,7 @@
 
 [project]
 name = "cs-image-system-engine"
-version = "0.1.12"
+version = "0.1.13.dev1"
 description = "The engine of cs-image-system: the loader, the configuration reader, the resolver, the lifecycle runner, the commands, meta-state and the bootstrap"
 readme = "README.md"
 authors = [{ name = "Mykel Alvis", email = "mykelalvis@infrastructurebuilder.org" }]

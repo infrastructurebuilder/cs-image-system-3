@@ -4,7 +4,7 @@
 
 [project]
 name = "cs-image-system-packer-plugin"
-version = "0.1.12"
+version = "0.1.13.dev1"
 description = "The image builders for HashiCorp Packer: amazon-ebs and googlecompute roots from base and instance images"
 readme = "README.md"
 authors = [{ name = "Mykel Alvis", email = "mykelalvis@infrastructurebuilder.org" }]

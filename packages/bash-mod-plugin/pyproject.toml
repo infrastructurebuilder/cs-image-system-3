@@ -4,7 +4,7 @@
 
 [project]
 name = "cs-image-system-bash-mod-plugin"
-version = "0.1.12"
+version = "0.1.13.dev1"
 description = "The shell modification plugin: inline script, script files and an ensure form become Packer shell provisioners"
 readme = "README.md"
 authors = [{ name = "Mykel Alvis", email = "mykelalvis@infrastructurebuilder.org" }]

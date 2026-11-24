@@ -4,7 +4,7 @@
 
 [project]
 name = "cs-image-system-dummy-plugin"
-version = "0.1.12"
+version = "0.1.13.dev1"
 description = "The extension template and test double: a builder plugin and a hook plugin in their smallest working form"
 readme = "README.md"
 authors = [{ name = "Mykel Alvis", email = "mykelalvis@infrastructurebuilder.org" }]
