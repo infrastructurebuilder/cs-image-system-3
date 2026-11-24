@@ -92,16 +92,24 @@ from pathlib import Path
 
 from packaging.requirements import Requirement
 from packaging.specifiers import SpecifierSet
-from packaging.utils import canonicalize_name
+from packaging.utils import (
+    InvalidSdistFilename,
+    InvalidWheelFilename,
+    canonicalize_name,
+    parse_sdist_filename,
+    parse_wheel_filename,
+)
 from packaging.version import InvalidVersion, Version
 
 REPO = Path(__file__).resolve().parents[1]
 OURS = "cs-image-system"
 #: the SDK's libraries: what a provider may pin by a range
 SDK = ("cs-image-system-base", "cs-image-system-hashicorp-utils", "cs-image-system-tofu-roots")
-#: TestPyPI, where every release goes until 1.0 (specification 013), and the one install form that reaches it
-INDEX_JSON = "https://test.pypi.org/pypi/{name}/json"
-INDEX_VERSION_JSON = "https://test.pypi.org/pypi/{name}/{version}/json"
+#: TestPyPI, where every release goes until 1.0 (specification 013), read by its simple API (PEP 691): the
+#: page the installer reads, so a version is counted as published only once the install below can find it
+#: (the JSON API lists an upload before the simple pages do, and CI on a release's own pushes ran in between)
+INDEX_SIMPLE = "https://test.pypi.org/simple/{name}/"
+SIMPLE_JSON = "application/vnd.pypi.simple.v1+json"
 INDEX_OPTIONS = ("--index-url", "https://test.pypi.org/simple/", "--extra-index-url", "https://pypi.org/simple/",
                  "--index-strategy", "unsafe-first-match")
 FROM_INDEX = "from the index"
@@ -120,41 +128,44 @@ SDK_LINE = {"cs-image-system-base": "kit", "cs-image-system-hashicorp-utils": "t
             "cs-image-system-tofu-roots": "terraform"}
 
 
-def published_versions(name: str) -> set[Version]:
-    """The versions of ``name`` the index holds (none when it has never
-    heard of it); :class:`IndexUnasked` when it cannot be asked."""
+def _simple_files(name: str) -> list[dict]:
+    """Every file the index's simple page lists for ``name`` (none when it has never heard of it);
+    :class:`IndexUnasked` when it cannot be asked."""
+    ask = urllib.request.Request(INDEX_SIMPLE.format(name=name), headers={"Accept": SIMPLE_JSON})
     try:
-        with urllib.request.urlopen(INDEX_JSON.format(name=name), timeout=30) as answer:
-            releases = json.load(answer).get("releases", {})
+        with urllib.request.urlopen(ask, timeout=30) as answer:
+            return list(json.load(answer).get("files", []))
     except urllib.error.HTTPError as e:
         if e.code == 404:
-            return set()
+            return []
         raise IndexUnasked(f"{name}: the index answered {e.code}") from e
     except (urllib.error.URLError, TimeoutError, ValueError) as e:
         raise IndexUnasked(f"{name}: {e}") from e
-    out: set[Version] = set()
-    for text, files in releases.items():
-        try:
-            if files:
-                out.add(Version(text))
-        except InvalidVersion:
-            continue
-    return out
+
+
+def file_version(filename: str) -> Version | None:
+    """The version a distribution file's name carries (a wheel or an sdist), None for one that is neither."""
+    try:
+        if filename.endswith(".whl"):
+            return parse_wheel_filename(filename)[1]
+        if filename.endswith(".tar.gz"):
+            return parse_sdist_filename(filename)[1]
+    except (InvalidWheelFilename, InvalidSdistFilename, InvalidVersion):
+        return None
+    return None
+
+
+def published_versions(name: str) -> set[Version]:
+    """The versions of ``name`` the index's simple page lists a file for (none when it has never heard of
+    it); :class:`IndexUnasked` when it cannot be asked."""
+    return {v for f in _simple_files(name) if (v := file_version(str(f.get("filename", "")))) is not None}
 
 
 def published_digests(name: str, version: Version) -> dict[str, str]:
-    """Each file the index holds for ``name`` at ``version``, by filename, with
-    its sha256; :class:`IndexUnasked` when it cannot be asked."""
-    try:
-        with urllib.request.urlopen(INDEX_VERSION_JSON.format(name=name, version=version), timeout=30) as answer:
-            files = json.load(answer).get("urls", [])
-    except urllib.error.HTTPError as e:
-        if e.code == 404:
-            return {}
-        raise IndexUnasked(f"{name} {version}: the index answered {e.code}") from e
-    except (urllib.error.URLError, TimeoutError, ValueError) as e:
-        raise IndexUnasked(f"{name} {version}: {e}") from e
-    return {str(f["filename"]): str((f.get("digests") or {}).get("sha256", "")) for f in files if f.get("filename")}
+    """Each file the index's simple page lists for ``name`` at ``version``, by filename, with its sha256;
+    :class:`IndexUnasked` when it cannot be asked."""
+    return {str(f["filename"]): str((f.get("hashes") or {}).get("sha256", "")) for f in _simple_files(name)
+            if f.get("filename") and file_version(str(f["filename"])) == version}
 
 
 def wheel_version(wheel: Path) -> Version:

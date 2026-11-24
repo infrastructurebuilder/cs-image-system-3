@@ -212,11 +212,19 @@ def test_the_okta_and_all_extras_take_the_okta_plugin_by_its_series_range():
     """Spec 008, FR-007: the Okta plugin is released from its own repository,
     so the `okta` extra and `all` name it by a range, never an exact pin a
     release here would move (`tests/test_package_metadata.py` holds that a
-    bump leaves the range alone)."""
+    bump leaves the range alone). A release's own commit and tag pin it
+    exactly inside the range, at its newest TestPyPI release (specification
+    013, D1), and the commit after the tag puts the range back."""
     import tomllib
 
     from packaging.requirements import Requirement
+    from packaging.specifiers import SpecifierSet
+    from packaging.version import Version
     optional = tomllib.loads((REPO / "pyproject.toml").read_text())["project"]["optional-dependencies"]
     for extra in ("okta", "all"):
         found = [Requirement(r) for r in optional[extra] if Requirement(r).name == "cs-image-system-okta-opa-plugin"]
-        assert [str(r.specifier) for r in found] == ["<0.3,>=0.2"], (extra, optional[extra])
+        assert len(found) == 1, (extra, optional[extra])
+        specs = list(found[0].specifier)
+        released_pin = (len(specs) == 1 and specs[0].operator == "=="
+                        and Version(specs[0].version) in SpecifierSet(">=0.2,<0.3"))
+        assert str(found[0].specifier) == "<0.3,>=0.2" or released_pin, (extra, optional[extra])
