@@ -17,7 +17,14 @@ without it. A command that loads a tree
 declaring it -- the reference configuration, a starter that needs every
 provider -- runs here as ``uv run --no-sync --with=<req> ... COMMAND``: the
 family is layered in for that command alone, by its extra's own ranges in
-``pyproject.toml`` (never restated), and the venv is left as it was.
+``pyproject.toml`` (never restated), and the venv is left as it was. The
+overlay resolves a family's requirements on their own, so the packages of
+this checkout a family depends on (the contract and the SDK's libraries,
+``CHECKOUT_SDK``) are layered in too, as this checkout's, editable: without
+them the overlay takes their newest published versions and hides this
+checkout's, and a command fails on what only the checkout holds yet (the
+`IDS` ledger of the kit's unreleased 0.2.2 did). A checkout whose version
+falls outside a family's range then fails to resolve, naming both.
 ``--print`` prints the ``--with=<req>`` options instead, for a recipe that
 builds its own ``uv run``. ``--check INDEX`` asks the index (``test``,
 TestPyPI, or ``pypi``) whether it holds a release inside every such range, a
@@ -45,6 +52,10 @@ from packaging.version import InvalidVersion, Version
 REPO = Path(__file__).resolve().parents[1]
 #: the root's extras whose distributions are released from their own repositories
 RELEASED_ELSEWHERE = ("gcloud", "okta")
+#: the workspace packages the released families depend on (every family manifest's own requirements on the
+#: system name these and no other), layered in from this checkout so the overlay never hides them
+CHECKOUT_SDK = ("cs-image-system-contract", "cs-image-system-base", "cs-image-system-hashicorp-utils",
+                "cs-image-system-tofu-roots")
 
 
 def requirements(pyproject: Path = REPO / "pyproject.toml") -> list[str]:
@@ -53,8 +64,24 @@ def requirements(pyproject: Path = REPO / "pyproject.toml") -> list[str]:
     return [req for extra in RELEASED_ELSEWHERE for req in extras[extra]]
 
 
+def checkout_sdk(root: Path = REPO) -> list[Path]:
+    """The directory of each ``CHECKOUT_SDK`` package in this workspace, in that order; ``LookupError`` names
+    one the workspace does not hold."""
+    found: dict[str, Path] = {}
+    for manifest in sorted((root / "packages").glob("*/pyproject.toml")):
+        name = tomllib.loads(manifest.read_text()).get("project", {}).get("name")
+        if name in CHECKOUT_SDK:
+            found[name] = manifest.parent
+    missing = [n for n in CHECKOUT_SDK if n not in found]
+    if missing:
+        raise LookupError(f"the workspace at {root} holds no package named {', '.join(missing)}")
+    return [found[n] for n in CHECKOUT_SDK]
+
+
 def with_options(pyproject: Path = REPO / "pyproject.toml") -> list[str]:
-    return [f"--with={req}" for req in requirements(pyproject)]
+    """The families from the index by their extras' ranges, and this checkout's contract and SDK under them."""
+    return ([f"--with={req}" for req in requirements(pyproject)]
+            + [f"--with-editable={path}" for path in checkout_sdk()])
 
 
 INDEX_JSON = {"test": "https://test.pypi.org/pypi/{name}/json", "pypi": "https://pypi.org/pypi/{name}/json"}
