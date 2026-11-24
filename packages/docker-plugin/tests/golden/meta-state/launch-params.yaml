@@ -21,4 +21,4 @@ instances:
       type: volume
     run: 2026_08_26t12_00_00
     session: exec
-    user_data_sha256: 2d715466c934e1a924c1ec083cd5cec16f4044df2d873caaae11af328fcef012
+    user_data_sha256: 7eefae592e455f666c060dd6bbdc92243e3d51c24c511021de31b13bdbee4d8e

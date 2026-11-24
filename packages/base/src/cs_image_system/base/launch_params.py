@@ -277,7 +277,7 @@ def user_data_template(params: dict[str, Any], ctx: "RunContext | None" = None) 
         lines.append(f"hostnamectl set-hostname '{params['hostname']}' || true")
     group = params.get("group")
     if group:
-        lines.append(f"# owning group: {group} (gid by reference)")
+        lines.append(f"# owning group: {group} (gid from the template's group_gid)")
         lines.append('GID="${group_gid}"')
     for m in params.get("mounts", []):
         # the mount's whole block -- header, device, mount, mark, the

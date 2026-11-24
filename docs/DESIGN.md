@@ -16,7 +16,7 @@ design as built.
 
 | Requirement (GOALS.md) | Design |
 | --- | --- |
-| Identity lifecycle; create-vs-read as separate plugins | The identity lifecycle packages the user and group builders. The okta plugin ships a managed (`okta-tf`) and a read-only (`okta-tf-ro`) variant of each; users are read-only and OPA groups are managed (§3D). Other providers are future plugins against the same seam. |
+| Identity lifecycle; create-vs-read as separate plugins | The identity lifecycle packages the user and group builders. The okta plugin, released from its own repository ([cs-image-system-okta](https://github.com/infrastructurebuilder/cs-image-system-okta)) and installed with the `okta` extra, ships a managed (`okta-tf`) and a read-only (`okta-tf-ro`) variant of each; users are read-only and OPA groups are managed (§3D). The `posix` plugin, here, declares its groups and users with their ids (N20). Other providers are future plugins against the same seam. |
 | Storage lifecycle (S3, Azure Blob, GCS, local FS) | Storage builders exist for `ebs`, `efs` and `s3` (AWS), `pd`, `filestore` and `gcs` (GCP) and `volume` (a docker volume on a container runtime), each realized by a terraform module; access is group-based (§3E). Azure Blob and a bind-mounted local directory are future plugins. |
 | Base vs instance images, OS-independent | Base images and instance images are distinct models: a base image is an OS builder, declared under `os_builders:` in `cfg/`; an instance image is an entry of the `images/` collection chained off one through `source_image` (a `base_images/` directory is read by nobody; [CONFIGURATION.md](CONFIGURATION.md) §1). Packer bakes both on the AWS, GCP and docker runtimes (a container image is committed into the daemon's store, §3F). An Azure image builder is a future plugin. |
 | The instance-image lifecycle includes *launching instances* | Instances belong to the instance-image lifecycle (§3A). Group ownership lives on the image, so the image's `sftd.tx.group` label follows every instance (§3F2). |
@@ -135,7 +135,10 @@ The stakeholder rulings in §2–§2n are binding on §3. Their labels
   from `OutputSpec` blocks); storage and instance roots consume the
   remote state; the read-model files (N6) carry *structural* facts only
   (groups, members, types) — runtime values like gids travel exclusively
-  through the reference chain. Where a provider's gid is not visible to
+  through the reference chain. (This is the rule for a gid the provider
+  assigns, as OPA does. A `posix` group's gid is the one the
+  configuration declares, so it is emitted as that literal, with no
+  identity root to refer to: N20.) Where a provider's gid is not visible to
   its terraform provider (OPA's gid is not visible to the oktapam
   provider), the identity plugin supplies the queryable shim: the
   identity root emits a `data "external"` block whose program is this
@@ -317,7 +320,12 @@ only via bind, upgrade and follow operations (§3B).
   joined at each login by a PAM hook, because OPA's agent makes accounts
   just-in-time and drops their groups when it deletes them. The core names
   neither provider's agent: the launch steps, the login proof and the gid
-  in generated IaC are each the group builder's answer. LDAP/AD and
+  in generated IaC are each the group builder's answer. A `posix`
+  group's answer is its declared gid, emitted as a literal into the
+  storage and instance roots, with no identity root and no remote state;
+  the shared test fixture and its golden emission are POSIX in this way
+  since the Okta plugin moved to its own repository (spec 008), whose
+  instance suite now holds the Okta emission. LDAP/AD and
   `manual-add` stay deferred (§H).
   A container runtime takes the `posix` type alone: OPA's
   agent is a daemon under an init system, a container runs none, and a
@@ -642,7 +650,8 @@ order. The apply step and its gate are described operationally in
   UI), OPA groups/policies/membership are managed, and the
   never-destroy invariants are enforced (N19).
 - The provider seam is the user-builder and group-builder plugin
-  points. The okta plugin ships a read-only (`okta-tf-ro`) and a managed
+  points. The okta plugin (from its own repository, installed with the
+  `okta` extra) ships a read-only (`okta-tf-ro`) and a managed
   (`okta-tf`) variant of each; the managed user builder stays in the
   tree unconfigured (Q7). LDAP/AD/local-file providers are future
   plugins against the same seam (GOALS.md explicitly allows them to not
@@ -658,9 +667,10 @@ order. The apply step and its gate are described operationally in
   **queryable downstream**. The identity terraform root emits
   **outputs** (a group → gid map) for `terraform_remote_state`
   consumers, and where the terraform provider cannot see the gid the
-  root's `data "external"` shim asks this system's CLI (§2c N7); gids
-  travel exclusively by reference, never as literals in generated
-  artifacts.
+  root's `data "external"` shim asks this system's CLI (§2c N7); a
+  provider's gids travel exclusively by reference, never as literals in
+  generated artifacts. A config-time gid (the `posix` type's) is the
+  declared literal and is emitted as written (N20).
 - **Group-type prerequisite contract**: every group-type plugin (okta,
   future manual-add/LDAP/AD…) defines the config it requires baked into
   a base image that declares support for that type — packages, agents,
@@ -692,7 +702,9 @@ order. The apply step and its gate are described operationally in
   `data.terraform_remote_state` against the identity workspace (which
   exists before storage applies, by runner-script order), or the
   identity plugin's queryable shim where terraform can't carry it. No
-  literal gid ever appears in generated storage IaC. Also legal:
+  literal gid of a provider-assigned group ever appears in generated
+  storage IaC; a `posix` group's declared gid does, as written (N20).
+  Also legal:
   **unconnected storages** (N8) — built and managed with no current
   consumer, gated like everything else when later attached.
 - **Storage is a REAL state machine** (N19) — "not just a

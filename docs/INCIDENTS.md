@@ -778,7 +778,7 @@ tests named in the base README.
 have happened" (the three 2026-09-23 items);
 [../packages/system/README.md](../packages/system/README.md) "Seen live"
 (the 2026-09-23 10:15 item);
-[../packages/okta-opa-plugin/README.md](../packages/okta-opa-plugin/README.md)
+[../packages/okta-opa-plugin/README.md](https://github.com/infrastructurebuilder/cs-image-system-okta/blob/develop/packages/okta-opa-plugin/README.md)
 "When it fails" ("A dropped membership blocked every identity plan", the
 "three live attempts" sentences).
 
@@ -812,7 +812,7 @@ the one the gate reads.
 have happened" (the 2026-09-22 stale attachment item);
 [../packages/hashicorp-utils/README.md](../packages/hashicorp-utils/README.md)
 "When it fails" (the 2026-09-23 item);
-[../packages/okta-opa-plugin/README.md](../packages/okta-opa-plugin/README.md)
+[../packages/okta-opa-plugin/README.md](https://github.com/infrastructurebuilder/cs-image-system-okta/blob/develop/packages/okta-opa-plugin/README.md)
 "When it fails" ("A dropped membership blocked every identity plan").
 
 ### The release flag had to be switched off by hand mid-release
@@ -908,7 +908,7 @@ then the proof again.
 have happened" (the 2026-09-22 `sft resolve` item);
 [../packages/system/README.md](../packages/system/README.md) "Seen live"
 (the 2026-09-22 item);
-[../packages/okta-opa-plugin/README.md](../packages/okta-opa-plugin/README.md)
+[../packages/okta-opa-plugin/README.md](https://github.com/infrastructurebuilder/cs-image-system-okta/blob/develop/packages/okta-opa-plugin/README.md)
 "When it fails" (the `sft resolve --quiet` item).
 
 ### The first live replacement: four traps in one afternoon
@@ -957,7 +957,7 @@ replaced machine's registration);
 "Seen live" (the two 2026-09-22 items);
 [../packages/tf-ebs-instance-plugin/README.md](../packages/tf-ebs-instance-plugin/README.md)
 "Failures that have happened" (the "four traps" item);
-[../packages/okta-opa-plugin/README.md](../packages/okta-opa-plugin/README.md)
+[../packages/okta-opa-plugin/README.md](https://github.com/infrastructurebuilder/cs-image-system-okta/blob/develop/packages/okta-opa-plugin/README.md)
 "When it fails" ("A replacement's old registration claimed the new
 machine's alias").
 
@@ -985,7 +985,7 @@ reproduces the failure.
 have happened" (the "identity plan ran on ciphertext" item);
 [../packages/hashicorp-utils/README.md](../packages/hashicorp-utils/README.md)
 "When it fails" (the 2026-09-22 item);
-[../packages/okta-opa-plugin/README.md](../packages/okta-opa-plugin/README.md)
+[../packages/okta-opa-plugin/README.md](https://github.com/infrastructurebuilder/cs-image-system-okta/blob/develop/packages/okta-opa-plugin/README.md)
 "When it fails" ("Every derived lookup failed on a real run").
 
 ### The first CI-policy reconcile was refused by hard drift
@@ -1012,7 +1012,7 @@ fail on them; the identity apply is the repair.
 `workload role '...' is not known to OPA` row);
 [../packages/base/README.md](../packages/base/README.md) "Failures that
 have happened" (the "first live CI-policy reconcile" item);
-[../packages/okta-opa-plugin/README.md](../packages/okta-opa-plugin/README.md)
+[../packages/okta-opa-plugin/README.md](https://github.com/infrastructurebuilder/cs-image-system-okta/blob/develop/packages/okta-opa-plugin/README.md)
 "When it fails" ("The first reconcile refused by hard drift").
 
 ### OPA's workload API: a hyphenated path and an error with no body
@@ -1036,7 +1036,7 @@ the comparison strips OPA's bookkeeping ids at every depth.
 **Date.** 2026-09-22.
 
 **Where it was told.**
-[../packages/okta-opa-plugin/README.md](../packages/okta-opa-plugin/README.md)
+[../packages/okta-opa-plugin/README.md](https://github.com/infrastructurebuilder/cs-image-system-okta/blob/develop/packages/okta-opa-plugin/README.md)
 "When it fails" (the `workload_roles` 404 item and the `HTTP Error 400`
 item).
 
@@ -1063,7 +1063,7 @@ last export wins), rotate in the OPA console if it expired.
 `unavailable: groups/<g>: HTTP 401` row);
 [../packages/base/README.md](../packages/base/README.md) "Failures that
 have happened" (the 2026-09-21 lapsed key item);
-[../packages/okta-opa-plugin/README.md](../packages/okta-opa-plugin/README.md)
+[../packages/okta-opa-plugin/README.md](https://github.com/infrastructurebuilder/cs-image-system-okta/blob/develop/packages/okta-opa-plugin/README.md)
 "When it fails" ("Five standing groups read as deleted").
 
 ### Three registrations of one hostname in OPA, one live
@@ -1095,7 +1095,7 @@ day.
 `'<name>' has 2 registrations` row);
 [../packages/base/README.md](../packages/base/README.md) "Failures that
 have happened" (the "three `coops-model` registrations" item);
-[../packages/okta-opa-plugin/README.md](../packages/okta-opa-plugin/README.md)
+[../packages/okta-opa-plugin/README.md](https://github.com/infrastructurebuilder/cs-image-system-okta/blob/develop/packages/okta-opa-plugin/README.md)
 "When it fails" ("Three registrations of one hostname");
 [DESIGN.md](DESIGN.md) ("Why observation", which cites the date).
 
@@ -1407,7 +1407,7 @@ says 2026-09-17).
 "green with `SKIPPED`" row);
 [../packages/system/README.md](../packages/system/README.md) "Seen live"
 (the 2026-09-17 item);
-[../packages/okta-opa-plugin/README.md](../packages/okta-opa-plugin/README.md)
+[../packages/okta-opa-plugin/README.md](https://github.com/infrastructurebuilder/cs-image-system-okta/blob/develop/packages/okta-opa-plugin/README.md)
 "When it fails" ("A secret that exists but is empty").
 
 ### A modification with only config baked nothing
@@ -1520,7 +1520,7 @@ that one line rather than an assertion. Locally, `source .envrc`.
 **Date.** 2026-09-15.
 
 **Where it was told.**
-[../packages/okta-opa-plugin/README.md](../packages/okta-opa-plugin/README.md)
+[../packages/okta-opa-plugin/README.md](https://github.com/infrastructurebuilder/cs-image-system-okta/blob/develop/packages/okta-opa-plugin/README.md)
 "When it fails" (the "missing a key value" item);
 [DAILY_DRIVER.md](DAILY_DRIVER.md) section 6 (the `missing a key value`
 row, for the current shape).
@@ -2391,7 +2391,7 @@ witness.
 **Date.** 2026-09-02.
 
 **Where it was told.**
-[../packages/okta-opa-plugin/README.md](../packages/okta-opa-plugin/README.md)
+[../packages/okta-opa-plugin/README.md](https://github.com/infrastructurebuilder/cs-image-system-okta/blob/develop/packages/okta-opa-plugin/README.md)
 "When it fails" ("An enrollment token deleted out of band");
 [../packages/base/README.md](../packages/base/README.md) "Failures that
 have happened" (the enrollment-token clause of the ledger-shape item).
@@ -2413,7 +2413,7 @@ run or did not succeed; read the runner's output above the gate line.
 **Where it was told.**
 [../packages/system/README.md](../packages/system/README.md) "Seen live"
 (the first item);
-[../packages/okta-opa-plugin/README.md](../packages/okta-opa-plugin/README.md)
+[../packages/okta-opa-plugin/README.md](https://github.com/infrastructurebuilder/cs-image-system-okta/blob/develop/packages/okta-opa-plugin/README.md)
 "When it fails" ("A stale plan file passed the gate");
 [../packages/tf-ebs-instance-plugin/README.md](../packages/tf-ebs-instance-plugin/README.md)
 "Failures that have happened" (the "`gate-plan` accepted a stale
@@ -2513,7 +2513,7 @@ group membership").
 **Date.** 2026-09-02 (seen 2026-08-31 to 2026-09-02).
 
 **Where it was told.**
-[../packages/okta-opa-plugin/README.md](../packages/okta-opa-plugin/README.md)
+[../packages/okta-opa-plugin/README.md](https://github.com/infrastructurebuilder/cs-image-system-okta/blob/develop/packages/okta-opa-plugin/README.md)
 "When it fails" ("Memberships that already existed in OPA").
 
 ### Three small gaps of the first live runs
@@ -2730,7 +2730,7 @@ the rpm path needs nothing beyond `rpm` and `yum`.
 **Date.** 2026-08-31 (undated in the record; among the first bakes).
 
 **Where it was told.**
-[../packages/okta-opa-plugin/README.md](../packages/okta-opa-plugin/README.md)
+[../packages/okta-opa-plugin/README.md](https://github.com/infrastructurebuilder/cs-image-system-okta/blob/develop/packages/okta-opa-plugin/README.md)
 "When it fails" ("Debian vendor images without `curl` or `gnupg`").
 
 ### Ansible fact gathering died on a Python the controller no longer supports

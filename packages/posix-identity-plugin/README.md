@@ -133,6 +133,15 @@ accounts alone has `verify login`:
 
 ## Beside Okta
 
+The Okta identity plugin is not in this repository: it is released from
+its own,
+[cs-image-system-okta](https://github.com/infrastructurebuilder/cs-image-system-okta),
+and installed with the `okta` extra
+(["Installing a release"](../../docs/OPERATIONS.md#installing-a-release)).
+What follows is what this plugin does for it; the Okta side of it is
+tested there, in its
+[`tests/instance/test_posix_identity.py`](https://github.com/infrastructurebuilder/cs-image-system-okta/blob/develop/tests/instance/test_posix_identity.py).
+
 An `okta-tf` group builder names a posix group builder as its `posix:`
 delegate (required; `posix: none` is the explicit way to have none). Its
 groups stay OPA's -- created there, members kept there -- and the

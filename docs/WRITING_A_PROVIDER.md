@@ -48,7 +48,12 @@ discovered, and only for a plugin it accepts, so a plugin that is
 skipped leaves no kind behind. A plugin cannot register a kind by a
 call, and the four field kinds of the system's own (`fk`, `templated`,
 `deferred_list`, `deferred_list_fk`) are no plugin's to declare. The
-Okta plugin's `OktaTypes` is the example in this repository.
+example is the Okta plugin's `OktaTypes`, which declares the
+`sftd-token` enrollment kind; the plugin is no longer in this
+repository but in its own,
+[cs-image-system-okta](https://github.com/infrastructurebuilder/cs-image-system-okta),
+and the class is in its
+[`main.py`](https://github.com/infrastructurebuilder/cs-image-system-okta/blob/develop/packages/okta-opa-plugin/src/cs_image_system/okta_opa_plugin/main.py).
 
 Everything a provider needs at run time ships in its own
 distribution, the Terraform modules included. A provider never relies

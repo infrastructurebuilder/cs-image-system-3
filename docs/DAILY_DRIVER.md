@@ -100,10 +100,13 @@ extras its `type:` words name (an AWS tree with Okta groups is
 `cs-image-system[aws,okta]`). Your tree's `Justfile` knows: `just extras`
 prints them, and `just take` installs with them. `[gcloud]` brings the
 Google Cloud family (the `gcloud` runtime, its GCE roots and the `gcs`
-state backend), which is released from its own repository on a version
-line of its own; you install it the same way as any other extra, and
-"Installing a release" in [OPERATIONS.md](OPERATIONS.md) says how its
-versions are named and found.
+state backend), and `[okta]` the Okta identity plugin (the `okta-tf` and
+`okta-tf-ro` group and user builders); each is released from its own
+repository on a version line of its own. You install either the same way
+as any other extra, and
+["Installing a release" in OPERATIONS.md](OPERATIONS.md#installing-a-release)
+is the one place that says how, and how their versions are named and
+found.
 
 ```sh
 uv tool install "cs-image-system[$(just extras)]"    # the command on PATH, with this tree's extras
@@ -1494,12 +1497,14 @@ own repository,
 and
 [cs-image-system-okta](https://github.com/infrastructurebuilder/cs-image-system-okta),
 and this workspace's venv holds neither ("Installing a release" in
-[OPERATIONS.md](OPERATIONS.md)). `just init`, then `just test` is the bar
-(lint, types, the
-fast suite over the frozen fixture and its golden emission, which declare
-AWS and docker, and the tests of the two starters that declare the Google
-Cloud family, with the Google Cloud family layered in from the package
-index for the run), `just full-test`
+[OPERATIONS.md](OPERATIONS.md#installing-a-release)). `just init`, then
+`just test` runs the acceptance tests (lint, types, the fast suite over
+the frozen fixture and its golden emission, which declare AWS and docker
+and whose groups are POSIX ones, so no Okta plugin is needed);
+`just test-cloud-starters` runs the tests of the starters that declare
+the Google Cloud family or Okta groups, with the Google Cloud family and
+the Okta plugin layered in from the package index for that run;
+`just full-test`
 adds the docker-backed modification tests and, when the
 sessions are present, a dry run and a strict state query over a private
 copy of the reference configuration, which is checked out BESIDE this

@@ -25,7 +25,7 @@ satisfy too.
 
 In the workspace, the packages that depend on it directly are
 `tofu-roots`, whose root mixin and neutral roots drive the terraform
-collector; the identity root plugin (`okta-opa-plugin`) and the provider
+collector; the provider
 root plugins (`tf-ebs-instance-plugin`,
 `docker-plugin`), which reach the collector and the block model beside
 the roots they subclass from tofu-roots; `packer-plugin`, which uses the
@@ -36,6 +36,11 @@ family, released from its own repository
 ([cs-image-system-google-cloud](https://github.com/infrastructurebuilder/cs-image-system-google-cloud)),
 depends on this package by a range in the same two ways: `tf-gcp-plugin`
 as a provider root plugin and `gcloud-runtime-plugin` as a runtime plugin.
+So does the Okta identity root plugin (`okta-opa-plugin`), released from
+its own repository
+([cs-image-system-okta](https://github.com/infrastructurebuilder/cs-image-system-okta)),
+whose identity roots reach the collector and the block model beside the
+root mixin it takes from tofu-roots.
 The state plugins
 (`tf-s3-state-plugin`, `local-state-plugin`, and the Google Cloud family's
 `gcs-state-plugin`) do not

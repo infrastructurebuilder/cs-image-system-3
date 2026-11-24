@@ -1973,8 +1973,10 @@ credentials: the tests own the frozen fixture and export its TEST
 identity themselves. There is no looser recipe: the contract test
 asserts that a `ci` recipe with a non-blocking type-check stays gone.
 
-The tests run over private copies of the fixture with every cloud, Okta
-and tool execution stubbed.
+The tests run over private copies of the fixture with every cloud and
+tool execution stubbed. The fixture's identity is POSIX, so no test here
+loads the Okta plugin or needs its credentials; the Okta plugin's own
+tests run in its repository.
 
 ### `just full-test`
 
@@ -2002,8 +2004,14 @@ Everything `test` does plus the slow and external legs:
 A leg whose prerequisite is absent reports `SKIPPED` loudly with its
 reason and does not fail the run (the first leg above excepted); a leg
 that runs and fails does.
-Identity credentials (`OKTA_API_*`, `TF_VAR_<team>_*`) are not gated: a
-dry run without them warns and skips the identity roots' plan. Run it
+Identity credentials are not a leg's prerequisite, so no leg is skipped
+for want of them; what their absence does is the identity plugin's. When
+the configuration the live legs read declares Okta groups, the Okta
+plugin (layered in from the index for those legs) refuses the load with
+exit 2, naming the remedy, while `TF_VAR_<team>_key` or `_secret` is
+unset, so the leg fails rather than passing on less; without
+`OKTA_API_*` it only warns and skips the plan of its read-only user
+root. Set both in the configuration's `.envrc` before the run. Run it
 before declaring a phase done and before any release.
 
 ### The golden
@@ -2087,8 +2095,9 @@ command.
 
 `just fixture-live` is the system's own live proof and what
 this repository's CI `live` job runs: with real sessions (the frozen
-fixture names the real AWS account's networks and the OPA team; it
-declares no Google Cloud project since the Google Cloud family moved to
+fixture names the real AWS account's networks; it declares no OPA team
+since its groups became POSIX ones, when the Okta plugin moved to its
+own repository, and no Google Cloud project since the Google Cloud family moved to
 its own repository, so `validate --online` asks AWS alone) and the
 fixture's committed TEST identity, `validate` over the fixture, a headless
 dry `run --all --no-state-query` over a private copy with the installed
@@ -2164,7 +2173,11 @@ variable for a proof that needs the checkout's code and say so in the
 commit that follows; make the record that `main` will carry with the
 pinned release (`CSIS="$HOME/.local/bin/cs-image-system" just record`).
 
-The fixture carries no `meta-state/` and no generated output; its instance
+The fixture's groups and users are POSIX ones (the `posix-local` and
+`posix-users` builders), each group with a literal gid, so its emission
+has no identity root and loads without the Okta plugin; the Okta
+plugin's instance suite has its own fixture and golden in its own
+repository. The fixture carries no `meta-state/` and no generated output; its instance
 subjects (`test`, `test2` on AWS and `container-test` on docker; the GCE
 subject `gce-test` is the Google Cloud family's fixture's, in its own
 repository) are declared in its own
@@ -2745,7 +2758,9 @@ family's own READMEs, documents and tests are in its repository; its
 configuration fields are in
 [its `docs/CONFIGURATION.md`](https://github.com/infrastructurebuilder/cs-image-system-google-cloud/blob/develop/docs/CONFIGURATION.md).
 
-**The Okta identity plugin comes from its own repository too.** Its one
+**The Okta identity plugin comes from its own repository too.** This
+paragraph is the one place this repository's documents say how the
+Okta plugin is installed; every other document links here. Its one
 package, `cs-image-system-okta-opa-plugin` (the `okta-tf` and
 `okta-tf-ro` group and user builders, and the `workload` and `verify
 login` commands it mounts), is built, tested and released from
@@ -2757,9 +2772,17 @@ extra names its three. This repository's workspace does not hold it:
 `just init` leaves the `okta` extra out as well, the frozen fixture's
 identity is POSIX, and the recipes that load a tree declaring it layer
 it in from the index through the same `scripts/with-released-families`.
-Its README, with its configuration reference, and its tests are in its
-repository:
-[packages/okta-opa-plugin/README.md](https://github.com/infrastructurebuilder/cs-image-system-okta/blob/develop/packages/okta-opa-plugin/README.md).
+Its README, its documents and its tests are in its repository:
+the plugin in depth in
+[packages/okta-opa-plugin/README.md](https://github.com/infrastructurebuilder/cs-image-system-okta/blob/develop/packages/okta-opa-plugin/README.md),
+and the fields of its group and user builders in
+[its `docs/CONFIGURATION.md`](https://github.com/infrastructurebuilder/cs-image-system-okta/blob/develop/docs/CONFIGURATION.md).
+A tree that declares Okta groups still needs the Okta credentials
+(`OKTA_API_*`, `TF_VAR_<team>_key` and `_secret`) wherever it is
+validated or run -- the reference configuration, a team's own
+repository and its CI -- because the plugin reads, at every load,
+that they are set; only this repository's own CI stopped asking for
+them, since its frozen fixture declares no Okta group.
 
 A configuration repository's `Justfile` reads the extras its tree needs
 from the `type:` words under `cfg/` (`just extras` prints them, as
@@ -3348,9 +3371,10 @@ credentials, inside the runner image.
 Runs after `verify` on pushes and the nightly schedule, never on pull
 requests (forks carry no secrets), inside the runner image. It reads only
 and never plans against remote state. The frozen fixture names the real
-account's networks and project and the real OPA team, so with the
-read-only identities the system is proved against reality without
-touching the reference configuration.
+AWS account's networks, so with the read-only AWS identity the system is
+proved against reality without touching the reference configuration. It
+names no OPA team (its groups are POSIX ones), so the job needs and asks
+for no Okta credential.
 
 | Step | What it does |
 | --- | --- |

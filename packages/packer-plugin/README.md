@@ -279,7 +279,7 @@ images with no mutual dependencies):
 
 | File | Content |
 |---|---|
-| [pckr-ebs-ans-image-generation-block-000-build.pkr.hcl](../../tests/fixtures/golden/generated/base-image/pckr-ebs-ans/image-generation/block-000/pckr-ebs-ans-image-generation-block-000-build.pkr.hcl) | `build "pckr-ebs-ans-block-000"`; per image: OS update, admin user, `okta` prerequisites, `ebs`/`efs`/`s3` prerequisites, SSM agent, verification; then the manifest post-processor. |
+| [pckr-ebs-ans-image-generation-block-000-build.pkr.hcl](../../tests/fixtures/golden/generated/base-image/pckr-ebs-ans/image-generation/block-000/pckr-ebs-ans-image-generation-block-000-build.pkr.hcl) | `build "pckr-ebs-ans-block-000"`; per image: OS update, admin user, `posix` prerequisites (the shadow tools and sudo, checked), `ebs`/`efs`/`s3` prerequisites, SSM agent, verification; then the manifest post-processor. |
 | [...-block-000-ebs-ansible-setup.pkr.hcl](../../tests/fixtures/golden/generated/base-image/pckr-ebs-ans/image-generation/block-000/pckr-ebs-ans-image-generation-block-000-ebs-ansible-setup.pkr.hcl) | The `locals` block. |
 | [...-block-000-plugins.pkr.hcl](../../tests/fixtures/golden/generated/base-image/pckr-ebs-ans/image-generation/block-000/pckr-ebs-ans-image-generation-block-000-plugins.pkr.hcl) | `required_plugins` `amazon` and `ansible`. |
 | [...-block-000-vars.pkr.hcl](../../tests/fixtures/golden/generated/base-image/pckr-ebs-ans/image-generation/block-000/pckr-ebs-ans-image-generation-block-000-vars.pkr.hcl) | `release` and `base_image_version`. |

@@ -96,3 +96,38 @@ pyproject.toml, Justfile, REUSE.toml, LICENSES/, scripts/, docs/, .github/workfl
 | Cost | Why needed | Simpler alternative rejected because |
 | --- | --- | --- |
 | The plugin's instance suite depends on the AWS family from the index | The configured Okta is reached from AWS today (the operator's decision) | The test kit's double was the alternative; the operator chose AWS, noting it may change, so the dependency is confined to one suite |
+
+## Budget
+
+Measured 2026-11-23 (T056) by T001's method, spec 005's (tracked `.py`
+under a `src/` directory, test files outside the fixtures, `def test_`
+functions, the shared golden's files, workspace packages). Three points:
+`0e73dedc` (T001's start), `6bd23ee7` (`develop` after specification
+010's squash, which carried this specification's phases 1 to 3 and its
+T035 part 1, taken into this branch as `4c1e529c`), and `673dc6dd`
+(phase 5's end). Phases 4 and 5, the plugin's removal, are the second
+interval.
+
+| Measure | Expected (Constitution check, VII) | `0e73dedc` | `6bd23ee7` | `673dc6dd` | Phases 4 and 5 |
+| --- | --- | --- | --- | --- | --- |
+| Workspace packages | −1 | 19 | 19 | 18 | **−1** |
+| Source lines | about −4,150 (the plugin's own 4,152) | 54,258 | 55,237 | 51,034 | **−4,203** |
+| Test lines | | 46,069 | 48,153 | 44,395 | −3,758 |
+| Test functions | the plugin's 71 and the Okta-only cases | 2,007 | 2,096 | 1,919 | −177 |
+| Shared golden files | | 117 | 117 | 101 | −16 |
+
+Source lines fell by the plugin's own Python source alone: it held
+4,202 lines at `6bd23ee7` (T001 counted 4,152 before this
+specification's phases 1 to 3 changed it), nothing else under a `src/`
+changed in the interval, and the one line beyond is a file that ends
+without a newline, which `wc -l` leaves out and the method counts.
+Test functions fell by
+177, beyond the plugin's 71: the 93 cases the Okta repository carries
+(T036) and the Okta-only cases the fixture's change left with no vehicle
+here (T036's record names each), less the tests phase 5 added (T046 to
+T048). The golden lost the three Okta identity roots' 15 files and
+`run-identity.sh` (T044). T001 measured 54,249 source lines at
+`0e73dedc` where this method gives 54,258; the 9 lines are the
+method's (the repository's top-level `src/` counted), not the change's.
+The interval from `0e73dedc` to `6bd23ee7` is specification 010's and
+this one's phases 1 to 3, recorded in their own tasks.

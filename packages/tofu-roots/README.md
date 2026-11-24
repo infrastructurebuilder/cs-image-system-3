@@ -76,9 +76,10 @@ sequence) mixes `TerraformRootMixin` in next to its `BuilderBase`
 subclass. The mixin is duck-typed against `BuilderBase`: it relies on
 `self.name`, `self.get_path_for_phase(phase, suffix=...)`,
 `self.get_executable_copy()` and, when present, `self._get_context()` and
-`self.model`. In the workspace the mixin is on `OktaTfGroupBuilder` (and
-its read-only subclass) and `OktaTfUserBuilder` in the identity plugin,
-and on the two provider-neutral roots of this package,
+`self.model`. The mixin is on `OktaTfGroupBuilder` (and its read-only
+subclass) and `OktaTfUserBuilder` in the Okta identity plugin, which is
+no longer in this workspace but in its own repository, and on the two
+provider-neutral roots of this package,
 `TofuInstanceBuilderBase` and `TofuStorageBuilderBase`, from which every
 provider's instance and storage root inherits it.
 

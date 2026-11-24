@@ -21,7 +21,7 @@ instances:
       type: volume
     run: 2026_08_26t12_00_00
     session: exec
-    user_data_sha256: 2d715466c934e1a924c1ec083cd5cec16f4044df2d873caaae11af328fcef012
+    user_data_sha256: 7eefae592e455f666c060dd6bbdc92243e3d51c24c511021de31b13bdbee4d8e
   test:
     build: unbound
     enrollment: {}
@@ -35,7 +35,7 @@ instances:
     mounts: []
     run: 2026_08_26t12_00_00
     session: ssm
-    user_data_sha256: 5d56e348a42d7a907d25b941786c65876419668a62c4bc597509c4ad3f4cd601
+    user_data_sha256: fce6c76b51fc50248e3af8c5d82f98e9e11006dd9088d0abbd57f98687d02a4f
   test2:
     build: unbound
     enrollment: {}
@@ -57,4 +57,4 @@ instances:
       type: ebs
     run: 2026_08_26t12_00_00
     session: ssm
-    user_data_sha256: 5696b2704f010f77416d4ecf3a95feadaa5f3a5ae74df8064caead71f14e4ec1
+    user_data_sha256: 4864728a2a764c7800f8b591649e621374d1b4371b09e54b648c0c51454bbd31

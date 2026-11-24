@@ -1,8 +1,11 @@
 ---
 # cfg/group-builders.yml (from the complete starter) -- the identity builders:
 # managed OPA groups, read-only user lookups (the default) and a managed
-# user builder. Reference: CONFIGURATION.md (the system repository's docs/CONFIGURATION.md) section 9 (9.1 the
-# shared Okta terraform workspace, 9.2 group builders, 9.3 user builders)
+# user builder. Reference: CONFIGURATION.md (the system repository's docs/CONFIGURATION.md)
+# section 9, which describes each builder briefly (9.1 to 9.3 below cite it).
+# The Okta builders' fields: the Okta plugin's own reference, docs/CONFIGURATION.md of
+# https://github.com/infrastructurebuilder/cs-image-system-okta (1 the shared workspace, 2 group
+# builders, 3 user builders); the plugin is installed by the `okta` extra.
 # and CI_SETUP.md section 3.5 for the workload objects.
 group_builders:
   - name: oktagroups

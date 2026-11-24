@@ -6,7 +6,7 @@
 
 **Created**: 2026-11-19
 
-**Status**: Draft
+**Status**: In progress, 2026-11-23: phases 1 to 6 implemented (phases 1 to 3 merged into `develop` with specification 010's squash, `6bd23ee7`; phases 4 to 6 on `feature/008-relocate-okta-plugin`, not merged): the plugin is released from cs-image-system-okta and this repository passes without it. T057 (this repository's release without it) and T058 (the reference configuration's take and `config-drift`) are the operator's. Records are in [tasks.md](tasks.md).
 
 ## Clarifications
 
