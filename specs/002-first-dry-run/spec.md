@@ -2,11 +2,11 @@
 
 **Feature Directory**: `specs/002-first-dry-run`
 
-**Feature Branch**: `feature/first-dry-run` (to be created from `develop` when planning starts)
+**Feature Branch**: `feature/002-first-dry-run` (created 2026-11-25)
 
 **Created**: 2026-11-16
 
-**Status**: Draft
+**Status**: Planned 2026-11-21, the plan revised 2026-11-25 for releases on TestPyPI until 1.0 ([plan](plan.md))
 
 **Input**: User description: "A newcomer with nothing installed reaches a successful dry run by following one page, and CI runs that page's commands."
 

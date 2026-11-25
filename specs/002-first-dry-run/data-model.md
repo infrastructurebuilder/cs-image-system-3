@@ -69,15 +69,28 @@ page's second command installs it with uv.
 | Machine | A container from the stock `ubuntu:24.04` image, the host's docker socket mounted (R7) |
 | Setup | The prerequisites at their floors (`just quickstart-prepare`), timed and reported apart from the page |
 | Steps | `just test-quickstart` with two passes; `scripts/quickstart prerequisites --check` |
-| Gates | `publish` needs it (R8) |
+| Gates | nothing waits on it: CI's `publish` job is gone (specification 013); the Publish workflow's own job holds the upload (below) |
 | Record | The runner's time lines, written to the job summary (FR-012) |
+
+## The Publish workflow's quickstart job
+
+| Field | Value |
+| --- | --- |
+| Workflow | [`.github/workflows/publish.yml`](../../.github/workflows/publish.yml), job `quickstart` (R8, decided 2026-11-25) |
+| Runs on | A pushed `v*` tag, after `build` |
+| Machine | The same as CI's job: the stock `ubuntu:24.04` image, the host's docker socket mounted, the prerequisites at their floors |
+| Steps | `just test-quickstart --wheels dist`, one pass, against the `build` job's artifact |
+| Gates | `testpypi` needs it: the upload waits on the page (about 3 to 5 minutes) |
+| Record | The time lines and the verdict in the job summary |
 
 ## State of a release with respect to the page
 
 ```text
-a push or pull request   the job runs the page against the commit's wheels       publish cannot run without it
-just release (local)     test-quickstart runs against the bumped tree's wheels    before any upload, both indexes
-                         on your local machine (macOS)
-full-test                test-quickstart is a leg that never reports SKIPPED
-a final release          publish-starters regenerates the five template repositories with the corrected READMEs
+a push or pull request   CI's job runs the page against the commit's wheels      the tag's push included
+just release (local)     the lighter check runs test-quickstart against the      before the tag
+                         bumped tree's wheels on your local machine (macOS)
+full-test (--full)       test-quickstart is a leg that never reports SKIPPED      before the tag
+the tag's push           the Publish workflow's job runs the page against the    the upload waits on it
+                         tag's built files on a clean machine
+a final release          publish-starters regenerates the five template repositories with the corrected READMEs (a .dev release pushes none)
 ```

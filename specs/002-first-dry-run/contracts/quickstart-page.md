@@ -25,7 +25,8 @@ listed here is prose for the reader and is not read by any program.
 ```text
 # step 1 -- box 1 of 3 -- v1
 # About a minute on a fresh machine: uv fetches the packages and, if needed, Python 3.13
-uv tool install --upgrade 'cs-image-system[docker]'
+uv tool install --upgrade --index-url https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple/ \
+  --index-strategy unsafe-first-match 'cs-image-system[docker]==<version>'
 uv tool install --upgrade 'ansible-core>=2.16'
 export PATH="$(uv tool dir --bin):$PATH"
 cs-image-system --version
@@ -39,8 +40,12 @@ cs-image-system --root-dir csis-quickstart validate
 cs-image-system --root-dir csis-quickstart run --all
 ```
 
-Seven commands, the version line included. The last line of box 1
-prints the release; of box 2, `Validation successful.`; of box 3, `Run
+Seven commands, the version line included (the first is one command
+over two lines). `<version>` stands here for the release the page names,
+written in it as a number and moved by each release's bump (research
+R4); the page itself never shows a placeholder. Until 1.0 the install
+takes every name of the system from TestPyPI and every other from PyPI
+(specification 013). The last line of box 1 prints the release; of box 2, `Validation successful.`; of box 3, `Run
 <id> completed: identity, storage, base-image, instance-image, release,
 retention`.
 

@@ -14,7 +14,7 @@ this feature's.
 | a tool older than its floor | box 2, `validate` | `<tool> <found> does not meet its requirement <needed> (cfg/executables.yml)` (**today**) |
 | the daemon does not answer | box 3, `run --all` | `docker runtime docker-main: the daemon at <where> cannot be reached (<the CLI's first line>) (the runtime's daemon must answer \`docker version\` from this machine: start it (OrbStack, Docker Desktop, the engine on the host), or fix the runtime's \`host\` / \`context\`; \`preflight\` says which)` (**new**: the current CLI's wording recognised; the remedy on a run's failure as on a load's) |
 | installed without the provider | box 2, `validate` | `runtime type 'docker' ...: install the extra: uv tool install 'cs-image-system[docker]'` (**today**, the umbrella's table) |
-| an older release installed | none | box 1's `--upgrade` ends on the current release; the box's last line prints it (**new** by the page, no code) |
+| an older release installed | none | box 1's exact pin, with `--upgrade`, ends on the page's release; the box's last line prints it (**new** by the page, no code; that a pinned install replaces an older one is confirmed at implementation, research R4) |
 | a configuration already in `csis-quickstart` | box 2, `init-config` | a directory that is not a configuration: the refusal of today, one line. A tree this release did not write: the `REFUSED <file>` lines of today, then `init-config: <dest> already holds a configuration this release did not write; to start over remove it, or keep it and refresh the release's files with --force` (**new**, the closing line). The quickstart's own tree from the same release: no failure (story 1 scenario 5) |
 
 Every new line is one line, carries its cause first and its remedy
