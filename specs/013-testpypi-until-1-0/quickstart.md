@@ -41,8 +41,9 @@ uv tool install --index-url https://test.pypi.org/simple/ --extra-index-url http
   --index-strategy unsafe-first-match 'cs-image-system[all]==<version>' && cs-image-system --version
 ```
 
-Expect the publish workflow's run to pass, the starters pushed, PyPI's
-newest version unchanged, and the clean install to report `<version>`.
+Expect the publish workflow's run to pass, the starters pushed for a
+final version alone (a `.dev` release pushes none), PyPI's newest
+version unchanged, and the clean install to report `<version>`.
 
 ## Step 4: the reference takes it
 
