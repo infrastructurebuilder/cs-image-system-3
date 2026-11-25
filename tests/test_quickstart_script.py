@@ -85,13 +85,15 @@ def _run(tmp_path: Path, page: str = PAGE, *, session: _Session | None = None, i
     said: list[str] = []
     ticks = iter(clock) if clock else None
     built = built if built is not None else []
+    seen: dict[str, str] = kw.get("seen", {})
 
     def build(out: Path) -> Any:
         built.append(out)
         return Q.Built(version="9.9.9", wheels={"cs-image-system": out / "cs_image_system-9.9.9-py3-none-any.whl"})
 
     rc = Q.run(page=path, wheels=wheels, passes=kw.get("passes", 1), limit=kw.get("limit", 900), keep=None,
-               work=tmp_path / "work", say=said.append, session_factory=lambda env, cwd: session, build=build,
+               work=tmp_path / "work", page_path=kw.get("page_path"), say=said.append,
+               session_factory=lambda env, cwd: (seen.update(env), session)[1], build=build,
                check_install=lambda tool_dir, b: installed or [], clock=(lambda: next(ticks)) if ticks else None)
     return rc, said, session
 
@@ -231,3 +233,11 @@ def test_prepare_refuses_a_download_whose_checksum_differs(tmp_path: Path):
         return body
     assert Q.prepare_tool("uv", "0.8.0", tmp_path, fetch=fetch_good) == tmp_path / "bin" / "uv"
     assert (tmp_path / "bin" / "uv").stat().st_mode & 0o111
+
+
+def test_the_page_path_is_the_path_the_session_starts_with(tmp_path: Path):
+    """On a clean machine the page sees its prerequisites and the base system, not the job's tools."""
+    seen: dict[str, str] = {}
+    rc, _said, _ = _run(tmp_path, page_path="/opt/qs/bin:/usr/bin:/bin", seen=seen)
+    assert rc == 0 and seen["PATH"] == "/opt/qs/bin:/usr/bin:/bin"
+    assert seen["UV_OVERRIDE"].endswith("overrides.txt") and "VIRTUAL_ENV" not in seen

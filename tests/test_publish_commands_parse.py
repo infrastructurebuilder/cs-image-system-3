@@ -84,7 +84,7 @@ def test_a_pushed_v_tag_alone_starts_it_and_every_job_is_guarded_to_this_reposit
     wf = _workflow()
     on = wf.get("on") or wf.get(True) or {}                               # YAML 1.1 reads `on:` as True
     assert on == {"push": {"tags": ["v*"]}}
-    assert set(wf["jobs"]) == {"build", "testpypi", "starters"}
+    assert set(wf["jobs"]) == {"build", "quickstart", "testpypi", "starters"}
     for name, job in wf["jobs"].items():
         assert str(job.get("if", "")).startswith(GUARD), name
     # the starters take a final release only (specification 013, trimmed: T030 dropped)
@@ -96,7 +96,7 @@ def test_the_upload_job_alone_holds_the_oidc_token_in_the_testpypi_environment()
     upload = jobs["testpypi"]
     assert upload["environment"] == "testpypi"
     assert upload["permissions"] == {"id-token": "write", "contents": "read"}
-    assert upload["needs"] == "build"
+    assert set(upload["needs"]) == {"build", "quickstart"}          # the upload waits on the page
     for name, job in jobs.items():
         if name != "testpypi":
             assert "id-token" not in (job.get("permissions") or {}), name
@@ -142,3 +142,16 @@ def test_the_container_jobs_run_in_ci_s_runner_image():
     for name in ("build", "starters"):
         assert jobs[name]["container"] == verify, name
         assert jobs[name]["permissions"].get("packages") == "read", name     # the image's pull needs it
+
+
+def test_the_upload_waits_on_the_quickstart_page_run_against_the_tags_own_files_on_a_clean_machine():
+    """Specification 002, FR-011: every release's packages run the page before the upload, on a clean
+    machine (a stock image, not the runner image), against the files the build job made for this tag."""
+    job = _workflow()["jobs"]["quickstart"]
+    assert job["needs"] == "build" and job["container"]["image"] == "ubuntu:24.04"
+    runs = _runs(job)
+    assert "just quickstart-prepare /opt/quickstart" in runs
+    page = next(r for r in runs if r.startswith("just test-quickstart"))
+    assert "--wheels dist" in page and "--page-path /opt/quickstart/bin:/usr/bin:/bin" in page
+    fetched = next(s for s in job["steps"] if (s.get("uses") or "").startswith("actions/download-artifact"))
+    assert fetched["with"] == {"name": "dist", "path": "dist/"}

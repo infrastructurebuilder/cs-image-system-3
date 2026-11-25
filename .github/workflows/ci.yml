@@ -9,15 +9,15 @@ name: CI
 # configuration nor credentials; `core-alone` runs the core's own tests with
 # no provider installed, `terraform-alone` the two terraform libraries' own
 # tests with nothing but themselves and `docker-alone` the docker family's own
-# tests in an environment that holds only that package; `docker-install`
-# installs the docker extra alone and validates and dry-runs its starter; `live` proves the system against real clouds
+# tests in an environment that holds only that package; `quickstart` runs the
+# quickstart page's own commands on a clean machine; `live` proves the system against real clouds
 # over the FROZEN FIXTURE, read-only. A pushed `v*` tag is published by its
 # own workflow, publish.yml (TestPyPI, by trusted publishing); nothing here
 # uploads. The reference configuration (cs-image-system-testconfig) is driven, recorded and
 # performed by its OWN workflow, from the release; nothing here reads it. The
 # jobs that reach a cloud (`live`) are gated on the secrets the operator
 # provides -- until they exist every such leg reports SKIPPED and the job
-# passes. The jobs that prove a part alone, and the install check, have no
+# passes. The jobs that prove a part alone, and the quickstart, have no
 # gate and no condition: they need no secret, and each fails unless its
 # tests or steps ran.
 on:
@@ -129,30 +129,47 @@ jobs:
       - name: The docker family alone
         run: just test-docker-alone
 
-  docker-install:
-    # What a person who installs the docker extra gets: `cs-image-system[docker]`
-    # from the built wheels, alone in an empty environment, renders the
-    # standard-docker starter with the installed command, validates it and
-    # dry-runs every lifecycle. Every push and PR; no condition and no
-    # credentials. It needs the daemon (the socket mounted below) and the
-    # registry: a dry run resolves the base image with a pull. The recipe
-    # fails unless the install, the validation and the dry run each ran and
-    # succeeded, so this job cannot pass without having run them.
+  quickstart:
+    # The quickstart page's own commands (docs/QUICKSTART.md, specification 002) on a clean
+    # machine: a stock ubuntu:24.04 container, not the runner image, holding the page's
+    # prerequisites at exactly the floors it states (`just quickstart-prepare`) and the host's
+    # daemon through its socket. The page runs twice against this commit's wheels, with a PATH of
+    # those prerequisites and the base system alone (the job's own uv and just are not offered to
+    # it), and the recipe names a command that fails, an installed package of the system that did
+    # not come from the build, or a first pass over 900 seconds. Every push and PR; no condition and
+    # no secret, so this job cannot pass without having run the page. The tag's Publish run runs the
+    # page again before its upload (publish.yml).
     runs-on: ubuntu-24.04
     container:
-      image: ${{ vars.CSIS_RUNNER_IMAGE || 'ghcr.io/infrastructurebuilder/csis-ci:alma10-20261016.4' }}
-      credentials:
-        username: ${{ vars.CSIS_RUNNER_IMAGE_USERNAME || github.actor }}
-        password: ${{ secrets.CSIS_RUNNER_IMAGE_PASSWORD || github.token }}
+      image: ubuntu:24.04
       options: -v /var/run/docker.sock:/var/run/docker.sock
     steps:
+      - name: Place the tools the job itself runs with (certificates, curl, git; none is the page's)
+        run: apt-get update -qq && apt-get install -y -qq --no-install-recommends ca-certificates curl git
+
       - uses: actions/checkout@v5
 
+      - name: Install just
+        uses: extractions/setup-just@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+
       - name: Install dependencies
+        env:
+          UV_PYTHON: "3.13"          # the job's own environment; the page names its Python itself
         run: just init
 
-      - name: The docker extra, installed alone
-        run: just test-docker-install
+      - name: The prerequisites at the floors the page states
+        run: just quickstart-prepare /opt/quickstart
+
+      - name: The page, twice, on the clean machine
+        env:
+          PACKER_GITHUB_API_TOKEN: ${{ github.token }}   # packer init reads its plugins from GitHub's API
+        run: just test-quickstart --passes 2 --page-path /opt/quickstart/bin:/usr/bin:/bin
+
+      - name: The prerequisites table is the code's
+        run: just quickstart-table check
 
   live:
     # The system's live proof over the frozen fixture: the fixture

@@ -69,7 +69,7 @@ test: lint typecheck pytest test-core test-terraform-alone test-docker-alone
 # `run --all` over a private copy of the fixture followed by
 # `state query --strict`. A leg whose prerequisite is absent reports SKIPPED
 # loudly with its reason and does not fail the run; a leg that runs and fails
-# does. Two legs are never skipped: `test-docker-install` and
+# does. Two legs are never skipped: `test-quickstart` and
 # `test-docker-live`, which fail when the container daemon does not answer.
 [doc("`test` plus the docker-backed modification tests and, when the runtime sessions are present, a headless dry run --all with state query --strict")]
 full-test: test
@@ -96,7 +96,7 @@ full-test: test
 # order: `--full` gates on the full proof a PyPI release used to run -- `full-test`, the live
 # configuration's session probes and its modification-test evidence (committed there) -- and
 # records it in the tag's message; without it the gate is the lighter check, `test` and
-# `test-docker-install` (it needs a container daemon). `yes` is the dry form: the probes, the
+# `test-quickstart`, the quickstart page's own commands (it needs a container daemon). `yes` is the dry form: the probes, the
 # advisory, the version, and every move and push it would make; nothing changed. A refusal
 # before the bump returns the checkout to the branch it started on. After the tag: `git push
 # origin main v<version>` (main and its own tag by name, so no other local tag travels: GitHub
@@ -184,8 +184,8 @@ full-test-legs:
 	just test-cloud-starters || { echo "full-test: FAILED test-cloud-starters"; status=1; }
 	# not gated on the daemon: the usual install must deliver a docker provider that runs, so a daemon
 	# that does not answer FAILS this leg (it and test-docker-live, below, are the legs here that never report SKIPPED)
-	echo "full-test: cs-image-system[docker] installed alone validates and dry-runs the docker starter (test-docker-install)"
-	just test-docker-install || { echo "full-test: FAILED test-docker-install"; status=1; }
+	echo "full-test: the quickstart page's own commands reach a dry run against this tree's wheels (test-quickstart)"
+	just test-quickstart || { echo "full-test: FAILED test-quickstart"; status=1; }
 	# the same rule: the docker family's own live tests fail, and never skip, without a daemon
 	echo "full-test: the docker family's live tests, its stand-in on the local daemon (test-docker-live)"
 	just test-docker-live -q || { echo "full-test: FAILED test-docker-live"; status=1; }
@@ -393,20 +393,6 @@ quickstart-prepare dir:
 [doc("Write the quickstart page's prerequisites table from the starter's executables and uv's floor; `check` compares instead")]
 quickstart-table mode="":
 	@uv run --no-sync python scripts/quickstart prerequisites {{ if mode == "check" { "--check" } else { "--write" } }}
-
-# What a person who installs the docker extra gets: the workspace's wheels are
-# built, an empty environment outside the workspace gets `cs-image-system[docker]`
-# from them and nothing else, the INSTALLED command renders the standard-docker
-# starter (`init-config <dir> --from standard-docker`), and the installed
-# `validate` and a dry `run --all` run on it. Three steps are reported, each as
-# ran and succeeded, ran and failed, or did not run, and the recipe passes only
-# when all three ran and succeeded. It needs what the starter needs: docker,
-# packer, ansible-playbook, bash and tofu, a container daemon that answers, and
-# the registry (a dry run resolves the base image with a pull). `keep=<directory>`
-# (or the directory alone) leaves the emitted `generated` tree there.
-[doc("`cs-image-system[docker]` installed alone from the built wheels, the standard-docker starter rendered with the installed command, then `validate` and a dry `run --all` on it; all three must run and succeed (needs a container daemon)")]
-test-docker-install keep="":
-	@uv run --no-sync python scripts/isolated-run --install-check --subject "docker install" --require "cs-image-system[docker]" --starter standard-docker {{ if keep != "" { "--keep " + quote(trim_start_match(keep, "keep=")) } else { "" } }}
 
 # The docker family's tests that need the real thing: the modification tests
 # of the family's fixture on the docker runtime's own stand-in, a throwaway

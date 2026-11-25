@@ -10,14 +10,14 @@ and `just test-docker-install` (R9).
 ## Commands
 
 ```text
-scripts/quickstart run [--page PATH] [--wheels DIR] [--passes N] [--limit SECONDS] [--keep DIR]
+scripts/quickstart run [--page PATH] [--wheels DIR] [--page-path PATH] [--passes N] [--limit SECONDS] [--keep DIR]
 scripts/quickstart prerequisites [--write | --check] [--page PATH]
 scripts/quickstart prepare --into DIR
 ```
 
 | Command | Does | Exit |
 | --- | --- | --- |
-| `run` | Builds this workspace's wheels (or, with `--wheels DIR`, takes the built files there, as the Publish workflow's job does with the `build` job's artifact); makes a temporary working directory and tool directory; runs the page's commands (default `docs/QUICKSTART.md`) in one bash session with `UV_OVERRIDE` naming the built wheels; checks the installed version after the first command; `--passes 2` runs the page a second time in the same directory; `--keep DIR` copies the emitted `csis-quickstart/generated` there | 0 passed; 1 a command failed, the page has no box or more than ten commands, the version check failed, or the time limit was passed; 2 the run could not start (the wheels did not build, bash is absent) |
+| `run` | Builds this workspace's wheels (or, with `--wheels DIR`, takes the built files there, as the Publish workflow's job does with the `build` job's artifact); makes a temporary working directory and tool directory; runs the page's commands (default `docs/QUICKSTART.md`) in one bash session with `UV_OVERRIDE` naming the built wheels; checks the installed version after the first command; `--page-path` sets the `PATH` the page's session starts with (a clean machine's prerequisites and base system, not the job's own tools); `--passes 2` runs the page a second time in the same directory; `--keep DIR` copies the emitted `csis-quickstart/generated` there | 0 passed; 1 a command failed, the page has no box or more than ten commands, the version check failed, or the time limit was passed; 2 the run could not start (the wheels did not build, bash is absent) |
 | `prerequisites` | Prints the page's prerequisites table from the docker starter's `cfg/executables.yml` and uv's floor; `--write` replaces the table between the page's markers; `--check` compares | 0 the same (or written); 1 different, naming the first differing row |
 | `prepare` | Linux x86_64 only: downloads uv, the static docker CLI, OpenTofu and Packer at exactly the floors `prerequisites` prints, each checked against its vendor's published checksum, into `DIR/bin` | 0 every tool installed and answering its version; 1 otherwise, naming the tool |
 

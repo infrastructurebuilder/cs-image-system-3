@@ -35,8 +35,8 @@ from Homebrew) and keep it ahead of `/bin/bash` on your `PATH`.
 ```sh
 # step 1 -- box 1 of 3 -- v1
 # About a minute on a fresh machine: uv fetches the packages and, if needed, Python 3.13
-uv tool install --upgrade --index-url https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple/ \
-  --index-strategy unsafe-first-match 'cs-image-system[docker]==0.1.13.dev1'
+uv tool install --upgrade --python 3.13 --index-url https://test.pypi.org/simple/ \
+  --extra-index-url https://pypi.org/simple/ --index-strategy unsafe-first-match 'cs-image-system[docker]==0.1.13.dev1'
 uv tool install --upgrade 'ansible-core>=2.16'
 export PATH="$(uv tool dir --bin):$PATH"
 cs-image-system --version
@@ -46,7 +46,9 @@ The last line prints the release you now have, `cs-image-system
 0.1.13.dev1`. The first command installs the system with its docker
 provider; the second installs ansible-core, which the example's images
 are configured with; the third puts both on your `PATH` in this shell
-(`uv tool update-shell` makes that permanent). Until the system's 1.0
+(`uv tool update-shell` makes that permanent). `--python 3.13` is the
+Python the system is built and tested on: a newer one may lack a built
+package the system needs. Until the system's 1.0
 release, its releases are published to TestPyPI, the Python package
 index's test instance, and only the system's own packages come from
 there: every other package comes from PyPI.

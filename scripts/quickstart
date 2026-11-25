@@ -4,7 +4,7 @@
 # SPDX-License-Identifier: Apache-2.0
 """Run the quickstart page's own commands, and keep its prerequisites true.
 
-    quickstart run [--page PATH] [--wheels DIR] [--passes N] [--limit SECONDS] [--keep DIR]
+    quickstart run [--page PATH] [--wheels DIR] [--page-path PATH] [--passes N] [--limit SECONDS] [--keep DIR]
     quickstart prerequisites [--write | --check] [--page PATH]
     quickstart prepare --into DIR
 
@@ -16,6 +16,9 @@ and comment and blank lines are not commands (contracts/quickstart-page.md).
 Every command runs in one ``bash`` session, so an ``export`` in one box
 holds for the next, in a working directory of the runner's making, with a
 temporary uv tool directory: your own installed command is never touched.
+``--page-path`` sets the ``PATH`` the page's session starts with, so a
+clean machine offers the page its prerequisites and the base system
+alone, not the tools the job ran the runner with (research R7).
 
 The packages are this checkout's: the workspace's wheels are built (or,
 with ``--wheels DIR``, taken from DIR, as the Publish workflow's job takes
@@ -247,7 +250,7 @@ class CannotStart(RuntimeError):
 # ------------------------------------------------------------------------------------------ run
 
 def run(*, page: Path, wheels: Path | None, passes: int, limit: int, keep: Path | None, work: Path,
-        say: Callable[[str], None] = say_line,
+        page_path: str | None = None, say: Callable[[str], None] = say_line,
         session_factory: Callable[[dict[str, str], Path], Session] = BashSession,
         build: Callable[[Path], Built] = build_wheels,
         check_install: Callable[[Path, Built], list[str]] = installed_from_build,
@@ -289,6 +292,8 @@ def run(*, page: Path, wheels: Path | None, passes: int, limit: int, keep: Path 
     overrides.write_text("\n".join(override_lines(built.wheels, page_extras(text))) + "\n")
     tools = work / "tools"
     env = {**_env(), "UV_OVERRIDE": str(overrides), "UV_TOOL_DIR": str(tools), "UV_TOOL_BIN_DIR": str(work / "bin")}
+    if page_path is not None:
+        env["PATH"] = page_path
     cwd = work / "page"
     cwd.mkdir(exist_ok=True)
     for n in range(1, passes + 1):
@@ -513,6 +518,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     r = sub.add_parser("run")
     r.add_argument("--page", type=Path, default=PAGE)
     r.add_argument("--wheels", type=Path)
+    r.add_argument("--page-path", help="the PATH the page's session starts with (default: this process's)")
     r.add_argument("--passes", type=int, default=1)
     r.add_argument("--limit", type=int, default=LIMIT)
     r.add_argument("--keep", type=Path)
@@ -527,7 +533,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     if args.command == "run":
         with tempfile.TemporaryDirectory(prefix="csis-quickstart-") as td:
             return run(page=args.page, wheels=args.wheels, passes=args.passes, limit=args.limit, keep=args.keep,
-                       work=Path(td))
+                       work=Path(td), page_path=args.page_path)
     if args.command == "prerequisites":
         return table(args.page, EXECUTABLES, "write" if args.write else "check" if args.check else "print")
     return prepare(args.into)
