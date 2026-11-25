@@ -111,7 +111,10 @@ jobs:
       contents: read
     steps:
       - name: Place the tools the job itself runs with (certificates, curl, git; none is the page's)
-        run: apt-get update -qq && apt-get install -y -qq --no-install-recommends ca-certificates curl git
+        # the checkout belongs to the runner's user, not the container's: git trusts it, as the runner image does
+        run: |
+          apt-get update -qq && apt-get install -y -qq --no-install-recommends ca-certificates curl git
+          git config --system --add safe.directory '*'
 
       - uses: actions/checkout@v5
 
