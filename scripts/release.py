@@ -768,9 +768,11 @@ class Family:
     # --- the pieces of a release
 
     def bumped_files(self) -> list[str]:
-        """The files a bump changes, for the release commit."""
+        """The files a bump changes, for the release commit: the manifests, the lock, and the quickstart page,
+        whose install names the release exactly (specification 002)."""
         members = sorted(str(p.relative_to(self.root)) for p in self.root.glob("packages/*/pyproject.toml"))
-        return ["pyproject.toml", *members, "uv.lock"]
+        page = ["docs/QUICKSTART.md"] if (self.root / "docs" / "QUICKSTART.md").is_file() else []
+        return ["pyproject.toml", *members, *page, "uv.lock"]
 
     def gate(self, full: bool) -> None:
         """The lighter check by default: the acceptance tests (`just test`) and the install check

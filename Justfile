@@ -369,6 +369,31 @@ test-docker-alone:
 	@uv run --no-sync python scripts/isolated-run --subject "docker, high end, copy outside the workspace" --require "cs-image-system-docker-plugin[test]" --root packages/docker-plugin --sdk-end high --copy-outside
 	@uv run --no-sync python scripts/isolated-run --subject "docker, low end" --require "cs-image-system-docker-plugin" --root packages/docker-plugin --sdk-end low --tests tests/unit
 
+# The quickstart page's own commands (docs/QUICKSTART.md, specification 002), run as
+# a newcomer runs them: every `sh` box in order, in one bash session, against this
+# checkout's wheels (UV_OVERRIDE; with `--wheels DIR`, the files there), with a
+# temporary uv tool directory, so your own installed command is never touched. A
+# failing command is named; the page must have ten or fewer commands and its first
+# pass must take 900 seconds or less. `--passes 2` runs it twice in one directory;
+# `--page PATH` runs another copy; `--keep DIR` leaves the emitted tree there. Needs
+# what the page's prerequisites name, a daemon that answers and the network.
+[doc("The quickstart page's own commands, against this checkout's wheels (or `--wheels DIR`), in a temporary tool directory; `--passes 2` twice; fails naming the command")]
+[positional-arguments]
+test-quickstart *ARGS:
+	@uv run --no-sync python scripts/quickstart run "$@"
+
+# The quickstart's prerequisites at exactly the floors the page states, into DIR/bin,
+# each download checked against its vendor's checksum (Linux x86_64: CI's clean machine)
+[doc("The quickstart's prerequisites at exactly their stated floors, into DIR/bin (Linux x86_64, CI's clean machine)")]
+quickstart-prepare dir:
+	@uv run --no-sync python scripts/quickstart prepare --into {{ quote(dir) }}
+
+# The page's prerequisites table, generated from the docker starter's
+# cfg/executables.yml and uv's floor: written, or with `check` compared
+[doc("Write the quickstart page's prerequisites table from the starter's executables and uv's floor; `check` compares instead")]
+quickstart-table mode="":
+	@uv run --no-sync python scripts/quickstart prerequisites {{ if mode == "check" { "--check" } else { "--write" } }}
+
 # What a person who installs the docker extra gets: the workspace's wheels are
 # built, an empty environment outside the workspace gets `cs-image-system[docker]`
 # from them and nothing else, the INSTALLED command renders the standard-docker
