@@ -51,6 +51,21 @@ EXTRA_ORDER: tuple[str, ...] = tuple(EXTRAS)
 #: The umbrella's distribution name, the one the extras hang off.
 UMBRELLA = "cs-image-system"
 
+#: The one install form until 1.0 (specification 013: every release on TestPyPI alone): the system's names
+#: from TestPyPI, every other from PyPI, at the exact release, on the Python the system is built and tested
+#: on; an unpinned install would take PyPI's older release. Lifted with the decision at 1.0.
+INSTALL_OPTIONS = ("--python 3.13 --index-url https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple/ "
+                   "--index-strategy unsafe-first-match")
+
+
+def installed_version() -> str | None:
+    """The umbrella's installed release, or None when it is not installed."""
+    from importlib.metadata import PackageNotFoundError, version
+    try:
+        return version(UMBRELLA)
+    except PackageNotFoundError:
+        return None
+
 
 def is_type_word_classification(classification: str) -> bool:
     """Whether a tree names a class of ``classification`` by a ``type:``
@@ -137,8 +152,9 @@ def unknown_type_message(classification: str, word: str, registered: list[str]) 
     kind = kind_of(classification)
     extra = extra_for(classification, word)
     if extra is not None:
+        # the exact command: the installed release, by the one install form (specification 002, FR-013)
         return (f"{kind} type {word!r} is registered by no installed plugin: install the extra: "
-                f"uv tool install '{install_line([extra])}'")
+                f"uv tool install {INSTALL_OPTIONS} '{install_line([extra], installed_version())}'")
     known = ", ".join(sorted(registered)) or "nothing"
     return (f"{kind} type {word!r} is unknown: no installed plugin registers it under {classification}, "
             f"and no extra of {UMBRELLA} carries it; the installed plugins register {known}")

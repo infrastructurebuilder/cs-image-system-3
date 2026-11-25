@@ -94,8 +94,10 @@ def check_single_version(exe: ExecutableModel, reg: registry.Registry, verbose: 
     failure names the tool."""
     binary = exe.binary or exe.name
     if shutil.which(binary) is None:
+        # the remedy names the one place that says where every tool comes from, never a tool's vendor
         msg = (f"{exe.name}: binary {binary!r} not found (declared in cfg/executables.yml; "
-               "an absolute path, or a name on PATH)")
+               "an absolute path, or a name on PATH) -- install it (where each tool comes from: "
+               "the daily driver, section 1.2)")
         log.error(f"   - {msg}")
         return [Exception(msg)]
     cc = version_checker_for(exe, reg)

@@ -268,3 +268,16 @@ def test_the_published_template_tree_carries_the_modules_with_their_stamps(tmp_p
     for name in installed_modules():
         assert f"tfmodules/{name}/{STAMP_FILE}" in files and f"tfmodules/{name}/main.tf" in files, name
     assert (tmp_path / "t" / "README.md").read_text().startswith(m.HEADER_MARK)
+
+
+def test_a_refused_refresh_ends_on_one_line_with_the_cause_and_the_remedy(tmp_path: Path):
+    """A tree this release did not write (here, one whose Justfile was edited) is refused file by file,
+    and the last line says what to do: remove it, or refresh with --force (specification 002, FR-013)."""
+    dest = tmp_path / "csis-quickstart"
+    assert _invoke(str(dest), "--from", "standard-docker").exit_code == 0
+    (dest / "Justfile").write_text((dest / "Justfile").read_text() + "\n# ours\n")
+    again = _invoke(str(dest), "--from", "standard-docker")
+    assert again.exit_code == 1
+    lines = again.output.strip().splitlines()
+    assert any(ln.startswith("init-config: REFUSED Justfile") for ln in lines)
+    assert lines[-1].startswith(f"init-config: {dest} already holds") and lines[-1].endswith("--force")

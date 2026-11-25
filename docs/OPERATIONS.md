@@ -3044,7 +3044,7 @@ that declares a word whose plugin is not installed does not get a
 traceback: `validate` prints one configuration line and exits 1,
 
 ```text
- - runtime type 'gcloud' is registered by no installed plugin: install the extra: uv tool install 'cs-image-system[gcloud]'
+ - runtime type 'gcloud' is registered by no installed plugin: install the extra: uv tool install --python 3.13 --index-url https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple/ --index-strategy unsafe-first-match 'cs-image-system[gcloud]==<the installed release>'
 Validation failed with 1 error(s).
 ```
 

@@ -468,6 +468,9 @@ class InitReport:
         for r in self.refused:
             out.append(f"init-config: REFUSED {r}: it exists and differs from the release's; "
                        "--force overwrites it")
+        if self.refused:                # one line, the cause and the remedy (specification 002, FR-013)
+            out.append(f"init-config: {self.destination} already holds a configuration this release did not write; "
+                       "to start over remove it, or keep it and refresh the release's files with --force")
         return out
 
 
