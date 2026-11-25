@@ -19,6 +19,13 @@
 - Q: Who walks the page for SC-002? → A: A member of an adopting team, on their own macOS machine, after the next final release that carries the page; recorded under the tasks
 - Q: What happens to the older public repository `cs-image-system-starter-tree`? → A: Its README is replaced by three lines pointing at the quickstart page and the five template repositories, then it is archived
 
+### Session 2026-11-25
+
+- Q: Until 1.0 every release is on TestPyPI alone, and a plain or unpinned install still gets PyPI's older 0.1.12. How should the page's first install command get the current release? → A: The one install form with the exact version (TestPyPI as the index, PyPI as the extra, `--index-strategy unsafe-first-match`, `cs-image-system[docker]==<version>`), the version written in the page and moved by each release's bump (FR-004)
+- Q: Releases are published by the tag's push, so the release gate on the operator's machine no longer controls the upload. Where does the page run against a release's packages before they are published? → A: Both: in the release's own gate (`just test-quickstart` against the built packages, in the lighter check and so under `--full`, before the tag), and in the Publish workflow, on a clean stock runner against the built files, with the upload waiting on it (about 3 to 5 minutes; the gate about 1). CI's quickstart job still runs on every push (FR-011, SC-008)
+- Q: The install needs both test.pypi.org and pypi.org; what does the page promise a reader whose machine reaches packages only through a company proxy or mirror? → A: Out of scope: the page assumes direct internet access and says nothing about proxies or mirrors. The operator: TestPyPI is forced only for the current development cycles, no one but the operator uses the project yet, and the TestPyPI-only rule will not stay once the project is stable (Edge Cases)
+- Q: SC-002 needs someone who has never used the system, and nobody but the operator uses the project yet; who walks the page, and when? → A: Keep SC-002 as written; the specification stays incomplete until it is walked. The walker may in the end be the operator on a clean account, but not now. This replaces the 2026-11-21 answer's timing ("after the next final release") (SC-002)
+
 **Users served**: an adopting team (primary); operators who are new to the system.
 
 ## Why
@@ -91,7 +98,8 @@ fails; CI fails on that change. Restore it; CI passes.
 2. **Given** a change that breaks any command on the page, **When** CI
    runs on that change, **Then** it fails and names the command.
 3. **Given** a release of the system, **When** it is published, **Then**
-   the page's commands have been run against that release's packages.
+   the page's commands have been run against that release's packages,
+   in its gate before the tag and on a clean machine before the upload.
 4. **Given** the CI job that runs the page, **When** it cannot run (a
    missing tool on the runner, for example), **Then** it reports a
    failure, not a pass.
@@ -163,7 +171,10 @@ works.
 - No container daemon is running. If a dry run does not need one, the
   page must work without it; if it does, the daemon is a stated
   prerequisite and its absence produces a one-line message.
-- The reader is behind a proxy or a mirror for packages.
+- The reader is behind a proxy or a mirror for packages: out of scope.
+  The page assumes direct internet access and says nothing about
+  either; the TestPyPI-only install is for the development cycles
+  before 1.0 alone. *(Clarified 2026-11-25.)*
 - The reader runs the page in a directory that already contains a
   configuration.
 - The reader is on an operating system the page does not cover; the page
@@ -191,7 +202,10 @@ works.
   written, in order, with no value for the reader to fill in.
 - **FR-004**: The first install command MUST work before any
   configuration repository exists, and MUST install everything the
-  example needs.
+  example needs, at the current release: until 1.0 by the one install
+  form (every name of the system from TestPyPI, every other from PyPI)
+  with the exact version written in the page, which each release's
+  bump moves, so the reader types nothing. *(Clarified 2026-11-25.)*
 - **FR-005**: The path MUST NOT require a cloud account, a login, an
   identity provider, or a key or secret the reader creates.
 - **FR-006**: The example configuration MUST validate and dry-run as it
@@ -209,9 +223,13 @@ works.
 
 - **FR-010**: CI MUST execute the page's commands, taken from the page
   itself, on a clean machine that has only the stated prerequisites.
-- **FR-011**: That job MUST run on every change and against every
-  release's packages before the release is published, and MUST fail when
-  any command fails or when it could not run.
+- **FR-011**: That job MUST run on every change, and MUST fail when any
+  command fails or when it could not run. Every release's packages MUST
+  have run the page twice over before they are published: in the
+  release's own gate on the operator's machine, before the tag (the
+  lighter check and so the full proof), and in the publishing workflow,
+  on a clean machine that has only the stated prerequisites, with the
+  upload waiting on it. *(Clarified 2026-11-25.)*
 - **FR-012**: The job MUST record how long the path took.
 
 **First-run failures**
@@ -253,7 +271,10 @@ works.
   page's commands reach a successful dry run in 15 minutes or less.
 - **SC-002**: A person who has never used the system completes the page
   unaided in 15 minutes or less, on the first attempt (done once, by
-  someone outside the project, and recorded).
+  someone outside the project, and recorded). Until it is, the
+  specification is not complete; the walker may in the end be the
+  operator on a clean account, but no date is set. *(Clarified
+  2026-11-25.)*
 - **SC-003**: The path needs zero cloud accounts, zero logins and zero
   values typed in by the reader.
 - **SC-004**: The page has at most ten commands and at most five
@@ -265,7 +286,8 @@ works.
 - **SC-007**: From the repository's front page a new reader reaches the
   quickstart in two steps, and no other document repeats its commands.
 - **SC-008**: Every release published after this feature has had the
-  page run against its packages first.
+  page run against its packages first, both in its gate before the tag
+  and on a clean machine before its upload.
 
 ## Assumptions
 
