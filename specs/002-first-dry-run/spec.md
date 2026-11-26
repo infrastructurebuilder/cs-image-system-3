@@ -6,7 +6,7 @@
 
 **Created**: 2026-11-16
 
-**Status**: Planned 2026-11-21, the plan revised 2026-11-25 for releases on TestPyPI until 1.0 ([plan](plan.md))
+**Status**: In progress, 2026-11-25: phases 1 to 7 implemented on `feature/002-first-dry-run` (not merged), the full proof passed and converged; T032 (the release), T033 (the reference configuration's take) and T034 (SC-002's walk by someone new to the system, open with no date) remain. Records are in [tasks.md](tasks.md).
 
 **Input**: User description: "A newcomer with nothing installed reaches a successful dry run by following one page, and CI runs that page's commands."
 
