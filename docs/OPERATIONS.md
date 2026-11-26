@@ -1983,10 +1983,10 @@ tests run in its repository.
 
 Everything `test` does plus the slow and external legs:
 
-1. the docker extra installed alone (`just test-docker-install`):
-   `cs-image-system[docker]` from the built wheels in an empty
-   environment, the standard-docker starter rendered, validated and
-   dry-run, and then the docker family's live tests
+1. the [quickstart page](QUICKSTART.md)'s own commands (`just
+   test-quickstart`): `cs-image-system[docker]` installed from the built
+   wheels in a temporary tool directory, the standard-docker starter
+   written, validated and dry-run, and then the docker family's live tests
    (`just test-docker-live`). These two legs are never skipped: without a
    container daemon they fail, because the usual install has to deliver a
    docker provider that runs;
@@ -2361,8 +2361,8 @@ order:
    TestPyPI release inside the range its extra names
    (`scripts/with-released-families --check test`), since step 4 pins
    the newest one; the SDK's surfaces (`just surface-check`); and docker
-   answers (the install check of the lighter check and `full-test`'s
-   legs both run in it). Under `--full` also every runtime
+   answers (the quickstart page's run in the lighter check and
+   `full-test`'s legs both need it). Under `--full` also every runtime
    session of the live configuration is present (`just preflight`; a
    `full-test` without them would skip its live legs, which a release
    cannot accept), said with the minutes the soonest-expiring session has left
@@ -2377,9 +2377,9 @@ order:
    `preflight` judges too) is refused, naming `aws sso login`. A refusal
    names its remedy and changes nothing;
    then the gate: by default the lighter check, the acceptance tests
-   (`just test`) and the install check (`just test-docker-install`, which
-   needs a container daemon); under `--full` the full proof, `just
-   full-test`, whose legs hold the install check, the modification-test
+   (`just test`) and the quickstart page's own commands (`just
+   test-quickstart`, which needs a container daemon); under `--full` the
+   full proof, `just full-test`, whose legs hold the page's run, the modification-test
    evidence at `<config_root>/meta-state/mod-tests.yaml` (written by
    `full-test` with docker in the LIVE configuration) and a live checkout
    clean apart from it; then TestPyPI is asked AGAIN, since the gate
@@ -2760,9 +2760,9 @@ The steps in order are under
 
 **The lighter check, and `--full`.** Interim releases have to stay
 cheap, so a release is gated by default on the lighter check: the
-acceptance tests (`just test`), the install check (`just
-test-docker-install`: the docker extra installed alone validates and
-dry-runs its starter) and the probes (the venv in step with the lock,
+acceptance tests (`just test`), the [quickstart page](QUICKSTART.md)'s
+own commands against this tree's wheels (`just test-quickstart`: what a
+newcomer runs must reach a dry run) and the probes (the venv in step with the lock,
 the packages the release does not bump fresh on TestPyPI or held there
 as this tree's build, the families released elsewhere on TestPyPI
 inside their extras' ranges, the SDK's surfaces, docker). `--full`, on
@@ -2956,7 +2956,8 @@ workflow's PyPI job, and the install form.
 
 ### Installing a release
 
-The published packages are on the index: `cs-image-system`, the umbrella
+A first install, to try the system before anything else, is
+[the quickstart](QUICKSTART.md)'s first box. The published packages are on the index: `cs-image-system`, the umbrella
 (no sources of its own; its dependencies are the core at a `==` pin,
 and each provider is an extra), and `cs-image-system-<package>` for each
 of the others. Every release after 0.1.12 is on TestPyPI alone, so
@@ -3219,7 +3220,6 @@ repository's, which the release ships.
 | `test-quickstart [--passes N] [--page PATH] [--wheels DIR] [--keep DIR]` | the [quickstart page](QUICKSTART.md)'s own commands, as a newcomer runs them: every `sh` box in order in one bash session, against this checkout's wheels (or the files in `--wheels`), in a temporary uv tool directory (your own installed command is never touched); names a failing command, fails a page with no box or more than ten commands, an install of any of the system's packages from an index, or a first pass over 900 seconds; `--passes 2` runs it twice in one directory (`scripts/quickstart run`) | what the page's prerequisites name, a daemon that answers, the network |
 | `quickstart-prepare <dir>` | the quickstart's prerequisites at exactly the floors the page states, into `<dir>/bin`, each download checked against its vendor's checksum (`scripts/quickstart prepare`); CI's clean machine | Linux x86_64; the network |
 | `quickstart-table [check]` | the quickstart page's prerequisites table, written from the docker starter's `cfg/executables.yml` and uv's floor; `check` compares instead (`scripts/quickstart prerequisites`) | nothing |
-| `test-docker-install` | what a person who installs the docker extra gets: `cs-image-system[docker]` installed from the built wheels into an empty environment that holds nothing else, the [standard-docker](examples/standard-docker) starter rendered with the installed command, then the installed `validate` and a dry `run --all` on it. Reports the install, the validation and the dry run each as ran and succeeded, ran and failed, or did not run, and passes only when all three ran and succeeded. `keep=<directory>` leaves the emitted `generated` tree there | `docker`, `packer`, `ansible-playbook`, `bash` and `tofu`; a container daemon that answers; the registry (a dry run resolves the base image with a pull); the package index, for third-party packages |
 | `test-docker-live` | the docker family's tests that need a container daemon ([packages/docker-plugin/tests/live](../packages/docker-plugin/tests/live)): the modification tests of the family's fixture on the docker runtime's own stand-in, a throwaway container on the local daemon. In no default path and no isolated run; a leg of `full-test`. Fails, and never skips, without a daemon | a container daemon that answers; the registry (the container's image is pulled) |
 | `test-one *ARGS` | one pytest expression, each word passed to pytest whole (`-k "a or b"` is one expression) | nothing |
 | `test-mods *ARGS` | the modification tests in a container over the reference configuration | docker, reference configuration |
@@ -3289,10 +3289,11 @@ repository. This repository's [ci.yml](../.github/workflows/ci.yml)
 proves the SYSTEM: `verify` is the bar; `core-alone`, `terraform-alone`
 and `docker-alone` each run one part's own tests in an environment that
 holds only that part (the core with no provider, the two terraform
-libraries, the docker provider), and `docker-install` installs the
-docker extra alone and validates and dry-runs its starter; `live` proves
+libraries, the docker provider), and `quickstart` runs the
+[quickstart page](QUICKSTART.md)'s own commands on a clean machine; `live` proves
 the frozen fixture against the real accounts read-only; nothing in it
-uploads. Every job of it runs inside the **runner
+uploads. Every job of it but `quickstart` (a stock image holding the
+page's prerequisites alone, by design) runs inside the **runner
 image** (`container:` -- `ghcr.io/infrastructurebuilder/csis-ci:<tag>`,
 AlmaLinux 10 with every tool a job calls at a pinned version, built from
 [ci/runner-image/](../ci/runner-image/) and described by

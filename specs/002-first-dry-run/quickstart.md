@@ -177,11 +177,13 @@ Expect two lines, the first naming `docs/DESCRIPTION.md`, the second
 `docs/QUICKSTART.md`.
 
 ```sh
-# step 7 -- box 2 of 2 -- v1
-git grep -l -e "init-config csis-quickstart" -e "root-dir csis-quickstart validate" -- . ':!specs'
+# step 7 -- box 2 of 2 -- v2
+git grep -l -e "init-config csis-quickstart" -e "root-dir csis-quickstart validate" -- docs README.md
 ```
 
-Expect the single line `docs/QUICKSTART.md`.
+Expect the single line `docs/QUICKSTART.md`: no other document repeats the
+page's commands (the runner's tests carry a page of their own as data,
+which is not a document).
 
 ## Step 8: the routes onward
 
@@ -189,9 +191,9 @@ Each route's page begins with a command that works. Boxes 1 and 2 use a
 scratch tool directory and take a minute or two each.
 
 ```sh
-# step 8 -- box 1 of 3 -- v2
+# step 8 -- box 1 of 3 -- v3
 v=$(sed -n 's/^version = "\(.*\)"$/\1/p' pyproject.toml | head -1); F="--index-url https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple/ --index-strategy unsafe-first-match"
-r=$(mktemp -d); UV_TOOL_DIR="$r/tools" UV_TOOL_BIN_DIR="$r/bin" uv tool install --quiet --upgrade ${=F} "cs-image-system[aws,okta]==$v"
+r=$(mktemp -d); UV_TOOL_DIR="$r/tools" UV_TOOL_BIN_DIR="$r/bin" uv tool install --quiet --upgrade --python 3.13 ${=F} "cs-image-system[aws,okta]==$v"
 "$r/bin/cs-image-system" init-config "$r/aws" --from standard-aws | tail -1
 ```
 
@@ -214,10 +216,10 @@ quickstart's tree; the box below is its first command, and the section's
 own last box is the teardown, which you run next.
 
 ```sh
-# step 8 -- box 3 of 3 -- v1
-# about 10 minutes: two bakes and a container
+# step 8 -- box 3 of 3 -- v2
+# about 10 minutes: two bakes, a volume and a container
 CS="$PWD/.venv/bin/cs-image-system"; t=$(mktemp -d)/csis-quickstart && "$CS" init-config "$t" --from standard-docker >/dev/null
-(cd "$t" && "$CS" --overlay overlays/launch.yaml --no-dry-run run --all 2>&1 | tail -1)
+(cd "$t" && "$CS" --no-dry-run run --all --apply-runtime docker-main 2>&1 | tail -1)
 ```
 
 Expect `Run <id> completed: ...`. Then run the section's teardown box

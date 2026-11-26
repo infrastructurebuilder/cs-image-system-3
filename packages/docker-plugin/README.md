@@ -651,8 +651,9 @@ with the package's own golden ([tests/golden/](tests/golden)), through
 the published test kit and the stubs this package ships
 ([testing.py](src/cs_image_system/docker_runtime/testing.py)). `just
 test-docker-alone` runs it in an empty environment at both ends of the
-SDK range, and `just test-docker-install` installs
-`cs-image-system[docker]` alone and validates and dry-runs the starter.
+SDK range, and `just test-quickstart` runs the
+[quickstart page](../../docs/QUICKSTART.md)'s own commands, which install
+`cs-image-system[docker]` and validate and dry-run the starter.
 [WRITING_A_PROVIDER.md](../../docs/WRITING_A_PROVIDER.md) explains each
 of these.
 

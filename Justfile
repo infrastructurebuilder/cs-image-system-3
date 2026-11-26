@@ -38,7 +38,8 @@ release_branch := "main"
 # kept .terraform.lock.hcl the init needs no network at all. The cache is not safe under concurrent
 # `init`, so one tofu process runs at a time by construction: every invocation that may
 # EXECUTE tofu passes `--locked`, which holds .tofu-plugin-cache/.lock and refuses a
-# second holder with exit 75. Dry runs enumerate and never start tofu; the suite's one real-tofu
+# second holder with exit 75. A dry run starts tofu only to format, init without a backend and validate
+# each root, and applies nothing; the suite's one real-tofu
 # test uses a private cache and never contends.
 export TF_PLUGIN_CACHE_DIR := justfile_directory() / ".tofu-plugin-cache"
 
@@ -147,7 +148,7 @@ release-watch version:
 # because an index never takes a second build under one version and would refuse the publish
 # workflow's upload after the tag; every family released elsewhere has a TestPyPI release inside
 # the range the extras name (scripts/with-released-families --check test); the SDK's surfaces;
-# docker answers (the install check and full-test's legs run in it). PROOF `full` (a release's
+# docker answers (the quickstart page's run and full-test's legs run in it). PROOF `full` (a release's
 # `--full`) also asks that every runtime session of the live configuration is present (`just
 # preflight`, the gate full-test itself uses: without it the live legs would be SKIPPED, which a
 # release cannot accept) and how many minutes the soonest-expiring session has left

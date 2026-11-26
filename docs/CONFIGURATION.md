@@ -441,11 +441,13 @@ image, instance and storage builders) add:
 | `networking` | mapping or null | null | 4.5 with the AWS additions |
 | `credentials` | mapping | `{}` | `AwsCredentials`: `profile_name`, `aws_access_key_id`, `aws_secret_access_key`, `aws_session_token` (all str or null). Values belong in the environment: name a profile, or carry `{{ ENV['…'] }}` templates. |
 
-At load the AWS runtime reads the account's VPCs and security groups with
-these credentials: `networking.network` must be a VPC of the account (or
-`default`, resolved to the default VPC); every security group must exist;
-more than five in total is refused. A load therefore needs a live AWS
-session.
+The AWS runtime checks the account's VPCs and security groups:
+`networking.network` must be a VPC of the account (or `default`,
+resolved to the default VPC); every security group must exist; more than
+five in total is refused. A load reads them offline, from the recorded
+`meta-state/runtime-facts.yaml`; `validate --online` and every real run
+read the account with these credentials and record what they found, so
+those need a live AWS session and a load does not.
 
 ### 4.4 `gcloud`
 

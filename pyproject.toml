@@ -199,6 +199,13 @@ filename = "docs/QUICKSTART.md"
 search = "cs-image-system[docker]=={current_version}"
 replace = "cs-image-system[docker]=={new_version}"
 
+# and so does each cloud starter's first box, the install of its own providers
+[[tool.bumpversion.files]]
+glob = "docs/examples/*/README.md"
+ignore_missing_version = true                            # the docker starter's links the quickstart instead
+search = "]=={current_version}'"
+replace = "]=={new_version}'"
+
 [[tool.bumpversion.files]]
 glob = "packages/*/pyproject.toml"
 glob_exclude = ["packages/contract/pyproject.toml"]     # the contract depends on no other package

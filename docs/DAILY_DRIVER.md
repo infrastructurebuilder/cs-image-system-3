@@ -22,6 +22,11 @@ standard this page is held to: no one should be surprised by the system's
 behaviour after reading it. Where it could say a little less, it says a
 little more; skip what you already know.*
 
+*New to the system? [The quickstart](QUICKSTART.md) takes you from
+nothing to a dry run on your own machine in seven commands and about
+fifteen minutes, with no cloud account; come back here for everything
+after.*
+
 ## 0. What you are driving
 
 Two things, and it matters which is which.
@@ -293,7 +298,8 @@ make ([CI_SETUP.md](examples/_skeleton/CI_SETUP.md), 3.0).
 A docker runtime needs none of the clouds' setup: no account, no profile, no
 session, no network to describe, and its terraform state is a `local`
 directory. What it needs is a daemon, and that is the one thing the system
-never makes.
+never makes. [The quickstart](QUICKSTART.md) is the shortest way to try
+it: a dry run of the docker starter against your own daemon.
 
 | What | Why the system needs it | Where it is named |
 | --- | --- | --- |
@@ -473,8 +479,17 @@ the guide, so a team sees exactly what its admins still have to do.
 
 ### 1.9 The configuration repository, from scratch
 
+```sh
+cs-image-system init-config my-config                          # standard-aws, the default
+cs-image-system init-config my-config --from standard-gce
+cs-image-system init-config my-config --from complete
+cs-image-system init-config my-config --from standard-aws-posix   # AWS, people as POSIX accounts, no Okta
+cs-image-system init-config my-config --from standard-docker      # a docker host, people as POSIX accounts, no cloud
+```
+
 Start from a starter tree; do not write from nothing. There are five
-starters, and three ways to get one, each giving the same tree:
+starters, and three ways to get one, each giving the same tree (the box
+above is the second way):
 
 1. **On GitHub, "Use this template"** on the starter's template
    repository. Each is generated from its starter with every final
@@ -489,19 +504,11 @@ starters, and three ways to get one, each giving the same tree:
    [cs-image-system-starter-standard-docker](https://github.com/infrastructurebuilder/cs-image-system-starter-standard-docker).
    Your copy is a repository of its own from the first minute; clone it
    and go on below.
-2. **From the release, `init-config`** (the commands below), which needs
+2. **From the release, `init-config`** (the commands above), which needs
    no GitHub and is always the release you installed.
 3. **A copy of `docs/examples/<name>`** from the system repository works
    too, but it carries no `.csis-version` and its links point into that
    repository: prefer the other two.
-
-```sh
-cs-image-system init-config my-config                          # standard-aws, the default
-cs-image-system init-config my-config --from standard-gce
-cs-image-system init-config my-config --from complete
-cs-image-system init-config my-config --from standard-aws-posix   # AWS, people as POSIX accounts, no Okta
-cs-image-system init-config my-config --from standard-docker      # a docker host, people as POSIX accounts, no cloud
-```
 
 `init-config` writes into the tree's `tfmodules/` the modules of the
 plugins that are installed, so make `standard-gce` or `complete`, which
@@ -1524,7 +1531,7 @@ TestPyPI by trusted publishing, with no token anywhere.
 [OPERATIONS.md, "Releasing until 1.0"](OPERATIONS.md#releasing-until-10)
 is the one place that says why, and what the lighter check, `--full`
 and the advisory are; in short, a release is gated by default on the
-lighter check (the acceptance tests and the install check), `--full`
+lighter check (the acceptance tests and the [quickstart](QUICKSTART.md)'s own commands), `--full`
 runs the full proof instead, and before anything changes one line says
 when a full proof is probably needed and why (it never refuses). From
 `develop` the recipe checks out `main`, fast-forwards it to `develop`,

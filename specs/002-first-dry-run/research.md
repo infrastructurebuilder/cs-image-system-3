@@ -488,9 +488,14 @@ quickstart left:
 - **A first real local run**: a new section of the docker starter's
   README, "A first real run", whose first box is the real run of the
   tree the quickstart wrote (from inside `csis-quickstart`: `cs-image-system
-  --overlay overlays/launch.yaml --no-dry-run run --all`, the run the
-  starter's [overlays/launch.yaml](../../docs/examples/standard-docker/overlays/launch.yaml)
-  comment names) and whose last says how to take it down. The README
+  --no-dry-run run --all --apply-runtime docker-main`) and whose last
+  says how to take it down. (**Read** 2026-11-25, quickstart step 8 box
+  3: the run first planned, the one the starter's
+  [overlays/launch.yaml](../../docs/examples/standard-docker/overlays/launch.yaml)
+  comment named, lets the instance root alone apply, so from a fresh
+  tree the instance's plan failed on the storage state it reads;
+  `--apply-runtime` applies both, as the tree's `just cloud-launch`
+  does. The overlay's comment now says so.) The README
   travels with the tree, so the reader also has it at
   `csis-quickstart/README.md`.
 - **The cloud starters**: the default cloud starter's README,

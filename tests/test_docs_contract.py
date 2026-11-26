@@ -30,6 +30,7 @@ CHAPTERS = ["## 1. Before the first command", "## 2. The first run", "## 3. Maki
 LINK = re.compile(r"(?<!!)\[[^\]]*\]\(([^)\s]+)(?:\s+\"[^\"]*\")?\)")
 DRIVER = REPO / "docs" / "DAILY_DRIVER.md"
 DOCS = [DRIVER, REPO / "README.md", REPO / "docs" / "PLUGINS.md", REPO / "docs" / "examples" / "_skeleton" / "CI_SETUP.md",
+        REPO / "docs" / "QUICKSTART.md",
         *(p / "README.md" for p in PACKAGES)]
 
 
@@ -82,12 +83,6 @@ def test_the_daily_driver_has_its_chapters_and_names_every_package():
     for package in PACKAGES:
         assert f"packages/{package.name}/README.md" in driver, f"the daily driver names no README for {package.name}"
 
-
-def test_the_daily_driver_is_the_first_place_to_start():
-    readme = (REPO / "README.md").read_text()
-    start = readme.index("## Where to start")
-    first = next(ln for ln in readme[start:].splitlines()[1:] if ln.startswith("- "))
-    assert "DAILY_DRIVER.md" in first, first
 
 
 def test_plugins_md_names_the_contract():

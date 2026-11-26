@@ -413,7 +413,8 @@ def _bump(cwd: Path, *args: str) -> subprocess.CompletedProcess[str]:
 @pytest.fixture
 def tree(tmp_path: Path) -> Path:
     """Every pyproject file in its layout, and the quickstart page, whose install names the release."""
-    for path in [ROOT, *(p / "pyproject.toml" for p in PACKAGES), REPO / "docs" / "QUICKSTART.md"]:
+    for path in [ROOT, *(p / "pyproject.toml" for p in PACKAGES), REPO / "docs" / "QUICKSTART.md",
+                 *sorted((REPO / "docs" / "examples").glob("*/README.md"))]:
         dest = tmp_path / path.relative_to(REPO)
         dest.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy(path, dest)
@@ -446,6 +447,8 @@ def test_a_bump_moves_every_version_line_and_every_pin_at_once(tree: Path):
             assert follows_its_rule(owner, name, req, new, own), (path, name)
     page = (tree / "docs" / "QUICKSTART.md").read_text()
     assert f"'cs-image-system[docker]=={new}'" in page and f"=={old}'" not in page, "the quickstart's pin did not move"
+    aws = (tree / "docs" / "examples" / "standard-aws" / "README.md").read_text()
+    assert f"'cs-image-system[aws,okta]=={new}'" in aws and f"=={old}'" not in aws, "a starter's pin did not move"
     root_after = tomllib.loads((tree / "pyproject.toml").read_text())
     assert {str(r.specifier) for r in _dev_group(root_after).values()} == {f"=={new}"}
     assert {str(r.specifier) for n, r in _extras(root_after["project"])["all"].items()
