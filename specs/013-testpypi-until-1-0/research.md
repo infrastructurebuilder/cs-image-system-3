@@ -44,6 +44,13 @@ A match prints `release: a full proof is probably needed: <paths>; run
 with --full` before anything changes, and never refuses. The list lives
 in one constant beside the advisory.
 
+Added 2026-11-26 (T043, the third convergence): the three scripts of the
+release tooling that the full proof alone runs to their end,
+`scripts/with-released-families` (the families' overlay under every live
+command), `scripts/dev-pin-resolves` and `scripts/session-minutes-left`.
+A defect in each of the first two reached a release attempt and was
+caught only under `--full`.
+
 ## R3. Installing from TestPyPI without taking a squatted name
 
 `uv tool install` has no per-package index option. The form in use since

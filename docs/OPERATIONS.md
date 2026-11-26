@@ -2561,10 +2561,11 @@ further:
 
 - **the tag's Publish run**: TestPyPI, where every release goes until
   1.0, must list `cs-image-system <version>` (`scripts/index-knows`),
-  and every template repository (`scripts/starter-tree --list`) must
-  hold the tag `v<version>` (`git ls-remote --tags`, as `just
-  publish-starters` asks); a green run whose index does not list the
-  version is not good;
+  and, for a final version, every template repository
+  (`scripts/starter-tree --list`) must hold the tag `v<version>` (`git
+  ls-remote --tags`, as `just publish-starters` asks); a development
+  release (`.dev`) pushes none, so they are not read for one. A green
+  run whose index does not list the version is not good;
 - **the configuration's `main` run**: the `perform` job's log
   (`gh run view <run> --job <job> --log`) must carry the guard's
   verdict -- its `runtime-unchanged:` lines, none `CHANGED`, or the line
@@ -2782,7 +2783,11 @@ so) and names those only the full proof exercises: the runtime plugins
 (`packages/*-runtime-plugin/`, `packages/docker-plugin/`), the POSIX
 identity plugin, the release and take tooling (`scripts/release.py`,
 `scripts/publish-dist`, `scripts/release-watch`, the skeleton's
-`Justfile`), the starters' workflows (`docs/examples/*/.github/`), the
+`Justfile`, and the three scripts the full proof alone runs to their
+end: `scripts/with-released-families`, which layers the families
+released elsewhere under every live command, `scripts/dev-pin-resolves`
+and `scripts/session-minutes-left`), the starters' workflows
+(`docs/examples/*/.github/`), the
 contract and the SDK (`packages/contract/`, `packages/base/`,
 `packages/hashicorp-utils/`, `packages/tofu-roots/`); the list is
 `FULL_PROOF_PATHS` in [scripts/release.py](../scripts/release.py). A
@@ -2813,8 +2818,16 @@ uploads nothing and needs no token: it commits, tags and pushes, and
 the push of the tag `v<version>` runs
 [.github/workflows/publish.yml](../.github/workflows/publish.yml) (the
 workflow named "Publish"). It builds the tree at the tag, checks that
-the tag names the version in it, and uploads every public project to
-TestPyPI by **trusted publishing**: TestPyPI has been told to accept
+the tag names the version in it, runs the
+[quickstart page](QUICKSTART.md)'s own commands against the files it
+built, on a clean machine, and only once they reach a dry run uploads
+every public project to TestPyPI by **trusted publishing**. A page
+that fails there leaves the tag pushed and nothing on the index: a
+failure of the machine or the network is run again (`GH_PAGER=cat gh
+run rerun <run> --failed`), and a failure of the page or the packages
+is cured by the next patch release, since the release refuses a
+version already tagged. The trust works so: TestPyPI has been told to
+accept
 uploads for each project from one GitHub repository, one workflow file
 and one GitHub environment, and the job proves it is them with a
 short-lived token GitHub issues to it, so no upload token is stored
@@ -2953,6 +2966,36 @@ In the Okta identity plugin's and the Google Cloud family's
 repositories the change is the same three things, each in its own
 `docs/RELEASING.md`: the release script's refusal, the publish
 workflow's PyPI job, and the install form.
+
+Those three things are carried in more places here than their names
+suggest, and the one change takes every one of them; a place left
+behind keeps installing from, or asking, an index the releases no
+longer go to. One search, run at this repository's root, lists every
+tracked file that names TestPyPI:
+
+```sh
+GIT_PAGER=cat git grep -il testpypi -- . ':!specs' ':!ATTIC'
+```
+
+What it finds, by what each carries until 1.0:
+
+| Where | What it carries |
+| --- | --- |
+| `STANDING`, `INDEX`, `NAME` and `INDEX_URL` in [scripts/release.py](../scripts/release.py) | the refusal of `pypi`, and the one index the release's probes ask, its lines name and `release-take` waits on; `INDEX` is the word it calls `scripts/with-released-families --check` and `--newest` with, so the families' pins follow it |
+| `INDEX` and `INDEX_URL` in [scripts/release-watch](../scripts/release-watch) | the index the verdict on the tag's Publish run is read against |
+| [.github/workflows/publish.yml](../.github/workflows/publish.yml) | the `testpypi` job, its environment and `uv publish --index testpypi`; no PyPI job |
+| the `[[tool.uv.index]]` named `testpypi` and the four `index = "testpypi"` sources in the root [pyproject.toml](../pyproject.toml), with `uv.lock`, which follows them at the next `uv lock` | where the upload goes, and where this tree's lock takes the families released elsewhere from; [tests/test_index_pins.py](../tests/test_index_pins.py) holds the lock to it |
+| `INSTALL_OPTIONS` in [src/cs_image_system/extras.py](../src/cs_image_system/extras.py) | the install line the system itself prints when a configuration names a type whose extra is not installed |
+| `INDEX_SIMPLE` and `INDEX_OPTIONS` in [scripts/isolated-run](../scripts/isolated-run) | the index the isolated runs read the SDK's published versions and files from, and install a published version with |
+| [scripts/dev-pin-resolves](../scripts/dev-pin-resolves) | the check that every one of the system's packages resolves from TestPyPI (or from PyPI as the same files) and nothing else does; it reads the install line from a starter's workflow |
+| the install lines: [QUICKSTART.md](QUICKSTART.md)'s first box, the starters' READMEs (`docs/examples/*/README.md`), [DAILY_DRIVER.md](DAILY_DRIVER.md), this guide, the skeleton's `Justfile` (the `take` recipe) and `CI_SETUP.md`, and every starter's workflows (`docs/examples/*/.github/workflows/`) | the one install form; a configuration repository receives the skeleton's `Justfile`, `CI_SETUP.md` and workflows at its next take, and its own README is its own to change |
+| the tests the search lists under `tests/` | the rows above as they stand (the lock's sources, the starters' install line, the release's refusal and index, the isolated runs' index, the install hint), so they change with their rows, in the same change |
+
+The search lists the history too ([CHANGES.md](CHANGES.md),
+[INCIDENTS.md](INCIDENTS.md), the glossary), which stays as written:
+it says where the releases went, and when. The specifications
+(`specs/`, left out of the search) record the decision and are not
+changed by its lifting; the change is a specification of its own.
 
 ### Installing a release
 
@@ -3650,17 +3693,23 @@ carries `if: github.repository ==
 'infrastructurebuilder/cs-image-system-3'`, so a fork's tag push
 publishes nothing ([Releasing until 1.0](#releasing-until-10) says
 what a fork changes). It uploads to TestPyPI alone, for every version,
-until 1.0; nothing in it uploads to PyPI. Three jobs:
+until 1.0; nothing in it uploads to PyPI. Four jobs:
 
 | Job | What it does |
 | --- | --- |
 | `build` | inside the runner image: `just init`; the tag must name the version in the tree (`publish: FAILED -- the tag is <tag> but the tree says <version>` otherwise); `just build`; then each public project's sdist and wheel gathered into a folder of its own, numbered in `scripts/publish-dist`'s dependency order (the contract and the SDK's libraries at versions of their own), handed on as the artifact `dist` |
-| `testpypi` | in the GitHub environment `testpypi`, with `id-token: write` (the short-lived token TestPyPI's trusted publisher checks) and no secret: `uv publish --trusted-publishing always --index testpypi` once per project folder, in that order, `cs-image-system` last; a file TestPyPI already holds is skipped, so a rerun after a partial failure uploads what is missing and nothing twice |
+| `quickstart` | after `build`, on a stock `ubuntu:24.04` container with the host's docker daemon, not the runner image, which holds every tool and so could not show that the page's list is enough ([CI_RUNNER.md](CI_RUNNER.md)): the page's prerequisites placed at the floors it states (`just quickstart-prepare`), then the [quickstart page](QUICKSTART.md)'s own commands, once, against the artifact `dist`, the files this tag built (`just test-quickstart --wheels dist`); a failure names the command that failed, and nothing is uploaded |
+| `testpypi` | after `build` and `quickstart`, so no file reaches the index before the page reached a dry run with the tag's own packages; in the GitHub environment `testpypi`, with `id-token: write` (the short-lived token TestPyPI's trusted publisher checks) and no secret: `uv publish --trusted-publishing always --index testpypi` once per project folder, in that order, `cs-image-system` last; a file TestPyPI already holds is skipped, so a rerun after a partial failure uploads what is missing and nothing twice |
 | `starters` | for a final tag alone (no `.dev` in its name), after `testpypi`: `just publish-starters` with `STARTER_PUSH_TOKEN`, so the template repositories take the release; without that secret the step is SKIPPED, said in the job summary (a green conclusion is not proof that it ran) |
 
 It holds no cloud credential and no upload token. The release ran its
-gate before it tagged, and [ci.yml](../.github/workflows/ci.yml) runs
-on the same tag beside it; `tests/test_publish_commands_parse.py` holds
+gate before it tagged, the quickstart page's run among it, against the
+tree's wheels on the releasing machine; the `quickstart` job runs the
+page again against the files the tag built, on a machine that holds
+only what the page names, and the upload waits on it.
+[ci.yml](../.github/workflows/ci.yml) runs on the same tag beside the
+workflow, and the upload does not wait on that;
+`tests/test_publish_commands_parse.py` holds
 every `uv publish` line in it to one uv accepts. A run that failed
 part-way (an outage, TestPyPI's limit on new projects, a publisher it
 did not recognise) is run again once the cause is gone (`GH_PAGER=cat
