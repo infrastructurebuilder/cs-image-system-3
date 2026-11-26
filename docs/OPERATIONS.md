@@ -1821,7 +1821,7 @@ changed).
 | `init-config` | 1 | a release-owned file differs and `--force` was not given; 2 for an unknown starter |
 | `identity-attributes` | 4 | attribute writes are disabled (`--apply`); 3 on an invalid plan or a provider conflict |
 | `test`, `cleanup` | 2 | retired names; the message names the replacement |
-| `scripts/publish-target-ready`, `just index-ready` | 75 | the index cannot take an upload now (an endpoint or a project page down) -- nothing changed, try again later; `publish-target-ready` exits 2 for a target it has no checker for and, with `--all-held`, 1 unless every project holds the version |
+| `scripts/publish-target-ready`, `just index-ready` | 75 | the index cannot take an upload now (an endpoint or a project page down) -- nothing changed, try again later; `publish-target-ready` exits 2 for a target it has no checker for and, with `--refuse-held`, 1 when a project already holds the version |
 
 ### The state query
 
@@ -2530,10 +2530,12 @@ changed in either repository.
 `just release-watch <version>` (`scripts/release-watch`) waits on the
 runs the walk started, found by commit and never by time, and prints
 one verdict line each, so the walk ends on a recipe's closing line and
-not on a person polling GitHub. Here the commit is the tag's (the
-release pushed it as `main` and `develop` too): the tag's runs of CI
-and of Publish (the publish workflow), `main`'s and `develop`'s runs of CI, and
-`develop`'s run of "CI from scratch". In the live configuration it is
+not on a person polling GitHub. Here there are two commits: the tag's,
+on which the tag's runs of CI and of Publish (the publish workflow) are
+found, and the next, which puts the released families back on their
+ranges and is what the release pushed as `main` and `develop`, on
+which `main`'s and `develop`'s runs of CI and `develop`'s run of "CI
+from scratch" are found. In the live configuration it is
 the commit the take pushed (the `Take <version>` commit on `develop`,
 or the record committed right after it): its run of CI on `develop`
 and, when `origin/main` holds that commit, on `main`. Each run is asked
@@ -2594,8 +2596,10 @@ are said after each. Each has a row in
 - **The take cannot install the version it was just given.** Minutes
   after the release, `just take <version>` stops on `take:
   cs-image-system[<extras>]==<version> could not be installed from the
-  index (every release is on TestPyPI until 1.0) --
-  nothing was changed`, though the index lists the version. uv
+  index (a development release is on TestPyPI, a final one on PyPI) --
+  nothing was changed`, though the index lists the version (the line
+  is an older recipe's, from before every release went to TestPyPI;
+  only a tree that has not taken 0.1.11 prints it). uv
   answered from the index page it cached before the upload, which does
   not list the new version yet. In the live configuration, run the take
   again with uv told to ask the index afresh: `UV_REFRESH=1 just take
@@ -2660,8 +2664,7 @@ condition, not the release's, with nothing changed; 2 is a target it
 has no checker for, which is refused by name, never passed (a new
 publish target owes its checker in the change that adds it). The pages it
 reads are cached, so a count taken minutes after an upload can lag it,
-and it says so; `--all-held` exits 1 unless every project holds the
-version. What it cannot check is that TestPyPI will accept the publish
+and it says so. What it cannot check is that TestPyPI will accept the publish
 workflow's trusted publisher: only an upload says that, and a publisher
 TestPyPI does not recognise fails the publish run with
 `invalid-publisher` ([Releasing until 1.0](#releasing-until-10)). `just
@@ -2700,9 +2703,12 @@ in every `== <version>` pin between them (the root's dependencies, its
 extras and its dev group alike), and `bump-my-version` is the one thing
 that changes them (`uv version` bumps the lines but never a pin, so it
 is not used). Three things keep versions of their own, which the
-workspace's bump leaves alone: the contract, named everywhere by the
-range of its series; the kit; and the two terraform libraries, which
-move together. The kit's line and the terraform libraries' line are
+workspace's bump leaves alone: the contract, which every package names
+by the range of its series and the umbrella alone pins exactly
+(`cs-image-system-contract==<its version>`, moved with the contract's
+own version and held by `tests/test_contract_version.py`, so a release
+names every one of the system's names exactly); the kit; and the two
+terraform libraries, which move together. The kit's line and the terraform libraries' line are
 moved with `just sdk-bump <kit|terraform> <last|middle>`, which also
 moves every exact pin on that line. Removing or altering anything on a
 library's declared surface takes `middle`; anything else takes `last`
@@ -2754,7 +2760,7 @@ the middle number waits for 1.0 too.
 | `just release <part\|version> [--full] yes` | the dry form: the probes, the advisory, the version and every move and push it would make; nothing changes |
 | `just release <...> pypi` | refused (above); nothing changes |
 | `just release-take <part\|version> [--full] [main] [yes]` | the release, a wait until TestPyPI lists it, then `just take <version>` in the reference configuration |
-| `just release-watch <version>` | waits on the tag's CI and Publish runs, TestPyPI, the template repositories and the reference configuration's runs; one verdict each |
+| `just release-watch <version>` | waits on the tag's CI and Publish runs, TestPyPI, the template repositories (for a final version) and the reference configuration's runs; one verdict each |
 
 The steps in order are under
 ["`just build`, `just release`, `just publish-tree`"](#just-build-just-release-just-publish-tree).
@@ -2963,9 +2969,12 @@ project; and the install form goes back to the plain one, `uv tool
 install 'cs-image-system[<extras>]==<version>'`, here and wherever a
 document, the take recipe or a starter's workflow installs a release.
 In the Okta identity plugin's and the Google Cloud family's
-repositories the change is the same three things, each in its own
+repositories the change is three things too, each named in its own
 `docs/RELEASING.md`: the release script's refusal, the publish
-workflow's PyPI job, and the install form.
+workflow's PyPI job, and the system's names taken from PyPI again in
+its lock (the `testpypi` sources and the `index-pins` group removed
+from its `pyproject.toml`, `uv lock`, and
+`tests/tooling/test_index_pins.py` with them).
 
 Those three things are carried in more places here than their names
 suggest, and the one change takes every one of them; a place left
@@ -2988,12 +2997,14 @@ What it finds, by what each carries until 1.0:
 | `INSTALL_OPTIONS` in [src/cs_image_system/extras.py](../src/cs_image_system/extras.py) | the install line the system itself prints when a configuration names a type whose extra is not installed |
 | `INDEX_SIMPLE` and `INDEX_OPTIONS` in [scripts/isolated-run](../scripts/isolated-run) | the index the isolated runs read the SDK's published versions and files from, and install a published version with |
 | [scripts/dev-pin-resolves](../scripts/dev-pin-resolves) | the check that every one of the system's packages resolves from TestPyPI (or from PyPI as the same files) and nothing else does; it reads the install line from a starter's workflow |
+| the probes that take the index as a word: [scripts/own-versions-current](../scripts/own-versions-current), [scripts/publish-target-ready](../scripts/publish-target-ready) (and `just index-ready`, whose default is `test`) and [scripts/with-released-families](../scripts/with-released-families) (`--check`, `--newest`) | nothing of their own: `test` is the word the release passes each (its `INDEX`, the first row), and each still takes `pypi`, for a look at PyPI |
+| the other documents and comments that say where a release goes: [README.md](../README.md), [DESCRIPTION.md](DESCRIPTION.md), the entry "release" of [GLOSSARY.md](GLOSSARY.md), [CI_RUNNER.md](CI_RUNNER.md), [REMINDERS.md](../REMINDERS.md), the `Justfile`'s comments and recipe descriptions, the comments of [ci.yml](../.github/workflows/ci.yml) and the docstring of [scripts/publish-dist](../scripts/publish-dist) | each says, in the present tense, that a release goes to TestPyPI alone, and is reworded in the same change |
 | the install lines: [QUICKSTART.md](QUICKSTART.md)'s first box, the starters' READMEs (`docs/examples/*/README.md`), [DAILY_DRIVER.md](DAILY_DRIVER.md), this guide, the skeleton's `Justfile` (the `take` recipe) and `CI_SETUP.md`, and every starter's workflows (`docs/examples/*/.github/workflows/`) | the one install form; a configuration repository receives the skeleton's `Justfile`, `CI_SETUP.md` and workflows at its next take, and its own README is its own to change |
 | the tests the search lists under `tests/` | the rows above as they stand (the lock's sources, the starters' install line, the release's refusal and index, the isolated runs' index, the install hint), so they change with their rows, in the same change |
 
-The search lists the history too ([CHANGES.md](CHANGES.md),
-[INCIDENTS.md](INCIDENTS.md), the glossary), which stays as written:
-it says where the releases went, and when. The specifications
+The search lists the history too ([CHANGES.md](CHANGES.md) and
+[INCIDENTS.md](INCIDENTS.md)), which stays as written: it says where
+the releases went, and when. The specifications
 (`specs/`, left out of the search) record the decision and are not
 changed by its lifting; the change is a specification of its own.
 
@@ -3004,11 +3015,13 @@ A first install, to try the system before anything else, is
 (no sources of its own; its dependencies are the core at a `==` pin,
 and each provider is an extra), and `cs-image-system-<package>` for each
 of the others. Every release after 0.1.12 is on TestPyPI alone, so
-each line below is written in full with the one install form's index
-options and a pinned version (`... 'cs-image-system[aws]==<version>'`);
-[Releasing until 1.0](#releasing-until-10) gives the form and says why
-it is safe. Without those options uv reads PyPI alone and installs
-0.1.12. The bare install carries no runtime:
+the lines below show only what each extra adds, and are not to be run
+as they stand: run as written, uv reads PyPI alone and installs 0.1.12.
+To install a release, put the one install form's index options before
+the name and pin the version after it (`uv tool install --index-url ...
+'cs-image-system[aws]==<version>'`);
+[Releasing until 1.0](#releasing-until-10) gives the form in full and
+says why it is safe. The bare install carries no runtime:
 
 ```sh
 uv tool install cs-image-system               # the CLI, the engine, the OS families, packer,
@@ -3245,9 +3258,9 @@ repository's, which the release ships.
 | `build` | sdist + wheel of every workspace member under `dist/` (the system package carries the five starter trees) | nothing |
 | `test` | lint → typecheck → pytest → `test-core` → `test-terraform-alone` → `test-docker-alone`, all blocking (the bar) | nothing |
 | `full-test` | `test`, then `full-test-legs`: the dev-pin resolution check (`scripts/dev-pin-resolves`), the docker legs (`test-mods --strict`, `test-posix-accounts`, `test-bake-steps`, `runner-image`, `test-docker-bake`, `test-docker-cycle`, `test-podman-cycle`, `test-podman-desktop-cycle`) and, gated on `preflight`, a dry `run --all` and `state query --strict` over a copy of the reference configuration | docker, the network, reference configuration, runtime sessions; each leg skips loudly |
-| `release <part\|version> [--full] [yes]` | from `develop`: probe (the words, `pypi` refused; the branch; a clean tree; TestPyPI ready and free of the version; tag; the remote, fetched, holding nothing `main` or `develop` lacks), the advisory, the move to `main` and `uv sync`, the venv's probes, the lighter check (`test`, `test-docker-install`) or, with `--full`, `full-test`, TestPyPI again, `bump-my-version`, `uv lock`, the released families pinned exactly, the `CHANGES.md` row, commit, tag `v<version>`, the families back on their ranges, then the pushes of `main` and `develop` and the resync; uploads nothing: the tag's push publishes ([Releasing until 1.0](#releasing-until-10)); `yes` = dry (the logic is `scripts/release.py`) | docker, the network; for `--full`: clean trees, mod-test evidence, `full-test`'s needs |
+| `release <part\|version> [--full] [yes]` | from `develop`: probe (the words, `pypi` refused; the branch; a clean tree; TestPyPI ready and free of the version; tag; the remote, fetched, holding nothing `main` or `develop` lacks), the advisory, the move to `main` and `uv sync`, the venv's probes, the lighter check (`test`, `test-quickstart`) or, with `--full`, `full-test`, TestPyPI again, `bump-my-version`, `uv lock`, the released families pinned exactly, the `CHANGES.md` row, commit, tag `v<version>`, the families back on their ranges, then the pushes of `main` and `develop` and the resync; uploads nothing: the tag's push publishes ([Releasing until 1.0](#releasing-until-10)); `yes` = dry (the logic is `scripts/release.py`) | docker, the network; for `--full`: clean trees, mod-test evidence, `full-test`'s needs |
 | `release-take <part\|version> [--full] [main] [yes]` | the live configuration asked first, then `release`, a wait until TestPyPI lists the version (an hour at most), then `UV_REFRESH=1 just take <version>` there (the version read back; the variable reaches the take alone), `main` passed through; `yes` = dry | `release`'s needs, and the live configuration's sessions for the take |
-| `release-watch <version>` | waits on the runs the walk started, found by commit, here (the tag's CI and Publish runs, `main`'s and `develop`'s) and in the live configuration; one verdict each, TestPyPI and the template repositories read for the tag's Publish run, the guard and the bake plan for the configuration's `main`; exit 0 only when all are good | `gh`, logged in; the network |
+| `release-watch <version>` | waits on the runs the walk started, found by commit, here (the tag's CI and Publish runs, `main`'s and `develop`'s) and in the live configuration; one verdict each, TestPyPI and (for a final version) the template repositories read for the tag's Publish run, the guard and the bake plan for the configuration's `main`; exit 0 only when all are good | `gh`, logged in; the network |
 | `index-ready [test\|pypi] [wait]` | can the index take an upload now: the upload endpoint and every project page, one line each; exit 0 ready, 75 not now; `wait` probes every minute, two hours at most | the network |
 | `full-test-legs` | `full-test` without `test`: the dev-pin check, every docker leg above, then a headless dry run `--all` and a `state query --strict` over a private copy of the reference configuration; re-run these after a session renewal instead of the whole `full-test` | `preflight` gates the two copy legs |
 | `format` | `ruff format packages tests` | nothing |

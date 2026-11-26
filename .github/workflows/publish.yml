@@ -18,8 +18,9 @@ name: Publish
 # upload cut off leaves only complete projects. A file the index already holds is
 # skipped (`uv publish --index` checks the index it publishes to; `--check-url`
 # cannot be combined with `--index`), so a rerun after a partial failure uploads
-# what is missing and nothing twice. Then the template repositories take the
-# release (`just publish-starters`, on its own token). The release itself ran the
+# what is missing and nothing twice. Then, for a final version alone, the template
+# repositories take the release (`just publish-starters`, on its own token; a `.dev`
+# tag pushes none). The release itself ran the
 # acceptance tests and the quickstart page before it tagged; the upload waits on
 # the page run again here against the tag's own files, on a clean machine (the
 # `quickstart` job); ci.yml runs on the same commit beside this.

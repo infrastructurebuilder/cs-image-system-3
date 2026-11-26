@@ -18,8 +18,10 @@ requires-python = ">=3.13"
 # each pinned exactly; each provider is an extra below, and a bare install carries
 # no runtime (`validate` names the extra a tree's `type:` words need, base/extras.py).
 # A pin is at the workspace's version, except on what keeps a version of its own: the
-# contract, named by the range of its series, and the SDK's libraries (the kit; the two
-# terraform libraries together), each pinned at its own line's version.
+# contract and the SDK's libraries (the kit; the two terraform libraries together), each
+# pinned exactly at its own line's version. Every other package names the contract by the
+# range of its series; this one alone pins it, so a release names every one of the system's
+# names exactly (tests/test_contract_version.py holds both).
 dependencies = [
     "cs-image-system-ansible-plugin==0.1.13.dev1",
     "cs-image-system-base==0.2.2",
@@ -129,7 +131,8 @@ cs-image-system-tf-gcp-plugin = { index = "testpypi" }
 cs-image-system-gcs-state-plugin = { index = "testpypi" }
 cs-image-system-okta-opa-plugin = { index = "testpypi" }
 
-# The indexes a release is published to: `uv publish --index <name>` reads the
+# The indexes: `testpypi` takes every release until 1.0 and `pypi` takes none (it is here
+# for the probes that look at PyPI, and for 1.0). `uv publish --index <name>` reads the
 # publish-url and skips files already present with the same content (the url is the check
 # url). Both are explicit, so neither takes part in resolving this workspace's dependencies
 # but for the names pinned to one above; a consumer installs from TestPyPI with PyPI as the

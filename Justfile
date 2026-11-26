@@ -130,10 +130,10 @@ release-take target *words:
 # tag's runs of CI and of Publish, main's, develop's and develop's "CI from scratch"; in the live
 # configuration the take's develop and, when main was pushed, main. A green job is not proof its
 # steps ran: for the tag's Publish run TestPyPI (every release goes there, and only there, until
-# 1.0) must list the version and every template repository must hold its tag; for the
-# configuration's main the perform job's guard verdict is read, and what it baked. Exit 0 only when
-# every verdict is good; sixty minutes at most (scripts/release-watch --timeout). The logic is
-# scripts/release-watch.
+# 1.0) must list the version and, for a final version, every template repository must hold its
+# tag (a `.dev` release pushes none); for the configuration's main the perform job's guard verdict
+# is read, and what it baked. Exit 0 only when every verdict is good; sixty minutes at most
+# (scripts/release-watch --timeout). The logic is scripts/release-watch.
 [doc("Wait on the runs a release walk started (here and in the live configuration) and say one verdict each; exit 0 only when all are good")]
 release-watch version:
 	@uv run --no-sync --project "{{justfile_directory()}}" python "{{justfile_directory()}}/scripts/release-watch" "{{version}}" \

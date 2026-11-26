@@ -120,9 +120,12 @@ cs-image-system --help
 ```
 
 If a declared `type:` has no plugin installed, `just validate` says so
-in one line and names the extra: `runtime type 'gcloud' is registered
-by no installed plugin: install the extra: uv tool install
-'cs-image-system[gcloud]'`.
+in one line and gives the whole command, the extra at the release you
+have installed, in the install form explained below: `runtime type
+'gcloud' is registered by no installed plugin: install the extra: uv
+tool install --python 3.13 --index-url https://test.pypi.org/simple/
+--extra-index-url https://pypi.org/simple/ --index-strategy
+unsafe-first-match 'cs-image-system[gcloud]==<the installed release>'`.
 
 Every release after 0.1.12, development (`0.1.13.devN`) or final, is
 on TestPyPI and not on PyPI until 1.0
@@ -140,7 +143,9 @@ uv tool install --index-url https://test.pypi.org/simple/ --extra-index-url http
   --index-strategy unsafe-first-match "cs-image-system[$(just extras)]==0.1.2.dev2"
 ```
 
-CI does the same by itself when `.csis-version` names a `.dev` version.
+CI does the same by itself, for every version: each job installs the
+release `.csis-version` names in this form (with no `.csis-version` it
+takes the latest PyPI holds, 0.1.12 until 1.0, so keep the pin).
 Which index a release is on, and which release is current, is the
 system repository's business (section 9, and the releases on GitHub).
 
@@ -563,8 +568,9 @@ release in one command, on `develop`, in this order:
    another commit is refused before anything else happens. A
    development version gets no tag.
 3. **The install.** The release is installed as the uv tool (`uv tool
-   install --force`, with the extras `just extras` names; a development
-   one from TestPyPI), and every later step of the take runs by that
+   install --force`, with the extras `just extras` names, in the install
+   form of section 1.1 for every version, since every release is on
+   TestPyPI until 1.0), and every later step of the take runs by that
    binary, found through `uv tool dir --bin`, whatever `CSIS` names. A
    committing run is held to exactly that release from an index
    (section 1.1), so a `CSIS` that points at a system checkout's venv
@@ -1290,8 +1296,8 @@ its code is next changed.
 | `release: main cannot be fast-forwarded to develop: it holds commits develop does not` | run from `develop`: `main` has a commit `develop` lacks (a release whose fast-forward back never ran, say); refused before any checkout | bring `develop` up: `git checkout develop && git merge --ff-only main` (or one merge commit of `main` when that refuses), then the release again |
 | `release: origin/<branch> holds <n> commit(s) the local <branch> lacks, so its push after the tag would be refused` | someone pushed `main` or `develop` (a maintenance release: its own branch) since this checkout last fetched; the release fetched first, so it stopped before anything changed | `git checkout <branch> && git merge --ff-only origin/<branch>` (a reconciliation when that cannot fast-forward), then the same command again |
 | ``release: <v> is committed and tagged v<v> here, but `<command>` failed (above); nothing is on TestPyPI until the tag is pushed; the rest, by hand: ...`` | a step after the tag failed: a push the remote refused, or `develop`'s fast-forward back (a stage landed during the release) | fix its cause, then run the commands the line lists, in order; the version is committed and tagged, and the tag's push publishes it ([OPERATIONS.md](OPERATIONS.md#releasing-until-10)), so never the release again |
-| `take: cs-image-system[<extras>]==<version> could not be installed from the index (every release is on TestPyPI until 1.0) -- nothing was changed`, minutes after the release, with the version on the index | uv answered from the index page it cached before the upload, which does not list the new version yet; the take recipe of a tree that has not taken 0.1.11 does not refresh it (the take of 0.1.11 itself still runs that recipe) ([INCIDENTS.md](INCIDENTS.md#the-take-could-not-install-a-version-the-index-listed)) | in the live configuration: `UV_REFRESH=1 just take <version>` (with `main` or `patched` as before); `just release-take` from a checkout of stage 139 on (0.1.11) sets `UV_REFRESH=1` for its take itself, but a `just take` by hand in a tree before 0.1.11 needs it written out. Once a tree has taken 0.1.11 its take refreshes the index itself and the line says `asked afresh (no cached page)`: then the version is not on that index, or the index did not answer -- check that TestPyPI lists the release (every release goes there until 1.0, [OPERATIONS.md](OPERATIONS.md#releasing-until-10)), wait a few minutes, and take again ([OPERATIONS.md](OPERATIONS.md), "When the walk goes wrong") |
-| `release-watch: system tag v<version> (CI): NEVER STARTED -- no run of CI on v<version> ...`, and `gh run list --commit <sha>` shows runs of `main` and `develop` but none for the tag | the release pushed more than three tags at once (its own and local annotated tags origin lacked, carried by `--follow-tags`), and GitHub creates no tag event for such a push: neither CI's tag run nor the publish workflow (TestPyPI, the template repositories) ran, so nothing is published ([INCIDENTS.md](INCIDENTS.md#the-tags-ci-run-never-started)) | start CI's run by hand: `GH_PAGER=cat gh workflow run ci.yml --ref v<version>`; the publish workflow takes no manual start, so push the tag again on its own: `git push origin :refs/tags/v<version>`, then `git push origin v<version>`; then `just release-watch <version>` again. From stage 139 (0.1.11) the release pushes its branch and its own tag by name, and its probes name the local tags that stay behind |
+| `take: cs-image-system[<extras>]==<version> could not be installed from the index (a development release is on TestPyPI, a final one on PyPI) -- nothing was changed`, minutes after the release, with the version on the index (an older recipe's line: only a tree that has not taken 0.1.11 prints it) | uv answered from the index page it cached before the upload, which does not list the new version yet; the take recipe of a tree that has not taken 0.1.11 does not refresh it (the take of 0.1.11 itself still runs that recipe) ([INCIDENTS.md](INCIDENTS.md#the-take-could-not-install-a-version-the-index-listed)) | in the live configuration: `UV_REFRESH=1 just take <version>` (with `main` or `patched` as before); `just release-take` from a checkout of stage 139 on (0.1.11) sets `UV_REFRESH=1` for its take itself, but a `just take` by hand in a tree before 0.1.11 needs it written out. Once a tree has taken 0.1.11 its take refreshes the index itself and the line says `asked afresh (no cached page)`: then the version is not on that index, or the index did not answer -- check that TestPyPI lists the release (every release goes there until 1.0, [OPERATIONS.md](OPERATIONS.md#releasing-until-10)), wait a few minutes, and take again ([OPERATIONS.md](OPERATIONS.md), "When the walk goes wrong") |
+| `release-watch: system tag v<version> (CI): NEVER STARTED -- no run of CI on v<version> ...`, and `gh run list --commit <sha>` shows runs of `main` and `develop` but none for the tag | the release pushed more than three tags at once (its own and local annotated tags origin lacked, carried by `--follow-tags`), and GitHub creates no tag event for such a push: neither CI's tag run nor the publish workflow (TestPyPI, and for a final version the template repositories) ran, so nothing is published ([INCIDENTS.md](INCIDENTS.md#the-tags-ci-run-never-started)) | start CI's run by hand: `GH_PAGER=cat gh workflow run ci.yml --ref v<version>`; the publish workflow takes no manual start, so push the tag again on its own: `git push origin :refs/tags/v<version>`, then `git push origin v<version>`; then `just release-watch <version>` again. From stage 139 (0.1.11) the release pushes its branch and its own tag by name, and its probes name the local tags that stay behind |
 | ``release-watch: gh could not be asked (above) -- `gh auth status` says why`` (exit 2) halfway through the wait, after a line such as `TLS handshake timeout` | one look `gh` could not make: a network blip, nothing wrong with the runs ([INCIDENTS.md](INCIDENTS.md#the-release-watch-ended-on-one-look-gh-did-not-answer)) | `just release-watch <version>` again: it finds the runs by commit and takes up where it stopped. From stage 139 (0.1.11) the watch counts such a look as no news and looks again at its next interval |
 | `public-safe: ... <file>:<line>` from the hook | a committed line looks like a secret, a key, a plan or a state file | never bypass the hook; encrypt the value, or allow it BY DECISION in `cfg/_config.yml` `public_safe.allow` |
 | `Build '<image>' errored after 20 minutes ...: Timeout waiting for SSH.` with `ssm error: ... StartSession, context canceled` | the bake machine booted and its SSM agent was Online, but packer's ssh session through SSM never opened: the bake host is a 1 GB machine (a t2.micro), too small for the image it boots; the same parent bakes on a t3.medium | give the bake host 4 GB: `machine_type: t3.medium` on the image's runtime entry, or the runtime's `default_machine_type` (the starters ship t3.medium). The builds that completed before the failure are recorded anyway, and a warning names them ([INCIDENTS.md](INCIDENTS.md#a-1-gb-bake-host-starved-the-package-manager-and-the-ssm-agent)) |
@@ -1576,9 +1582,9 @@ TestPyPI does not list in time, or a take that stops, is said with the
 command that finishes it there. `just release <part|version>`, a wait
 for TestPyPI, and then `just take <version>` in the reference are the
 same walk by hand. Then `just release-watch <version>` waits on the
-runs both pushed and says one verdict each, reading TestPyPI and the
-template repositories for the tag's Publish run and the guard and the
-bake plan for the reference's `main`; when `main` performed, its
+runs both pushed and says one verdict each, reading TestPyPI and, for
+a final version, the template repositories for the tag's Publish run,
+and the guard and the bake plan for the reference's `main`; when `main` performed, its
 closing line names `develop`'s fast-forward to CI's records. The walk
 is those commands, and a login halfway through a `--full` release. The
 first take after the release that carries `release-take` is still the

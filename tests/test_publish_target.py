@@ -103,12 +103,12 @@ def _run(root: Path, *args: str, sleeps: list[float] | None = None) -> int:
                   sleep=(sleeps.append if sleeps is not None else lambda s: None))
 
 
-def test_every_endpoint_up_is_ready_and_the_token_is_said_unchecked(world, capsys):
+def test_every_endpoint_up_is_ready_and_the_publisher_is_said_unchecked(world, capsys):
     index, root, _ = world
     assert _run(root) == 0
     out = capsys.readouterr().out
     assert "testpypi is ready" in out and "3 project page(s)" in out
-    assert "the token is not checked" in out
+    assert "publisher is not checked" in out and "token" not in out      # no token is involved any longer
     assert out.count("simple cs-image-system") == 3                     # every project asked, not one
 
 
@@ -156,7 +156,7 @@ def test_which_projects_hold_the_version(world, capsys):
     assert _run(root, "--version", "0.1.1.dev2", "--refuse-held") == 0
     assert "none of the 3 projects" in capsys.readouterr().out
     index.versions["cs-image-system-a"].append("0.1.1.dev2")
-    assert _run(root, "--version", "0.1.1.dev2") == 0                    # publish's form: reported, not refused
+    assert _run(root, "--version", "0.1.1.dev2") == 0                    # the bare form: reported, not refused
     assert "1 of 3 projects (cs-image-system-a)" in capsys.readouterr().out
     assert _run(root, "--version", "0.1.1.dev2", "--refuse-held") == 1   # release's form: never re-cut
     assert "never re-cut" in capsys.readouterr().out
@@ -177,19 +177,3 @@ def test_the_wait_form_polls_until_ready_and_gives_up_at_its_limit(world, capsys
     index.status["/legacy/"] = 503
     assert _run(root, "--wait", "0", "--quiet") == 75                    # the limit spent: given up, exit 75
     assert "giving up" in capsys.readouterr().out
-
-
-def test_release_finish_asks_that_every_project_holds_the_version(world, capsys):
-    """--all-held is release-finish's form, and a count
-    says it may lag an upload (the index's pages are cached)."""
-    index, root, _ = world
-    index.versions["cs-image-system-a"].append("0.1.1.dev2")
-    assert _run(root, "--version", "0.1.1.dev2", "--all-held") == 1
-    out = capsys.readouterr().out
-    assert "can lag it" in out and "2 project(s) do not hold 0.1.1.dev2 on testpypi: cs-image-system, cs-image-system-b" in out
-    for p in index.versions.values():
-        if "0.1.1.dev2" not in p:
-            p.append("0.1.1.dev2")
-    assert _run(root, "--version", "0.1.1.dev2", "--all-held") == 0
-    assert "for all 3 projects" in capsys.readouterr().out
-    assert _run(root, "--all-held") == 2                                  # it needs the version

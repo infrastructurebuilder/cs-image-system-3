@@ -41,8 +41,9 @@ corrected.
 `STARTER_PUSH_TOKEN` secret, which lets a release's tag push the template
 repositories (Contents and Workflows read/write; see
 [docs/OPERATIONS.md](docs/OPERATIONS.md), the credentials table). Without a
-valid token the `publish` job SKIPS the template repositories and says so in
-its summary; nothing else fails. Renew it before it expires, then set the
+valid token the `starters` job of the Publish workflow
+(`.github/workflows/publish.yml`) SKIPS the template repositories and says so
+in its summary; nothing else fails. Renew it before it expires, then set the
 secret again (`gh secret set STARTER_PUSH_TOKEN --repo <owner>/<repository>`).
 
 **The renewals.**
