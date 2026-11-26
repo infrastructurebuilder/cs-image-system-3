@@ -664,10 +664,13 @@ def _advice(said: list[str]) -> list[str]:
 
 
 def test_the_advisory_matches_its_one_list():
-    """The one constant: the runtimes' and identity plugins' sources, the release and take tooling, the
-    starters' workflows, the contract and the SDK; a path elsewhere is not in it."""
+    """The one constant: the runtimes' and identity plugins' sources, the release and take tooling (the
+    families' overlay, the development pin's resolution and the sessions' minutes among it: the full proof
+    alone runs each to its end), the starters' workflows, the contract and the SDK; a path elsewhere is not
+    in it."""
     changed = ["packages/aws-runtime-plugin/src/x.py", "packages/posix-identity-plugin/pyproject.toml",
                "packages/docker-plugin/x.py", "scripts/release.py", "scripts/publish-dist", "scripts/release-watch",
+               "scripts/with-released-families", "scripts/dev-pin-resolves", "scripts/session-minutes-left",
                "docs/examples/_skeleton/Justfile", "docs/examples/complete/.github/workflows/ci.yml",
                "packages/contract/x.py", "packages/base/x.py", "packages/hashicorp-utils/x.py",
                "packages/tofu-roots/x.tf"]

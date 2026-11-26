@@ -6,7 +6,7 @@
 
 **Created**: 2026-11-23
 
-**Status**: Merged, 2026-11-24: its scope trimmed to the minimum (Clarifications, 2026-11-24), T021 restored, and phases 1 to 10 merged into `develop` (`509b8571`, squash), the feature branch kept; the Okta plugin's and the Google Cloud family's changes merged into their own `develop` (`f773d6e`, `8f11f49`), CI green on all three. T033 done 2026-11-24: 0.1.13.dev1, the first TestPyPI-only release, fully proven and published by trusted publishing. T034 done the same day: the reference configuration took it, `config-drift` green. Converged again the same day (T040). Not yet complete under the definition of done: one run the release started (CI on its tag) failed; the next release can meet it (tasks.md, "Done?"). Records are in [tasks.md](tasks.md).
+**Status**: Merged, 2026-11-24: its scope trimmed to the minimum (Clarifications, 2026-11-24), T021 restored, and phases 1 to 10 merged into `develop` (`509b8571`, squash), the feature branch kept; the Okta plugin's and the Google Cloud family's changes merged into their own `develop` (`f773d6e`, `8f11f49`), CI green on all three. T033 done 2026-11-24: 0.1.13.dev1, the first TestPyPI-only release, fully proven and published by trusted publishing. T034 done the same day: the reference configuration took it, `config-drift` green. Converged again the same day (T040). A third convergence, 2026-11-26, after specification 002 changed the release's gate and the Publish workflow, appended T041 to T045 (documents fallen behind, and three scripts added to the advisory's list): done the same day on `feature/converge-013-third`, not merged. Not yet complete under the definition of done: `/speckit-converge` must run once more after them, and one run the release started (CI on its tag) failed; the next release can meet it (tasks.md, "Done? (2026-11-26)"). Records are in [tasks.md](tasks.md).
 
 **Input**: User description: "Releases go to TestPyPI until 1.0. The operator's standing decision of 2026-11-23: until the operator declares 1.0, every release of cs-image-system-3 (the system, the contract, the kit and the Terraform libraries, every plugin it releases), of the Okta plugin (cs-image-system-okta) and of the Google Cloud family (cs-image-system-google-cloud) is published to TestPyPI only; PyPI keeps its last versions (system 0.1.12, SDK 0.2.1, contract 0.5.0, both families 0.2.1). Versions move only their third number meanwhile (a separate standing rule). Today much of the tooling assumes PyPI: uv and pip resolve from PyPI by default, so this repository's lock takes the families from PyPI through the okta, gcloud and all extras; the families' own locks and CI take the system, the SDK and the test kit from PyPI and so test against the old system; the reference configuration's `just take` and an adopting team's `uv tool install 'cs-image-system[okta]'` install PyPI's versions; the families' Publish workflows upload a final version to PyPI after TestPyPI; scripts/isolated-run resolves the SDK's low and high ends from PyPI and compares built wheels with PyPI's files; the released-elsewhere probe and `with-released-families --check` ask PyPI only; this repository's `just release <v> test` runs only the install check, not full-test nor the session probes, so a TestPyPI release is less proven than a PyPI one was; the starter template repositories are pushed only for a final PyPI release; the documentation's install lines install PyPI's versions. Every consumer must take the cs-image-system packages from TestPyPI, and only those (every other dependency from PyPI: TestPyPI as a general index invites a squatted name), each release must be proven as fully as a PyPI release was, nothing may publish to PyPI until 1.0, and every document that says how to install must say how to install a TestPyPI release. TestPyPI's own limits (it has been wiped before, its rate limits and outages) are accepted risks the documents name. Serves operators (who release and take releases), an adopting team (who installs one), and a plugin author (whose plugin is tested against the system it will run beside)."
 
@@ -259,6 +259,11 @@ release.
   version never takes it again); the next patch is cut instead.
 - A version exists on PyPI but not TestPyPI (the last PyPI versions):
   installs that ask for a range including it may take it from PyPI.
+- A pinned version exists on both indexes (a release from before the
+  decision: the families' 0.2.1): the install form asks PyPI first for
+  each name, so it comes from PyPI, the same files TestPyPI holds, and
+  counts as the release (FR-003); a version PyPI held under files other
+  than TestPyPI's would not, and the check that holds it fails.
 - A third-party package squats a name on TestPyPI: no consumer takes it.
 - The operator lifts the decision at 1.0: the switch back is one change
   per repository, named in the documents.
@@ -283,10 +288,17 @@ release.
   the starters' workflows, the contract or the SDK), or when the reference
   configuration is about to take it into an applying cycle, naming the
   reason; it MUST NOT refuse on that ground alone.
-- **FR-003** *(narrowed 2026-11-24)*: The consumers a release must reach
-  to be usable (the reference configuration's take, the starters' CI, and
-  each repository's lock) MUST take every `cs-image-system` package from
-  TestPyPI and every other dependency from PyPI.
+- **FR-003** *(narrowed 2026-11-24; stated exactly 2026-11-26)*: The
+  consumers a release must reach to be usable (the reference
+  configuration's take, the starters' CI, and each repository's lock)
+  MUST take every `cs-image-system` package from TestPyPI and every
+  other dependency from PyPI. One case is not a breach: a pinned version
+  both indexes hold, a release from before the decision such as the
+  families' 0.2.1, comes from PyPI by the install form, which asks PyPI
+  first for each name. It is the same release only when TestPyPI holds
+  that version with exactly the same files, and
+  `scripts/dev-pin-resolves` accepts PyPI's copy on that condition
+  alone.
 - **FR-004** *(dropped 2026-11-24)*: Each family's acceptance tests MUST run against the system's
   newest TestPyPI release inside its ranges, and its oldest-versions leg
   against the oldest its ranges allow.

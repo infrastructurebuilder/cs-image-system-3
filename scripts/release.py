@@ -134,7 +134,9 @@ UNRELEASED = "not yet"
 #: the line a fully proven release's annotated tag message carries; the advisory measures from the newest such tag
 FULLY_PROVEN = "fully proven: full-test"
 #: what only the full proof exercises (FR-002a): the runtimes' and identity plugins' sources, the release and take
-#: tooling, the starters' workflows, the contract and the SDK. An entry ending in "/" is a tree; `*` is a glob.
+#: tooling (with the three scripts the full proof alone runs to its end: the families' overlay under every live
+#: command, the development pin's resolution, the sessions' minutes), the starters' workflows, the contract and the
+#: SDK. An entry ending in "/" is a tree; `*` is a glob.
 FULL_PROOF_PATHS = (
     "packages/*-runtime-plugin/",
     "packages/docker-plugin/",
@@ -142,6 +144,9 @@ FULL_PROOF_PATHS = (
     "scripts/release.py",
     "scripts/publish-dist",
     "scripts/release-watch",
+    "scripts/with-released-families",
+    "scripts/dev-pin-resolves",
+    "scripts/session-minutes-left",
     "docs/examples/_skeleton/Justfile",
     "docs/examples/*/.github/",
     "packages/contract/",

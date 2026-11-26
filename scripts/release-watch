@@ -10,7 +10,8 @@
 The runs are found by commit, never by time. In this repository the commit
 is the tag ``v<version>``'s, which the release pushed as ``main`` and
 ``develop`` too: the tag's runs of CI and of Publish (which uploads every
-public project to TestPyPI, then pushes the template repositories),
+public project to TestPyPI, then, for a final version, pushes the template
+repositories),
 ``main``'s and ``develop``'s runs of CI, and ``develop``'s run of "CI from
 scratch". In the
 live configuration (``--config-root``) the commit is the one the take pushed:
@@ -28,9 +29,10 @@ never started (no run of that workflow on that branch for the commit), or
 still running. A green job is not proof that its steps ran, so two runs are
 read further when green: the tag's Publish run, for which TestPyPI (every
 release goes there, and only there, until 1.0) must list ``cs-image-system
-<version>`` (scripts/index-knows) and every template repository
+<version>`` (scripts/index-knows) for every release and, for a final version
+(a ``.dev`` release pushes none), every template repository
 (scripts/starter-tree --list) must hold the tag ``v<version>`` (``git
-ls-remote --tags``, as ``just publish-starters`` asks), for every release;
+ls-remote --tags``, as ``just publish-starters`` asks);
 and the configuration's ``main``, whose ``perform`` job's log must carry the
 guard's verdict (its ``runtime-unchanged:`` lines, none CHANGED, or the line
 that no runtime is guarded) and whose bake plan (``bake plan: <key>: bake:
