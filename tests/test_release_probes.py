@@ -83,7 +83,7 @@ def test_the_lighter_check_asks_the_venv_the_own_versions_testpypi_and_the_daemo
     assert len(lines) == 4 and lines[0].startswith("release:") and "in step" in lines[0] and lines[1].startswith(OWN)
     assert lines[2].startswith(ELSEWHERE) and lines[2].endswith("--check test") and lines[3] == "release: docker answers"
     refused = _probes(tmp_path, "light", docker_ok=False)
-    assert refused.returncode == 1 and "test-docker-install" in refused.stdout and "nothing was changed" in refused.stdout
+    assert refused.returncode == 1 and "test-quickstart" in refused.stdout and "nothing was changed" in refused.stdout
 
 
 @pytest.mark.parametrize(("own", "code"), [(1, 1), (2, 2)])

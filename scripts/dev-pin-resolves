@@ -22,6 +22,11 @@ A package the version bump leaves alone (`glob_exclude` under
 SDK's members) has a version of its own, which its dependents pin as a range
 (the contract; the SDK from a provider) or exactly at that version. It must still come
 from TestPyPI; the version it resolves at is its own line's, never VERSION.
+So does a family released from its own repository, which a release pins
+at that family's own newest release (specification 013). A package of
+ours may come from PyPI only when TestPyPI holds the same version with
+exactly the same files: a release made before every release went to
+TestPyPI alone, which the install form, PyPI first per name, takes there.
 
 Born from a failed take: once 0.1.1 was on PyPI, uv's default index strategy
 stopped at PyPI for `cs-image-system` and never looked for 0.1.2.dev1 on
@@ -30,12 +35,19 @@ TestPyPI, so every development pin failed to install in CI.
 from __future__ import annotations
 
 import argparse
+import importlib.machinery
+import importlib.util
+import json
 import re
 import shlex
 import subprocess
 import sys
 import tomllib
+import urllib.request
+from collections.abc import Callable
 from pathlib import Path
+
+from packaging.requirements import Requirement
 
 TESTPYPI = "test.pypi.org"
 INDEXES = re.compile(r'indexes="(?P<opts>[^"]*test\.pypi\.org[^"]*)"')
@@ -70,10 +82,41 @@ def own_version_line(root: Path) -> set[str]:
     return names
 
 
-def misplaced(ours: dict[str, tuple[str, str]], version: str, own_line: set[str]) -> list[str]:
+def released_elsewhere(root: Path) -> set[str]:
+    """The families released from their own repositories, by the names the root's extras give them
+    (scripts/with-released-families reads them, the one place that does): a release pins each at its own
+    newest release (specification 013, D1), never at the system's version."""
+    loader = importlib.machinery.SourceFileLoader("with_released_families", str(root / "scripts" / "with-released-families"))
+    spec = importlib.util.spec_from_loader("with_released_families", loader)
+    assert spec is not None
+    module = importlib.util.module_from_spec(spec)
+    loader.exec_module(module)
+    return {Requirement(r).name.lower() for r in module.requirements(root / "pyproject.toml")}
+
+
+def _files(host: str, name: str, version: str) -> dict[str, str]:
+    with urllib.request.urlopen(f"https://{host}/pypi/{name}/{version}/json", timeout=30) as answer:
+        return {f["filename"]: f["digests"]["sha256"] for f in json.load(answer).get("urls", [])}
+
+
+def same_release_on_testpypi(name: str, version: str, files: Callable[[str, str, str], dict[str, str]] = _files) -> bool:
+    """Whether TestPyPI holds ``name`` at ``version`` with exactly the files PyPI holds: a release made
+    before every release went to TestPyPI alone is on both, and the install form, PyPI first per name,
+    takes PyPI's copy of the same files."""
+    try:
+        on_pypi = files("pypi.org", name, version)
+        return bool(on_pypi) and on_pypi == files("test.pypi.org", name, version)
+    except OSError:
+        return False
+
+
+def misplaced(ours: dict[str, tuple[str, str]], version: str, own_line: set[str],
+              same_on_both: set[str] | frozenset[str] = frozenset()) -> list[str]:
     """Our packages that did not resolve where a development pin must put them:
-    from TestPyPI, and at VERSION unless the package keeps a version of its own."""
-    return sorted(n for n, (v, src) in ours.items() if TESTPYPI not in src or (n not in own_line and v != version))
+    from TestPyPI (or from PyPI when TestPyPI holds the same files, ``same_on_both``), and at VERSION
+    unless the package keeps a version of its own."""
+    return sorted(n for n, (v, src) in ours.items()
+                  if (TESTPYPI not in src and n not in same_on_both) or (n not in own_line and v != version))
 
 
 def main(argv: list[str]) -> int:
@@ -106,8 +149,9 @@ def main(argv: list[str]) -> int:
             pins[current] = (pins[current][0], m["index"])
     ours = {n: v for n, v in pins.items() if n.startswith("cs-image-system")}
     theirs = {n: v for n, v in pins.items() if not n.startswith("cs-image-system")}
-    own_line = own_version_line(args.root)
-    wrong = misplaced(ours, version, own_line)
+    own_line = own_version_line(args.root) | released_elsewhere(args.root)
+    same = {n for n, (v, src) in ours.items() if TESTPYPI not in src and same_release_on_testpypi(n, v)}
+    wrong = misplaced(ours, version, own_line, same)
     leaked = [n for n, (_, src) in theirs.items() if TESTPYPI in src]
     print(f"dev-pin-resolves: cs-image-system[all]=={version} with {' '.join(opts)}: {len(ours)} of ours, "
           f"{len(theirs)} third-party")
@@ -122,6 +166,7 @@ def main(argv: list[str]) -> int:
     own = sorted(n for n in ours if n in own_line)
     print(f"dev-pin-resolves: ok -- every cs-image-system package at {version} from TestPyPI"
           + (f" ({', '.join(f'{n} at its own {ours[n][0]}' for n in own)})" if own else "")
+          + (f" [from PyPI, the same files TestPyPI holds: {', '.join(sorted(same))}]" if same else "")
           + ", every other package from PyPI")
     return 0
 

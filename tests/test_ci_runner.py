@@ -109,6 +109,12 @@ def test_every_job_runs_inside_the_one_dated_image_with_the_docker_socket():
     for path in paths:
         for name, job in _jobs(path):
             container = job.get("container") or {}
+            if name == "quickstart" and path.name == "ci.yml" and path.parent.parent.parent == REPO:
+                # the quickstart page runs on a clean machine, a stock image holding its prerequisites alone
+                # (specification 002, research R7): the runner image holds every tool, so it could not show
+                # that the page's list of prerequisites is enough
+                assert container == {"image": "ubuntu:24.04", "options": "-v /var/run/docker.sock:/var/run/docker.sock"}
+                continue
             expr = EXPR.match(str(container.get("image", "")))
             assert expr, f"{path.relative_to(REPO)}: job {name} does not read vars.CSIS_RUNNER_IMAGE"
             assert IMAGE.match(expr["image"]), f"{path.relative_to(REPO)}: job {name} does not default to the dated image"

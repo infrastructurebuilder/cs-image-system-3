@@ -293,15 +293,15 @@ beside this one does not change what it emits.
 One more check covers what a person who installs the provider gets:
 
 ```sh
-just test-docker-install
+just test-quickstart
 ```
 
-It installs `cs-image-system[docker]` from the built wheels into an
-empty environment, renders the
-[standard-docker](examples/standard-docker) starter with the
-installed command, and runs `validate` and a dry `run --all` on it.
-This one needs a container daemon that answers, and it fails without
-one.
+It runs the [quickstart page](QUICKSTART.md)'s own commands against the
+built wheels, in a temporary tool directory: they install
+`cs-image-system[docker]`, write the
+[standard-docker](examples/standard-docker) starter with the installed
+command, and run `validate` and a dry `run --all` on it. This one needs
+a container daemon that answers, and it fails without one.
 
 The recipes and what each needs are listed in the recipe table of
 [OPERATIONS.md](OPERATIONS.md).

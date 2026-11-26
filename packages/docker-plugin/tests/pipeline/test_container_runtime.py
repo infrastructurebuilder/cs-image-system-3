@@ -349,3 +349,24 @@ def test_a_session_command_execs_as_root_with_the_script_on_stdin(family_run, mo
     assert (rc, out) == (3, "posix accounts: in place\n")
     assert seen["cmd"] == ["/usr/local/bin/docker", "exec", "-i", "-u", "root", INSTANCE, "bash", "-s"]
     assert seen["input"] == "echo hi" and seen["env"]["DOCKER_CONTEXT"] == CONTEXT
+
+
+def test_the_current_clis_unreachable_wording_is_one_line_that_carries_its_remedy(family_run, monkeypatch):
+    """docker 29 says `failed to connect to the docker API at unix:///...` when its daemon does not answer;
+    the runtime recognises it as an unreachable daemon, and the one line carries the remedy, so a run's
+    failure says what to do as a load's does (specification 002, FR-013)."""
+    import subprocess
+
+    from cs_image_system.docker_runtime import docker_runtime_builders as builders
+    runtime = family_run().ctx.runtime_builders[RUNTIME]
+    said = ("failed to connect to the docker API at unix:///nonexistent.sock; check if the path is correct and "
+            "if the daemon is running: dial unix /nonexistent.sock: connect: no such file or directory")
+    monkeypatch.setattr(builders.subprocess, "run",
+                        lambda cmd, **kw: subprocess.CompletedProcess(cmd, 1, stdout="", stderr=said))
+    with pytest.raises(DockerUnreachable) as raised:
+        runtime.docker_call("pull", "--quiet", "almalinux:10")
+    line = str(raised.value)
+    assert "\n" not in line and RUNTIME in line and "cannot be reached" in line
+    assert builders.DOCKER_REMEDY in line
+    report = DockerContainerBuilder.classify_failure(raised.value)
+    assert report is not None and report.code == 2 and len(report.lines) == 1      # the remedy is not said twice

@@ -5,9 +5,11 @@
 Each decision is marked with what it rests on: **read** (seen in the
 code, or in a trial run on your local machine on 2026-11-21), **decided**
 (the operator's answer in the spec's Clarifications), or **chosen** (this
-plan's choice, with the alternatives). The spec has no Clarifications
-section yet, so nothing here is **decided**; the questions for the
-operator are R2 (D1), R18 (D2) and R15 (D3), collected in the plan.
+plan's choice, with the alternatives). Written 2026-11-21, when the
+questions for the operator were R2 (D1), R18 (D2) and R15 (D3); all three
+were decided that day. Revised 2026-11-25 after specification 013 put
+every release on TestPyPI until 1.0, published by the tag's push: R3,
+R4, R8, R16, R17 and R18 carry that day's decisions, each marked.
 
 The trial runs were made in the session's scratch directory with the
 workspace's installed command (release 0.1.12 plus `develop`), against
@@ -114,7 +116,9 @@ added (the dry-run warning) and bash leaves the table.
 **Decision** (**chosen**): one page, `docs/QUICKSTART.md`, whose
 commands are, in order:
 
-1. `uv tool install --upgrade 'cs-image-system[docker]'`
+1. `uv tool install --upgrade --index-url https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple/ --index-strategy unsafe-first-match 'cs-image-system[docker]==<version>'`
+   (one command, written over two lines with `\`; `<version>` is the
+   release, written in the page by the bump, R4)
 2. `uv tool install --upgrade 'ansible-core>=2.16'`
 3. `export PATH="$(uv tool dir --bin):$PATH"`
 4. `cs-image-system --version`
@@ -158,9 +162,36 @@ that directory and honours `UV_TOOL_BIN_DIR`. The umbrella requires
 Python 3.13 ([pyproject.toml](../../pyproject.toml) line 13); uv fetches
 a managed Python when none is present, so Python is not a prerequisite.
 
-**Decision** (**chosen**): commands 1 to 4 of R3. `--upgrade` makes an
-older install end on the current release (FR-013, story 3 scenario 4)
-and is harmless on a fresh machine. ansible-core is its own `uv tool`,
+**Finding, 2026-11-25** (**read**): until 1.0 every release is on
+TestPyPI alone (specification 013), and PyPI keeps 0.1.12. Resolved by
+the one install form (TestPyPI as the index, PyPI as the extra,
+`--index-strategy unsafe-first-match`, which asks PyPI first for each
+name), `cs-image-system[docker]` unpinned gives 0.1.12, PyPI's, and
+`cs-image-system[docker]==0.1.13.dev1` gives 0.1.13.dev1 with every one
+of the system's names from TestPyPI (`uv pip compile`, 2026-11-25). An
+unpinned install therefore lands on the old release without a word.
+
+**Decision** (**decided** 2026-11-25, the spec's FR-004): command 1 is
+the one install form with the exact version. The version is written in
+the page and moved by each release's bump: `docs/QUICKSTART.md` joins
+`[tool.bumpversion]`'s file list in [pyproject.toml](../../pyproject.toml)
+with the search `cs-image-system[docker]=={current_version}`, so the
+page on `develop` always names the last release, which the index holds,
+and a release commit names its own, which its tag publishes. The reader
+types nothing (FR-003). At 1.0 the form goes back to the plain install
+with the decision's lifting (specification 013, FR-008), and the pin
+can stay or go then.
+
+`--upgrade` stays: with the exact pin it is harmless, and it makes an
+older install end on the page's release (FR-013, story 3 scenario 4).
+**To be confirmed at implementation**: that a pinned `uv tool install`
+over an older install replaces it; the page's version line after
+command 1 shows either way, and the runner's version check holds it.
+ansible-core stays the plain install: it is not one of the system's
+names, and the form would take it from PyPI anyway.
+
+**Decision of 2026-11-21, kept for ansible-core and the rest**: commands
+1 to 4 of R3, `--upgrade` harmless on a fresh machine. ansible-core is its own `uv tool`,
 so its version floor is the starter's (`>=2.16`). `export PATH=...`
 makes both reachable in the reader's shell without asking them to edit
 a profile; the page says `uv tool update-shell` makes it permanent.
@@ -280,15 +311,33 @@ so a CI job on the tag runs after the upload.
   commands are unchanged; only the environment points uv at the build.
   After command 1 the runner checks that `cs-image-system --version`
   names the built version and fails otherwise.
-- **Where it runs.** A recipe `just test-quickstart` (the runner, with an
-  isolated `UV_TOOL_DIR` and `UV_TOOL_BIN_DIR` in a temporary directory,
-  so your own installed command is never touched), run by: the CI job on
-  every push and pull request (R7); `full-test-legs`; and the release's
-  gate for both indexes, where `test-docker-install` is today
-  ([Justfile](../../Justfile) lines 94, 207-208; release.py lines 628,
-  692, 805). CI's `publish` job needs the quickstart job, as it needs
-  `docker-install` today ([ci.yml](../../.github/workflows/ci.yml) line
-  278). The release's local run is the macOS proof (R7).
+- **Where it runs** (**decided** 2026-11-25, the spec's FR-011: both
+  before the tag and before the upload). A recipe `just test-quickstart`
+  (the runner, with an isolated `UV_TOOL_DIR` and `UV_TOOL_BIN_DIR` in a
+  temporary directory, so your own installed command is never touched),
+  run by:
+  - the CI job on every push and pull request (R7), the tag's included;
+  - the release's lighter check, where `test-docker-install` is today
+    ([scripts/release.py](../../scripts/release.py) line 796, the gate's
+    pair `just test`, `just test-docker-install`), and so `full-test`'s
+    legs ([Justfile](../../Justfile) lines 187-188) under `--full`: on
+    your local machine, before the tag, about a minute (it replaces the
+    install check's 41 seconds); this is the macOS proof (R7);
+  - a new job `quickstart` in the Publish workflow
+    ([publish.yml](../../.github/workflows/publish.yml)), on the same
+    clean machine as CI's job (R7), against the tag's own built files:
+    it downloads the `build` job's artifact and runs the page with
+    `UV_OVERRIDE` naming those files (`scripts/quickstart run --wheels
+    DIR`, which skips the build), one pass. The `testpypi` job needs it,
+    so the upload waits on it: about 3 to 5 minutes added to a Publish
+    run of about 2 (the prerequisites' install at their floors, then the
+    page).
+
+  Since specification 013 the release uploads nothing from your local
+  machine, and CI's `publish` job is gone: the tag's push runs the
+  Publish workflow, whose upload no CI job can be needed by (another
+  workflow's jobs cannot be). So the gate before the tag and the job
+  before the upload are the two places that can hold a release back.
 
 **To be confirmed at implementation**: that `UV_OVERRIDE` pins the
 requested package itself as well as its dependencies. If it does not,
@@ -299,11 +348,16 @@ failing.
 
 **Alternatives considered**:
 
-- *Run the page against TestPyPI between the TestPyPI and PyPI uploads.*
-  Rejected: it covers only the CI publish path, not the local `just
-  release` that uploads first, and TestPyPI's resolution needs
-  `unsafe-first-match` and is slow. The release already relies on its
-  build being file-for-file the uploaded one (`scripts/own-versions-current`).
+- *Run the page against TestPyPI after the upload*, exactly as written.
+  Rejected by the operator (2026-11-25): the release would already be
+  published when the page failed, and the next patch would have to
+  replace it.
+- *The release's gate alone.* Rejected by the operator (2026-11-25): your
+  local machine holds every tool, so it does not prove the stated
+  prerequisites are enough; CI's job on the tag proves that, but runs
+  beside the upload, which does not wait for it.
+- *The Publish job alone.* Rejected: the tag would be made, and pushed,
+  before the page had run once against the release.
 - *`UV_FIND_LINKS` alone.* Rejected: the same version on PyPI and in the
   build makes the choice the resolver's.
 
@@ -434,9 +488,14 @@ quickstart left:
 - **A first real local run**: a new section of the docker starter's
   README, "A first real run", whose first box is the real run of the
   tree the quickstart wrote (from inside `csis-quickstart`: `cs-image-system
-  --overlay overlays/launch.yaml --no-dry-run run --all`, the run the
-  starter's [overlays/launch.yaml](../../docs/examples/standard-docker/overlays/launch.yaml)
-  comment names) and whose last says how to take it down. The README
+  --no-dry-run run --all --apply-runtime docker-main`) and whose last
+  says how to take it down. (**Read** 2026-11-25, quickstart step 8 box
+  3: the run first planned, the one the starter's
+  [overlays/launch.yaml](../../docs/examples/standard-docker/overlays/launch.yaml)
+  comment named, lets the instance root alone apply, so from a fresh
+  tree the instance's plan failed on the storage state it reads;
+  `--apply-runtime` applies both, as the tree's `just cloud-launch`
+  does. The overlay's comment now says so.) The README
   travels with the tree, so the reader also has it at
   `csis-quickstart/README.md`.
 - **The cloud starters**: the default cloud starter's README,
@@ -530,9 +589,10 @@ downloads); a second dry run reuses all of it.
 
 **Decision** (**chosen**): the page states this in one short section,
 names macOS and Linux (x86_64 and arm64) as covered and Windows as not,
-and says in one sentence that uv, docker, packer and tofu each honour
-the usual proxy variables (`HTTPS_PROXY`) and that a package mirror is
-named to uv with `UV_DEFAULT_INDEX`. It also says what the dry run
+and says nothing of proxies or package mirrors (**decided** 2026-11-25:
+out of scope; the TestPyPI-only install is for the development cycles
+before 1.0, and no one but the operator uses the project yet). It also
+says what the dry run
 leaves on the machine besides `csis-quickstart`: the `almalinux:10`
 image in the daemon's store and the packer plugins in packer's plugin
 directory, and the one command that removes the image.
@@ -557,6 +617,14 @@ directory, and the one command that removes the image.
   runner's overrides (R8) take it from the index like any other
   dependency.
 
+- **013 (TestPyPI until 1.0)**, merged 2026-11-24 and released in
+  0.1.13.dev1 (**read** 2026-11-25): every release on TestPyPI alone, by
+  the tag's push and the Publish workflow; the one install form; the
+  lighter check and `--full`. This plan takes all three as they stand
+  (R4, R8). The quickstart's pin is one more pin the bump moves; the
+  page's install goes back to the plain one when 013's decision is
+  lifted at 1.0.
+
 ## R18. The person outside the project (SC-002)
 
 **Finding** (**read**): SC-002 needs one person who has never used the
@@ -570,3 +638,9 @@ merged and the next release is published, so they follow the released
 page with nobody's help. The record is a dated note under the spec's
 tasks with the time taken and every place they hesitated. If none is
 available, the operator names someone outside the project who is.
+
+**Decided** 2026-11-21 as above, then **replaced** 2026-11-25: SC-002
+stays as written, and the specification stays incomplete until it is
+walked. No one but the operator uses the project yet; the walker may in
+the end be the operator on a clean account, but no date is set. The
+record, when it comes, is as above.

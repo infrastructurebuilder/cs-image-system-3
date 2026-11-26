@@ -48,7 +48,7 @@ What it declares (one of everything):
 | the state backend | [`cfg/state-backends.yml`](cfg/state-backends.yml) | `s3` |
 | the base image (OS builder) | [`cfg/os-builders.yml`](cfg/os-builders.yml) | `rhel` (the family `alma-linux`, which the catalog says IS rhel) |
 | the image sources | [`cfg/image-sources.yml`](cfg/image-sources.yml) | the tree's layer of the vendor-image catalog, empty: the release's catalog answers for `alma-linux` (CONFIGURATION 5a) |
-| the image builder | [`cfg/image-builders.yml`](cfg/image-builders.yml) | `packer-ebs` |
+| the image builder | [`cfg/image-builders.yml`](cfg/image-builders.yml) | `packer` |
 | the modification builders | [`cfg/mod-builders.yml`](cfg/mod-builders.yml) | `ansible`, `bash-remote` |
 | the instance builder | [`cfg/instance-builders.yml`](cfg/instance-builders.yml) | `tofu` |
 | the storage builder | [`cfg/storage-builders.yml`](cfg/storage-builders.yml) | `tf-aws-ebs` |
@@ -107,17 +107,28 @@ regenerates that directory from the answers; CI_SETUP.md section 3.0 says
 what it makes and what is still yours.
 
 The system itself is installed from a release, never cloned beside the
-tree: `uv tool install cs-image-system` puts the command on `PATH`, or a
-`pyproject.toml` here that depends on it and `export CSIS="uv run
-cs-image-system"`. [DAILY_DRIVER.md](../../DAILY_DRIVER.md) is the
+tree: the first box of "Before the first run" below installs it with this
+tree's providers (the [quickstart](../../QUICKSTART.md) names the tools it
+needs first), or a `pyproject.toml` here that depends on it and
+`export CSIS="uv run cs-image-system"`. [DAILY_DRIVER.md](../../DAILY_DRIVER.md) is the
 narrative, from the first command on.
 
 ## Before the first run
 
-- The released system: `uv tool install cs-image-system`, then `just init`
-  (the hook, the plugin cache, a check that the command runs).
-- An AWS profile with a live session: the load reads the account's VPCs and
-  security groups (`cfg/runtime-builders.yml` `credentials.profile_name`).
+```sh
+uv tool install --upgrade --python 3.13 --index-url https://test.pypi.org/simple/ \
+  --extra-index-url https://pypi.org/simple/ --index-strategy unsafe-first-match 'cs-image-system[aws]==0.1.13.dev1'
+cs-image-system init-config my-config --from standard-aws-posix
+```
+
+The release with this tree's providers (until 1.0 the system's releases are
+on TestPyPI and only its own packages come from there), then the tree
+written into `my-config`; inside it, `just init` (the hook, the plugin
+cache, a check that the command runs).
+
+- An AWS profile, for a real run and `validate --online` (a load reads the
+  account's facts offline, from `meta-state/runtime-facts.yaml`):
+  `cfg/runtime-builders.yml` `credentials.profile_name`.
 - For CI's login proof, a key pair made for the proof user alone
   (`ssh-keygen -t ed25519 -f csis_proof -N ''`): its public half in
   `groups/users.yaml`, its private half the `CSIS_PROOF_SSH_KEY` secret.

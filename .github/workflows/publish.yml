@@ -20,7 +20,9 @@ name: Publish
 # cannot be combined with `--index`), so a rerun after a partial failure uploads
 # what is missing and nothing twice. Then the template repositories take the
 # release (`just publish-starters`, on its own token). The release itself ran the
-# acceptance tests before it tagged; ci.yml runs on the same commit beside this.
+# acceptance tests and the quickstart page before it tagged; the upload waits on
+# the page run again here against the tag's own files, on a clean machine (the
+# `quickstart` job); ci.yml runs on the same commit beside this.
 # tests/test_publish_commands_parse.py holds every `uv publish` line here to one uv
 # accepts.
 on:
@@ -93,8 +95,55 @@ jobs:
           path: upload/
           if-no-files-found: error
 
-  testpypi:
+  quickstart:
+    # The quickstart page's own commands against THIS tag's built files, on a clean machine (the
+    # same as CI's `quickstart` job: a stock ubuntu:24.04 container, the prerequisites at their
+    # floors, the host's daemon), once; the upload below waits on it, so no release reaches the
+    # index before the page ran against its packages here and in the release's own gate
+    # (specification 002, FR-011).
     needs: build
+    if: github.repository == 'infrastructurebuilder/cs-image-system-3'
+    runs-on: ubuntu-24.04
+    container:
+      image: ubuntu:24.04
+      options: -v /var/run/docker.sock:/var/run/docker.sock
+    permissions:
+      contents: read
+    steps:
+      - name: Place the tools the job itself runs with (certificates, curl, git; none is the page's)
+        # the checkout belongs to the runner's user, not the container's: git trusts it, as the runner image does
+        run: |
+          apt-get update -qq && apt-get install -y -qq --no-install-recommends ca-certificates curl git
+          git config --system --add safe.directory '*'
+
+      - uses: actions/checkout@v5
+
+      - name: Install just
+        uses: extractions/setup-just@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+
+      - name: Install dependencies
+        env:
+          UV_PYTHON: "3.13"          # the job's own environment; the page names its Python itself
+        run: just init
+
+      - uses: actions/download-artifact@v8
+        with:
+          name: dist
+          path: dist/
+
+      - name: The prerequisites at the floors the page states
+        run: just quickstart-prepare /opt/quickstart
+
+      - name: The page, against the tag's built files
+        env:
+          PACKER_GITHUB_API_TOKEN: ${{ github.token }}   # packer init reads its plugins from GitHub's API
+        run: just test-quickstart --wheels dist --page-path /opt/quickstart/bin:/usr/bin:/bin
+
+  testpypi:
+    needs: [build, quickstart]          # the upload waits on the page (specification 002)
     if: github.repository == 'infrastructurebuilder/cs-image-system-3'
     runs-on: ubuntu-24.04
     environment: testpypi

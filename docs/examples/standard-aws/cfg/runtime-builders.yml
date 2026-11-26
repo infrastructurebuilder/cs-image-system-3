@@ -14,7 +14,7 @@ runtime_builders:
     region: us-east-2            # REPLACE: the region
     description: "AWS runtime for account {{ this.account_id }} in {{ this.region }}"
     credentials:
-      # REPLACE: a named AWS profile (an SSO profile needs a live session).
+      # REPLACE: a named AWS profile (an SSO profile needs a live session for a real run and `validate --online`).
       # DECISION: values never live here -- name a profile, or carry
       # `{{ ENV['AWS_ACCESS_KEY_ID'] }}`-style templates for static keys.
       profile_name: REPLACE-ME-profile

@@ -58,7 +58,7 @@ What it declares (one of everything):
 | the state backend | [`cfg/state-backends.yml`](cfg/state-backends.yml) | `local` |
 | the base image (OS builder) | [`cfg/os-builders.yml`](cfg/os-builders.yml) | `rhel` (the family `alma-linux`, which the catalog says IS rhel) |
 | the image sources | [`cfg/image-sources.yml`](cfg/image-sources.yml) | the tree's layer of the vendor-image catalog, empty: the release's catalog answers for `alma-linux` (CONFIGURATION 5a) |
-| the image builder | [`cfg/image-builders.yml`](cfg/image-builders.yml) | `packer-docker` |
+| the image builder | [`cfg/image-builders.yml`](cfg/image-builders.yml) | `packer` |
 | the modification builders | [`cfg/mod-builders.yml`](cfg/mod-builders.yml) | `ansible`, `bash-remote` |
 | the instance builder | [`cfg/instance-builders.yml`](cfg/instance-builders.yml) | `tofu-docker` |
 | the storage builder | [`cfg/storage-builders.yml`](cfg/storage-builders.yml) | `tf-docker-volume` |
@@ -116,15 +116,16 @@ creates nothing, since a daemon is a host somebody runs. CI_SETUP.md
 section 3.0 says what the bootstrap makes and what is still yours.
 
 The system itself is installed from a release, never cloned beside the
-tree: `uv tool install cs-image-system` puts the command on `PATH`, or a
-`pyproject.toml` here that depends on it and `export CSIS="uv run
-cs-image-system"`. [DAILY_DRIVER.md](../../DAILY_DRIVER.md) is the
+tree: the [quickstart](../../QUICKSTART.md)'s first box installs it with this
+tree's provider (the [quickstart](../../QUICKSTART.md) names the tools it
+needs first), or a `pyproject.toml` here that depends on it and
+`export CSIS="uv run cs-image-system"`. [DAILY_DRIVER.md](../../DAILY_DRIVER.md) is the
 narrative, from the first command on.
 
 ## Before the first run
 
-- The released system: `uv tool install cs-image-system`, then `just init`
-  (the hook, the plugin cache, a check that the command runs).
+- The released system: the [quickstart](../../QUICKSTART.md)'s first box,
+  then `just init` (the hook, the plugin cache, a check that the command runs).
 - A docker daemon the `docker` CLI reaches (`docker version` answers),
   plus `packer`, `ansible-playbook` and `tofu` at the floors
   `cfg/executables.yml` names. Nothing else is needed: there is no
@@ -136,6 +137,41 @@ narrative, from the first command on.
   validates this tree with every tool stubbed, and holds its `Justfile`,
   workflows, hook and modules to the release's, so it stays a working
   starter as the code moves.
+
+## A first real run
+
+On the machine the [quickstart](../../QUICKSTART.md) left, from inside the
+tree it wrote. About ten minutes the first time: the run bakes the base
+image and the instance image into your daemon's store, creates the
+volume `data` and starts the container `team-node-1` (a real run of the
+runtime's storage and instance roots, which `--apply-runtime` allows for
+this invocation alone):
+
+```sh
+cd csis-quickstart
+cs-image-system --no-dry-run run --all --apply-runtime docker-main
+```
+
+The last line prints `Run <id> completed: identity, storage, base-image,
+instance-image, release, retention`, and `docker ps` shows `team-node-1`
+up; inside it the hostname is `team-node-1-001`, the first generation of
+that name.
+
+Take it down: the container first, then its volume (the system keeps a
+storage's data until its declaration goes; `--undeclare` drops each for
+one invocation), then the two images, which stay in your daemon's store
+under `csis/standard-docker`:
+
+```sh
+cs-image-system --no-dry-run --undeclare instance:team-node-1 run instance-image --only none --apply-runtime docker-main
+cs-image-system --no-dry-run --undeclare instance:team-node-1 --undeclare storage:data run storage --apply-runtime docker-main
+docker rmi -f $(docker images -q csis/standard-docker:team-node-packer-docker)
+docker rmi -f $(docker images -q csis/standard-docker:el10-docker-main)
+```
+
+The first two end `Run <id> completed: instance-image` and `... completed:
+storage`; the instance image goes before the base image it is built on.
+The tree itself is yours to keep or remove.
 
 The cloud twins are [`../standard-aws-posix/`](../standard-aws-posix/README.md)
 (the same identity on AWS), [`../standard-aws/`](../standard-aws/README.md) and

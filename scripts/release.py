@@ -44,7 +44,7 @@ is fresh on TestPyPI or held there as this tree's build; every family
 released elsewhere has a TestPyPI release inside the range the extras name;
 the SDK's surfaces; docker; under ``--full`` the live configuration and its
 sessions), the gate (the lighter check -- ``just test`` and the install
-check ``just test-docker-install`` -- by default; ``just full-test`` with the
+check ``just test-quickstart``, the quickstart page's own commands against this tree's wheels -- by default; ``just full-test`` with the
 modification-test evidence and a clean live checkout under ``--full``) and
 TestPyPI AGAIN after the gate. A refusal or a failure up to here returns the
 checkout to the branch it started on, with the release branch where it was,
@@ -731,7 +731,7 @@ class Family:
         # both gates need the daemon: the lighter check's install check, full-test's legs; asked here, before
         # anything changes, and not found missing after the bar
         if self.run(["docker", "info"], cwd=self.root).rc != 0:
-            needs = "full-test's legs need it" if full else "the install check (test-docker-install) needs it"
+            needs = "full-test's legs need it" if full else "the quickstart page's run (test-quickstart) needs it"
             raise Refused(f"{who}: docker is not answering (docker info) -- {needs}; start the daemon "
                           "-- nothing was changed")
         self.say(f"{who}: docker answers")
@@ -768,16 +768,19 @@ class Family:
     # --- the pieces of a release
 
     def bumped_files(self) -> list[str]:
-        """The files a bump changes, for the release commit."""
+        """The files a bump changes, for the release commit: the manifests, the lock, the quickstart page and
+        the starters' READMEs, whose installs name the release exactly (specification 002)."""
         members = sorted(str(p.relative_to(self.root)) for p in self.root.glob("packages/*/pyproject.toml"))
-        return ["pyproject.toml", *members, "uv.lock"]
+        page = ["docs/QUICKSTART.md"] if (self.root / "docs" / "QUICKSTART.md").is_file() else []
+        starters = sorted(str(p.relative_to(self.root)) for p in self.root.glob("docs/examples/*/README.md"))
+        return ["pyproject.toml", *members, *page, *starters, "uv.lock"]
 
     def gate(self, full: bool) -> None:
-        """The lighter check by default: the acceptance tests (`just test`) and the install check
-        (`just test-docker-install`: what a person installs must validate and dry-run a docker-only
-        configuration first). Under ``full`` the full proof a PyPI release ran: full-test (which holds the
-        install check among its legs), the modification-test evidence in the live configuration and a clean
-        live checkout. Nothing is tagged past a failed check."""
+        """The lighter check by default: the acceptance tests (`just test`) and the quickstart page's own
+        commands against this tree's wheels (`just test-quickstart`: what a newcomer runs must reach a dry run
+        first; specification 002). Under ``full`` the full proof a PyPI release ran: full-test (which holds the
+        page's run among its legs), the modification-test evidence in the live configuration and a clean live
+        checkout. Nothing is tagged past a failed check."""
         if full:
             done = self.run(["just", "full-test"], cwd=self.root, capture=False)
             if done.rc != 0:
@@ -793,7 +796,7 @@ class Family:
                 raise Refused("release: the live configuration must be clean apart from its mod-test evidence:\n"
                               + "\n".join(others))
             return
-        for check in (["just", "test"], ["just", "test-docker-install"]):
+        for check in (["just", "test"], ["just", "test-quickstart"]):
             done = self.run(check, cwd=self.root, capture=False)
             if done.rc != 0:
                 raise Refused("", done.rc)
@@ -933,7 +936,7 @@ class Family:
         if not full:
             self.advise("release", applying=applying)
         if dry:
-            gate = "just full-test" if full else "just test, just test-docker-install"
+            gate = "just full-test" if full else "just test, just test-quickstart"
             record = f" (its message: '{FULLY_PROVEN}')" if full else ""
             return self.dry(start, cut, full,
                             f"release: dry -- on {cut}, {current} would become {new}: {NAME} ready and free of it, "

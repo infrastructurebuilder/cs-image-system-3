@@ -26,7 +26,7 @@ A **configuration repository**: the declarations one team's environment
 is built from (`cfg/`, `groups/`, `storages/`, `images/`, `instances/`),
 the emission the system generates from them (`generated/`), and the
 system's records of what exists (`meta-state/`). The system itself is not
-in it: it is installed from a release (`uv tool install cs-image-system`),
+in it: it is installed from a release (the install line in section 2),
 and `.csis-version` names the release this repository was written by and
 that CI installs. The parts the release owns (the `Justfile`, the
 workflows, the public-safe hook, `.gitignore`, `tfmodules/`, this file)

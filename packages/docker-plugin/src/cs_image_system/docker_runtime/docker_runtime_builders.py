@@ -69,6 +69,10 @@ CREDENTIAL_ENVIRONMENT_PREFIXES: tuple[str, ...] = ("DOCKER_",)
 DOCKER_RENEW = "start the daemon (OrbStack, Docker Desktop, the engine on the host), or fix the runtime's `host` / `context`"
 DOCKER_REMEDY = ("the runtime's daemon must answer `docker version` from this machine: start it (OrbStack, Docker "
                  "Desktop, the engine on the host), or fix the runtime's `host` / `context`; `preflight` says which")
+#: how the docker CLI says it cannot reach its daemon, lower-cased: the older wording and the current one
+#: (docker 29: "failed to connect to the docker API at unix:///...")
+UNREACHABLE = ("cannot connect to the docker daemon", "error during connect", "connection refused",
+               "failed to connect to the docker api")
 
 
 def probe_daemon(binary: str, env: dict[str, str], timeout: int = 20) -> tuple[bool, str]:
@@ -160,7 +164,10 @@ class DockerContainerBuilder(ContainerBuilderBase[DockerContainerBuilderModel], 
     @classmethod
     def classify_failure(cls, exc: BaseException) -> LoadFailureReport | None:
         if isinstance(exc, DockerUnreachable):
-            return LoadFailureReport("environment", [f"the configuration cannot load: {exc}", f"({DOCKER_REMEDY})"], code=2)
+            lines = [f"the configuration cannot load: {exc}"]
+            if DOCKER_REMEDY not in str(exc):                 # the daemon's own line already carries it
+                lines.append(f"({DOCKER_REMEDY})")
+            return LoadFailureReport("environment", lines, code=2)
         return None
 
     def provider_specific_image_class(self) -> type[ProviderSpecificImage]:
@@ -204,10 +211,10 @@ class DockerContainerBuilder(ContainerBuilderBase[DockerContainerBuilderModel], 
         except FileNotFoundError as e:
             raise DockerUnreachable(f"docker runtime {self.get_name()}: {cmd[0]} is not an executable ({e})") from e
         err = (res.stderr or "").strip()
-        if res.returncode != 0 and ("Cannot connect to the Docker daemon" in err or "error during connect" in err
-                                    or "connection refused" in err.lower()):
+        if res.returncode != 0 and any(words in err.lower() for words in UNREACHABLE):
+            # the remedy travels with the line, so a run's failure carries it as a load's does
             raise DockerUnreachable(f"docker runtime {self.get_name()}: the daemon at {self.model.where()} cannot be "
-                                    f"reached ({err.splitlines()[0][:200]})")
+                                    f"reached ({err.splitlines()[0][:200]}) ({DOCKER_REMEDY})")
         if check and res.returncode != 0:
             raise RuntimeError(f"docker runtime {self.get_name()}: `docker {' '.join(args[:3])}` failed: {err[-400:]}")
         return res

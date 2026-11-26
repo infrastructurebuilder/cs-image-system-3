@@ -87,6 +87,7 @@ def test_a_missing_binary_an_unparsable_version_and_no_requirement(plugins, tmp_
     from cs_image_system.engine.commands.validate import check_single_version
     (error,) = check_single_version(ExecutableModel(name="docker", type_="executable", binary="/nowhere/docker", version=">=24"), plugins)
     assert "/nowhere/docker" in str(error) and "executables.yml" in str(error)
+    assert str(error).endswith("section 1.2)")                       # its remedy: where each tool comes from
     (error,) = check_single_version(ExecutableModel(name="jq", type_="executable", binary=_fake(tmp_path, "jq", "no numbers here"), version=">=1.7"), plugins)
     assert "jq" in str(error) and "version" in str(error)
     checked: list[str] = []

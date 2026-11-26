@@ -171,6 +171,13 @@ job runs with no image at all; it runs on `develop` weekly beside the
 image path, so the list above stays true on a machine that holds
 nothing.
 
+**The quickstart job**, in this repository's CI and its Publish
+workflow, is the one job that does not run in the image, by design: it
+runs the [quickstart page](QUICKSTART.md)'s own commands on a stock
+`ubuntu:24.04` container holding the page's prerequisites alone, at the
+floors the page states (`just quickstart-prepare`), because the image
+holds every tool and so could not show that the page's list is enough.
+
 **Another CI system** builds its runner from this page: the table is the
 list to install, section 2 is what the machine must be able to do, and
 section 1 is the contract the jobs call. The Dockerfile is the shortest

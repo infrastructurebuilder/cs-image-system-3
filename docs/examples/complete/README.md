@@ -110,14 +110,25 @@ regenerates that directory from the answers; CI_SETUP.md section 3.0 says
 what it makes and what is still yours.
 
 The system itself is installed from a release, never cloned beside the
-tree: `uv tool install cs-image-system` puts the command on `PATH`, or a
-`pyproject.toml` here that depends on it and `export CSIS="uv run
-cs-image-system"`. [DAILY_DRIVER.md](../../DAILY_DRIVER.md) is the
+tree: the first box of "Before the first run" below installs it with this
+tree's providers (the [quickstart](../../QUICKSTART.md) names the tools it
+needs first), or a `pyproject.toml` here that depends on it and
+`export CSIS="uv run cs-image-system"`. [DAILY_DRIVER.md](../../DAILY_DRIVER.md) is the
 narrative, from the first command on.
 
 ## Before the first run
 
-- The released system: `uv tool install cs-image-system`, then `just init`.
+```sh
+uv tool install --upgrade --python 3.13 --index-url https://test.pypi.org/simple/ \
+  --extra-index-url https://pypi.org/simple/ --index-strategy unsafe-first-match 'cs-image-system[aws,gcloud,docker,okta]==0.1.13.dev1'
+cs-image-system init-config my-config --from complete
+```
+
+The release with this tree's providers (until 1.0 the system's releases are
+on TestPyPI and only its own packages come from there), then the tree
+written into `my-config`; inside it, `just init` (the hook, the plugin
+cache, a check that the command runs).
+
 - Sessions for every runtime it declares (two AWS profiles and a GCP
   project), the OPA API pair as `TF_VAR_<team>_key` / `TF_VAR_<team>_secret`,
   and `CSIS_CONFIG_IDENTITY` for its `ENC[age:...]` values. It is a

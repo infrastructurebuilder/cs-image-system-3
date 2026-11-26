@@ -22,6 +22,11 @@ standard this page is held to: no one should be surprised by the system's
 behaviour after reading it. Where it could say a little less, it says a
 little more; skip what you already know.*
 
+*New to the system? [The quickstart](QUICKSTART.md) takes you from
+nothing to a dry run on your own machine in seven commands and about
+fifteen minutes, with no cloud account; come back here for everything
+after.*
+
 ## 0. What you are driving
 
 Two things, and it matters which is which.
@@ -293,7 +298,8 @@ make ([CI_SETUP.md](examples/_skeleton/CI_SETUP.md), 3.0).
 A docker runtime needs none of the clouds' setup: no account, no profile, no
 session, no network to describe, and its terraform state is a `local`
 directory. What it needs is a daemon, and that is the one thing the system
-never makes.
+never makes. [The quickstart](QUICKSTART.md) is the shortest way to try
+it: a dry run of the docker starter against your own daemon.
 
 | What | Why the system needs it | Where it is named |
 | --- | --- | --- |
@@ -473,8 +479,17 @@ the guide, so a team sees exactly what its admins still have to do.
 
 ### 1.9 The configuration repository, from scratch
 
+```sh
+cs-image-system init-config my-config                          # standard-aws, the default
+cs-image-system init-config my-config --from standard-gce
+cs-image-system init-config my-config --from complete
+cs-image-system init-config my-config --from standard-aws-posix   # AWS, people as POSIX accounts, no Okta
+cs-image-system init-config my-config --from standard-docker      # a docker host, people as POSIX accounts, no cloud
+```
+
 Start from a starter tree; do not write from nothing. There are five
-starters, and three ways to get one, each giving the same tree:
+starters, and three ways to get one, each giving the same tree (the box
+above is the second way):
 
 1. **On GitHub, "Use this template"** on the starter's template
    repository. Each is generated from its starter with every final
@@ -489,19 +504,11 @@ starters, and three ways to get one, each giving the same tree:
    [cs-image-system-starter-standard-docker](https://github.com/infrastructurebuilder/cs-image-system-starter-standard-docker).
    Your copy is a repository of its own from the first minute; clone it
    and go on below.
-2. **From the release, `init-config`** (the commands below), which needs
+2. **From the release, `init-config`** (the commands above), which needs
    no GitHub and is always the release you installed.
 3. **A copy of `docs/examples/<name>`** from the system repository works
    too, but it carries no `.csis-version` and its links point into that
    repository: prefer the other two.
-
-```sh
-cs-image-system init-config my-config                          # standard-aws, the default
-cs-image-system init-config my-config --from standard-gce
-cs-image-system init-config my-config --from complete
-cs-image-system init-config my-config --from standard-aws-posix   # AWS, people as POSIX accounts, no Okta
-cs-image-system init-config my-config --from standard-docker      # a docker host, people as POSIX accounts, no cloud
-```
 
 `init-config` writes into the tree's `tfmodules/` the modules of the
 plugins that are installed, so make `standard-gce` or `complete`, which
@@ -1222,7 +1229,7 @@ its code is next changed.
 | --- | --- | --- |
 | `run --commit: REFUSED unpinned -- this tree pins cs-image-system <version> (.csis-version) and the system running is not that release installed from an index` (or the same under `lineage restamp --commit:`), exit 2, before anything is generated or, for a restamp, computed | a committing run (`just record`, `just run`, a `cloud-*` recipe that runs) or a committing `lineage restamp` was started by a command that is not the tree's pinned release: another version, or a development checkout (`CSIS` pointing at a system checkout's venv), whatever version the checkout says it is. The tree's CI installs the pin and would judge such a record BEHIND | record with the pinned release: `CSIS="$HOME/.local/bin/cs-image-system" just record`, after `just take <version>` if the tree should move; or go on deliberately with `CSIS_ALLOW_UNPINNED=1 just record` (section 1.1) |
 | `init: 'cs-image-system' is not runnable` | the release is not installed, or `CSIS` names a command that does not run | `uv tool install "cs-image-system[$(just extras)]"`, or `export CSIS="uv run cs-image-system"` beside a pyproject that depends on it |
-| `runtime type 'gcloud' is registered by no installed plugin: install the extra: uv tool install 'cs-image-system[gcloud]'` under `Validation failed with 1 error(s).` | the tree declares a `type:` word whose plugin comes with an extra the install left out (a bare `cs-image-system` carries no runtime; `gcloud` is the Google Cloud family's, released from its own repository and installed by that extra all the same, section 1.1) | the line's own command, or `uv tool install "cs-image-system[$(just extras)]"`; `just take` installs with the extras by itself |
+| `runtime type 'gcloud' is registered by no installed plugin: install the extra: uv tool install --python 3.13 --index-url https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple/ --index-strategy unsafe-first-match 'cs-image-system[gcloud]==<the installed release>'` under `Validation failed with 1 error(s).` | the tree declares a `type:` word whose plugin comes with an extra the install left out (a bare `cs-image-system` carries no runtime; `gcloud` is the Google Cloud family's, released from its own repository and installed by that extra all the same, section 1.1) | the line's own command, or `uv tool install "cs-image-system[$(just extras)]"`; `just take` installs with the extras by itself |
 | `preflight: a session is absent or has EXPIRED`; `Token has expired and refresh failed`; `the configuration cannot load: AWS refused the credentials (RequestExpired)` (from a real run's or `validate --online`'s networking check; a plain `validate`, a dry run and `preflight` load without a session) | the AWS portal session behind the profile ended (8h from a browser sign-in; less if the CLI token was minted mid-session); an `sso-session` profile's token lasts an hour and is judged only once it has lapsed, so a lapse mid-run is environmental, not a defect. `RequestExpired` is what temporary keys pasted into the shell or a credentials file say when they lapse, and `preflight` cannot see that coming: it reads no expiry for keys ([static keys](INCIDENTS.md#static-keys-lapsed-under-a-green-session-preflight), [the sso-session hour](INCIDENTS.md#an-sso-session-profile-was-read-as-absent-for-an-hour)) | `aws sso login --profile <profile>` for an SSO profile; FRESH keys for pasted ones (`aws sso login` does nothing for them); then re-run |
 | `preflight: N session(s) present; 1 NOT JUDGED (no expiry readable: ...)` in yellow, exit 0, in place of `every session present` | a session preflight can see but not time: static keys in a profile or in the environment. Present is all it can say without a cloud call, which it makes none of by design, and it says so rather than printing a green line over keys that may already have lapsed ([INCIDENTS.md](INCIDENTS.md#static-keys-lapsed-under-a-green-session-preflight)) | nothing, if you know the keys are fresh; if the next command says `RequestExpired`, fresh keys |
 | `runtime <gce> could not answer` under `unavailable:` | no Application Default Credentials, or they expired, or Google was unreachable | `gcloud auth application-default login --impersonate-service-account=...`; an `unavailable` line is not drift, but the strict query refuses on it |
@@ -1524,7 +1531,7 @@ TestPyPI by trusted publishing, with no token anywhere.
 [OPERATIONS.md, "Releasing until 1.0"](OPERATIONS.md#releasing-until-10)
 is the one place that says why, and what the lighter check, `--full`
 and the advisory are; in short, a release is gated by default on the
-lighter check (the acceptance tests and the install check), `--full`
+lighter check (the acceptance tests and the [quickstart](QUICKSTART.md)'s own commands), `--full`
 runs the full proof instead, and before anything changes one line says
 when a full proof is probably needed and why (it never refuses). From
 `develop` the recipe checks out `main`, fast-forwards it to `develop`,

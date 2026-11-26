@@ -533,7 +533,7 @@ def test_the_dry_form_prints_what_it_would_do_and_touches_nothing(tmp_path: Path
     plan = _dry_plan(said)
     assert said.index(OWN_LINE) < said.index(plan)
     assert plan.startswith("release: dry") and "on main, 0.1.0 would become 0.1.1.dev1:" in plan
-    for needle in ("the probes above passed", "just test", "just test-docker-install", "the index again",
+    for needle in ("the probes above passed", "just test", "just test-quickstart", "the index again",
                    "bump-my-version bump patch", "uv lock", "commit 'release 0.1.1.dev1'", "docs/CHANGES.md",
                    "tag v0.1.1.dev1", "TestPyPI"):
         assert needle in plan, needle
@@ -573,12 +573,12 @@ def test_the_real_form_runs_the_lighter_check_bumps_commits_tags_and_uploads_not
     assert fam.release("patch") == 0
     t = shell.texts()
     order = [shell.first(n) for n in ("publish-target-ready", "uv sync --all-extras --no-extra gcloud --no-extra okta --no-extra all --check", OWN, ELSEWHERE,
-                                      "just surface-check", "docker info", "just test", "just test-docker-install",
+                                      "just surface-check", "docker info", "just test", "just test-quickstart",
                                       "bump-my-version bump patch", "uv lock", "git tag -a", "git push")]
     assert order == sorted(order), t                                       # the install check before anything moves
     asks = [i for i, x in enumerate(t) if "publish-target-ready" in x]
     assert len(asks) == 2 and all("--refuse-held" in t[i] for i in asks)  # before anything, and again after the gate
-    assert t.count("just test") == 1 and t.count("just test-docker-install") == 1
+    assert t.count("just test") == 1 and t.count("just test-quickstart") == 1
     assert shell.first("just test") < asks[1] < shell.first("bump-my-version bump")         # the index again after the bar
     for never in ("just full-test", "just preflight", "session-minutes-left", *NEVER_UPLOADS):
         assert shell.count(never) == 0, never
@@ -607,7 +607,7 @@ def test_a_full_release_runs_full_test_the_session_probes_and_the_evidence_and_r
         _family(root, shell, sibling).release("stage", "--full")
     assert shell.count("just full-test") == 1 and shell.count("just preflight") == 1
     assert shell.count("session-minutes-left") == 1 and shell.texts().count("just test") == 0
-    assert shell.count("just test-docker-install") == 0 and shell.count("bump-my-version bump") == 0
+    assert shell.count("just test-quickstart") == 0 and shell.count("bump-my-version bump") == 0
     (sibling / "meta-state" / "mod-tests.yaml").write_text("results: {}\n")
     (sibling / "cfg" / "other.yml").write_text("x\n")
     with pytest.raises(R.Refused, match="clean apart from its mod-test evidence"):
@@ -1244,7 +1244,7 @@ def test_a_release_to_the_test_index_without_docker_is_refused_first(tmp_path: P
     said: list[str] = []
     with pytest.raises(R.Refused) as e:
         _family(root, shell, said=said).probes()
-    assert "docker" in e.value.message and "test-docker-install" in e.value.message
+    assert "docker" in e.value.message and "test-quickstart" in e.value.message
     assert "nothing was changed" in e.value.message and shell.count("just test") == 0
 
 

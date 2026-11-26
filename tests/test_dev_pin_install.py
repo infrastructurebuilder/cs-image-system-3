@@ -86,3 +86,27 @@ def test_the_live_check_reads_the_line_from_the_starters_and_is_a_full_test_leg(
     assert "full-test-legs" in subprocess.run(["just", "--summary"], cwd=REPO, capture_output=True, text=True, check=True).stdout.split()
     legs = subprocess.run(["just", "-n", "full-test-legs"], cwd=REPO, capture_output=True, text=True, check=True).stderr   # the printed plan
     assert "scripts/dev-pin-resolves" in legs and "FAILED dev-pin-resolves" in legs
+
+
+def test_the_families_released_elsewhere_keep_their_own_versions_and_still_come_from_testpypi():
+    """A release pins each family released from its own repository at that family's newest release
+    (specification 013, D1), so a development pin resolves it there, never at the system's version."""
+    m = _the_check()
+    families = m.released_elsewhere(REPO)
+    assert {"cs-image-system-gcloud-runtime-plugin", "cs-image-system-okta-opa-plugin"} <= families
+    test, pypi = "https://test.pypi.org/simple", "https://pypi.org/simple"
+    ours = {"cs-image-system": ("0.1.13.dev1", test), "cs-image-system-okta-opa-plugin": ("0.2.1", test)}
+    assert m.misplaced(ours, "0.1.13.dev1", families) == []
+    from_pypi = {**ours, "cs-image-system-okta-opa-plugin": ("0.2.1", pypi)}
+    assert m.misplaced(from_pypi, "0.1.13.dev1", families) == ["cs-image-system-okta-opa-plugin"]   # PyPI alone: refused
+    same = {"cs-image-system-okta-opa-plugin"}                    # PyPI's copy of files TestPyPI holds too: the release
+    assert m.misplaced(from_pypi, "0.1.13.dev1", families, same) == []
+
+
+def test_a_release_on_both_indexes_counts_only_when_the_files_are_the_same():
+    m = _the_check()
+    held = {"pypi.org": {"a.whl": "1", "a.tar.gz": "2"}, "test.pypi.org": {"a.whl": "1", "a.tar.gz": "2"}}
+    assert m.same_release_on_testpypi("x", "0.2.1", files=lambda host, n, v: held[host])
+    held["test.pypi.org"] = {"a.whl": "9", "a.tar.gz": "2"}
+    assert not m.same_release_on_testpypi("x", "0.2.1", files=lambda host, n, v: held[host])
+    assert not m.same_release_on_testpypi("x", "0.2.1", files=lambda host, n, v: {})

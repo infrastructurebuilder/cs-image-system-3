@@ -109,7 +109,9 @@ def test_the_install_line_names_the_extras_in_order():
 
 def test_the_message_names_the_extra_or_the_words_that_are_registered():
     line = extras.unknown_type_message("runtime_builder_model", "gcloud", ["aws", "docker"])
-    assert line.startswith("runtime type 'gcloud'") and line.endswith("uv tool install 'cs-image-system[gcloud]'")
+    assert line.startswith("runtime type 'gcloud'")
+    assert line.endswith(f"uv tool install {extras.INSTALL_OPTIONS} 'cs-image-system[gcloud]=={extras.installed_version()}'")
+    assert extras.installed_version()                        # the release the reader has, never an unpinned install
     line = extras.unknown_type_message("state_backend_model", "nonsense", ["local", "s3"])
     assert line.startswith("state backend type 'nonsense'") and "no extra" in line and line.endswith("register local, s3")
     assert extras.unknown_type_message("group_builder_model", "x", []).endswith("register nothing")

@@ -3,7 +3,7 @@
 # `cs-image-system` command against THIS tree; nothing here is the system's code.
 #
 # The command comes from a release. Either of:
-#   uv tool install cs-image-system            the CLI on PATH (the default below)
+#   the release .csis-version names, as a uv tool (`just take <version>`; CI_SETUP.md section 2)   the CLI on PATH (the default below)
 #   a pyproject.toml here depending on it       then: export CSIS="uv run cs-image-system"
 # The version pin lives in .csis-version: CI installs it (see .github/workflows/ci.yml), and a committing run
 # or restamp is refused when the command is not that release from an index (CSIS_ALLOW_UNPINNED=1 goes on).
@@ -32,7 +32,7 @@ export TF_PLUGIN_CACHE_DIR := justfile_directory() / ".tofu-plugin-cache"
 init:
 	#!/usr/bin/env bash
 	set -euo pipefail
-	{{csis}} --help >/dev/null 2>&1 || { echo "init: '{{csis}}' is not runnable -- install a release (uv tool install cs-image-system) or export CSIS=\"uv run cs-image-system\" beside a pyproject that depends on it"; exit 2; }
+	{{csis}} --help >/dev/null 2>&1 || { echo "init: '{{csis}}' is not runnable -- install the release .csis-version names (CI_SETUP.md section 2 has the line) or export CSIS=\"uv run cs-image-system\" beside a pyproject that depends on it"; exit 2; }
 	git config core.hooksPath .githooks && echo "init: core.hooksPath = .githooks (the public-safe gate)"
 	mkdir -p "$TF_PLUGIN_CACHE_DIR"
 	echo "init: $({{csis}} --version 2>/dev/null || echo cs-image-system) ready against {{root}}"
@@ -47,7 +47,7 @@ build:
 # meta-state/runtime-facts.yaml, which `cs-image-system validate --online` (with the sessions `just preflight`
 # reports) and every real run write; the public-safe scan needs nothing.
 
-# The fast checks: validate (needs the sessions) and public-safe
+# The fast checks: validate (offline, from the recorded facts) and public-safe
 test:
 	@{{cli}} validate
 	@{{cli}} public-safe --tree "{{root}}"
@@ -275,7 +275,7 @@ take version *words:
 	fi
 
 # The extras of the umbrella this tree needs, comma-separated in the order aws,gcloud,docker,okta
-# (empty when it needs none): `uv tool install cs-image-system` carries no runtime, and each provider
+# (empty when it needs none): a bare `cs-image-system` carries no runtime, and each provider
 # is an extra -- `cs-image-system[aws,okta]`. Read from the `type:` words under cfg/ (every file but
 # executables.yml, which names tools, not plugins): a runtime's word, its terraform roots' instance
 # and storage words, its state backend's word and the Okta identity words map to their extra. The

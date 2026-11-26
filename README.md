@@ -15,8 +15,9 @@ Privileged Access.
 
 ## Where to start
 
-- [docs/DAILY_DRIVER.md](docs/DAILY_DRIVER.md) — how a person actually uses the system: what must exist first, the first run, making and changing things, what proves what, and what a failure means.
 - [docs/DESCRIPTION.md](docs/DESCRIPTION.md) — what the system is and how it works, in one read.
+- [docs/QUICKSTART.md](docs/QUICKSTART.md) — a first dry run on your own machine, in seven commands and about fifteen minutes: no cloud account, no login, nothing to fill in.
+- [docs/DAILY_DRIVER.md](docs/DAILY_DRIVER.md) — how a person actually uses the system: what must exist first, the first run, making and changing things, what proves what, and what a failure means.
 - [GOALS.md](GOALS.md) — what it is for and the properties it keeps.
 - [docs/OPERATIONS.md](docs/OPERATIONS.md) — the operating manual: runs, the developer workflow, CI, the operator's cycles, the rules.
 - [docs/CONFIGURATION.md](docs/CONFIGURATION.md) — the configuration reference: every file, every type, every field, one example each.
@@ -39,8 +40,8 @@ names are reserved, in lifecycle order:
 | `init`      | Toolchain and every workspace package (`uv sync`), the pre-commit hook; idempotent     |
 | `build`     | Every workspace member as sdist + wheel under `dist/`; no tests                        |
 | `test`      | The fast suite, all blocking: ruff, pyright, the unit tests (the golden included)      |
-| `full-test` | `test` plus the docker-backed modification tests and, when the runtime sessions are present, a headless dry `run --all` with `state query --strict`; an absent prerequisite reports SKIPPED |
-| `release`   | `just release <part\|version> [--full]`: probe TestPyPI and the container daemon, say when a full proof is probably needed, then the lighter check (`test` and the install check) or, with `--full`, `full-test`, bump every version line and pin, lock, commit, tag `v<version>` and push; the tag's push publishes to TestPyPI, the one index until 1.0 ([docs/OPERATIONS.md](docs/OPERATIONS.md#releasing-until-10)) |
+| `full-test` | `test` plus the quickstart page's run, the docker-backed modification tests and, when the runtime sessions are present, a headless dry `run --all` with `state query --strict`; an absent prerequisite reports SKIPPED |
+| `release`   | `just release <part\|version> [--full]`: probe TestPyPI and the container daemon, say when a full proof is probably needed, then the lighter check (`test` and the [quickstart page](docs/QUICKSTART.md)'s own commands, `test-quickstart`) or, with `--full`, `full-test`, bump every version line and pin, lock, commit, tag `v<version>` and push; the tag's push publishes to TestPyPI, the one index until 1.0 ([docs/OPERATIONS.md](docs/OPERATIONS.md#releasing-until-10)) |
 
 `just` alone lists every recipe, the contract first. Nothing is
 uploaded from your local machine: a pushed `v*` tag runs the publish

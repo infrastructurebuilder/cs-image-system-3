@@ -6,7 +6,10 @@
 This is the walk that proves the feature, not the page it builds (that
 page is `docs/QUICKSTART.md`). Each step is a command that passes or
 fails. Every box runs at this repository's root on your local machine,
-on `feature/first-dry-run`, with the workspace synced (`just init`).
+on `feature/002-first-dry-run`, with the workspace synced (`just init`).
+Until 1.0 an install from the index uses the one install form at the
+release's exact version (specification 013); the boxes that install
+name it as `$v`, the release `develop` carries, which TestPyPI holds.
 Nothing is applied anywhere except in step 8, and only if you decide so.
 Boxes that need a scratch directory make their own with `mktemp`.
 
@@ -72,7 +75,7 @@ A few minutes after the branch is pushed (pushing is yours).
 
 ```sh
 # step 4 -- box 1 of 1 -- v1
-id=$(GH_PAGER=cat gh run list --branch feature/first-dry-run --workflow ci.yml --limit 1 --json databaseId --jq '.[0].databaseId')
+id=$(GH_PAGER=cat gh run list --branch feature/002-first-dry-run --workflow ci.yml --limit 1 --json databaseId --jq '.[0].databaseId')
 GH_PAGER=cat gh run view "$id" --log | grep -E "quickstart: (the page took|passed|FAILED)"
 ```
 
@@ -103,6 +106,7 @@ installed one.
 ```sh
 # step 6 -- box 1 of 6 -- v1
 qs=$(mktemp -d); CS="$PWD/.venv/bin/cs-image-system"
+v=$(sed -n 's/^version = "\(.*\)"$/\1/p' pyproject.toml | head -1); F="--index-url https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple/ --index-strategy unsafe-first-match"
 "$CS" init-config "$qs/t" --from standard-docker >/dev/null
 mkdir "$qs/bin" && for t in docker tofu bash ansible-playbook; do ln -s "$(command -v $t)" "$qs/bin/$t"; done
 PATH="$qs/bin:/usr/bin:/bin" "$CS" --root-dir "$qs/t" validate 2>&1 | grep "packer:"
@@ -132,9 +136,9 @@ reached`, followed on the same line by the remedy, which begins "the
 runtime's daemon must answer".
 
 ```sh
-# step 6 -- box 4 of 6 -- v1
+# step 6 -- box 4 of 6 -- v2
 # about a minute: a bare install from the index into a scratch tool directory
-UV_TOOL_DIR="$qs/tools" UV_TOOL_BIN_DIR="$qs/tbin" uv tool install --quiet cs-image-system
+UV_TOOL_DIR="$qs/tools" UV_TOOL_BIN_DIR="$qs/tbin" uv tool install --quiet ${=F} "cs-image-system==$v"
 "$qs/tbin/cs-image-system" --root-dir "$qs/t" validate 2>&1 | grep "install the extra"
 ```
 
@@ -142,13 +146,13 @@ Expect a line ending `install the extra: uv tool install
 'cs-image-system[docker]'`.
 
 ```sh
-# step 6 -- box 5 of 6 -- v1
+# step 6 -- box 5 of 6 -- v2
 UV_TOOL_DIR="$qs/tools2" UV_TOOL_BIN_DIR="$qs/tbin2" uv tool install --quiet 'cs-image-system[docker]==0.1.11'
-UV_TOOL_DIR="$qs/tools2" UV_TOOL_BIN_DIR="$qs/tbin2" uv tool install --quiet --upgrade 'cs-image-system[docker]'
+UV_TOOL_DIR="$qs/tools2" UV_TOOL_BIN_DIR="$qs/tbin2" uv tool install --quiet --upgrade ${=F} "cs-image-system[docker]==$v"
 "$qs/tbin2/cs-image-system" --version
 ```
 
-Expect the newest release on PyPI, not `0.1.11`.
+Expect `cs-image-system $v` (the page's release), not `0.1.11`.
 
 ```sh
 # step 6 -- box 6 of 6 -- v1
@@ -173,11 +177,13 @@ Expect two lines, the first naming `docs/DESCRIPTION.md`, the second
 `docs/QUICKSTART.md`.
 
 ```sh
-# step 7 -- box 2 of 2 -- v1
-git grep -l -e "init-config csis-quickstart" -e "root-dir csis-quickstart validate" -- . ':!specs'
+# step 7 -- box 2 of 2 -- v2
+git grep -l -e "init-config csis-quickstart" -e "root-dir csis-quickstart validate" -- docs README.md
 ```
 
-Expect the single line `docs/QUICKSTART.md`.
+Expect the single line `docs/QUICKSTART.md`: no other document repeats the
+page's commands (the runner's tests carry a page of their own as data,
+which is not a document).
 
 ## Step 8: the routes onward
 
@@ -185,8 +191,9 @@ Each route's page begins with a command that works. Boxes 1 and 2 use a
 scratch tool directory and take a minute or two each.
 
 ```sh
-# step 8 -- box 1 of 3 -- v1
-r=$(mktemp -d); UV_TOOL_DIR="$r/tools" UV_TOOL_BIN_DIR="$r/bin" uv tool install --quiet --upgrade 'cs-image-system[aws,okta]'
+# step 8 -- box 1 of 3 -- v3
+v=$(sed -n 's/^version = "\(.*\)"$/\1/p' pyproject.toml | head -1); F="--index-url https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple/ --index-strategy unsafe-first-match"
+r=$(mktemp -d); UV_TOOL_DIR="$r/tools" UV_TOOL_BIN_DIR="$r/bin" uv tool install --quiet --upgrade --python 3.13 ${=F} "cs-image-system[aws,okta]==$v"
 "$r/bin/cs-image-system" init-config "$r/aws" --from standard-aws | tail -1
 ```
 
@@ -209,10 +216,10 @@ quickstart's tree; the box below is its first command, and the section's
 own last box is the teardown, which you run next.
 
 ```sh
-# step 8 -- box 3 of 3 -- v1
-# about 10 minutes: two bakes and a container
+# step 8 -- box 3 of 3 -- v2
+# about 10 minutes: two bakes, a volume and a container
 CS="$PWD/.venv/bin/cs-image-system"; t=$(mktemp -d)/csis-quickstart && "$CS" init-config "$t" --from standard-docker >/dev/null
-(cd "$t" && "$CS" --overlay overlays/launch.yaml --no-dry-run run --all 2>&1 | tail -1)
+(cd "$t" && "$CS" --no-dry-run run --all --apply-runtime docker-main 2>&1 | tail -1)
 ```
 
 Expect `Run <id> completed: ...`. Then run the section's teardown box
@@ -224,21 +231,24 @@ About a minute. The release script's tests hold the commands each gate
 runs, with a stubbed shell; nothing is released.
 
 ```sh
-# step 9 -- box 1 of 1 -- v1
-just test-one tests/test_release_script.py tests/test_ci_workflow.py -q
+# step 9 -- box 1 of 1 -- v2
+just test-one tests/test_release_script.py tests/test_ci_workflow.py tests/test_publish_commands_parse.py -q
 ```
 
-Expect every test passing: among them, the TestPyPI gate runs `just
-test-quickstart` exactly once, and CI's `publish` job needs the
-`quickstart` job. After the next real release, step 4 run against its
-tag shows the tag's `quickstart` job passed before `publish` ran
-(SC-008).
+Expect every test passing: among them, the release's lighter check runs
+`just test-quickstart` exactly once before the tag, and the Publish
+workflow's `testpypi` job needs its `quickstart` job. After the next
+real release, its Publish run shows the `quickstart` job passed before
+`testpypi` began (`GH_PAGER=cat gh run view <the Publish run> --json
+jobs`), which with the gate's line in the release's own output is
+SC-008.
 
 ## Step 10: someone outside the project
 
-Not a box: a record. **YOUR DECISION** (research D2): who walks the
-released page and on what machine (default: a member of an adopting
-team, on their own macOS machine, after the next release). They follow
-`docs/QUICKSTART.md` as published, unaided; the record, under the
-spec's tasks, gives the date, the machine, the minutes taken (15 or
-fewer passes SC-002) and every place they hesitated.
+Not a box: a record, and open with no date (the operator's decision of
+2026-11-25, research R18): someone who has never used the system, in the
+end perhaps the operator on a clean account, follows
+`docs/QUICKSTART.md` as published, unaided. The record, under the spec's
+tasks, gives the date, the machine, the minutes taken (15 or fewer
+passes SC-002) and every place they hesitated. Until it exists the
+specification stays merged, not complete.

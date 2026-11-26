@@ -38,7 +38,8 @@ release_branch := "main"
 # kept .terraform.lock.hcl the init needs no network at all. The cache is not safe under concurrent
 # `init`, so one tofu process runs at a time by construction: every invocation that may
 # EXECUTE tofu passes `--locked`, which holds .tofu-plugin-cache/.lock and refuses a
-# second holder with exit 75. Dry runs enumerate and never start tofu; the suite's one real-tofu
+# second holder with exit 75. A dry run starts tofu only to format, init without a backend and validate
+# each root, and applies nothing; the suite's one real-tofu
 # test uses a private cache and never contends.
 export TF_PLUGIN_CACHE_DIR := justfile_directory() / ".tofu-plugin-cache"
 
@@ -69,7 +70,7 @@ test: lint typecheck pytest test-core test-terraform-alone test-docker-alone
 # `run --all` over a private copy of the fixture followed by
 # `state query --strict`. A leg whose prerequisite is absent reports SKIPPED
 # loudly with its reason and does not fail the run; a leg that runs and fails
-# does. Two legs are never skipped: `test-docker-install` and
+# does. Two legs are never skipped: `test-quickstart` and
 # `test-docker-live`, which fail when the container daemon does not answer.
 [doc("`test` plus the docker-backed modification tests and, when the runtime sessions are present, a headless dry run --all with state query --strict")]
 full-test: test
@@ -96,7 +97,7 @@ full-test: test
 # order: `--full` gates on the full proof a PyPI release used to run -- `full-test`, the live
 # configuration's session probes and its modification-test evidence (committed there) -- and
 # records it in the tag's message; without it the gate is the lighter check, `test` and
-# `test-docker-install` (it needs a container daemon). `yes` is the dry form: the probes, the
+# `test-quickstart`, the quickstart page's own commands (it needs a container daemon). `yes` is the dry form: the probes, the
 # advisory, the version, and every move and push it would make; nothing changed. A refusal
 # before the bump returns the checkout to the branch it started on. After the tag: `git push
 # origin main v<version>` (main and its own tag by name, so no other local tag travels: GitHub
@@ -147,7 +148,7 @@ release-watch version:
 # because an index never takes a second build under one version and would refuse the publish
 # workflow's upload after the tag; every family released elsewhere has a TestPyPI release inside
 # the range the extras name (scripts/with-released-families --check test); the SDK's surfaces;
-# docker answers (the install check and full-test's legs run in it). PROOF `full` (a release's
+# docker answers (the quickstart page's run and full-test's legs run in it). PROOF `full` (a release's
 # `--full`) also asks that every runtime session of the live configuration is present (`just
 # preflight`, the gate full-test itself uses: without it the live legs would be SKIPPED, which a
 # release cannot accept) and how many minutes the soonest-expiring session has left
@@ -184,8 +185,8 @@ full-test-legs:
 	just test-cloud-starters || { echo "full-test: FAILED test-cloud-starters"; status=1; }
 	# not gated on the daemon: the usual install must deliver a docker provider that runs, so a daemon
 	# that does not answer FAILS this leg (it and test-docker-live, below, are the legs here that never report SKIPPED)
-	echo "full-test: cs-image-system[docker] installed alone validates and dry-runs the docker starter (test-docker-install)"
-	just test-docker-install || { echo "full-test: FAILED test-docker-install"; status=1; }
+	echo "full-test: the quickstart page's own commands reach a dry run against this tree's wheels (test-quickstart)"
+	just test-quickstart || { echo "full-test: FAILED test-quickstart"; status=1; }
 	# the same rule: the docker family's own live tests fail, and never skip, without a daemon
 	echo "full-test: the docker family's live tests, its stand-in on the local daemon (test-docker-live)"
 	just test-docker-live -q || { echo "full-test: FAILED test-docker-live"; status=1; }
@@ -369,19 +370,30 @@ test-docker-alone:
 	@uv run --no-sync python scripts/isolated-run --subject "docker, high end, copy outside the workspace" --require "cs-image-system-docker-plugin[test]" --root packages/docker-plugin --sdk-end high --copy-outside
 	@uv run --no-sync python scripts/isolated-run --subject "docker, low end" --require "cs-image-system-docker-plugin" --root packages/docker-plugin --sdk-end low --tests tests/unit
 
-# What a person who installs the docker extra gets: the workspace's wheels are
-# built, an empty environment outside the workspace gets `cs-image-system[docker]`
-# from them and nothing else, the INSTALLED command renders the standard-docker
-# starter (`init-config <dir> --from standard-docker`), and the installed
-# `validate` and a dry `run --all` run on it. Three steps are reported, each as
-# ran and succeeded, ran and failed, or did not run, and the recipe passes only
-# when all three ran and succeeded. It needs what the starter needs: docker,
-# packer, ansible-playbook, bash and tofu, a container daemon that answers, and
-# the registry (a dry run resolves the base image with a pull). `keep=<directory>`
-# (or the directory alone) leaves the emitted `generated` tree there.
-[doc("`cs-image-system[docker]` installed alone from the built wheels, the standard-docker starter rendered with the installed command, then `validate` and a dry `run --all` on it; all three must run and succeed (needs a container daemon)")]
-test-docker-install keep="":
-	@uv run --no-sync python scripts/isolated-run --install-check --subject "docker install" --require "cs-image-system[docker]" --starter standard-docker {{ if keep != "" { "--keep " + quote(trim_start_match(keep, "keep=")) } else { "" } }}
+# The quickstart page's own commands (docs/QUICKSTART.md, specification 002), run as
+# a newcomer runs them: every `sh` box in order, in one bash session, against this
+# checkout's wheels (UV_OVERRIDE; with `--wheels DIR`, the files there), with a
+# temporary uv tool directory, so your own installed command is never touched. A
+# failing command is named; the page must have ten or fewer commands and its first
+# pass must take 900 seconds or less. `--passes 2` runs it twice in one directory;
+# `--page PATH` runs another copy; `--keep DIR` leaves the emitted tree there. Needs
+# what the page's prerequisites name, a daemon that answers and the network.
+[doc("The quickstart page's own commands, against this checkout's wheels (or `--wheels DIR`), in a temporary tool directory; `--passes 2` twice; fails naming the command")]
+[positional-arguments]
+test-quickstart *ARGS:
+	@uv run --no-sync python scripts/quickstart run "$@"
+
+# The quickstart's prerequisites at exactly the floors the page states, into DIR/bin,
+# each download checked against its vendor's checksum (Linux x86_64: CI's clean machine)
+[doc("The quickstart's prerequisites at exactly their stated floors, into DIR/bin (Linux x86_64, CI's clean machine)")]
+quickstart-prepare dir:
+	@uv run --no-sync python scripts/quickstart prepare --into {{ quote(dir) }}
+
+# The page's prerequisites table, generated from the docker starter's
+# cfg/executables.yml and uv's floor: written, or with `check` compared
+[doc("Write the quickstart page's prerequisites table from the starter's executables and uv's floor; `check` compares instead")]
+quickstart-table mode="":
+	@uv run --no-sync python scripts/quickstart prerequisites {{ if mode == "check" { "--check" } else { "--write" } }}
 
 # The docker family's tests that need the real thing: the modification tests
 # of the family's fixture on the docker runtime's own stand-in, a throwaway
