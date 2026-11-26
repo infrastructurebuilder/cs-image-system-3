@@ -6,7 +6,7 @@
 
 **Created**: 2026-11-16
 
-**Status**: In progress, 2026-11-25: phases 1 to 7 implemented on `feature/002-first-dry-run` (not merged), the full proof passed and converged; T032 (the release), T033 (the reference configuration's take) and T034 (SC-002's walk by someone new to the system, open with no date) remain. Records are in [tasks.md](tasks.md).
+**Status**: Merged, 2026-11-26: phases 1 to 7 squash-merged into `develop` (`e6226c44`), the feature branch kept; CI and "CI from scratch" passed on the merge, the new `quickstart` job among them. The full proof passed and the specification converged on 2026-11-25. Not yet complete under the definition of done: T032 (the release), T033 (the reference configuration's take) and T034 (SC-002's walk by someone new to the system, open with no date) remain. Records are in [tasks.md](tasks.md).
 
 **Input**: User description: "A newcomer with nothing installed reaches a successful dry run by following one page, and CI runs that page's commands."
 
