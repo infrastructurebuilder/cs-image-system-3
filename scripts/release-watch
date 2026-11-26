@@ -7,13 +7,14 @@
     uv run python scripts/release-watch <version> [--root DIR] [--config-root DIR]
         [--timeout MINUTES] [--interval SECONDS]
 
-The runs are found by commit, never by time. In this repository the commit
-is the tag ``v<version>``'s, which the release pushed as ``main`` and
-``develop`` too: the tag's runs of CI and of Publish (which uploads every
-public project to TestPyPI, then, for a final version, pushes the template
-repositories),
-``main``'s and ``develop``'s runs of CI, and ``develop``'s run of "CI from
-scratch". In the
+The runs are found by commit, never by time. In this repository the tag
+``v<version>`` marks one commit and the release pushed ``main`` and ``develop``
+at the next, the one that puts the released families back on their ranges
+(``pushed_commit``; the tag's own commit when a release made none): the tag's
+runs of CI and of Publish (which uploads every public project to TestPyPI,
+then, for a final version, pushes the template repositories) are found on the
+first, ``main``'s and ``develop``'s runs of CI and ``develop``'s run of "CI
+from scratch" on the second. In the
 live configuration (``--config-root``) the commit is the one the take pushed:
 the ``Take <version>`` commit on ``develop``, or the record committed right
 after it; its run of CI on ``develop`` and, when ``origin/main`` holds that

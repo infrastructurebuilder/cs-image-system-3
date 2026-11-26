@@ -7,8 +7,9 @@
 ``cs-image-system-contract`` carries a semantic version independent of the
 workspace's (0.x until the operator decides otherwise): a bump of the
 workspace leaves it alone, every package that depends on it pins the range
-of its compatible series, and the release tooling that probes and uploads
-by version knows which project follows its own. The SDK's libraries keep
+of its compatible series (the umbrella alone pins it exactly, at the
+contract's own version), and the release tooling that probes and gathers
+the files by version knows which project follows its own. The SDK's libraries keep
 version lines of their own too (tests/test_package_metadata.py holds
 those); this file is about the contract's.
 """

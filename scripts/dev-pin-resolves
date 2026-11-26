@@ -6,8 +6,8 @@
 
     uv run python scripts/dev-pin-resolves [VERSION] [--root DIR]
 
-The index options are read from a starter workflow -- the `indexes=` a job
-uses when `.csis-version` names a `.dev` version -- never restated, and
+The index options are read from a starter workflow -- the `indexes=` every
+job installs a release with, whatever its version -- never restated, and
 `cs-image-system[all]==VERSION` (default: the newest `v*.dev*` tag here) is
 resolved with them, read-only (`uv pip compile`, nothing installed). The
 starters install `cs-image-system[<the tree's extras>]`; `[all]` is every

@@ -36,6 +36,10 @@ TestPyPI holds that version with exactly those files (FR-003).
 ## Lifting the decision at 1.0
 
 One change per repository, named in `docs/OPERATIONS.md` (this
-repository) and `docs/RELEASING.md` (each family): restore the `pypi`
-index in the release script, the PyPI job in the publish workflow, and
-the PyPI form of the install lines.
+repository) and `docs/RELEASING.md` (each family). Here: restore the
+`pypi` index in the release script, the PyPI job in the publish
+workflow, and the PyPI form of the install lines, in every place the
+guide's one search lists. In each family: the release script's
+refusal, the PyPI job in its publish workflow, and the system's names
+taken from PyPI again in its lock (the `testpypi` sources and the
+`index-pins` group removed).

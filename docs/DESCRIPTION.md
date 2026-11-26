@@ -231,7 +231,8 @@ Three commitments show up everywhere:
   system": each is released from its own repository on a version line of
   its own, the `[gcloud]`, `[okta]` and `[all]` extras name each by its
   line's range (which a bump here never moves), and a release here
-  refuses unless PyPI holds a release of each inside its range.
+  refuses unless TestPyPI holds a release of each inside its range,
+  which it then pins exactly.
 
 Where the documentation and the system can diverge, and how to check, is
 [PARITY.md](PARITY.md).
