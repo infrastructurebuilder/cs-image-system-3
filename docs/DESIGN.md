@@ -1135,7 +1135,9 @@ as a process. What a run was last doing, kept for the record of an
 interruption, is on its context for the same reason.
 The contract carries a semantic version of its own
 (`0.1.0`; 0.x until the operator decides otherwise), every dependent pins
-its compatible series and the workspace's release leaves it where it is
+its compatible series (the umbrella alone pins it exactly, so a release
+names each of the system's names exactly) and the workspace's release
+leaves it where it is
 ([the stage index](CHANGES.md#s125)). The run context is in the
 contract too: `RunContextProtocol` holds the members the plugins read
 (counted from the sources, each one used), `MetaStateProtocol` the

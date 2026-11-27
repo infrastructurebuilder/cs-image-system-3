@@ -106,6 +106,16 @@ already computes) with the PyPI-first form; `isolated-run` reads
 TestPyPI's JSON and installs its exact pins with the same form;
 `dev-pin-resolves` proves the newest release tag, final or `.dev`.
 
+Added 2026-11-26 (T063, the sixth convergence): the trim dropped the
+overlay's part of this decision (T020, "the overlay keeps its ranges").
+At a release's tag the ranges are D1's exact pins, and a pin of a
+release TestPyPI alone holds was not found without index options
+(tried: "there is no version of"). The overlay now runs with the
+install form's index options, read from `INDEX_OPTIONS` in
+`src/cs_image_system/extras.py`; it still passes the extras'
+requirements as they stand (ranges between releases, exact at a tag),
+not the exact newest of this decision.
+
 ## R6. The families' locks, low ends and publishing
 
 Both families' locks take every system name from PyPI (only `engine` is

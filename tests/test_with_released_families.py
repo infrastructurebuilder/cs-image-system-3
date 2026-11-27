@@ -55,6 +55,23 @@ def test_the_checkouts_contract_and_sdk_are_layered_under_the_families():
     assert all(Path(e).is_absolute() and Path(e).parent == REPO / "packages" for e in editables)   # any cwd
 
 
+def test_the_overlay_runs_with_the_install_forms_index_options():
+    """At a release's tag each family is pinned exactly at its newest TestPyPI release, and `uv run --with`
+    ignores the project's sources: without index options the pin is asked of PyPI alone, and a release
+    TestPyPI alone holds is not found. The options are the one install form's, read from where it is kept:
+    PyPI the extra index (asked first for each name), TestPyPI the index, the first match taken."""
+    import shlex
+
+    from cs_image_system import extras
+    options = W.with_options()
+    form = shlex.split(extras.INDEX_OPTIONS)
+    assert options[-len(form):] == form == W.index_options()
+    assert form[form.index("--index-url") + 1].startswith("https://test.pypi.org/")
+    assert form[form.index("--extra-index-url") + 1].startswith("https://pypi.org/")
+    assert form[form.index("--index-strategy") + 1] == "unsafe-first-match"
+    assert extras.INSTALL_OPTIONS.endswith(extras.INDEX_OPTIONS)            # the hint installs by the same form
+
+
 def test_a_workspace_without_one_of_them_is_named(tmp_path: Path):
     (tmp_path / "packages" / "base").mkdir(parents=True)
     (tmp_path / "packages" / "base" / "pyproject.toml").write_text('[project]\nname = "cs-image-system-base"\n')

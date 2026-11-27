@@ -7,9 +7,9 @@
 Against a fake shell that answers every command the watch runs -- git, ``gh`` and the probe
 scripts -- and a fake clock that ``sleep`` moves: the runs are found by commit (the tag's in this
 repository, the take's in the configuration), each waited on until it completes, and one line said
-for each; a green Publish run of the tag is read further, for every release, final or development:
-TestPyPI must list the version (PyPI is never asked until 1.0) and every template repository must
-hold its tag, else it is not good, nor is a run that failed or never started; the configuration's ``main`` run is read for the guard and the bake plan;
+for each; a green Publish run of the tag is read further: for every release, final or development,
+TestPyPI must list the version (PyPI is never asked until 1.0), and for a final one every template
+repository must hold its tag, else it is not good, nor is a run that failed or never started; the configuration's ``main`` run is read for the guard and the bake plan;
 the exit is 0 only when every verdict is good. A look ``gh`` does not answer while waiting is no news
 and the next interval looks again; ``gh`` absent or holding no token before the first look refuses at
 once -- decided without the network, and the stored token it reads is never said -- and no look
@@ -168,7 +168,7 @@ def test_every_run_green_and_everything_published_is_exit_0_with_one_line_each()
     assert verdicts["configuration develop (CI)"] == W.PASSED.format(url=url.format(21))   # the newest push run
     assert said[-2] == f"release-watch: {W.FAST_FORWARD.format(root=CONFIG)}"
     assert said[-1] == f"release-watch: {W.ALL_GOOD}"
-    # found by commit: the tag's here, the record the take pushed there; the index by the version's form
+    # found by commit: the tag's here, the record the take pushed there; the index is TestPyPI for every version
     assert shell.count(f"run list --commit {SYSTEM_SHA}") == 1 and shell.count(f"run list --commit {RECORD_SHA}") == 1
     assert shell.count("https://test.pypi.org/simple/ cs-image-system 0.1.9") == 1 and shell.count("ls-remote") == 2
     assert shell.count("https://pypi.org/") == 0                                 # PyPI is never asked until 1.0
