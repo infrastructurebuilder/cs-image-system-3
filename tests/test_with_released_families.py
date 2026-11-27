@@ -119,6 +119,19 @@ def test_a_range_nothing_meets_is_exit_1_and_an_unasked_index_exit_2(manifest: P
     assert rc == 2 and len(said) == 1 and "no route to the index" in said[0]
 
 
+def test_pinned_names_the_requirements_that_are_exact_pins(manifest: Path, tmp_path: Path):
+    """What a release refuses to start from: all of them in a release's own commit, none between releases.
+    The tree as it stands may be either (CI runs this on a release's tag), so the expectation is read from it."""
+    reqs = W.requirements(manifest)
+    exact = [r for r in reqs if any(s.operator == "==" for s in W.Requirement(r).specifier)]
+    assert W.pinned(manifest) == exact
+    (tmp_path / "released").mkdir()
+    as_released = family_manifest(tmp_path / "released", W.requirements(), FAMILY_STATES[-1])
+    assert W.pinned(as_released) == W.requirements(as_released) and len(W.pinned(as_released)) == len(reqs)
+    printed = subprocess.run([sys.executable, str(SCRIPT), "--pinned"], capture_output=True, text=True, check=True)
+    assert printed.stdout.split() == W.pinned()
+
+
 def test_a_command_is_needed():
     done = subprocess.run([sys.executable, str(SCRIPT)], capture_output=True, text=True)
     assert done.returncode == 2 and "name the command" in done.stderr

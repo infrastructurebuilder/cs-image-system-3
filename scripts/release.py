@@ -53,7 +53,9 @@ exactly (``pin_released_families``), the evidence commit in the live
 configuration (``--full``), the release's row in ``docs/CHANGES.md``, the
 commit ``release <version>`` and the annotated tag (its message carries
 ``fully proven: full-test`` under ``--full``, the line the advisory measures
-from), the families back on their ranges in a commit of their own; and last
+from), the families back on their ranges in a commit of their own (a step
+that fails there names what is left, as a failed step of the ending does);
+and last
 the ending: the release branch and the tag ``v<version>`` pushed by name (no
 other tag travels with them: GitHub starts no tag run when more than three
 tags are pushed at once), ``develop`` checked out, fast-forwarded to it and
@@ -98,6 +100,7 @@ import datetime as _dt
 import fnmatch
 import os
 import re
+import shlex
 import subprocess
 import sys
 import time
@@ -135,8 +138,9 @@ UNRELEASED = "not yet"
 FULLY_PROVEN = "fully proven: full-test"
 #: what only the full proof exercises (FR-002a): the runtimes' and identity plugins' sources, the release and take
 #: tooling (with the three scripts the full proof alone runs to its end: the families' overlay under every live
-#: command, the development pin's resolution, the sessions' minutes), the starters' workflows, the contract and the
-#: SDK. An entry ending in "/" is a tree; `*` is a glob.
+#: command, with the index options it runs with, kept in the umbrella's extras module; the development pin's
+#: resolution; the sessions' minutes), the starters' workflows, the contract and the SDK. An entry ending in "/"
+#: is a tree; `*` is a glob.
 FULL_PROOF_PATHS = (
     "packages/*-runtime-plugin/",
     "packages/docker-plugin/",
@@ -145,6 +149,7 @@ FULL_PROOF_PATHS = (
     "scripts/publish-dist",
     "scripts/release-watch",
     "scripts/with-released-families",
+    "src/cs_image_system/extras.py",
     "scripts/dev-pin-resolves",
     "scripts/session-minutes-left",
     "docs/examples/_skeleton/Justfile",
@@ -176,6 +181,10 @@ UNASKED = ("TestPyPI could not be asked whether it holds this tree's build of ev
 ELSEWHERE_UNMET = ("the umbrella's extras name a family released from its own repository by a range TestPyPI holds "
                    "no release inside (above), so the release could not pin it and an install of that extra would "
                    "fail -- release the family, or move the range in pyproject.toml -- nothing was changed")
+ELSEWHERE_PINNED = ("the tree already pins a family released from its own repository exactly ({pins}); a release "
+                    "pins each range itself, at the family's newest TestPyPI release, and puts the range back after "
+                    "its tag, so a tree left pinned would ship that version again -- put the range back in "
+                    "pyproject.toml, run `uv lock` and commit both -- nothing was changed")
 ELSEWHERE_UNASKED = ("TestPyPI could not be asked whether it holds a release inside each range the umbrella's extras "
                      "name for a family released from its own repository (above); nothing is guessed -- nothing was "
                      "changed")
@@ -214,6 +223,11 @@ VENV_WILL_SYNC = "the venv is behind the checkout; the real form syncs it (uv sy
 #: a failed step of the ending, after "<who>: ": the version is committed and tagged here, and on no index yet
 ENDING_FAILED = ("{version} is committed and tagged v{version} here, but `{failed}` failed (above); nothing is on "
                  "TestPyPI until the tag is pushed; the rest, by hand: {rest}")
+#: a failed step between the tag and the ending, while the released families were put back on their ranges,
+#: after "<who>: ": the same state, with the ranges written to pyproject.toml and not yet committed
+RESTORE_FAILED = ("{version} is committed and tagged v{version} here, but `{failed}` failed (above) while the "
+                  "released families were put back on their ranges (pyproject.toml holds the ranges, uncommitted); "
+                  "nothing is pushed, and nothing is on TestPyPI until the tag is pushed; the rest, by hand: {rest}")
 #: the closing line: what was pushed, the branch the checkout ends on, and the push that publishes
 RELEASED = ("release: {version} is committed, tagged v{version} and pushed: {pushed}; the checkout is on {branch} "
             "with its venv synced (uv sync --all-extras --no-extra gcloud --no-extra okta --no-extra all); the tag's "
@@ -671,11 +685,24 @@ class Family:
         raise Refused(f"{who}: {UNASKED}", 2)
 
     def released_elsewhere_or_refuse(self, who: str) -> None:
-        """scripts/with-released-families --check test, its lines said: every range by which the umbrella's
+        """First scripts/with-released-families --pinned: the tree names each family released from its own
+        repository by a range, never by an exact pin a release left behind (``pin_released_families`` leaves an
+        exact pin as it finds it, so such a tree would ship that version again); a pin is refused by name.
+        Then --check test, its lines said: every range by which the umbrella's
         extras name a family released from its own repository (the Google Cloud family, the Okta plugin) holds a
         release on TestPyPI, where the families release until 1.0 and where the release pins each extra at its
         newest (``pin_released_families``). Exit 1 is a range nothing on TestPyPI meets (the extra could not be
         pinned nor installed); any other failure is refused as "could not ask" (exit 2), never guessed."""
+        pinned = self.run(["uv", "run", "--no-sync", "python", str(HERE / "with-released-families"), "--pinned"],
+                          cwd=self.root)
+        if pinned.rc != 0:
+            for line in (pinned.out + pinned.err).splitlines():
+                if line.strip():
+                    self.say(line)
+            raise Refused(f"{who}: {ELSEWHERE_UNASKED}", 2)
+        left = [line.strip() for line in pinned.out.splitlines() if line.strip()]
+        if left:
+            raise Refused(f"{who}: {ELSEWHERE_PINNED.format(pins=', '.join(left))}", 1)
         done = self.run(["uv", "run", "--no-sync", "python", str(HERE / "with-released-families"), "--check", INDEX],
                         cwd=self.root)
         for line in (done.out + done.err).splitlines():
@@ -838,9 +865,11 @@ class Family:
                  + ", ".join(f"{n}=={v}" for n, v in sorted(pins.items())))
         self.lock_or_refuse(who)
 
-    def restore_released_ranges(self, who: str, version: str) -> None:
+    def restore_released_ranges(self, who: str, version: str, cut: str) -> None:
         """After the tag: the released families back on their ranges, the tree's own between releases, in a
-        commit of its own on the release's branch."""
+        commit of its own on the release's branch. The release is committed and tagged by now and nothing is
+        pushed, so a step that fails here (the lock, the add, the commit) is refused as a failed push is: with
+        what is left by hand, these steps and then the ending's."""
         ranges = getattr(self, "released_ranges", {})
         if not ranges:
             return
@@ -849,12 +878,17 @@ class Family:
         for exact, spec in ranges.items():
             text = text.replace(exact, spec)
         path.write_text(text)
-        self.lock_or_refuse(who)
-        for cmd in (["add", "pyproject.toml", "uv.lock"],
-                    ["commit", "-q", "-m", f"after release {version}: the released families back on their ranges"]):
-            done = self.git(*cmd)
+        steps = [["uv", "lock"], ["git", "add", "pyproject.toml", "uv.lock"],
+                 ["git", "commit", "-q", "-m", f"after release {version}: the released families back on their ranges"]]
+        for i, cmd in enumerate(steps):
+            done = self.git(*cmd[1:]) if cmd[0] == "git" else self.run(cmd, cwd=self.root, capture=False)
             if done.rc != 0:
-                raise Refused((done.err + done.out).strip() or f"{who}: git {cmd[0]} failed", done.rc)
+                for line in (done.err + done.out).splitlines():
+                    if line.strip():
+                        self.say(line)
+                rest = " && ".join(shlex.join(c) for c in [*steps[i:], *self.ending(cut, version)])
+                raise Refused(f"{who}: " + RESTORE_FAILED.format(version=version, failed=shlex.join(cmd), rest=rest),
+                              done.rc or 1)
 
     def lock_or_refuse(self, who: str) -> None:
         done = self.run(["uv", "lock"], cwd=self.root, capture=False)
@@ -957,7 +991,7 @@ class Family:
         if full:
             commit_evidence(read_sibling(self.sibling.path, run=self.run), new, run=self.run)
         self.record_and_tag(new, on_release_branch=cut == self.release_branch, full=full)
-        self.restore_released_ranges("release", new)
+        self.restore_released_ranges("release", new, cut)
         pushed = self.run_ending("release", new, cut)
         self.say(RELEASED.format(version=new, pushed=pushed, branch=self.ends_on(cut)))
         return 0

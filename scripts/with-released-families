@@ -9,6 +9,7 @@ repositories layered in from the index.
     with-released-families --print
     with-released-families --check test|pypi
     with-released-families --newest test|pypi
+    with-released-families --pinned
 
 A family released from a repository of its own (the Google Cloud family,
 spec 005; the Okta identity plugin, spec 008) is not in this workspace's
@@ -40,7 +41,10 @@ line each, the newest one named: 0 when every range is met, 1 when one is not
 could not be asked (nothing is guessed). A release asks it first.
 ``--newest INDEX`` prints, one a line, ``<name>==<version>`` for the newest
 release inside each such range, with the same exits: a release pins its
-umbrella's extras to them (specification 013, D1).
+umbrella's extras to them (specification 013, D1). ``--pinned`` prints, one a
+line, each such requirement that is an exact pin already: a release's own
+commit holds them so, and the tree between releases must not, since a release
+leaves an exact pin as it finds it; a release refuses a tree that prints any.
 """
 from __future__ import annotations
 
@@ -165,6 +169,13 @@ def newest(index: str, *, asked: Callable[[str, str], set[Version]] = published,
     return found
 
 
+def pinned(pyproject: Path = REPO / "pyproject.toml") -> list[str]:
+    """The released-elsewhere requirements that are exact pins, as the manifest writes them: all of them in a
+    release's own commit, none in the tree between releases."""
+    return [text for text in requirements(pyproject)
+            if any(spec.operator in ("==", "===") for spec in Requirement(text).specifier)]
+
+
 def print_newest(index: str) -> int:
     try:
         for name, version in sorted(newest(index).items()):
@@ -186,6 +197,10 @@ def main(argv: list[str]) -> int:
         return check(argv[1])
     if len(argv) == 2 and argv[0] == "--newest" and argv[1] in INDEX_JSON:
         return print_newest(argv[1])
+    if argv == ["--pinned"]:
+        for text in pinned():
+            print(text)
+        return 0
     if not argv or argv[0].startswith("-"):
         print("with-released-families: name the command to run, or --print", file=sys.stderr)
         return 2

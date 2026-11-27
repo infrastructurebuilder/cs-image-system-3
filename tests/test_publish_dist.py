@@ -4,7 +4,7 @@
 
 """scripts/publish-dist says what a release uploads, and uploads nothing.
 
-On a workspace of four projects, and on this repository: the order
+On a workspace of five projects, one of them private, and on this repository: the order
 (dependencies first, the root project last), a private project left out, a
 version of a project's own, each project's sdist before its wheel, a missing
 file named. The upload itself is the publish workflow's, by trusted
