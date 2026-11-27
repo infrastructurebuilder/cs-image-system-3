@@ -2363,7 +2363,12 @@ order:
    the probe can see a file deleted from the index, whose name the
    index refuses forever, so a version whose files were deleted needs
    its own bump all the same. Then every family released from its own
-   repository (the Google Cloud family, the Okta identity plugin) has a
+   repository (the Google Cloud family, the Okta identity plugin) is
+   named by a range in the tree, never by an exact pin a release left
+   behind (`scripts/with-released-families --pinned` names any: step 4
+   leaves an exact pin as it finds it, so such a tree would ship the old
+   family version again; put the range back in `pyproject.toml`, `uv
+   lock`, commit), and has a
    TestPyPI release inside the range its extra names
    (`scripts/with-released-families --check test`), since step 4 pins
    the newest one; the SDK's surfaces (`just surface-check`); and docker
@@ -2416,7 +2421,12 @@ order:
    proven: full-test` under `--full` (the line the advisory measures
    from); then the families' ranges put back in the root's extras, the
    tree's own between releases, in a commit of their own (`after
-   release <v>: the released families back on their ranges`);
+   release <v>: the released families back on their ranges`). The
+   release is committed and tagged by then and nothing is pushed, so a
+   step that fails here (the lock, the commit) stops with what a failed
+   push says: the version and its tag stand, nothing is on TestPyPI, and
+   the commands that are left, these and then the ending's, to run by
+   hand;
 6. the ending, the recipe's own: `git push origin main v<version>`,
    `main` and the release's own tag by name, so no other local tag
    travels with them (GitHub starts no run for tags when more than
@@ -2764,9 +2774,9 @@ the middle number waits for 1.0 too.
 
 | Command | What it does |
 | --- | --- |
-| `just release <part\|version>` | the lighter check, the advisory, the bump, the families pinned, the commit and the tag, then the pushes; uploads nothing |
-| `just release <part\|version> --full` | the same with the full proof in place of the lighter check; the tag's message carries `fully proven: full-test` |
-| `just release <part\|version> [--full] yes` | the dry form: the probes, the advisory, the version and every move and push it would make; nothing changes |
+| `just release <part\|version>` | the advisory, said first; then the lighter check, the bump, the families pinned, the commit and the tag, the families' ranges back in a commit of their own, then the pushes; uploads nothing |
+| `just release <part\|version> --full` | the same without the advisory, and with the full proof in place of the lighter check; the tag's message carries `fully proven: full-test` |
+| `just release <part\|version> [--full] yes` | the dry form: the advisory (without `--full`), the probes, the version and every move and push it would make; nothing changes |
 | `just release <...> pypi` | refused (above); nothing changes |
 | `just release-take <part\|version> [--full] [main] [yes]` | the release, a wait until TestPyPI lists it, then `just take <version>` in the reference configuration |
 | `just release-watch <version>` | waits on the tag's CI and Publish runs, TestPyPI, the template repositories (for a final version) and the reference configuration's runs; one verdict each |
@@ -2800,8 +2810,10 @@ identity plugin, the release and take tooling (`scripts/release.py`,
 `scripts/publish-dist`, `scripts/release-watch`, the skeleton's
 `Justfile`, and the three scripts the full proof alone runs to their
 end: `scripts/with-released-families`, which layers the families
-released elsewhere under every live command, `scripts/dev-pin-resolves`
-and `scripts/session-minutes-left`), the starters' workflows
+released elsewhere under every live command, with the index options it
+runs with, kept in `src/cs_image_system/extras.py`,
+`scripts/dev-pin-resolves` and `scripts/session-minutes-left`), the
+starters' workflows
 (`docs/examples/*/.github/`), the
 contract and the SDK (`packages/contract/`, `packages/base/`,
 `packages/hashicorp-utils/`, `packages/tofu-roots/`); the list is
@@ -3007,7 +3019,7 @@ What it finds, by what each carries until 1.0:
 | `INDEX_SIMPLE` and `INDEX_OPTIONS` in [scripts/isolated-run](../scripts/isolated-run) | the index the isolated runs read the SDK's published versions and files from, and install a published version with |
 | [scripts/dev-pin-resolves](../scripts/dev-pin-resolves) | the check that every one of the system's packages resolves from TestPyPI (or from PyPI as the same files) and nothing else does; it reads the install line from a starter's workflow |
 | the probes that take the index as a word: [scripts/own-versions-current](../scripts/own-versions-current), [scripts/publish-target-ready](../scripts/publish-target-ready) (and `just index-ready`, whose default is `test`) and [scripts/with-released-families](../scripts/with-released-families) (`--check`, `--newest`) | nothing of their own: `test` is the word the release passes each (its `INDEX`, the first row), and each still takes `pypi`, for a look at PyPI; the overlay's index options are `INDEX_OPTIONS`, the row above |
-| the other documents and comments that say where a release goes: [README.md](../README.md), [DESCRIPTION.md](DESCRIPTION.md), the entry "release" of [GLOSSARY.md](GLOSSARY.md), [CI_RUNNER.md](CI_RUNNER.md), [REMINDERS.md](../REMINDERS.md), the `Justfile`'s comments and recipe descriptions, the comments of [ci.yml](../.github/workflows/ci.yml) and the docstring of [scripts/publish-dist](../scripts/publish-dist) | each says, in the present tense, that a release goes to TestPyPI alone, and is reworded in the same change |
+| every other file the search lists: documents, comments and recipe descriptions (today [README.md](../README.md), [DESCRIPTION.md](DESCRIPTION.md), [GLOSSARY.md](GLOSSARY.md), [PLUGINS.md](PLUGINS.md), [CI_RUNNER.md](CI_RUNNER.md), [REMINDERS.md](../REMINDERS.md), the `Justfile`'s comments, the comments of [ci.yml](../.github/workflows/ci.yml) and the docstring of [scripts/publish-dist](../scripts/publish-dist); the search, not this list, says which) | a sentence each on where a release goes, where one is installed from, or which release TestPyPI holds; each is read and reworded in the same change |
 | the install lines: [QUICKSTART.md](QUICKSTART.md)'s first box, the starters' READMEs (`docs/examples/*/README.md`), [DAILY_DRIVER.md](DAILY_DRIVER.md), this guide, the skeleton's `Justfile` (the `take` recipe) and `CI_SETUP.md`, and every starter's workflows (`docs/examples/*/.github/workflows/`) | the one install form; a configuration repository receives the skeleton's `Justfile`, `CI_SETUP.md` and workflows at its next take, and its own README is its own to change |
 | the tests the search lists under `tests/` | the rows above as they stand (the lock's sources, the starters' install line, the release's refusal and index, the isolated runs' index, the install hint), so they change with their rows, in the same change |
 
@@ -4565,8 +4577,10 @@ exception is a decision to record, not a bypass.
   each names: `just release` (the release branch with its tag, then
   `develop`), `just take` in a configuration repository (the before-tag,
   `develop`, and `main` when told), and `just publish-starters` from the
-  Publish workflow (the template repositories). Nothing else in the
-  tooling pushes: any other push is the operator's act.
+  Publish workflow (the template repositories). A configuration
+  repository's CI pushes too: its `perform` job, the records it commits,
+  to `main`. Nothing else in the tooling pushes: any other push is the
+  operator's act.
 - A change that touches the live configuration commits and pushes that
   repository's `develop` as part of the work.
 

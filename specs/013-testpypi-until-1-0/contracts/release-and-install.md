@@ -6,8 +6,8 @@
 
 | Command | Does |
 | --- | --- |
-| `just release <part\|version>` | the lighter check (`just test`, the quickstart page's own commands `just test-quickstart` since specification 002, the version, surface and families-released-elsewhere probes against TestPyPI), the advisory (R2), the bump, the families pinned (D1), the commit and the tag, then its own pushes: the release branch and the tag `v<version>` by name, then `develop`; uploads nothing |
-| `just release <part\|version> --full` | the same, with the full proof in place of the lighter check (`just full-test`, the reference's session probes and evidence); its tag says `fully proven: full-test` |
+| `just release <part\|version>` | the advisory (R2), said first; then the lighter check (`just test`, the quickstart page's own commands `just test-quickstart` since specification 002, the version, surface and families-released-elsewhere probes against TestPyPI), the bump, the families pinned (D1), the commit and the tag, then its own pushes: the release branch and the tag `v<version>` by name, then `develop`; uploads nothing |
+| `just release <part\|version> --full` | the same without the advisory, and with the full proof in place of the lighter check (`just full-test`, the reference's session probes and evidence); its tag says `fully proven: full-test` |
 | `just release <...> pypi` | refused, naming the standing decision; nothing changes |
 | the tag's push (the release's own, above; never a second `git push` by hand) | the publish workflow builds the tag, runs the quickstart page's own commands against the built files (specification 002), then uploads every public project to TestPyPI; for a final version alone it then pushes the starter repositories (a `.dev` release pushes none: FR-006 dropped) |
 | `just release-take <part\|version>` | the release as above, a wait for TestPyPI to list the version, then the take into the reference |

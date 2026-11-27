@@ -40,10 +40,12 @@ corrected.
 (`cs-image-system-starter-repos-token`) is the fine-grained token behind the
 `STARTER_PUSH_TOKEN` secret, which lets a release's tag push the template
 repositories (Contents and Workflows read/write; see
-[docs/OPERATIONS.md](docs/OPERATIONS.md), the credentials table). Without a
-valid token the `starters` job of the Publish workflow
-(`.github/workflows/publish.yml`) SKIPS the template repositories and says so
-in its summary; nothing else fails. Renew it before it expires, then set the
+[docs/OPERATIONS.md](docs/OPERATIONS.md), the credentials table). The
+`starters` job of the Publish workflow (`.github/workflows/publish.yml`) asks
+only whether the secret is set: with none it SKIPS the template repositories
+and says so in its summary, and nothing else fails; with an expired or wrong
+token it runs and fails at its push, on a final version's tag, and is run
+again once the token is renewed. Renew it before it expires, then set the
 secret again (`gh secret set STARTER_PUSH_TOKEN --repo <owner>/<repository>`).
 
 **The renewals.**

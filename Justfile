@@ -147,8 +147,8 @@ release-watch version:
 # terraform libraries) is either not on TestPyPI or held there as this tree's build, file for file
 # (scripts/own-versions-current), because an index never takes a second build under one version
 # and would refuse the publish workflow's upload after the tag; every family released elsewhere
-# has a TestPyPI release inside
-# the range the extras name (scripts/with-released-families --check test); the SDK's surfaces;
+# is named by a range in the tree, not by an exact pin a release left behind (--pinned), and has
+# a TestPyPI release inside that range (scripts/with-released-families --check test); the SDK's surfaces;
 # docker answers (the quickstart page's run and full-test's legs run in it). PROOF `full` (a release's
 # `--full`) also asks that every runtime session of the live configuration is present (`just
 # preflight`, the gate full-test itself uses: without it the live legs would be SKIPPED, which a

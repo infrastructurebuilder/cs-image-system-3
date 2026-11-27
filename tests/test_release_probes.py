@@ -50,15 +50,17 @@ def _uv_cache_dir() -> str:
 
 
 def _probes(tmp_path: Path, proof: str, *, docker_ok: bool = True, synced: bool = True, config: Path | None = None,
-            own: int = 0, elsewhere: int = 0) -> subprocess.CompletedProcess:
+            own: int = 0, elsewhere: int = 0, pinned: str = "") -> subprocess.CompletedProcess:
     """The recipe with docker, `uv sync`, scripts/own-versions-current (which would build and ask the
     index) and scripts/with-released-families (which would ask TestPyPI, and says the words it was
-    given) stubbed; every other `uv` call is the real one."""
+    given; its `--pinned` answers ``pinned``, never this tree's own pins, which a release's tag holds)
+    stubbed; every other `uv` call is the real one."""
     bin_dir = tmp_path / "bin"
     bin_dir.mkdir(exist_ok=True)
     _stub(bin_dir, "docker", f"exit {0 if docker_ok else 1}\n")
     real_uv = shutil.which("uv")
     _stub(bin_dir, "uv", f'case "$*" in *{OWN}*) echo "{OWN}: stubbed"; exit {own};; '
+                         f'*"{ELSEWHERE} --pinned"*) printf "%s" "{pinned}"; exit 0;; '
                          f'*"{ELSEWHERE} --check"*) echo "{ELSEWHERE}: stubbed: $*"; exit {elsewhere};; esac\n'
                          f'[ "$1" = sync ] && exit {0 if synced else 1}\nexec "{real_uv}" "$@"\n')
     home = tmp_path / "home"
@@ -85,6 +87,13 @@ def test_the_lighter_check_asks_the_venv_the_own_versions_testpypi_and_the_daemo
     assert lines[2].startswith(ELSEWHERE) and lines[2].endswith("--check test") and lines[3] == "release: docker answers"
     refused = _probes(tmp_path, "light", docker_ok=False)
     assert refused.returncode == 1 and "test-quickstart" in refused.stdout and "nothing was changed" in refused.stdout
+
+
+def test_a_tree_left_pinned_ends_the_probes_before_testpypi_is_asked(tmp_path: Path):
+    """A family already pinned exactly is refused by name, with the remedy, before the index is asked."""
+    done = _probes(tmp_path, "light", pinned="x-fam==0.2.1")
+    assert done.returncode == 1 and "x-fam==0.2.1" in done.stdout and "nothing was changed" in done.stdout
+    assert f"{ELSEWHERE}: stubbed" not in done.stdout and "docker answers" not in done.stdout
 
 
 @pytest.mark.parametrize(("own", "code"), [(1, 1), (2, 2)])

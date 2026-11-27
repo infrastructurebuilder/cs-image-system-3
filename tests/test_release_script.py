@@ -35,6 +35,7 @@ import importlib.machinery
 import importlib.util
 import os
 import re
+import shlex
 import subprocess
 import sys
 from collections.abc import Callable
@@ -670,7 +671,8 @@ def test_the_advisory_matches_its_one_list():
     in it."""
     changed = ["packages/aws-runtime-plugin/src/x.py", "packages/posix-identity-plugin/pyproject.toml",
                "packages/docker-plugin/x.py", "scripts/release.py", "scripts/publish-dist", "scripts/release-watch",
-               "scripts/with-released-families", "scripts/dev-pin-resolves", "scripts/session-minutes-left",
+               "scripts/with-released-families", "src/cs_image_system/extras.py", "scripts/dev-pin-resolves",
+               "scripts/session-minutes-left",
                "docs/examples/_skeleton/Justfile", "docs/examples/complete/.github/workflows/ci.yml",
                "packages/contract/x.py", "packages/base/x.py", "packages/hashicorp-utils/x.py",
                "packages/tofu-roots/x.tf"]
@@ -1273,3 +1275,58 @@ def test_a_release_pins_the_released_families_exactly_then_restores_their_ranges
     assert shell.first("with-released-families --newest") < shell.first("git tag -a")     # pinned before the tag
     for never in NEVER_UPLOADS:
         assert shell.count(never) == 0, never
+
+
+def _a_family_released_elsewhere(root: Path) -> None:
+    """The system repository with one family released elsewhere, named by a range in two extras."""
+    pyproject = root / "pyproject.toml"
+    pyproject.write_text(pyproject.read_text() + '\n[project.optional-dependencies]\nfam = ["x-fam>=0.2,<0.3"]\n'
+                         'all = ["x-fam>=0.2,<0.3"]\n')
+    _git(root, "commit", "-qam", "a family released elsewhere")               # on main, checked out
+    _git(root, "branch", "-f", "develop", "main")
+    _git(root, "push", "-q", "-f", "origin", "develop", "main")
+
+
+def test_a_failure_putting_the_ranges_back_names_what_is_left(tmp_path: Path):
+    """After the tag and before any push: the lock that follows the ranges fails. The release is committed
+    and tagged here and nothing is pushed, so the refusal says so and names every command that is left,
+    these steps and then the ending's, as a failed push does."""
+    root = _system_repo(tmp_path)
+    _a_family_released_elsewhere(root)
+    locks: list[int] = []
+
+    def lock(_cmd: list[str]):                               # the bump's and the pin's locks pass; the third fails
+        locks.append(1)
+        return R.Done(1 if len(locks) == 3 else 0)
+    shell = FakeShell([*_answers(root), ("with-released-families --newest test", R.Done(0, "x-fam==0.2.1\n")),
+                       ("uv lock", lock)])
+    with pytest.raises(R.Refused) as e:
+        _family(root, shell).release("patch")
+    version = "0.1.1.dev1"
+    left = [["uv", "lock"], ["git", "add", "pyproject.toml", "uv.lock"],
+            ["git", "commit", "-q", "-m", f"after release {version}: the released families back on their ranges"],
+            *_family(root, shell).ending("main", version)]
+    assert e.value.code != 0 and e.value.message == "release: " + R.RESTORE_FAILED.format(
+        version=version, failed="uv lock", rest=" && ".join(shlex.join(c) for c in left))
+    assert _git(root, "tag", "-l") == f"v{version}" and _git(root, "log", "-1", "--format=%s") == f"release {version}"
+    assert _git(_remote(root), "tag", "-l") == ""                               # nothing was pushed
+    assert (root / "pyproject.toml").read_text().count('"x-fam>=0.2,<0.3"') == 2     # the ranges are written,
+    assert "pyproject.toml" in _git(root, "status", "--porcelain")                   # and not yet committed
+    assert shell.count("git push") == 0
+
+
+@pytest.mark.parametrize("dry", ["yes", "no"])
+def test_a_tree_left_pinned_is_refused_before_anything_changes(tmp_path: Path, dry: str):
+    """A release leaves an exact pin as it finds it, so a tree whose families were never put back on their
+    ranges would ship the old family version again: refused by the probes, naming the pins, in the dry
+    form too, with nothing bumped, tagged or pushed."""
+    root = _system_repo(tmp_path, branch="develop", develop_ahead=True)
+    refs, remote, files = _refs(root), _refs(_remote(root)), _files(root)
+    shell = FakeShell([*_answers(root), ("with-released-families --pinned", R.Done(0, "x-fam==0.2.1\ny-fam==0.2.1\n"))])
+    with pytest.raises(R.Refused) as e:
+        _family(root, shell).release("patch", dry)
+    assert e.value.code == 1 and R.ELSEWHERE_PINNED.format(pins="x-fam==0.2.1, y-fam==0.2.1") in e.value.message
+    assert shell.count("with-released-families --check") == 0 and shell.count("bump-my-version bump") == 0
+    assert shell.count("just test") == 0 and shell.count("git push") == 0
+    assert (_refs(root), _refs(_remote(root)), _files(root)) == (refs, remote, files)
+    assert _head(root) == "develop"
