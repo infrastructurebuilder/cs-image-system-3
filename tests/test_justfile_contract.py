@@ -5,9 +5,9 @@
 """The Justfile's contract.  Five reserved targets in lifecycle
 order (`init`, `build`, `test`, `full-test`, `release`), listed first;
 `build` wraps `uv build`; `full-test` runs the slow legs and reports a
-missing prerequisite as SKIPPED; `release` probes, bumps,
-publishes and only then commits and tags, gated on the bar or on
-`full-test` by the index; and the `preflight` command that gates
+missing prerequisite as SKIPPED; `release` probes, gates on the lighter
+check or, with `--full`, on `full-test`, bumps, commits and tags, and
+uploads nothing (its tag's push publishes); and the `preflight` command that gates
 full-test's cloud-reading legs reads the credential caches without loading
 the configuration.
 

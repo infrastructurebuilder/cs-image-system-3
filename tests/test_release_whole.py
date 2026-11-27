@@ -637,7 +637,7 @@ def _script(name: str):
 
 def test_a_release_here_builds_and_publishes_none_of_the_google_cloud_family():
     """spec 005: the Google Cloud family is released from its own repository (spec 008: the Okta identity
-    plugin too); this repository's release uploads none of it (the members `scripts/release.py` publishes and the projects
+    plugin too); this repository's release uploads none of it (the members `scripts/release.py` counts as published and the projects
     `scripts/publish-target-ready` probes), and `just build` (`uv build --all-packages`, every workspace
     member) has none of it to build."""
     import tomllib

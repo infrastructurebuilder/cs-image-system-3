@@ -16,7 +16,9 @@
 > What went: the families' job against the newest release, their
 > oldest-versions leg through TestPyPI, every install line rewritten,
 > the starters on every release, the overlay's TestPyPI reads (the
-> isolated runs' was restored the same day, T038) (spec.md, Clarifications
+> isolated runs' was restored the same day, T038; the overlay's index
+> options on 2026-11-26, T063, since a release's tag pins the families
+> exactly) (spec.md, Clarifications
 > 2026-11-24; tasks.md). The
 > plan below is kept as written; the tasks say what is done.
 

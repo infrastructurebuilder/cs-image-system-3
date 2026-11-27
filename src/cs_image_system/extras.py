@@ -51,11 +51,17 @@ EXTRA_ORDER: tuple[str, ...] = tuple(EXTRAS)
 #: The umbrella's distribution name, the one the extras hang off.
 UMBRELLA = "cs-image-system"
 
-#: The one install form until 1.0 (specification 013: every release on TestPyPI alone): the system's names
-#: from TestPyPI, every other from PyPI, at the exact release, on the Python the system is built and tested
-#: on; an unpinned install would take PyPI's older release. Lifted with the decision at 1.0.
-INSTALL_OPTIONS = ("--python 3.13 --index-url https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple/ "
-                   "--index-strategy unsafe-first-match")
+#: The index options of the one install form until 1.0 (specification 013: every release on TestPyPI alone):
+#: uv asks PyPI first for each name (it ranks ``--extra-index-url`` above ``--index-url``) and TestPyPI for
+#: what PyPI cannot satisfy, an exact pin of a release TestPyPI alone holds; every other package comes from
+#: PyPI. The overlay that layers the families released elsewhere in for one command runs with them too
+#: (scripts/with-released-families). Lifted with the decision at 1.0.
+INDEX_OPTIONS = ("--index-url https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple/ "
+                 "--index-strategy unsafe-first-match")
+
+#: The one install form: the index options, at the exact release, on the Python the system is built and
+#: tested on; an unpinned install would take PyPI's older release.
+INSTALL_OPTIONS = f"--python 3.13 {INDEX_OPTIONS}"
 
 
 def installed_version() -> str | None:

@@ -2340,7 +2340,8 @@ order:
    the checkout whose venv is behind, for a run whose venv is another
    checkout's); then every package whose version the release
    does not move -- the manifests the bump's `glob_exclude` names, the
-   contract today, private ones skipped -- is either not on TestPyPI
+   contract, the kit and the two terraform libraries, private ones
+   skipped -- is either not on TestPyPI
    (the publish workflow uploads it fresh) or held there as exactly this
    tree's build
    (`scripts/own-versions-current`: the package built as `just build`
@@ -2679,9 +2680,10 @@ its whole gate before the upload failed
 **The upload is the publish workflow's.** The publish workflow
 ([This repository: the Publish workflow](#this-repository-the-publish-workflow))
 uploads in the order `scripts/publish-dist` keeps -- one project at a
-time, its sdist and wheel together, in dependency order: the base
-first, then the plugins, `cs-image-system-system`, and `cs-image-system`
-last -- so an upload that is cut off leaves only complete projects, and
+time, its sdist and wheel together, in dependency order: the contract
+first, then the kit, then each project after the ones it depends on
+(ties by name), and `cs-image-system` last -- so an upload that is cut
+off leaves only complete projects, and
 the top-level package appears only when everything it needs is there
 (an upload that sends the top-level package before its dependencies
 leaves `pip install cs-image-system==<version>` unable to resolve until
@@ -2739,7 +2741,9 @@ interim releases, and they are not to flood PyPI. PyPI keeps the
 versions it had: the system and its plugins 0.1.12, the kit and the
 terraform libraries 0.2.1, the contract 0.5.0, the Okta plugin and the
 Google Cloud family 0.2.1. Each repository's release refuses `pypi`,
-naming the decision, before it asks or changes anything:
+naming the decision: this repository's before it asks or changes
+anything, a family's right after its recipe's `init` (the venv synced
+to the lock) and before it asks an index or changes a file:
 
 ```text
 release: PyPI is refused by the standing decision, TestPyPI until 1.0 (the operator's to lift): a release goes to TestPyPI alone, published by its tag's push -- nothing was changed
@@ -2994,10 +2998,10 @@ What it finds, by what each carries until 1.0:
 | `INDEX` and `INDEX_URL` in [scripts/release-watch](../scripts/release-watch) | the index the verdict on the tag's Publish run is read against |
 | [.github/workflows/publish.yml](../.github/workflows/publish.yml) | the `testpypi` job, its environment and `uv publish --index testpypi`; no PyPI job |
 | the `[[tool.uv.index]]` named `testpypi` and the four `index = "testpypi"` sources in the root [pyproject.toml](../pyproject.toml), with `uv.lock`, which follows them at the next `uv lock` | where the upload goes, and where this tree's lock takes the families released elsewhere from; [tests/test_index_pins.py](../tests/test_index_pins.py) holds the lock to it |
-| `INSTALL_OPTIONS` in [src/cs_image_system/extras.py](../src/cs_image_system/extras.py) | the install line the system itself prints when a configuration names a type whose extra is not installed |
+| `INDEX_OPTIONS` and `INSTALL_OPTIONS` in [src/cs_image_system/extras.py](../src/cs_image_system/extras.py) | the install line the system itself prints when a configuration names a type whose extra is not installed, and the index options the families' overlay runs with (`scripts/with-released-families` reads them from here) |
 | `INDEX_SIMPLE` and `INDEX_OPTIONS` in [scripts/isolated-run](../scripts/isolated-run) | the index the isolated runs read the SDK's published versions and files from, and install a published version with |
 | [scripts/dev-pin-resolves](../scripts/dev-pin-resolves) | the check that every one of the system's packages resolves from TestPyPI (or from PyPI as the same files) and nothing else does; it reads the install line from a starter's workflow |
-| the probes that take the index as a word: [scripts/own-versions-current](../scripts/own-versions-current), [scripts/publish-target-ready](../scripts/publish-target-ready) (and `just index-ready`, whose default is `test`) and [scripts/with-released-families](../scripts/with-released-families) (`--check`, `--newest`) | nothing of their own: `test` is the word the release passes each (its `INDEX`, the first row), and each still takes `pypi`, for a look at PyPI |
+| the probes that take the index as a word: [scripts/own-versions-current](../scripts/own-versions-current), [scripts/publish-target-ready](../scripts/publish-target-ready) (and `just index-ready`, whose default is `test`) and [scripts/with-released-families](../scripts/with-released-families) (`--check`, `--newest`) | nothing of their own: `test` is the word the release passes each (its `INDEX`, the first row), and each still takes `pypi`, for a look at PyPI; the overlay's index options are `INDEX_OPTIONS`, the row above |
 | the other documents and comments that say where a release goes: [README.md](../README.md), [DESCRIPTION.md](DESCRIPTION.md), the entry "release" of [GLOSSARY.md](GLOSSARY.md), [CI_RUNNER.md](CI_RUNNER.md), [REMINDERS.md](../REMINDERS.md), the `Justfile`'s comments and recipe descriptions, the comments of [ci.yml](../.github/workflows/ci.yml) and the docstring of [scripts/publish-dist](../scripts/publish-dist) | each says, in the present tense, that a release goes to TestPyPI alone, and is reworded in the same change |
 | the install lines: [QUICKSTART.md](QUICKSTART.md)'s first box, the starters' READMEs (`docs/examples/*/README.md`), [DAILY_DRIVER.md](DAILY_DRIVER.md), this guide, the skeleton's `Justfile` (the `take` recipe) and `CI_SETUP.md`, and every starter's workflows (`docs/examples/*/.github/workflows/`) | the one install form; a configuration repository receives the skeleton's `Justfile`, `CI_SETUP.md` and workflows at its next take, and its own README is its own to change |
 | the tests the search lists under `tests/` | the rows above as they stand (the lock's sources, the starters' install line, the release's refusal and index, the isolated runs' index, the install hint), so they change with their rows, in the same change |
@@ -3059,7 +3063,16 @@ the templates in `just publish-starters`) layer it in from the index for
 that one command (`scripts/with-released-families`), with this checkout's
 contract and SDK layered under it: the overlay resolves the family on its
 own, and would otherwise take their newest published versions and hide
-what only the checkout holds yet. The Google Cloud
+what only the checkout holds yet. The overlay runs with the one install
+form's index options ([Releasing until 1.0](#releasing-until-10)), read
+from `INDEX_OPTIONS` in
+[src/cs_image_system/extras.py](../src/cs_image_system/extras.py): `uv
+run --with` does not read the project's `[tool.uv.sources]`, and at a
+release's tag the family is pinned exactly at its newest TestPyPI
+release, which PyPI may not hold. Between releases the range is asked of
+PyPI first, as before, so the overlay takes the newest release PyPI
+holds inside it; TestPyPI answers only for a pin PyPI cannot satisfy.
+The Google Cloud
 family's own READMEs, documents and tests are in its repository; its
 configuration fields are in
 [its `docs/CONFIGURATION.md`](https://github.com/infrastructurebuilder/cs-image-system-google-cloud/blob/develop/docs/CONFIGURATION.md).

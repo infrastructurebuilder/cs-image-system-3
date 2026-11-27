@@ -41,8 +41,9 @@ It contains no cloud code: every provider call goes through a plugin
 hook. Licensed under Apache-2.0. Requires Python 3.13 or later.
 
 Declared dependencies ([`pyproject.toml`](pyproject.toml)):
-`cs-image-system-contract` (its compatible series, as every dependent
-pins it), `cs-image-system-base` (the kit, at `==` the kit's own
+`cs-image-system-contract` (its compatible series, as every package
+that depends on it pins it but the umbrella, which pins it exactly),
+`cs-image-system-base` (the kit, at `==` the kit's own
 version), `Jinja2` (the template resolver), `PyYAML`, `packaging` (the
 version checks and the pinned release), `pydantic` and `typer` (the
 typer context the configuration reader and the commands are handed).

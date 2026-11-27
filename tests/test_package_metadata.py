@@ -22,8 +22,9 @@ and `bump-my-version` moves every version line and every pin -- the
 extras' and the dev group's included -- at once under the
 MAJOR.MINOR.PATCH[.devN] scheme (41.4, 41.5), proven on a copy of the tree.
 The exceptions are the contract (its version is its own, every
-dependent pins it to a range, and the bump leaves it alone;
-tests/test_contract_version.py holds that side) and the SDK's two
+dependent pins it to a range but the umbrella, which pins it exactly,
+and the bump leaves it alone; tests/test_contract_version.py holds that
+side) and the SDK's two
 version lines, the kit's and the terraform libraries', which the
 workspace's bump leaves alone and `just sdk-bump` moves.
 """
@@ -287,7 +288,8 @@ def test_every_sibling_pin_is_the_version_its_rule_gives():
     exactly at the workspace's version (`>=` would let versions mix), and
     bump-my-version's current_version is it too. The packages with a version
     of their own are the exceptions (``own_versions``): the contract, which
-    every dependent pins by the range of its compatible series, and the SDK's
+    every dependent pins by the range of its compatible series (the umbrella
+    alone exactly), and the SDK's
     members, pinned exactly at their own line's version by everything that
     releases with them and by range from a provider that stands alone."""
     root = tomllib.loads(ROOT.read_text())

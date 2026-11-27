@@ -16,8 +16,15 @@ venv: `just init` leaves its extra out, so this repository's tests pass
 without it. A command that loads a tree
 declaring it -- the reference configuration, a starter that needs every
 provider -- runs here as ``uv run --no-sync --with=<req> ... COMMAND``: the
-family is layered in for that command alone, by its extra's own ranges in
-``pyproject.toml`` (never restated), and the venv is left as it was. The
+family is layered in for that command alone, by its extra's own requirements
+in ``pyproject.toml`` (never restated), and the venv is left as it was. The
+overlay runs with the one install form's index options (``INDEX_OPTIONS`` of
+``cs_image_system.extras``, never restated): ``uv run --with`` ignores the
+project's ``[tool.uv.sources]``, and at a release's tag each family is pinned
+exactly at its newest TestPyPI release (specification 013, D1), a version
+PyPI may not hold; with the options PyPI is still asked first for each name,
+so between releases a range resolves as it did, and TestPyPI answers only for
+a pin PyPI cannot satisfy. The
 overlay resolves a family's requirements on their own, so the packages of
 this checkout a family depends on (the contract and the SDK's libraries,
 ``CHECKOUT_SDK``) are layered in too, as this checkout's, editable: without
@@ -39,6 +46,7 @@ from __future__ import annotations
 
 import json
 import os
+import shlex
 import sys
 import tomllib
 import urllib.error
@@ -78,10 +86,19 @@ def checkout_sdk(root: Path = REPO) -> list[Path]:
     return [found[n] for n in CHECKOUT_SDK]
 
 
+def index_options() -> list[str]:
+    """The one install form's index options, a word each: PyPI asked first for each name, TestPyPI for a pin
+    PyPI cannot satisfy (a family's release that TestPyPI alone holds, pinned exactly at a release's tag)."""
+    from cs_image_system.extras import INDEX_OPTIONS
+    return shlex.split(INDEX_OPTIONS)
+
+
 def with_options(pyproject: Path = REPO / "pyproject.toml") -> list[str]:
-    """The families from the index by their extras' ranges, and this checkout's contract and SDK under them."""
+    """The families from the index by their extras' requirements, this checkout's contract and SDK under them,
+    and the index options the resolution runs with."""
     return ([f"--with={req}" for req in requirements(pyproject)]
-            + [f"--with-editable={path}" for path in checkout_sdk()])
+            + [f"--with-editable={path}" for path in checkout_sdk()]
+            + index_options())
 
 
 INDEX_JSON = {"test": "https://test.pypi.org/pypi/{name}/json", "pypi": "https://pypi.org/pypi/{name}/json"}

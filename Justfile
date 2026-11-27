@@ -143,10 +143,11 @@ release-watch version:
 # line each, before anything changes: the venv is in step with the lock (`uv sync --all-extras
 # --no-extra gcloud --no-extra okta --no-extra all --check`), because every recipe runs `uv run
 # --no-sync` and a venv behind the checkout answers with stale metadata; every package whose
-# version the release does not move (the bump's `glob_exclude`: the contract) is either not on
-# TestPyPI or held there as this tree's build, file for file (scripts/own-versions-current),
-# because an index never takes a second build under one version and would refuse the publish
-# workflow's upload after the tag; every family released elsewhere has a TestPyPI release inside
+# version the release does not move (the bump's `glob_exclude`: the contract, the kit and the two
+# terraform libraries) is either not on TestPyPI or held there as this tree's build, file for file
+# (scripts/own-versions-current), because an index never takes a second build under one version
+# and would refuse the publish workflow's upload after the tag; every family released elsewhere
+# has a TestPyPI release inside
 # the range the extras name (scripts/with-released-families --check test); the SDK's surfaces;
 # docker answers (the quickstart page's run and full-test's legs run in it). PROOF `full` (a release's
 # `--full`) also asks that every runtime session of the live configuration is present (`just
