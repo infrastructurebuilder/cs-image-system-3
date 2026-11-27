@@ -337,7 +337,7 @@ def test_the_starter_workflow_has_the_three_jobs(rendered_starters):
         assert doc["jobs"]["live"]["needs"] == "verify" and doc["jobs"]["perform"]["needs"] == "live"
         text = (rendered_starters / name / ".github/workflows/ci.yml").read_text()
         assert "uv tool install" in text and "cs-image-system" in text, f"{name}: the workflow must install a release"
-        assert "test.pypi.org" in text, f"{name}: a development version installs from TestPyPI"
+        assert "test.pypi.org" in text, f"{name}: every release installs from TestPyPI until 1.0"
         assert "just mirror-clean" in text, f"{name}: the mirror must be removed even on failure"
         # GITHUB_ENV reaches only the steps after, so the identity
         # step exports the variable for its own `mask` before using it

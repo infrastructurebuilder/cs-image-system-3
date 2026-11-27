@@ -296,3 +296,25 @@ def private_plugin_cache(tmp_path: Path, roots: list[Path]) -> Path:
         if have.is_dir() and not (private / src).exists():
             shutil.copytree(have, private / src)
     return private
+
+
+#: The states the root manifest takes for the families released from their own repositories (specification
+#: 013, D1): as the tree stands (ranges between releases; exact pins in a release's commit, where CI runs this
+#: suite on the pushed tag), and pinned as a release pins them, at 0.2.1 and at another release of the series.
+#: A test that reads those requirements runs in each, so the suite holds on a release's tag before one is cut.
+FAMILY_STATES = ("as the tree stands", "0.2.1", "0.2.7")
+
+
+def family_manifest(tmp_path: Path, requirements: list[str], state: str) -> Path:
+    """The root manifest in one of ``FAMILY_STATES``: the tree's own, or a copy in which every one of
+    ``requirements`` (the released-elsewhere extras', as the tree names them) is an exact pin at ``state``."""
+    from packaging.requirements import Requirement
+    if state == FAMILY_STATES[0]:
+        return REPO / "pyproject.toml"
+    text = (REPO / "pyproject.toml").read_text()
+    for req in sorted(set(requirements)):
+        assert f'"{req}"' in text, req
+        text = text.replace(f'"{req}"', f'"{Requirement(req).name}=={state}"')
+    path = tmp_path / "pyproject.toml"
+    path.write_text(text)
+    return path

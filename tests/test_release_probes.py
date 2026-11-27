@@ -24,6 +24,7 @@ import subprocess
 from pathlib import Path
 
 import pytest
+from harness import FAMILY_STATES, family_manifest
 
 REPO = Path(__file__).resolve().parents[1]
 OWN = "own-versions-current"
@@ -134,11 +135,14 @@ def test_pypi_is_refused_naming_the_standing_decision_before_anything_is_asked(t
     assert OWN not in done.stdout and ELSEWHERE not in done.stdout and "docker" not in done.stdout
 
 
-def test_a_release_refuses_when_no_published_okta_plugin_meets_its_range():
+@pytest.mark.parametrize("state", FAMILY_STATES)
+def test_a_release_refuses_when_no_published_okta_plugin_meets_its_range(tmp_path: Path, state: str):
     """Spec 008, T048: the released-elsewhere probe reads both released-
     elsewhere extras, so an index that holds the Google Cloud family's
     releases but none of the Okta plugin inside its range refuses the
-    release (exit 1), naming the plugin; with one inside it, it passes."""
+    release (exit 1), naming the plugin; with one inside it, it passes.
+    In each state the tree takes (ranges between releases, exact pins at a
+    release's commit, where CI runs this on the tag)."""
     import importlib.machinery
     import importlib.util
 
@@ -148,10 +152,12 @@ def test_a_release_refuses_when_no_published_okta_plugin_meets_its_range():
     assert spec is not None
     script = importlib.util.module_from_spec(spec)
     loader.exec_module(script)
+    manifest = family_manifest(tmp_path, script.requirements(), state)
+    held = {Version(v) for v in ("0.2.0", "0.2.1", "0.2.7")}        # a release inside the range, and each pin
 
     def index(okta: set[Version]):
-        return lambda _index, name: okta if name == "cs-image-system-okta-opa-plugin" else {Version("0.2.1")}
+        return lambda _index, name: okta if name == "cs-image-system-okta-opa-plugin" else held
     said: list[str] = []
-    assert script.check("test", asked=index({Version("0.1.12")}), say=said.append) == 1
+    assert script.check("test", asked=index({Version("0.1.12")}), say=said.append, pyproject=manifest) == 1
     assert any("cs-image-system-okta-opa-plugin" in line and "NO release" in line for line in said)
-    assert script.check("test", asked=index({Version("0.2.1")}), say=lambda _line: None) == 0
+    assert script.check("test", asked=index(held), say=lambda _line: None, pyproject=manifest) == 0

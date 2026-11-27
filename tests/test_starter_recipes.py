@@ -72,7 +72,7 @@ def test_every_starter_carries_the_same_take_recipe(rendered_starters: Path):
     _order(recipe, '--changes-since "$prev" --porcelain', "init-config . --force", "\"$version\" > .csis-version",
            "for step in init validate", 'git commit -q -m "$message"')
     assert "git push origin develop" in recipe and "origin develop:main" in recipe      # pushing main only when told `main`
-    assert "--index-strategy unsafe-first-match" in recipe                              # a development release comes from TestPyPI
+    assert "--index-strategy unsafe-first-match" in recipe                              # every release comes from TestPyPI until 1.0
 
 
 @needs_just
