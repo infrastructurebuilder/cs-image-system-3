@@ -1,24 +1,33 @@
 <!--
 Sync Impact Report (scratch for review; remove before committing)
 
-Version change: 1.1.0 -> 1.2.0
-Bump: MINOR. A section was materially expanded (Governance: "MINOR when
-  a principle or section is added or materially expanded"); no principle
-  was removed or redefined.
-Amended: 2026-11-21, by the operator.
+Version change: 1.2.0 -> 1.3.0
+Bump: MINOR. One constraint of a section changed in substance, which is
+  more than wording (PATCH) and touches no principle (MAJOR is for a
+  principle removed or redefined); Governance gives MINOR to a section
+  "materially expanded", the nearest case.
+Amended: 2026-11-27, by the operator ("amend the constitution for the
+  lighter check").
 Modified principles: none
 Added sections: none
-Expanded sections: Development Workflow, by one bullet: the definition
-  of done for a specification (six conditions, each shown by a command
-  or a record), the states "in progress" and "merged", and its reach:
-  every specification, those written before it included.
+Changed sections: Additional Constraints, its first bullet. It said
+  "`just full-test` runs before a release." Since the operator's decision
+  of 2026-11-23 (specification 013, FR-002 and FR-002a) an interim
+  release until 1.0 is gated by the lighter check, runs the full proof
+  only when asked with `--full`, and says before it starts when the full
+  proof is probably needed. The bullet now says so.
 Removed sections: none
 Templates: plan, spec and tasks templates read this file at run time and
   were not modified.
-Deferred items: specs/README.md's State column and spec 005's status line
-  are to follow the new states (outside this file).
+Deferred items: none. The guides that repeated the old sentence are
+  corrected by specification 013's T078 (outside this file).
 
 Earlier amendments:
+  1.1.0 -> 1.2.0 (2026-11-21): Development Workflow gained one bullet:
+    the definition of done for a specification (six conditions, each
+    shown by a command or a record), the states "in progress" and
+    "merged", and its reach: every specification, those written before
+    it included.
   1.0.0 -> 1.1.0 (2026-11-17): Additional Constraints gained the Azure
     cloud testing constraint (the operator's cost; whatever is created
     is torn down).
@@ -147,7 +156,11 @@ opened.
 - The `Justfile` is the single entry point: `init`, `build`, `test`,
   `full-test`, `release`. `just test` is the local acceptance bar; lint,
   the type check (zero errors) and the tests all block. `just full-test`
-  runs before a release.
+  runs before a release that is proven in full (`just release ... --full`).
+  Until the operator declares 1.0, an interim release is gated by the
+  lighter check instead (`just test` and the quickstart page's own
+  commands), and MUST say before it starts, without refusing, when the
+  full proof is probably needed (specification 013).
 - Python runs through `uv run python`.
 - Live testing uses the `cs-image-system-testconfig` repository as its
   configuration. Fast and local tests use the fixtures.
@@ -217,4 +230,4 @@ document is corrected.
   before it is planned: it names its user and ends in an executable
   acceptance.
 
-**Version**: 1.2.0 | **Ratified**: 2026-11-16 | **Last Amended**: 2026-11-21
+**Version**: 1.3.0 | **Ratified**: 2026-11-16 | **Last Amended**: 2026-11-27
