@@ -1505,8 +1505,10 @@ running, and goes on; expect the tree's CI to say BEHIND at
 record again with the pinned release before `main` moves. What is not
 checked: a tree without `.csis-version` (the frozen fixture has none), a
 run without `--commit` (a dry run, `just dry`, `config-drift` itself),
-and the pinned release from an index, which is what `uv tool install
-"cs-image-system==<version>"`, `just take` and the tree's CI all produce.
+and the pinned release from an index, which is what an install of
+`cs-image-system==<version>` in the one install form
+([Releasing until 1.0](#releasing-until-10)), `just take` and the tree's
+CI all produce.
 
 Two commands are held this way, and one that also takes `--commit` is
 deliberately not:
@@ -2013,7 +2015,10 @@ exit 2, naming the remedy, while `TF_VAR_<team>_key` or `_secret` is
 unset, so the leg fails rather than passing on less; without
 `OKTA_API_*` it only warns and skips the plan of its read-only user
 root. Set both in the configuration's `.envrc` before the run. Run it
-before declaring a phase done and before any release.
+before declaring a phase done. A release runs it only when asked with
+`--full`: an interim release is gated by the lighter check, and says
+beforehand when the full proof is probably needed
+([Releasing until 1.0](#releasing-until-10)).
 
 ### The golden
 
@@ -4546,15 +4551,22 @@ exception is a decision to record, not a bypass.
 - The live configuration carries no overlays; a transient declaration is
   a test device or an invocation flag.
 - `just test` is the acceptance bar and every check in it blocks; a
-  looser target is not the bar. `just full-test` precedes "done" and
-  every release.
+  looser target is not the bar. `just full-test` precedes "done". A
+  release until 1.0 is gated by the lighter check (`just test` and the
+  quickstart page's own commands) and runs the full proof when asked
+  with `--full`; before it starts it says when what it carries probably
+  needs that ([Releasing until 1.0](#releasing-until-10)).
 - A moved golden is read and justified, never accepted.
 - Work goes through the Justfile, not the underlying tools; a missing
   check gets a recipe.
 - One feature branch per piece of work, squash-merged into `develop`, the
   branch kept and pushed. Never commit to `develop` or `main` directly;
-  never force-push a shared branch. Nothing in the tooling pushes: a push
-  is the operator's act.
+  never force-push a shared branch. Three recipes push, and only what
+  each names: `just release` (the release branch with its tag, then
+  `develop`), `just take` in a configuration repository (the before-tag,
+  `develop`, and `main` when told), and `just publish-starters` from the
+  Publish workflow (the template repositories). Nothing else in the
+  tooling pushes: any other push is the operator's act.
 - A change that touches the live configuration commits and pushes that
   repository's `develop` as part of the work.
 

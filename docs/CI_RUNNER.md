@@ -172,7 +172,9 @@ image path, so the list above stays true on a machine that holds
 nothing.
 
 **The quickstart job**, in this repository's CI and its Publish
-workflow, is the one job that does not run in the image, by design: it
+workflow, is the one job that leaves the image by design (the Publish
+workflow's `testpypi` job runs outside it too, on the bare runner with
+uv alone, since all it does is upload): it
 runs the [quickstart page](QUICKSTART.md)'s own commands on a stock
 `ubuntu:24.04` container holding the page's prerequisites alone, at the
 floors the page states (`just quickstart-prepare`), because the image

@@ -18,8 +18,10 @@ every leg blocking. It is the local acceptance test for a change: a
 change is not done until the bar passes, and the system's CI runs the
 same recipe as its `verify` job. It is not `just full-test`, which adds
 the slow legs (the modification tests under docker, a dry run and a
-strict query over a copy of the reference) and is owed before a release
-or a hand-made performing run; and it is not `just test-one`, which runs
+strict query over a copy of the reference) and is owed before "done"
+and before a hand-made performing run (a release until 1.0 runs it only
+when asked with `--full`; an interim one is gated by the lighter check);
+and it is not `just test-one`, which runs
 one file so that proving a single change does not cost a full suite.
 There is no looser recipe by design: a test asserts that a `ci` recipe
 with a non-blocking type check stays gone. Read

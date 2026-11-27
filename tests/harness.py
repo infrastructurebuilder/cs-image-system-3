@@ -300,9 +300,14 @@ def private_plugin_cache(tmp_path: Path, roots: list[Path]) -> Path:
 
 #: The states the root manifest takes for the families released from their own repositories (specification
 #: 013, D1): as the tree stands (ranges between releases; exact pins in a release's commit, where CI runs this
-#: suite on the pushed tag), and pinned as a release pins them, at 0.2.1 and at another release of the series.
-#: A test that reads those requirements runs in each, so the suite holds on a release's tag before one is cut.
-FAMILY_STATES = ("as the tree stands", "0.2.1", "0.2.7")
+#: suite on the pushed tag), and pinned as a release pins them, at the release they are at today and at one
+#: no test names. A test that reads those requirements runs in each, so the suite holds on a release's tag
+#: before one is cut; what an index holds in such a test comes from the requirement itself (``held_around``),
+#: never from a list of versions, since a release pins whatever is then the newest.
+FAMILY_STATES = ("as the tree stands", "0.2.1", "0.2.42")
+
+#: a release no requirement of a family takes, and one above every series
+NEVER_INSIDE, ABOVE_EVERY_SERIES = "0.0.1", "99.0.0"
 
 
 def family_manifest(tmp_path: Path, requirements: list[str], state: str) -> Path:
@@ -318,3 +323,27 @@ def family_manifest(tmp_path: Path, requirements: list[str], state: str) -> Path
     path = tmp_path / "pyproject.toml"
     path.write_text(text)
     return path
+
+
+def held_around(requirement: str) -> set[str]:
+    """What a stub index holds of one family for a test of ``requirement``: a release below everything, one
+    above every series, and, read from the requirement's own specifier, each bound it names, a later release
+    of a lower bound's series, and each version it pins exactly. So the newest release inside it is the
+    range's newest between releases and the pin itself at a release's commit, whatever version that is."""
+    from packaging.requirements import Requirement
+    from packaging.version import Version
+    held = {NEVER_INSIDE, ABOVE_EVERY_SERIES}
+    for spec in Requirement(requirement).specifier:
+        held.add(spec.version)
+        if spec.operator in (">=", "~=", ">"):
+            release = (*Version(spec.version).release, 0, 0)[:3]
+            held.add(f"{release[0]}.{release[1]}.{release[2] + 3}")
+    return held
+
+
+def newest_inside(requirement: str) -> str:
+    """The newest release of ``held_around(requirement)`` the requirement takes."""
+    from packaging.requirements import Requirement
+    from packaging.version import Version
+    spec = Requirement(requirement).specifier
+    return str(max(Version(v) for v in held_around(requirement) if spec.contains(Version(v))))
