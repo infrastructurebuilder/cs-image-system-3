@@ -24,11 +24,13 @@ every plugin that needs no provider account -- and an extra per provider
 `uv pip install cs-image-system==<version>` carries no runtime and
 `'cs-image-system[aws]==<version>'` adds one (see "Installing a release"
 in [OPERATIONS.md](OPERATIONS.md); the table from a `type:` word to its
-extra is `cs_image_system.extras`, the umbrella's one module). The
-`[gcloud]` and `[all]` extras name the Google Cloud family by the range of
-its own line rather than by a `==` pin, since it is released from its own
-repository, and the `[okta]` and `[all]` extras name the Okta plugin the
-same way (`>=0.2,<0.3`); the workspace's `just init` therefore syncs every
+extra is `cs_image_system.extras`, the umbrella's one module). In this
+tree the `[gcloud]` and `[all]` extras name the Google Cloud family by the
+range of its own line rather than by a `==` pin, since it is released from
+its own repository, and the `[okta]` and `[all]` extras name the Okta
+plugin the same way (`>=0.2,<0.3`); a release pins each exactly, in its
+commit and its tag, at the newest TestPyPI release inside the range, and
+puts the range back in the commit after. The workspace's `just init` therefore syncs every
 extra but those three, and the commands that load a tree declaring the
 Google Cloud family or the Okta plugin layer it in from the index for that
 command alone. How an operator installs either is stated once, in
@@ -42,13 +44,14 @@ third-party distributions its sources import, and
 
 How a package names its siblings depends on what the sibling is. The
 contract has a version of its own and is named by the range of its
-series. The SDK's libraries (the kit, and the two terraform libraries
+series by every package but the umbrella, which pins it exactly. The SDK's libraries (the kit, and the two terraform libraries
 together) each keep a version line of their own: the core and the
 plugins that release with it pin them exactly, and a provider that
 stands alone, as the docker provider does, names them by a range. The
 Google Cloud family and the Okta plugin, each released from its own
 repository, name the contract, the kit and the terraform libraries by
-ranges too, and the umbrella names each by a range in turn.
+ranges too, and the umbrella names each by a range in turn in this tree,
+pinned exactly by each release (above).
 Everything else carries the workspace's one version and is pinned at it.
 [WRITING_A_PROVIDER.md](WRITING_A_PROVIDER.md) says what the SDK's
 version numbers promise.

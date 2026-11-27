@@ -42,7 +42,8 @@ dependencies = [
 # version, so a bump moves them with the rest (the `=={current_version}"` rule below reads the
 # whole file); the Google Cloud family is released from its own repository
 # (cs-image-system-google-cloud) on its own version line, so it is named by a range a bump
-# never moves; the
+# never moves (a release pins it exactly in its commit and its tag, at its newest TestPyPI
+# release inside the range, and puts the range back in the commit after); the
 # docker extra is one package, the runtime and its roots together. The two
 # private plugins (dummy, contract-example) are in the dev group, never here.
 [project.optional-dependencies]

@@ -879,8 +879,8 @@ def test_main_that_cannot_fast_forward_to_develop_is_refused_on_develop(tmp_path
 
 @pytest.mark.parametrize(("ref", "at"), [("refs/heads/main", 0), ("refs/heads/develop", 3)])
 def test_a_failed_push_names_itself_and_what_is_left_and_exits_non_zero(tmp_path: Path, ref: str, at: int):
-    """The version is on the index and committed and tagged here; the failed push is named with the
-    commands that are left, and nothing after it runs."""
+    """The version is committed and tagged here, and reaches the index only by its tag's push (the release
+    uploads nothing); the failed push is named with the commands that are left, and nothing after it runs."""
     root = _system_repo(tmp_path, branch="develop", develop_ahead=True)
     _refuse_pushes_to(root, ref)
     shell = FakeShell(_answers(root))
