@@ -24,7 +24,7 @@ import subprocess
 from pathlib import Path
 
 import pytest
-from harness import FAMILY_STATES, family_manifest
+from harness import FAMILY_STATES, NEVER_INSIDE, family_manifest, held_around
 
 REPO = Path(__file__).resolve().parents[1]
 OWN = "own-versions-current"
@@ -153,11 +153,13 @@ def test_a_release_refuses_when_no_published_okta_plugin_meets_its_range(tmp_pat
     script = importlib.util.module_from_spec(spec)
     loader.exec_module(script)
     manifest = family_manifest(tmp_path, script.requirements(), state)
-    held = {Version(v) for v in ("0.2.0", "0.2.1", "0.2.7")}        # a release inside the range, and each pin
+    okta_plugin = "cs-image-system-okta-opa-plugin"
+    # what the index holds of each family comes from its own requirement, whatever version a release pinned
+    held = {script.Requirement(r).name: {Version(v) for v in held_around(r)} for r in script.requirements(manifest)}
 
     def index(okta: set[Version]):
-        return lambda _index, name: okta if name == "cs-image-system-okta-opa-plugin" else held
+        return lambda _index, name: okta if name == okta_plugin else held[name]
     said: list[str] = []
-    assert script.check("test", asked=index({Version("0.1.12")}), say=said.append, pyproject=manifest) == 1
-    assert any("cs-image-system-okta-opa-plugin" in line and "NO release" in line for line in said)
-    assert script.check("test", asked=index(held), say=lambda _line: None, pyproject=manifest) == 0
+    assert script.check("test", asked=index({Version(NEVER_INSIDE)}), say=said.append, pyproject=manifest) == 1
+    assert any(okta_plugin in line and "NO release" in line for line in said)
+    assert script.check("test", asked=index(held[okta_plugin]), say=lambda _line: None, pyproject=manifest) == 0

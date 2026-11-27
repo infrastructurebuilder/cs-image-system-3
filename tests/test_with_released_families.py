@@ -15,7 +15,7 @@ import sys
 from pathlib import Path
 
 import pytest
-from harness import FAMILY_STATES, family_manifest
+from harness import FAMILY_STATES, NEVER_INSIDE, family_manifest, held_around, newest_inside
 from packaging.version import Version
 
 REPO = Path(__file__).resolve().parents[1]
@@ -80,21 +80,16 @@ def test_a_workspace_without_one_of_them_is_named(tmp_path: Path):
         W.checkout_sdk(tmp_path)
 
 
-#: what a stub index holds of each family: releases below, inside and above the series, the two pins among them
-HELD = ("0.1.11", "0.2.0", "0.2.1", "0.2.3", "0.2.7", "0.3.0")
-
-
 @pytest.fixture(params=FAMILY_STATES)
 def manifest(request: pytest.FixtureRequest, tmp_path: Path) -> Path:
     """The root manifest in each state the tree takes: ranges between releases, exact pins at a release's
-    commit (where CI runs this suite on the tag), at 0.2.1 and at another release of the series."""
+    commit (where CI runs this suite on the tag), whatever version the release pinned."""
     return family_manifest(tmp_path, W.requirements(), request.param)
 
 
-def _newest_inside(requirement: str) -> Version:
-    """The newest of ``HELD`` a requirement takes: the range's newest between releases, the pin itself at a tag."""
-    req = W.Requirement(requirement)
-    return max(Version(v) for v in HELD if req.specifier.contains(Version(v)))
+def _held(manifest: Path) -> dict[str, set[str]]:
+    """What the stub index holds of each family: the releases around its own requirement in ``manifest``."""
+    return {W.Requirement(r).name: held_around(r) for r in W.requirements(manifest)}
 
 
 def _check(answers: dict[str, set[str]] | Exception, manifest: Path) -> tuple[int, list[str]]:
@@ -110,15 +105,15 @@ def _check(answers: dict[str, set[str]] | Exception, manifest: Path) -> tuple[in
 
 def test_every_range_met_names_the_newest_release_inside_it(manifest: Path):
     reqs = W.requirements(manifest)
-    rc, said = _check({W.Requirement(r).name: set(HELD) for r in reqs}, manifest)
+    rc, said = _check(_held(manifest), manifest)
     assert rc == 0 and len(said) == len(reqs)
     for r, line in zip(reqs, said, strict=True):
-        assert W.Requirement(r).name in line and f"-- {_newest_inside(r)} on the pypi index" in line
+        assert W.Requirement(r).name in line and f"-- {newest_inside(r)} on the pypi index" in line
 
 
 def test_a_range_nothing_meets_is_exit_1_and_an_unasked_index_exit_2(manifest: Path):
     names = [W.Requirement(r).name for r in W.requirements(manifest)]
-    rc, said = _check({n: {"0.1.11"} for n in names}, manifest)
+    rc, said = _check({n: {NEVER_INSIDE} for n in names}, manifest)
     assert rc == 1 and len(said) == len(names) and all("NO release" in line for line in said)
     rc, said = _check(W.Unasked("no route to the index"), manifest)
     assert rc == 2 and len(said) == 1 and "no route to the index" in said[0]
@@ -131,7 +126,8 @@ def test_a_command_is_needed():
 
 def test_newest_names_the_newest_release_inside_each_range_and_refuses_one_unmet(manifest: Path):
     reqs = W.requirements(manifest)
-    found = W.newest("test", asked=lambda _index, _name: {Version(v) for v in HELD}, pyproject=manifest)
-    assert found == {W.Requirement(r).name: _newest_inside(r) for r in reqs}
+    held = _held(manifest)
+    found = W.newest("test", asked=lambda _index, name: {Version(v) for v in held[name]}, pyproject=manifest)
+    assert found == {W.Requirement(r).name: Version(newest_inside(r)) for r in reqs}
     with pytest.raises(LookupError, match="NO release"):
-        W.newest("test", asked=lambda _index, _name: {Version("0.1.0")}, pyproject=manifest)
+        W.newest("test", asked=lambda _index, _name: {Version(NEVER_INSIDE)}, pyproject=manifest)

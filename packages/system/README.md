@@ -306,8 +306,9 @@ that is a file.
 With `--changes-since PREVIOUS_STARTERS` nothing is written:
 the command lists which release-owned files this release changed in an
 existing tree, given the previous release's `starters/` directory (its
-wheel's `cs_image_system/system/starters`; `just take` finds it with `uvx
---from cs-image-system==<previous> python -c ...`), in either layout: a
+wheel's `cs_image_system/system/starters`; `just take` finds it with
+`uvx`, the install form's index options and `--from
+cs-image-system==<previous> python -c ...`), in either layout: a
 skeleton with overlays, or whole trees with their `tfmodules/` inside.
 This release's side is the rendered starter plus the installed plugins'
 modules as they sit in the tree's modules directory; the stamps are part

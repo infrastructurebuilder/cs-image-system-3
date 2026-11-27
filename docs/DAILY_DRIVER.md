@@ -181,8 +181,10 @@ to go on deliberately. A dry run (`just dry`) and `just validate` commit
 nothing and are never held. If the command is the pinned version from
 the index (`just take` leaves it so; so does `uv run` beside a
 `pyproject.toml` whose lock resolves the pinned version) you will never
-see the refusal. You will after `uv tool upgrade cs-image-system` on its
-own: the command moved and the pin did not, and `just take <version>`
+see the refusal. You will when the installed command and the pin part
+ways, for example after installing another release by hand (`uv tool
+upgrade` does not do it: it leaves a pinned install where it is):
+the command moved and the pin did not, and `just take <version>`
 moves the pin to match. One more command is held the same way, `lineage
 restamp --commit` under `--no-dry-run` (its lines begin `lineage restamp
 --commit:`): a restamp records the fingerprints the code running
@@ -1121,7 +1123,7 @@ below; this is the order a person meets them.
 | Rotate the admin key | add the new key, bake, upgrade every instance, remove the old key, repeat | "Rotate the admin key" |
 | Move a root's state | change `state_configuration`, `just cli --no-dry-run run <lifecycle> --migrate-state <root>` | backs up, copies, accepts only a clean plan at the new location, records the move |
 | Adopt something made by hand | `just cli state import`; for memberships, `tofu import` then a no-op apply | "Adopt out-of-band group membership". An adopted image counts as current when its tagged fingerprint matches today's inputs, so it is not baked again; it carries no in-bake record, so the release grace does not cover it |
-| Upgrade the system | `just take <version>` (guard, before-tag, install, sessions, refresh what is safe, init, validate, commit, record, push `develop`; `main` pushes `main` too); or `uv tool upgrade cs-image-system` (or bump the pin and `uv lock`) and `.csis-version` for CI | `just validate`, `just dry`, and read the diff of `generated/`: an emission change is what a system upgrade looks like. A release that asks something of the tree is refused by `validate` until it is given: make the change in the same commit (section 1.1) |
+| Upgrade the system | `just take <version>` (guard, before-tag, install, sessions, refresh what is safe, init, validate, commit, record, push `develop`; `main` pushes `main` too); or, by hand, install the new release in the install form of section 1.1 (`uv tool upgrade` does not move a pinned install, and takes PyPI's 0.1.12 for an unpinned one), or bump the pin and `uv lock` beside a pyproject that depends on it, and `.csis-version` for CI | `just validate`, `just dry`, and read the diff of `generated/`: an emission change is what a system upgrade looks like. A release that asks something of the tree is refused by `validate` until it is given: make the change in the same commit (section 1.1) |
 
 Three habits keep changes safe. Dry-run first and read the script: a dry
 run regenerates and lists the commands the real run will execute -- it
