@@ -2530,7 +2530,12 @@ configuration that takes a release at its own pace. Its logic is
    the pin, init, validate, the commit, the record and one push.
 
 A release that refuses or fails runs no take, and says what the release
-says. A version TestPyPI does not list within the hour runs no take
+says. When the step that failed came after the release's own commit and
+tag (the commit that puts the families' ranges back, or a push), the
+release's line names the commands that are left, and a second line,
+`release-take: the take did not run either: ...`, names the take to run
+in the configuration once they are done and TestPyPI lists the version.
+A version TestPyPI does not list within the hour runs no take
 either: the release is done and pushed, and the line says to see how
 the publish run went (`just release-watch <version>`) and, once
 TestPyPI lists the version, names the take to run there. A take that
