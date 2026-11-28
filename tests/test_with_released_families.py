@@ -4,8 +4,10 @@
 
 """scripts/with-released-families: the one place that knows which of the
 umbrella's extras are released from their own repositories (spec 005), the
-options that layer them in from the index for one command, and the check a
-release asks first: that the index holds a release inside every range."""
+options that layer them in from the index for one command, and the two checks
+a release asks of it among its probes: that the tree names each family by a
+range, not by an exact pin a release left behind, and then that the index
+holds a release inside every range."""
 from __future__ import annotations
 
 import importlib.machinery
