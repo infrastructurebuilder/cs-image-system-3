@@ -89,8 +89,9 @@ def test_the_lighter_check_asks_the_venv_the_own_versions_testpypi_and_the_daemo
     assert refused.returncode == 1 and "test-quickstart" in refused.stdout and "nothing was changed" in refused.stdout
 
 
-def test_a_tree_left_pinned_ends_the_probes_before_testpypi_is_asked(tmp_path: Path):
-    """A family already pinned exactly is refused by name, with the remedy, before the index is asked."""
+def test_a_tree_left_pinned_ends_the_probes_before_the_families_are_asked_of_testpypi(tmp_path: Path):
+    """A family already pinned exactly is refused by name, with the remedy, before the families' check asks
+    TestPyPI for them (`--check`); the own-versions probe, which asks TestPyPI too, has run by then."""
     done = _probes(tmp_path, "light", pinned="x-fam==0.2.1")
     assert done.returncode == 1 and "x-fam==0.2.1" in done.stdout and "nothing was changed" in done.stdout
     assert f"{ELSEWHERE}: stubbed" not in done.stdout and "docker answers" not in done.stdout

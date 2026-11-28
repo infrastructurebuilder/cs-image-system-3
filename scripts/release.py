@@ -41,7 +41,8 @@ venv (``uv sync --all-extras --no-extra gcloud --no-extra okta --no-extra all``:
 venv behind the checkout); then the probes that need the venv (it is in
 step with the lock; every package whose version the release does not move
 is fresh on TestPyPI or held there as this tree's build; every family
-released elsewhere has a TestPyPI release inside the range the extras name;
+released elsewhere is named by a range in the tree, never by an exact pin a
+release left behind, and has a TestPyPI release inside that range;
 the SDK's surfaces; docker; under ``--full`` the live configuration and its
 sessions), the gate (the lighter check -- ``just test`` and the install
 check ``just test-quickstart``, the quickstart page's own commands against this tree's wheels -- by default; ``just full-test`` with the
@@ -62,7 +63,8 @@ tags are pushed at once), ``develop`` checked out, fast-forwarded to it and
 pushed (a maintenance branch: that branch and its tag pushed, ``develop``
 untouched), and the venv synced again. A failed step of the ending names
 itself and the commands that are left, and exits non-zero. The dry form
-(``yes``) asks the cheap probes and the venv's, prints every branch move,
+(``yes``) asks the cheap probes but the clean tree (it changes nothing, so an
+unclean tree does not stop it) and the venv's, prints every branch move,
 push and resync it would make, read from the refs, and changes nothing.
 
 ``release-take`` is the release, as ``release`` runs it, then a wait for
@@ -84,7 +86,8 @@ dry form: the release's dry form, then the wait and the take it would run.
 
 ``probes`` is what ``release`` asks first: the venv; the packages whose
 version it does not move (scripts/own-versions-current); the families
-released elsewhere (scripts/with-released-families --check test); the
+released elsewhere (scripts/with-released-families --pinned, then --check
+test); the
 surfaces; docker; for ``full`` the live configuration and its sessions;
 one line each.
 
@@ -183,8 +186,12 @@ ELSEWHERE_UNMET = ("the umbrella's extras name a family released from its own re
                    "fail -- release the family, or move the range in pyproject.toml -- nothing was changed")
 ELSEWHERE_PINNED = ("the tree already pins a family released from its own repository exactly ({pins}); a release "
                     "pins each range itself, at the family's newest TestPyPI release, and puts the range back after "
-                    "its tag, so a tree left pinned would ship that version again -- put the range back in "
-                    "pyproject.toml, run `uv lock` and commit both -- nothing was changed")
+                    "its tag, so a tree left pinned would ship that version again -- put the range back "
+                    "everywhere pyproject.toml names it (the family's own extra and `all`), run `uv lock` and "
+                    "commit both -- nothing was changed")
+#: the same probe when the manifest could not be read for it, after "<who>: "; no index is asked here
+ELSEWHERE_UNREAD = ("the families released elsewhere could not be read from pyproject.toml "
+                    "(scripts/with-released-families --pinned, above); nothing is guessed -- nothing was changed")
 ELSEWHERE_UNASKED = ("TestPyPI could not be asked whether it holds a release inside each range the umbrella's extras "
                      "name for a family released from its own repository (above); nothing is guessed -- nothing was "
                      "changed")
@@ -220,7 +227,8 @@ BACK = "the checkout is back on {branch}, and {cut} is where it was"
 NOT_BACK = "the checkout could not return to {branch} (git checkout {branch}, above); it is on {cut}"
 #: the dry form's venv verdict when it is behind: the real form syncs before it asks
 VENV_WILL_SYNC = "the venv is behind the checkout; the real form syncs it (uv sync --all-extras --no-extra gcloud --no-extra okta --no-extra all) before it asks"
-#: a failed step of the ending, after "<who>: ": the version is committed and tagged here, and on no index yet
+#: a failed step of the ending, after "<who>: ": the version is committed and tagged here, and published only
+#: by its tag's push, which may be the step that failed or one that went through before it
 ENDING_FAILED = ("{version} is committed and tagged v{version} here, but `{failed}` failed (above); nothing is on "
                  "TestPyPI until the tag is pushed; the rest, by hand: {rest}")
 #: a failed step between the tag and the ending, while the released families were put back on their ranges,
@@ -236,6 +244,9 @@ RELEASED = ("release: {version} is committed, tagged v{version} and pushed: {pus
 #: from the index page it cached before the upload unless told to ask afresh; every recipe's install honours it
 TAKE_ENV = {"UV_REFRESH": "1"}
 NO_TAKE_TREE = "no live configuration to take the release in at {root} ({why}) -- nothing was changed"
+#: what release-take adds when a step after the release's tag failed, after "release-take: "
+TAKE_LEFT = ("the take did not run either: once the rest above is done and TestPyPI lists cs-image-system {version} "
+             "(`just release-watch {version}` waits on the tag's runs), take it by hand: cd {root} && {command}")
 NOT_READ_BACK = ("the release ended, but the version it cut could not be read back here (v{version} is not tagged) "
                  "-- the take did not run; run it by hand: cd {root} && {command}")
 #: release-take's wait for the publish workflow's upload, after "release-take: "
@@ -408,6 +419,7 @@ class Family:
     index_interval: int = 30                          #: release-take's wait: seconds between asks of TestPyPI
     index_wait_minutes: int = 60                      #: and how long it waits at most
     planned: str = field(default="", init=False)      #: the version the last `release` call planned
+    cut_version: str = field(default="", init=False)  #: the version this run committed and tagged, once it has
 
     # --- helpers
 
@@ -552,7 +564,8 @@ class Family:
         """The advisory (specification 013, FR-002a), said before anything changes and never a refusal: the
         paths changed since the newest release tag whose message records a full proof (with none, since the
         first tag, and said so), when ``FULL_PROOF_PATHS`` lists one; and a take that pushes the reference's
-        main, an applying cycle there. Silent when neither holds."""
+        main, an applying cycle there. Silent when neither holds; with no release tag at all there is nothing
+        to measure from, and it says that."""
         reasons: list[str] = []
         tags = self.release_tags()
         proven = next((name for name, full in tags if full), "")
@@ -699,7 +712,7 @@ class Family:
             for line in (pinned.out + pinned.err).splitlines():
                 if line.strip():
                     self.say(line)
-            raise Refused(f"{who}: {ELSEWHERE_UNASKED}", 2)
+            raise Refused(f"{who}: {ELSEWHERE_UNREAD}", 2)
         left = [line.strip() for line in pinned.out.splitlines() if line.strip()]
         if left:
             raise Refused(f"{who}: {ELSEWHERE_PINNED.format(pins=', '.join(left))}", 1)
@@ -731,8 +744,9 @@ class Family:
         and a venv behind the checkout answers with stale metadata; every package whose version the release does
         not move is fresh on TestPyPI or held there as this tree's build (`own_versions_or_refuse`: an index never
         takes a second build under a version, so a changed package without its own bump would be refused at the
-        publish workflow's upload, after the tag); every family released from its own repository is on TestPyPI
-        inside the range the extras name (`released_elsewhere_or_refuse`); the SDK's surfaces; docker answers (the
+        publish workflow's upload, after the tag); every family released from its own repository is named by a
+        range in the tree, not by an exact pin a release left behind, and is on TestPyPI inside that range
+        (`released_elsewhere_or_refuse`); the SDK's surfaces; docker answers (the
         install check of the lighter check and full-test's legs both need it). Under the full proof (``True``,
         ``full`` or ``--full``) also: the live configuration is present and every runtime session of it is present
         (`just preflight`, the gate full-test itself uses: without it the live legs would be skipped, which a
@@ -848,6 +862,9 @@ class Family:
         done = self.run(["uv", "run", "--no-sync", "python", str(HERE / "with-released-families"), "--newest", INDEX],
                         cwd=self.root)
         if done.rc != 0:
+            for line in (done.out + done.err).splitlines():
+                if line.strip():
+                    self.say(line)
             raise Refused(f"{who}: the released families' newest TestPyPI releases could not be read (above) -- the "
                           "umbrella cannot name them exactly; the bump is uncommitted", done.rc)
         pins = dict(line.split("==", 1) for line in done.out.split() if "==" in line)
@@ -909,6 +926,7 @@ class Family:
             done = self.git(*cmd)
             if done.rc != 0:
                 raise Refused((done.err + done.out).strip() or f"release: git {cmd[0]} failed", done.rc)
+        self.cut_version = version
 
     def closing_line(self, cut: str, version: str) -> str:
         """What the ending pushed and moved, as the commands it ran (the resync is said apart)."""
@@ -1038,7 +1056,14 @@ class Family:
         dry = "yes" in said
         self.take_tree_or_refuse()
         root = self.sibling.path
-        self.release(target, *(w for w in ("--full", "yes") if w in said), applying=main)
+        try:
+            self.release(target, *(w for w in ("--full", "yes") if w in said), applying=main)
+        except Refused as e:
+            if not self.cut_version:
+                raise
+            # this run made the release's commit and tag and a step after them failed: the take is left as well
+            left = TAKE_LEFT.format(version=self.cut_version, root=root, command=take_line(self.cut_version, main))
+            raise Refused((e.message + "\n" if e.message else "") + f"release-take: {left}", e.code) from None
         if dry:
             self.say(f"release-take: {WOULD.format(command=' '.join(self.knows_command(self.planned)) + ' (until TestPyPI lists it)')}")
             self.say(f"release-take: {WOULD.format(command=f'cd {root} && {take_line(self.planned, main)}')}")

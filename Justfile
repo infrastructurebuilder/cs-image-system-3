@@ -99,7 +99,8 @@ full-test: test
 # records it in the tag's message; without it the gate is the lighter check, `test` and
 # `test-quickstart`, the quickstart page's own commands (it needs a container daemon). `yes` is the dry form: the probes, the
 # advisory, the version, and every move and push it would make; nothing changed. A refusal
-# before the bump returns the checkout to the branch it started on. After the tag: `git push
+# before the bump returns the checkout to the branch it started on. After the tag: the families'
+# ranges put back in a commit of their own, then `git push
 # origin main v<version>` (main and its own tag by name, so no other local tag travels: GitHub
 # starts no tag run when more than three tags are pushed at once), develop checked out,
 # fast-forwarded to main and pushed, and the venv synced again (a maintenance branch: that

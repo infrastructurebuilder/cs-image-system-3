@@ -38,13 +38,16 @@ builds its own ``uv run``. ``--check INDEX`` asks the index (``test``,
 TestPyPI, or ``pypi``) whether it holds a release inside every such range, a
 line each, the newest one named: 0 when every range is met, 1 when one is not
 (the umbrella would name a family no one can install), 2 when the index
-could not be asked (nothing is guessed). A release asks it first.
+could not be asked (nothing is guessed). A release asks it among its probes,
+after ``--pinned``.
 ``--newest INDEX`` prints, one a line, ``<name>==<version>`` for the newest
 release inside each such range, with the same exits: a release pins its
 umbrella's extras to them (specification 013, D1). ``--pinned`` prints, one a
-line, each such requirement that is an exact pin already: a release's own
+line, each requirement on such a name that is an exact pin already, in
+whichever extra it stands (the family's own, or ``all``): a release's own
 commit holds them so, and the tree between releases must not, since a release
-leaves an exact pin as it finds it; a release refuses a tree that prints any.
+leaves an exact pin as it finds it; a release asks this first of the two and
+refuses a tree that prints any.
 """
 from __future__ import annotations
 
@@ -59,6 +62,7 @@ from collections.abc import Callable
 from pathlib import Path
 
 from packaging.requirements import Requirement
+from packaging.utils import canonicalize_name
 from packaging.version import InvalidVersion, Version
 
 REPO = Path(__file__).resolve().parents[1]
@@ -170,10 +174,20 @@ def newest(index: str, *, asked: Callable[[str, str], set[Version]] = published,
 
 
 def pinned(pyproject: Path = REPO / "pyproject.toml") -> list[str]:
-    """The released-elsewhere requirements that are exact pins, as the manifest writes them: all of them in a
-    release's own commit, none in the tree between releases."""
-    return [text for text in requirements(pyproject)
-            if any(spec.operator in ("==", "===") for spec in Requirement(text).specifier)]
+    """Every requirement on a released-elsewhere name that is an exact pin, as the manifest writes it, each
+    once: all of them in a release's own commit, none in the tree between releases. Every extra is read, not
+    the families' own alone: ``all`` names each family too, and a pin left there alone is as stale."""
+    names = {canonicalize_name(Requirement(text).name) for text in requirements(pyproject)}
+    extras = tomllib.loads(pyproject.read_text())["project"]["optional-dependencies"]
+    found: list[str] = []
+    for members in extras.values():
+        for text in members:
+            req = Requirement(text)
+            exact = any(spec.operator == "===" or (spec.operator == "==" and not spec.version.endswith(".*"))
+                        for spec in req.specifier)
+            if exact and canonicalize_name(req.name) in names and text not in found:
+                found.append(text)
+    return found
 
 
 def print_newest(index: str) -> int:

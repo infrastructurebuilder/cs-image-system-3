@@ -1330,3 +1330,52 @@ def test_a_tree_left_pinned_is_refused_before_anything_changes(tmp_path: Path, d
     assert shell.count("just test") == 0 and shell.count("git push") == 0
     assert (_refs(root), _refs(_remote(root)), _files(root)) == (refs, remote, files)
     assert _head(root) == "develop"
+
+
+def test_a_pinned_probe_that_cannot_read_the_manifest_is_refused_as_that_and_not_as_the_index(tmp_path: Path):
+    """`--pinned` asks no index: when it fails, its lines are said and the refusal names the manifest."""
+    root = _system_repo(tmp_path, branch="develop", develop_ahead=True)
+    said: list[str] = []
+    shell = FakeShell([*_answers(root), ("with-released-families --pinned", R.Done(3, "", "tomllib: bad table\n"))])
+    with pytest.raises(R.Refused) as e:
+        _family(root, shell, said=said).release("patch", "yes")
+    assert e.value.code == 2 and e.value.message == f"release: {R.ELSEWHERE_UNREAD}"
+    assert "tomllib: bad table" in said and "TestPyPI" not in e.value.message
+    assert shell.count("with-released-families --check") == 0
+
+
+def test_the_newest_releases_that_cannot_be_read_have_their_lines_said_first(tmp_path: Path):
+    """The pin step's refusal says "(above)": the script's own lines are said before it."""
+    root = _system_repo(tmp_path)
+    _a_family_released_elsewhere(root)
+    said: list[str] = []
+    line = "with-released-families: the test index could not be asked: x-fam: timed out"
+    shell = FakeShell([*_answers(root), ("with-released-families --newest test", R.Done(2, "", line + "\n"))])
+    with pytest.raises(R.Refused) as e:
+        _family(root, shell, said=said).release("patch")
+    assert e.value.code == 2 and "(above)" in e.value.message and line in said
+    assert _git(root, "tag", "-l") == ""                                         # before the commit and the tag
+
+
+def test_release_take_names_the_take_when_a_step_after_the_tag_fails(tmp_path: Path):
+    """The release is committed and tagged and a push is refused: what is left by hand is the ending's rest,
+    and then the take, which `release-take` would have run next. A refusal before the tag adds nothing."""
+    root, sibling, shell, _said, fam = _take_world(tmp_path)
+    _refuse_pushes_to(root, "refs/heads/main")
+    with pytest.raises(R.Refused) as e:
+        fam.release_take("patch", "main")
+    version = "0.1.1.dev1"
+    first, _, last = e.value.message.partition("\n")
+    assert first == "release: " + R.ENDING_FAILED.format(                        # the refused push, as `release` says it
+        version=version, failed=" ".join(ENDING_MAIN[0]), rest=" && ".join(" ".join(c) for c in ENDING_MAIN))
+    assert last == "release-take: " + R.TAKE_LEFT.format(version=version, root=sibling,
+                                                         command=R.take_line(version, True))
+    assert not any(c[:2] == ["just", "take"] for c in shell.calls)
+
+    early = tmp_path / "early"
+    early.mkdir()
+    root2, _sibling2, shell2, _said2, fam2 = _take_world(early, ("publish-target-ready", R.Done(75)))
+    with pytest.raises(R.Refused) as e2:
+        fam2.release_take("patch")
+    assert "release-take:" not in e2.value.message and "by hand" not in e2.value.message
+    assert _git(root2, "tag", "-l") == "" and fam2.cut_version == ""

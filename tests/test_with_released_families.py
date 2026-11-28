@@ -132,6 +132,19 @@ def test_pinned_names_the_requirements_that_are_exact_pins(manifest: Path, tmp_p
     assert printed.stdout.split() == W.pinned()
 
 
+def test_a_pin_left_in_another_extra_alone_is_named(tmp_path: Path):
+    """``all`` names each family too: a pin left there, with the family's own extra back on its range, is as
+    stale and is named. A pin on a package that is no family's, and a wildcard, are not exact pins of one."""
+    import json
+    extras = {"gcloud": ["fam-a>=0.2,<0.3"], "okta": ["fam-b>=0.2,<0.3"],
+              "all": ["fam-a>=0.2,<0.3", "fam-b==0.2.1", "other==1.0"], "more": ["fam-a==0.2.*", "Fam_B===0.2.0"]}
+    manifest = tmp_path / "pyproject.toml"
+    manifest.write_text("[project]\nname = \"x\"\n\n[project.optional-dependencies]\n"
+                        + "".join(f"{name} = {json.dumps(members)}\n" for name, members in extras.items()))
+    assert W.requirements(manifest) == ["fam-a>=0.2,<0.3", "fam-b>=0.2,<0.3"]      # the families' own extras: ranges
+    assert W.pinned(manifest) == ["fam-b==0.2.1", "Fam_B===0.2.0"]
+
+
 def test_a_command_is_needed():
     done = subprocess.run([sys.executable, str(SCRIPT)], capture_output=True, text=True)
     assert done.returncode == 2 and "name the command" in done.stderr
