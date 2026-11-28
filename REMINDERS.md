@@ -99,6 +99,24 @@ own then.
   [specification 011](specs/011-engine-owns-its-entry-points/spec.md)
   (open until it is complete)
 
+### Specification 013: one convergence check
+
+**Raise once the next release of this repository is out** (its tag
+pushed and the runs it started finished). The operator, 2026-11-28, on
+closing [specification 013](specs/013-testpypi-until-1-0/spec.md): "I
+want you to remember to check 013 for convergence one time after we do
+the next release." The specification is closed with two conditions of
+the definition of done not holding: a `/speckit-converge` run after its
+last task (T093), and a release whose runs all pass. Run
+`/speckit-converge 013` once, and read that release's runs with it. If
+the run appends no task and the runs are green, the specification is
+complete: set its row in [specs/README.md](specs/README.md) (✅ and the
+date) and its status line. It is one run whatever it finds: report it,
+write the outcome below and stop; a further run is the operator's to ask
+for.
+
+- After the next release: (open)
+
 ## After specification 008
 
 ### A specification to take the Okta plugin past read-only
