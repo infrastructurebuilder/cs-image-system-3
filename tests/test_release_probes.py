@@ -94,6 +94,7 @@ def test_a_tree_left_pinned_ends_the_probes_before_the_families_are_asked_of_tes
     TestPyPI for them (`--check`); the own-versions probe, which asks TestPyPI too, has run by then."""
     done = _probes(tmp_path, "light", pinned="x-fam==0.2.1")
     assert done.returncode == 1 and "x-fam==0.2.1" in done.stdout and "nothing was changed" in done.stdout
+    assert f"{OWN}: stubbed" in done.stdout                                  # the own-versions probe ran first
     assert f"{ELSEWHERE}: stubbed" not in done.stdout and "docker answers" not in done.stdout
 
 
